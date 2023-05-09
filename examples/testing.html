@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+<head>
+	<script src="../src/d3d11.js"></script>
+	
+</head>
+<body>
+	<h1>D3D11.js Test</h1>
+
+	<canvas id="viewport" width="800" height="600"></canvas>
+
+	<script>
+
+		// Init the API
+		var device = D3D11CreateDevice(document.querySelector("#viewport"));
+		var context = D3D11CreateDeviceContext(device);
+		var swapChain = DXGICreateSwapChain(device);
+
+		// Make an RTV of the back buffer
+		var rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
+
+		// Clear the RTV
+		var cornflowerBlue = [0.39, 0.58, 0.93, 1];
+		context.ClearRenderTargetView(rtv, cornflowerBlue);
+
+	</script>
+</body>
+</html>
+
