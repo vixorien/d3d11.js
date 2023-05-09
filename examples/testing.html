@@ -11,6 +11,7 @@
 
 	<script>
 
+	
 		// Init the API
 		var device = D3D11CreateDevice(document.querySelector("#viewport"));
 		var context = D3D11CreateDeviceContext(device);
@@ -25,11 +26,68 @@
 
 		// Create a vertex buffer
 		var vbDesc = new D3D11_BUFFER_DESC(3 * 3 * 4, D3D11_USAGE.D3D11_USAGE_IMMUTABLE, 0);
-		var vertices = new Float32Array(
+		var vertices = new Float32Array([
 			0, 0.5, 0,
-			0.5, 1.5, 0,
-			-0.5, 1.5, 0);
+			0.5, -0.5, 0,
+			-0.5, -0.5, 0]);
+		
 		var vb = device.CreateBuffer(vbDesc, vertices);
+
+		context.IASetVertexBuffers(0, 1, [vb], 0, 0);
+
+		// TESTING ------------------------------------------------
+		function compileShader(gl, shaderCode, type)
+		{
+			var shader = gl.createShader(type);
+			gl.shaderSource(shader, shaderCode);
+			gl.compileShader(shader);
+			var success = gl.getShaderParameter(shader, gl.COMPILE_STATUS);
+			if (!success)
+			{
+				alert("ERROR compiling shader: " + gl.getShaderInfoLog(shader));
+			}
+
+			return shader;
+		}
+
+		function createProgram(gl, vs, ps)
+		{
+			var program = gl.createProgram();
+			gl.attachShader(program, vs);
+			gl.attachShader(program, ps);
+			gl.linkProgram(program);
+			gl.validateProgram(program);
+			var success = gl.getProgramParameter(program, gl.LINK_STATUS);
+			if (!success)
+			{
+				alert("ERROR linking shaders: " + gl.getProgramInfoLog(program));
+			}
+			return program;
+		}
+
+		var gl = device.GetAdapter();
+
+		// Test GLSL shaders
+		var vsCode = "attribute vec3 a_position; void main() { gl_Position = vec4(a_position, 1); }";
+		var psCode = "void main() { gl_FragColor = vec4(1,0,0,1); }";
+
+		var vs = compileShader(gl, vsCode, gl.VERTEX_SHADER);
+		var ps = compileShader(gl, psCode, gl.FRAGMENT_SHADER);
+
+		var prog = createProgram(gl, vs, ps);
+
+		gl.useProgram(prog);
+		
+		// Input layout stuff
+		var positionAttributeLocation = gl.getAttribLocation(prog, "a_position");
+
+		gl.enableVertexAttribArray(positionAttributeLocation);
+
+		gl.vertexAttribPointer(positionAttributeLocation, 3, gl.FLOAT, false, 0, 0);
+
+		
+		gl.drawArrays(gl.TRIANGLES, 0, 3);
+
 
 	</script>
 </body>

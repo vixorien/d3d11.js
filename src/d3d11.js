@@ -99,6 +99,7 @@ class ID3D11Device extends IUnknown
 		return new ID3D11RenderTargetView(this, resource);
 	}
 
+	// TODO: Create ID3D11Buffer object to hold GL buffer
 	// TODO: Respect buffer desc, use SubresourceData struct for initial data to match d3d spec
 	// TODO: Ensure array types for initial data? 
 	CreateBuffer(bufferDesc, initialData)
@@ -109,7 +110,7 @@ class ID3D11Device extends IUnknown
 		// Create and bind new buffer
 		var buffer = this.gl.createBuffer();
 		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer);
-
+		
 		// Any initial data?
 		if (initialData == null)
 			this.gl.bufferData(this.gl.ARRAY_BUFFER, bufferDesc.ByteWidth, this.gl.STATIC_DRAW); // TODO: Static vs. dynamic?  Check usage in desc?
@@ -151,6 +152,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Reset old framebuffer if necessary
 		if (prevRT != rtvResource)
 			this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, prevRT);
+	}
+
+	// TODO: Actually use params
+	IASetVertexBuffers(startSlot, numBuffers, buffers, strides, offsets)
+	{
+		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffers[0]);
 	}
 }
 
