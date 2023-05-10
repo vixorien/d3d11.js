@@ -11,6 +11,8 @@
 
 	<script>
 
+		// Some quick vars
+		var float32Size = Float32Array.BYTES_PER_ELEMENT;
 	
 		// Init the API
 		var device = D3D11CreateDevice(document.querySelector("#viewport"));
@@ -28,15 +30,25 @@
 		var vertCount = 3;
 		var vertSize = 7;
 		var floatSize = 4;
-		var vbDesc = new D3D11_BUFFER_DESC(vertCount * vertSize * floatSize, D3D11_USAGE.D3D11_USAGE_IMMUTABLE, 0);
+		var vbDesc = new D3D11_BUFFER_DESC(vertCount * vertSize * floatSize, D3D11_USAGE_IMMUTABLE, 0, 0, 0, 0);
 		var vertices = new Float32Array([
 			0, 0.5, 0,     1,0,0,1,
 			0.5, -0.5, 0,  0,1,0,1,
 			-0.5, -0.5, 0, 0,0,1,1]);
 		
 		var vb = device.CreateBuffer(vbDesc, vertices);
+		var vbStride = float32Size * 7;
+		var vbOffset = 0;
 
-		context.IASetVertexBuffers(0, 1, [vb], 0, 0);
+		context.IASetVertexBuffers(0, [vb], [vbStride], [vbOffset]);
+
+		// Create an input layout
+		var inputElements = [];
+		inputElements[0] = new D3D11_INPUT_ELEMENT_DESC("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0); 
+		inputElements[1] = new D3D11_INPUT_ELEMENT_DESC("COLOR", 0, DXGI_FORMAT_R32G32B32A32_FLOAT, 0, 3 * float32Size, D3D11_INPUT_PER_VERTEX_DATA, 0);
+		var inputLayout = device.CreateInputLayout(inputElements);
+		context.IASetInputLayout(inputLayout);
+
 
 		// TESTING ------------------------------------------------
 		function compileShader(gl, shaderCode, type)
@@ -82,17 +94,19 @@
 		gl.useProgram(prog);
 		
 		// Input layout stuff
-		var posAttrLoc = gl.getAttribLocation(prog, "a_position");
-		var colorAttrLoc = gl.getAttribLocation(prog, "a_color");
-		
-		gl.vertexAttribPointer(posAttrLoc, 3, gl.FLOAT, false, 7 * 4, 0);
-		gl.vertexAttribPointer(colorAttrLoc, 4, gl.FLOAT, false, 7 * 4, 3 * 4);
-		
-		gl.enableVertexAttribArray(posAttrLoc);
-		gl.enableVertexAttribArray(colorAttrLoc);
+		//var posAttrLoc = gl.getAttribLocation(prog, "a_position");
+		//var colorAttrLoc = gl.getAttribLocation(prog, "a_color");
 
-		
-		gl.drawArrays(gl.TRIANGLES, 0, 3);
+		//gl.vertexAttribPointer(posAttrLoc, 3, gl.FLOAT, false, 7 * 4, 0);
+		//gl.vertexAttribPointer(colorAttrLoc, 4, gl.FLOAT, false, 7 * 4, 3 * 4);
+
+		//gl.enableVertexAttribArray(posAttrLoc);
+		//gl.enableVertexAttribArray(colorAttrLoc);
+
+
+		//gl.drawArrays(gl.TRIANGLES, 0, 3);
+
+		context.Draw(3, 0);
 
 
 	</script>

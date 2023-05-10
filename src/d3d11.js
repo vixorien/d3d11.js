@@ -2,6 +2,8 @@
 // See: https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3d11-graphics-reference-returnvalues
 // See: https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-error
 
+// WebGL2 state diagram: https://webgl2fundamentals.org/webgl/lessons/resources/webgl-state-diagram.html
+
 // Random webgl notes:
 //
 // Drawing
@@ -11,7 +13,216 @@
 
 
 
-// Need global functions to init API
+// -----------------------------------------------------
+// ------------- "Enums" & Other Constants -------------
+// -----------------------------------------------------
+
+// Appending elements to an input layout
+const D3D11_APPEND_ALIGNED_ELEMENT = 4294967295; // Highest unsigned int32
+
+// Type of data contained in an input slot
+const D3D11_INPUT_PER_VERTEX_DATA = 0;
+const D3D11_INPUT_PER_INSTANCE_DATA = 1;
+
+// Identifies the type of resource being used
+const D3D11_RESOURCE_DIMENSION_UNKNOWN = 0;
+const D3D11_RESOURCE_DIMENSION_BUFFER = 1;
+const D3D11_RESOURCE_DIMENSION_TEXTURE1D = 2;
+const D3D11_RESOURCE_DIMENSION_TEXTURE2D = 3;
+const D3D11_RESOURCE_DIMENSION_TEXTURE3D = 4;
+
+// Identifies expected resource use during rendering
+const D3D11_USAGE_DEFAULT = 0;
+const D3D11_USAGE_IMMUTABLE = 1;
+const D3D11_USAGE_DYNAMIC = 2;
+const D3D11_USAGE_STAGING = 3;
+
+// Resource data formats
+// NOTE: This is a direct copy/paste from docs; most are probably unnecessary
+const DXGI_FORMAT_UNKNOWN = 0;
+const DXGI_FORMAT_R32G32B32A32_TYPELESS = 1;
+const DXGI_FORMAT_R32G32B32A32_FLOAT = 2;
+const DXGI_FORMAT_R32G32B32A32_UINT = 3;
+const DXGI_FORMAT_R32G32B32A32_SINT = 4;
+const DXGI_FORMAT_R32G32B32_TYPELESS = 5;
+const DXGI_FORMAT_R32G32B32_FLOAT = 6;
+const DXGI_FORMAT_R32G32B32_UINT = 7;
+const DXGI_FORMAT_R32G32B32_SINT = 8;
+const DXGI_FORMAT_R16G16B16A16_TYPELESS = 9;
+const DXGI_FORMAT_R16G16B16A16_FLOAT = 10;
+const DXGI_FORMAT_R16G16B16A16_UNORM = 11;
+const DXGI_FORMAT_R16G16B16A16_UINT = 12;
+const DXGI_FORMAT_R16G16B16A16_SNORM = 13;
+const DXGI_FORMAT_R16G16B16A16_SINT = 14;
+const DXGI_FORMAT_R32G32_TYPELESS = 15;
+const DXGI_FORMAT_R32G32_FLOAT = 16;
+const DXGI_FORMAT_R32G32_UINT = 17;
+const DXGI_FORMAT_R32G32_SINT = 18;
+const DXGI_FORMAT_R32G8X24_TYPELESS = 19;
+const DXGI_FORMAT_D32_FLOAT_S8X24_UINT = 20;
+const DXGI_FORMAT_R32_FLOAT_X8X24_TYPELESS = 21;
+const DXGI_FORMAT_X32_TYPELESS_G8X24_UINT = 22;
+const DXGI_FORMAT_R10G10B10A2_TYPELESS = 23;
+const DXGI_FORMAT_R10G10B10A2_UNORM = 24;
+const DXGI_FORMAT_R10G10B10A2_UINT = 25;
+const DXGI_FORMAT_R11G11B10_FLOAT = 26;
+const DXGI_FORMAT_R8G8B8A8_TYPELESS = 27;
+const DXGI_FORMAT_R8G8B8A8_UNORM = 28;
+const DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29;
+const DXGI_FORMAT_R8G8B8A8_UINT = 30;
+const DXGI_FORMAT_R8G8B8A8_SNORM = 31;
+const DXGI_FORMAT_R8G8B8A8_SINT = 32;
+const DXGI_FORMAT_R16G16_TYPELESS = 33;
+const DXGI_FORMAT_R16G16_FLOAT = 34;
+const DXGI_FORMAT_R16G16_UNORM = 35;
+const DXGI_FORMAT_R16G16_UINT = 36;
+const DXGI_FORMAT_R16G16_SNORM = 37;
+const DXGI_FORMAT_R16G16_SINT = 38;
+const DXGI_FORMAT_R32_TYPELESS = 39;
+const DXGI_FORMAT_D32_FLOAT = 40;
+const DXGI_FORMAT_R32_FLOAT = 41;
+const DXGI_FORMAT_R32_UINT = 42;
+const DXGI_FORMAT_R32_SINT = 43;
+const DXGI_FORMAT_R24G8_TYPELESS = 44;
+const DXGI_FORMAT_D24_UNORM_S8_UINT = 45;
+const DXGI_FORMAT_R24_UNORM_X8_TYPELESS = 46;
+const DXGI_FORMAT_X24_TYPELESS_G8_UINT = 47;
+const DXGI_FORMAT_R8G8_TYPELESS = 48;
+const DXGI_FORMAT_R8G8_UNORM = 49;
+const DXGI_FORMAT_R8G8_UINT = 50;
+const DXGI_FORMAT_R8G8_SNORM = 51;
+const DXGI_FORMAT_R8G8_SINT = 52;
+const DXGI_FORMAT_R16_TYPELESS = 53;
+const DXGI_FORMAT_R16_FLOAT = 54;
+const DXGI_FORMAT_D16_UNORM = 55;
+const DXGI_FORMAT_R16_UNORM = 56;
+const DXGI_FORMAT_R16_UINT = 57;
+const DXGI_FORMAT_R16_SNORM = 58;
+const DXGI_FORMAT_R16_SINT = 59;
+const DXGI_FORMAT_R8_TYPELESS = 60;
+const DXGI_FORMAT_R8_UNORM = 61;
+const DXGI_FORMAT_R8_UINT = 62;
+const DXGI_FORMAT_R8_SNORM = 63;
+const DXGI_FORMAT_R8_SINT = 64;
+const DXGI_FORMAT_A8_UNORM = 65;
+const DXGI_FORMAT_R1_UNORM = 66;
+const DXGI_FORMAT_R9G9B9E5_SHAREDEXP = 67;
+const DXGI_FORMAT_R8G8_B8G8_UNORM = 68;
+const DXGI_FORMAT_G8R8_G8B8_UNORM = 69;
+const DXGI_FORMAT_BC1_TYPELESS = 70;
+const DXGI_FORMAT_BC1_UNORM = 71;
+const DXGI_FORMAT_BC1_UNORM_SRGB = 72;
+const DXGI_FORMAT_BC2_TYPELESS = 73;
+const DXGI_FORMAT_BC2_UNORM = 74;
+const DXGI_FORMAT_BC2_UNORM_SRGB = 75;
+const DXGI_FORMAT_BC3_TYPELESS = 76;
+const DXGI_FORMAT_BC3_UNORM = 77;
+const DXGI_FORMAT_BC3_UNORM_SRGB = 78;
+const DXGI_FORMAT_BC4_TYPELESS = 79;
+const DXGI_FORMAT_BC4_UNORM = 80;
+const DXGI_FORMAT_BC4_SNORM = 81;
+const DXGI_FORMAT_BC5_TYPELESS = 82;
+const DXGI_FORMAT_BC5_UNORM = 83;
+const DXGI_FORMAT_BC5_SNORM = 84;
+const DXGI_FORMAT_B5G6R5_UNORM = 85;
+const DXGI_FORMAT_B5G5R5A1_UNORM = 86;
+const DXGI_FORMAT_B8G8R8A8_UNORM = 87;
+const DXGI_FORMAT_B8G8R8X8_UNORM = 88;
+const DXGI_FORMAT_R10G10B10_XR_BIAS_A2_UNORM = 89;
+const DXGI_FORMAT_B8G8R8A8_TYPELESS = 90;
+const DXGI_FORMAT_B8G8R8A8_UNORM_SRGB = 91;
+const DXGI_FORMAT_B8G8R8X8_TYPELESS = 92;
+const DXGI_FORMAT_B8G8R8X8_UNORM_SRGB = 93;
+const DXGI_FORMAT_BC6H_TYPELESS = 94;
+const DXGI_FORMAT_BC6H_UF16 = 95;
+const DXGI_FORMAT_BC6H_SF16 = 96;
+const DXGI_FORMAT_BC7_TYPELESS = 97;
+const DXGI_FORMAT_BC7_UNORM = 98;
+const DXGI_FORMAT_BC7_UNORM_SRGB = 99;
+const DXGI_FORMAT_AYUV = 100;
+const DXGI_FORMAT_Y410 = 101;
+const DXGI_FORMAT_Y416 = 102;
+const DXGI_FORMAT_NV12 = 103;
+const DXGI_FORMAT_P010 = 104;
+const DXGI_FORMAT_P016 = 105;
+const DXGI_FORMAT_420_OPAQUE = 106;
+const DXGI_FORMAT_YUY2 = 107;
+const DXGI_FORMAT_Y210 = 108;
+const DXGI_FORMAT_Y216 = 109;
+const DXGI_FORMAT_NV11 = 110;
+const DXGI_FORMAT_AI44 = 111;
+const DXGI_FORMAT_IA44 = 112;
+const DXGI_FORMAT_P8 = 113;
+const DXGI_FORMAT_A8P8 = 114;
+const DXGI_FORMAT_B4G4R4A4_UNORM = 115;
+const DXGI_FORMAT_P208 = 130;
+const DXGI_FORMAT_V208 = 131;
+const DXGI_FORMAT_V408 = 132;
+
+// -----------------------------------------------------
+// ------------------- Descriptions --------------------
+// -----------------------------------------------------
+
+
+class D3D11_BUFFER_DESC
+{
+	ByteWidth;
+	Usage;
+	BindFlags;
+	CPUAccessFlags;
+	MiscFlags;
+	StructureByteStride;
+
+	constructor(
+		byteWidth,
+		usage,
+		bindFlags,
+		cpuAccessFlags,
+		miscFlags,
+		structureByteStride)
+	{
+		this.ByteWidth = byteWidth;
+		this.Usage = usage;
+		this.BindFlags = bindFlags;
+		this.CPUAccessFlags = cpuAccessFlags;
+		this.MiscFlags = miscFlags;
+		this.StructureByteStride = structureByteStride;
+	}
+}
+
+class D3D11_INPUT_ELEMENT_DESC 
+{
+	SemanticName;
+	SemanticIndex;
+	Format;
+	InputSlot;
+	AlignedByteOffset;
+	InputSlotClass;
+	InstanceDataStepRate;
+
+	constructor(
+		semanticName,
+		semanticIndex,
+		format,
+		inputSlot,
+		alignedByteOffset,
+		inputSlotClass,
+		instanceDataStepRate)
+	{
+		this.SemanticName = semanticName;
+		this.SemanticIndex = semanticIndex;
+		this.Format = format;
+		this.InputSlot = inputSlot;
+		this.AlignedByteOffset = alignedByteOffset;
+		this.InputSlotClass = inputSlotClass;
+		this.InstanceDataStepRate = instanceDataStepRate;
+	}
+}
+
+
+// -----------------------------------------------------
+// ----------------- API Initialization ----------------
+// -----------------------------------------------------
 
 function D3D11CreateDevice(canvas) // Canvas acts as the adapter here
 {
@@ -34,14 +245,10 @@ function DXGICreateSwapChain(device)
 	return new IDXGISwapChain(device);
 }
 
-// Currently UNUSED
-//class ComPtr
-//{
-//	#object = {};
+// -----------------------------------------------------
+// -------------- API Object Base Classes --------------
+// -----------------------------------------------------
 
-//	Get() { return this.object; }
-//	Set(obj) { this.object = obj; }
-//}
 
 class IUnknown
 {
@@ -49,14 +256,14 @@ class IUnknown
 	
 	AddRef()
 	{
-		this.refCount++;
-		return this.refCount;
+		this.#refCount++;
+		return this.#refCount;
 	}
 	
 	Release()
 	{
-		this.refCount--;
-		return this.refCount;
+		this.#refCount--;
+		return this.#refCount;
 	}
 }
 
@@ -68,15 +275,18 @@ class ID3D11DeviceChild extends IUnknown
 	constructor(device)
 	{
 		super();
-		this.device = device;
+		this.#device = device;
 	}
 
 	GetDevice()
 	{
-		return this.device;
+		return this.#device;
 	}
 }
 
+// -----------------------------------------------------
+// ----------------- Main API Objects ------------------
+// -----------------------------------------------------
 
 class ID3D11Device extends IUnknown
 {
@@ -85,12 +295,12 @@ class ID3D11Device extends IUnknown
 	constructor(gl)
 	{
 		super();
-		this.gl = gl;
+		this.#gl = gl;
 	}
 
 	GetAdapter()
 	{
-		return this.gl;
+		return this.#gl;
 	}
 
 	// TODO: Add description
@@ -99,27 +309,36 @@ class ID3D11Device extends IUnknown
 		return new ID3D11RenderTargetView(this, resource);
 	}
 
-	// TODO: Create ID3D11Buffer object to hold GL buffer
+
 	// TODO: Respect buffer desc, use SubresourceData struct for initial data to match d3d spec
 	// TODO: Ensure array types for initial data? 
 	CreateBuffer(bufferDesc, initialData)
 	{
-		// Grab previous buffer
-		var prevBuffer = this.gl.getParameter(this.gl.ARRAY_BUFFER_BINDING);
-
-		// Create and bind new buffer
-		var buffer = this.gl.createBuffer();
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffer);
+		// Create the gl buffer and final D3D buffer
+		var glBuffer = this.#gl.createBuffer();
+		var d3dBuffer = new ID3D11Buffer(this, bufferDesc, glBuffer);
+		
+		// Grab previous buffer before binding this one
+		var prevBuffer = this.#gl.getParameter(this.#gl.ARRAY_BUFFER_BINDING);
+		this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, glBuffer);
 		
 		// Any initial data?
 		if (initialData == null)
-			this.gl.bufferData(this.gl.ARRAY_BUFFER, bufferDesc.ByteWidth, this.gl.STATIC_DRAW); // TODO: Static vs. dynamic?  Check usage in desc?
+			this.#gl.bufferData(this.#gl.ARRAY_BUFFER, bufferDesc.ByteWidth, this.#gl.STATIC_DRAW); // TODO: Static vs. dynamic?  Check usage in desc?
 		else
-			this.gl.bufferData(this.gl.ARRAY_BUFFER, initialData, this.gl.STATIC_DRAW); // TODO: Verify size vs. description?
+			this.#gl.bufferData(this.#gl.ARRAY_BUFFER, initialData, this.#gl.STATIC_DRAW); // TODO: Verify size vs. description?
 
 		// Restore previous buffer and return new one
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, prevBuffer);
-		return buffer;
+		this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, prevBuffer);
+		return d3dBuffer;
+	}
+
+	// TODO: Verification of parameters?  Validate data as d3d11 does
+	// TODO: Any reason to actually compare against shader?
+	// NOTE: gl.MAX_VERTEX_ATTRIBS - maybe max descs?
+	CreateInputLayout(inputElementDescs)
+	{
+		return new ID3D11InputLayout(this, inputElementDescs);
 	}
 }
 
@@ -128,36 +347,142 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 {
 	#gl;
 
+	#inputAssemblerDirty;
+	#inputLayout;
+	#vertexBuffers;
+	#vertexBufferStrides;
+	#vertexBufferOffsets;
+	#indexBuffer;
+
+
+
 	constructor(device)
 	{
 		super(device);
-		this.gl = device.GetAdapter();
+		this.#gl = device.GetAdapter();
+
+		this.#vertexBuffers = [];
+		this.#vertexBufferStrides = [];
+		this.#vertexBufferOffsets = [];
+		this.#inputAssemblerDirty = true;
 	}
 
 
 	ClearRenderTargetView(rtv, color)
 	{
 		// Grab existing target and RTV
-		var prevRT = this.gl.getParameter(this.gl.FRAMEBUFFER_BINDING);
+		var prevRT = this.#gl.getParameter(this.#gl.FRAMEBUFFER_BINDING);
 		var rtvResource = rtv.GetResource();
 
 		// Bind the RTV if necessary
 		if (prevRT != rtvResource)
-			this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, rtvResource);
+			this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, rtvResource);
 		
 		// Clear
-		this.gl.clearColor(color[0], color[1], color[2], color[3]);
-		this.gl.clear(this.gl.COLOR_BUFFER_BIT);
+		this.#gl.clearColor(color[0], color[1], color[2], color[3]);
+		this.#gl.clear(this.#gl.COLOR_BUFFER_BIT);
 
 		// Reset old framebuffer if necessary
 		if (prevRT != rtvResource)
-			this.gl.bindFramebuffer(this.gl.FRAMEBUFFER, prevRT);
+			this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, prevRT);
+	}
+
+
+	IASetInputLayout(inputLayout)
+	{
+		this.#inputLayout = inputLayout;
+		this.#inputAssemblerDirty = true;
 	}
 
 	// TODO: Actually use params
-	IASetVertexBuffers(startSlot, numBuffers, buffers, strides, offsets)
+	// TODO: Limit num buffers to actual WebGL max
+	IASetVertexBuffers(startSlot, buffers, strides, offsets)
 	{
-		this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffers[0]);
+		// Reset existing vb data (see: https://stackoverflow.com/a/1232046)
+		this.#vertexBuffers.length = 0;
+		this.#vertexBufferStrides.length = 0;
+		this.#vertexBufferOffsets.length = 0;
+
+		// Save buffers in correct slots
+		for (var i = 0; i < buffers.length; i++)
+		{
+			this.#vertexBuffers[startSlot + i] = buffers[i];
+			this.#vertexBufferStrides[startSlot + i] = strides[i];
+			this.#vertexBufferOffsets[startSlot + i] = offsets[i];
+		}
+
+		//this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffers[0].GetGLResource());
+	}
+
+	// TODO: Handle instancing
+	// TODO: Error reporting if state isn't set
+	#PrepareInputAssembler()
+	{
+		if (!this.#inputAssemblerDirty)
+			return;
+		
+		// Handle each input element
+		var inputElementDescs = this.#inputLayout.GetInputElementDescs();
+		var currentBufferIndex = -1;
+		
+		for (var i = 0; i < inputElementDescs.length; i++)
+		{
+			// Grab this element and associated data
+			// TODO: bake format details into the input layout to save time here?
+			var ie = inputElementDescs[i];
+			var dataType = this.#GetDXGIFormatDataType(ie.Format);
+			var compCount = this.#GetDXGIFormatComponentCount(ie.Format);
+			
+			// Bind the correct buffer for this element
+			var bufferIndex = ie.InputSlot;
+			if (bufferIndex != currentBufferIndex) // TODO: Performance worry?  Or skip
+			{
+				this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, this.#vertexBuffers[bufferIndex].GetGLResource());
+				currentBufferIndex = bufferIndex;
+			}
+
+			// Enable this attribute and then set up the details
+			this.#gl.enableVertexAttribArray(i);
+			this.#gl.vertexAttribPointer(
+				i, // Index
+				compCount, // Component count (1 - 4)
+				dataType, // gl.FLOAT, gl.INT, etc.
+				false, // Normalized - only for non-float types
+				this.#vertexBufferStrides[bufferIndex],
+				this.#vertexBufferOffsets[bufferIndex] + ie.AlignedByteOffset); // TOOD: Verify this is correct
+		}
+
+		this.#inputAssemblerDirty = false;
+	}
+
+	// TODO: Prepare rest of pipeline
+	// TODO: Handle primitive topology
+	Draw(vertexCount, startVertexLocation)
+	{
+		this.#PrepareInputAssembler();
+
+		
+		this.#gl.drawArrays(gl.TRIANGLES, startVertexLocation, vertexCount);
+	}
+
+	// NOTE: Assuming floats only for now!
+	// TODO: Make this actually check!
+	#GetDXGIFormatDataType(format)
+	{
+		return this.#gl.FLOAT;
+	}
+
+	// NOTE: Assming only floats and only 1-4 for now!
+	#GetDXGIFormatComponentCount(format)
+	{
+		switch (format)
+		{
+			case DXGI_FORMAT_R32_FLOAT: return 1;
+			case DXGI_FORMAT_R32G32_FLOAT: return 2;
+			case DXGI_FORMAT_R32G32B32_FLOAT: return 3;
+			case DXGI_FORMAT_R32G32B32A32_FLOAT: return 4;
+			default: return 0;
+		}
 	}
 }
 
@@ -169,7 +494,7 @@ class IDXGISwapChain extends IUnknown
 	constructor(device)
 	{
 		super();
-		this.device = device;
+		this.#device = device;
 	}
 
 	GetBuffer()
@@ -181,43 +506,27 @@ class IDXGISwapChain extends IUnknown
 	}
 }
 
+
 // -----------------------------------------------------
-// ------------------- Descriptions --------------------
+// -------------------- API Objects --------------------
 // -----------------------------------------------------
 
-const D3D11_USAGE = {
-	D3D11_USAGE_DEFAULT: 0,
-	D3D11_USAGE_IMMUTABLE: 1,
-	D3D11_USAGE_DYNAMIC: 2,
-	D3D11_USAGE_STAGING: 3
-}
-
-class D3D11_BUFFER_DESC
+class ID3D11InputLayout extends ID3D11DeviceChild
 {
-	ByteWidth;
-	Usage;
-	BindFlags;
-	CPUAccessFlags;
-	MiscFlags;
-	StructureByteStride;
+	#inputElementDescs;
 
-	constructor(
-		byteWidth,
-		usage,
-		bindFlags,
-		cpuAccessFlags = 0,
-		miscFlags = 0,
-		structureByteStride = 0
-	)
+	constructor(device, inputElementDescs)
 	{
-		this.ByteWidth = byteWidth;
-		this.Usage = usage;
-		this.BindFlags = bindFlags;
-		this.CPUAccessFlags = cpuAccessFlags;
-		this.MiscFlags = miscFlags;
-		this.StructureByteStride = structureByteStride;
+		super(device);
+		this.#inputElementDescs = inputElementDescs;
+	}
+
+	GetInputElementDescs()
+	{
+		return this.#inputElementDescs.slice();
 	}
 }
+
 
 
 
@@ -228,30 +537,51 @@ class D3D11_BUFFER_DESC
 class ID3D11Resource extends ID3D11DeviceChild
 {
 	#desc;
+	#dimension;
+	#glResource;
 
-	constructor(device, description)
+	constructor(device, description, dimension, glResource)
 	{
 		super(device);
-		this.desc = description;
+		this.#desc = description;
+		this.#dimension = dimension;
+		this.#glResource = glResource;
+
+		// TODO: Enforce abstract
 	}
 
 	GetDesc()
 	{
-		return desc;
+		// Returns a copy so that we can't alter the original
+		return Object.assign({}, this.#desc);
+	}
+
+	GetType()
+	{
+		return this.#dimension;
+	}
+
+	GetGLResource()
+	{
+		return this.#glResource;
 	}
 }
 
 class ID3D11Buffer extends ID3D11Resource
 {
-	constructor(device, description)
+	constructor(device, description, glBuffer)
 	{
-		super(device, description);
+		super(device, description, D3D11_RESOURCE_DIMENSION_BUFFER, glBuffer);
 	}
+
 }
 
 class ID3D11Texture2D extends ID3D11Resource
 {
-
+	constructor(device, description)
+	{
+		super(device, description, D3D11_RESOURCE_DIMENSION_TEXTURE2D);
+	}
 }
 
 
@@ -266,12 +596,12 @@ class ID3D11View extends ID3D11DeviceChild
 	constructor(device, resource)
 	{
 		super(device);
-		this.resource = resource;
+		this.#resource = resource;
 	}
 
 	GetResource()
 	{
-		return this.resource;
+		return this.#resource;
 	}
 }
 
