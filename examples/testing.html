@@ -58,6 +58,7 @@
 		var indices = new Uint16Array([0, 1, 2, 0, 2, 3]);
 
 		var ib = device.CreateBuffer(ibDesc, indices);
+		context.IASetIndexBuffer(ib, DXGI_FORMAT_R16_UINT, 0);
 
 		// Create an input layout
 		var inputElements = [];
@@ -123,8 +124,8 @@
 
 		//gl.drawArrays(gl.TRIANGLES, 0, 3);
 
-		context.Draw(3, 0);
-
+		//context.Draw(3, 0);
+		context.DrawIndexed(6, 0, 0);
 
 	</script>
 </body>

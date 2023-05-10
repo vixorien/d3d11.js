@@ -334,12 +334,6 @@ class ID3D11Device extends IUnknown
 		var glBuffer = this.#gl.createBuffer();
 		var d3dBuffer = new ID3D11Buffer(this, bufferDesc, glBuffer);
 
-		// NOTE: Making an assumption here that we can bind the buffer
-		// as ARRAY_BUFFER just to fill it up with arbitrary data, then
-		// later bind it for its intended purpose (such as ARRAY_ELEMENT).
-		// Not sure if this will work, but it should simplify things
-		// if it does!
-
 		// Determine usage flag
 		// TODO: Analyze CPUAccessFlag to further refine these options
 		// See "usage" at: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/bufferData
@@ -355,18 +349,34 @@ class ID3D11Device extends IUnknown
 				break;
 		}
 
-		// Grab previous buffer before binding this one
-		var prevBuffer = this.#gl.getParameter(this.#gl.ARRAY_BUFFER_BINDING);
-		this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, glBuffer);
+		// TODO: Handle combinations of flags...
+		// - Maybe just disallow mixing index buffers with others?
+
+		// Determine the buffer type and store the previous buffer to restore
+		var bufferType;
+		var prevBuffer;
+		if (bufferDesc.BindFlags == D3D11_BIND_INDEX_BUFFER)
+		{
+			bufferType = this.#gl.ELEMENT_ARRAY_BUFFER;
+			prevBuffer = this.#gl.getParameter(this.#gl.ELEMENT_ARRAY_BUFFER_BINDING);
+		}
+		else
+		{
+			bufferType = this.#gl.ARRAY_BUFFER;
+			prevBuffer = this.#gl.getParameter(this.#gl.ARRAY_BUFFER_BINDING);
+		}
+
+		// Set this new buffer
+		this.#gl.bindBuffer(bufferType, glBuffer);
 		
 		// Any initial data?
 		if (initialData == null)
-			this.#gl.bufferData(this.#gl.ARRAY_BUFFER, bufferDesc.ByteWidth, usage);
+			this.#gl.bufferData(bufferType, bufferDesc.ByteWidth, usage);
 		else
-			this.#gl.bufferData(this.#gl.ARRAY_BUFFER, initialData, usage); // TODO: Verify size vs. description?
+			this.#gl.bufferData(bufferType, initialData, usage); // TODO: Verify size vs. description?
 
 		// Restore previous buffer and return new one
-		this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, prevBuffer);
+		this.#gl.bindBuffer(bufferType, prevBuffer);
 		return d3dBuffer;
 	}
 
@@ -525,8 +535,16 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	{
 		this.#PrepareInputAssembler();
 
+		// Get proper format
+		var format = this.#gl.UNSIGNED_SHORT;
+		switch (this.#indexBufferFormat)
+		{
+			case DXGI_FORMAT_R16_UINT: format = this.#gl.UNSIGNED_SHORT; break;
+			case DXGI_FORMAT_R32_UINT: format = this.#gl.UNSIGNED_INT; break;
+		}
+
 		// TODO: Vertify offset + startIndex thing
-		this.#gl.drawElements(gl.TRIANGLES, indexCount, this.#indexBufferOffset + startIndexLocation);
+		this.#gl.drawElements(gl.TRIANGLES, indexCount, format, this.#indexBufferOffset + startIndexLocation);
 	}
 
 	// NOTE: Assuming floats only for now!
