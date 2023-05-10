@@ -27,20 +27,37 @@
 		context.ClearRenderTargetView(rtv, cornflowerBlue);
 
 		// Create a vertex buffer
-		var vertCount = 3;
+		var vertCount = 4;
 		var vertSize = 7;
 		var floatSize = 4;
-		var vbDesc = new D3D11_BUFFER_DESC(vertCount * vertSize * floatSize, D3D11_USAGE_IMMUTABLE, 0, 0, 0, 0);
+		var vbDesc = new D3D11_BUFFER_DESC(
+			vertCount * vertSize * floatSize,
+			D3D11_USAGE_IMMUTABLE,
+			D3D11_BIND_VERTEX_BUFFER,
+			0, 0, 0);
 		var vertices = new Float32Array([
 			0, 0.5, 0,     1,0,0,1,
 			0.5, -0.5, 0,  0,1,0,1,
-			-0.5, -0.5, 0, 0,0,1,1]);
+			-0.5, -0.5, 0, 0,0,1,1,
+			-0.5, 0.5, 0,  1,1,1,1]);
 		
 		var vb = device.CreateBuffer(vbDesc, vertices);
 		var vbStride = float32Size * 7;
 		var vbOffset = 0;
-
 		context.IASetVertexBuffers(0, [vb], [vbStride], [vbOffset]);
+
+
+		// Create index buffer
+		var indexCount = 4;
+		var uintSize = Uint16Array.BYTES_PER_ELEMENT;
+		var ibDesc = new D3D11_BUFFER_DESC(
+			indexCount * uintSize,
+			D3D11_USAGE_IMMUTABLE,
+			D3D11_BIND_INDEX_BUFFER,
+			0, 0, 0);
+		var indices = new Uint16Array([0, 1, 2, 0, 2, 3]);
+
+		var ib = device.CreateBuffer(ibDesc, indices);
 
 		// Create an input layout
 		var inputElements = [];

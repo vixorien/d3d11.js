@@ -12,6 +12,9 @@
 //
 
 
+// General javascript thoughts:
+// - Description objects should always be copied (as if it were passed by value)
+
 
 // -----------------------------------------------------
 // ------------- "Enums" & Other Constants -------------
@@ -19,6 +22,18 @@
 
 // Appending elements to an input layout
 const D3D11_APPEND_ALIGNED_ELEMENT = 4294967295; // Highest unsigned int32
+
+// Identifies how to bind a resource to the pipeline
+const D3D11_BIND_VERTEX_BUFFER = 0x1;
+const D3D11_BIND_INDEX_BUFFER = 0x2;
+const D3D11_BIND_CONSTANT_BUFFER = 0x4;
+const D3D11_BIND_SHADER_RESOURCE = 0x8;
+const D3D11_BIND_STREAM_OUTPUT = 0x10;
+const D3D11_BIND_RENDER_TARGET = 0x20;
+const D3D11_BIND_DEPTH_STENCIL = 0x40;
+const D3D11_BIND_UNORDERED_ACCESS = 0x80;
+const D3D11_BIND_DECODER = 0x200;
+const D3D11_BIND_VIDEO_ENCODER = 0x400;
 
 // Type of data contained in an input slot
 const D3D11_INPUT_PER_VERTEX_DATA = 0;
@@ -310,23 +325,45 @@ class ID3D11Device extends IUnknown
 	}
 
 
-	// TODO: Respect buffer desc, use SubresourceData struct for initial data to match d3d spec
+	// TODO: Respect buffer desc
+	// TODO: Use SubresourceData struct for initial data to match d3d spec?
 	// TODO: Ensure array types for initial data? 
 	CreateBuffer(bufferDesc, initialData)
 	{
 		// Create the gl buffer and final D3D buffer
 		var glBuffer = this.#gl.createBuffer();
 		var d3dBuffer = new ID3D11Buffer(this, bufferDesc, glBuffer);
-		
+
+		// NOTE: Making an assumption here that we can bind the buffer
+		// as ARRAY_BUFFER just to fill it up with arbitrary data, then
+		// later bind it for its intended purpose (such as ARRAY_ELEMENT).
+		// Not sure if this will work, but it should simplify things
+		// if it does!
+
+		// Determine usage flag
+		// TODO: Analyze CPUAccessFlag to further refine these options
+		// See "usage" at: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/bufferData
+		var usage = this.#gl.STATIC_DRAW;
+		switch (bufferDesc.Usage)
+		{
+			case D3D11_USAGE_IMMUTABLE: usage = this.#gl.STATIC_DRAW; break;
+			case D3D11_USAGE_DYNAMIC: usage = this.#gl.DYNAMIC_DRAW; break;
+			case D3D11D3D11_USAGE_STAGING: usage = this.#gl.DYNAMIC_COPY; break; // ???
+			case D3D11_USAGE_DEFAULT:
+			default:
+				usage = this.#gl.STATIC_DRAW; // ???
+				break;
+		}
+
 		// Grab previous buffer before binding this one
 		var prevBuffer = this.#gl.getParameter(this.#gl.ARRAY_BUFFER_BINDING);
 		this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, glBuffer);
 		
 		// Any initial data?
 		if (initialData == null)
-			this.#gl.bufferData(this.#gl.ARRAY_BUFFER, bufferDesc.ByteWidth, this.#gl.STATIC_DRAW); // TODO: Static vs. dynamic?  Check usage in desc?
+			this.#gl.bufferData(this.#gl.ARRAY_BUFFER, bufferDesc.ByteWidth, usage);
 		else
-			this.#gl.bufferData(this.#gl.ARRAY_BUFFER, initialData, this.#gl.STATIC_DRAW); // TODO: Verify size vs. description?
+			this.#gl.bufferData(this.#gl.ARRAY_BUFFER, initialData, usage); // TODO: Verify size vs. description?
 
 		// Restore previous buffer and return new one
 		this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, prevBuffer);
@@ -349,10 +386,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	#inputAssemblerDirty;
 	#inputLayout;
+
 	#vertexBuffers;
 	#vertexBufferStrides;
 	#vertexBufferOffsets;
+
 	#indexBuffer;
+	#indexBufferFormat;
+	#indexBufferOffset;
 
 
 
@@ -365,6 +406,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#vertexBufferStrides = [];
 		this.#vertexBufferOffsets = [];
 		this.#inputAssemblerDirty = true;
+
+		this.#indexBuffer = null;
+		this.#indexBufferFormat = DXGI_FORMAT_R16_FLOAT;
+		this.#indexBufferOffset = 0;
 	}
 
 
@@ -394,6 +439,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#inputAssemblerDirty = true;
 	}
 
+	// TODO: Validate format! (and offset?)
+	IASetIndexBuffer(indexBuffer, format, offset)
+	{
+		this.#indexBuffer = indexBuffer;
+		this.#indexBufferFormat = format;
+		this.#indexBufferOffset = offset;
+	}
+
 	// TODO: Actually use params
 	// TODO: Limit num buffers to actual WebGL max
 	IASetVertexBuffers(startSlot, buffers, strides, offsets)
@@ -410,8 +463,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#vertexBufferStrides[startSlot + i] = strides[i];
 			this.#vertexBufferOffsets[startSlot + i] = offsets[i];
 		}
-
-		//this.gl.bindBuffer(this.gl.ARRAY_BUFFER, buffers[0].GetGLResource());
 	}
 
 	// TODO: Handle instancing
@@ -452,6 +503,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				this.#vertexBufferOffsets[bufferIndex] + ie.AlignedByteOffset); // TOOD: Verify this is correct
 		}
 
+		// Set index buffer
+		if (this.#indexBuffer != null)
+		{
+			this.#gl.bindBuffer(this.#gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer.GetGLResource());
+		}
+
 		this.#inputAssemblerDirty = false;
 	}
 
@@ -460,9 +517,16 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	Draw(vertexCount, startVertexLocation)
 	{
 		this.#PrepareInputAssembler();
-
 		
 		this.#gl.drawArrays(gl.TRIANGLES, startVertexLocation, vertexCount);
+	}
+
+	DrawIndexed(indexCount, startIndexLocation, baseVertexLocation)
+	{
+		this.#PrepareInputAssembler();
+
+		// TODO: Vertify offset + startIndex thing
+		this.#gl.drawElements(gl.TRIANGLES, indexCount, this.#indexBufferOffset + startIndexLocation);
 	}
 
 	// NOTE: Assuming floats only for now!
@@ -518,12 +582,23 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 	constructor(device, inputElementDescs)
 	{
 		super(device);
-		this.#inputElementDescs = inputElementDescs;
+
+		// Copy array of element descs and save
+		// TODO: Throw exception if param is not an array?
+		this.#inputElementDescs = this.#CopyDescriptions(inputElementDescs);
+	}
+
+	#CopyDescriptions(descriptionArray)
+	{
+		var descs = [];
+		for (var i = 0; i < descriptionArray.length; i++)
+			descs[i] = Object.assign({}, descriptionArray[i]);
+		return descs;
 	}
 
 	GetInputElementDescs()
 	{
-		return this.#inputElementDescs.slice();
+		return this.#CopyDescriptions(this.#inputElementDescs);
 	}
 }
 
@@ -543,7 +618,7 @@ class ID3D11Resource extends ID3D11DeviceChild
 	constructor(device, description, dimension, glResource)
 	{
 		super(device);
-		this.#desc = description;
+		this.#desc = Object.assign({}, description); // Copy
 		this.#dimension = dimension;
 		this.#glResource = glResource;
 
