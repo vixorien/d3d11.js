@@ -234,6 +234,29 @@ class D3D11_INPUT_ELEMENT_DESC
 	}
 }
 
+// -----------------------------------------------------
+// ------------------ Other Structures -----------------
+// -----------------------------------------------------
+
+class D3D11_VIEWPORT
+{
+	TopLeftX;
+	TopLeftY;
+	Width;
+	Height;
+	MinDepth;
+	MaxDepth;
+
+	constructor(topLeftX, topLeftY, width, height, minDepth, maxDepth)
+	{
+		this.TopLeftX = topLeftX;
+		this.TopLeftY = topLeftY;
+		this.Width = width;
+		this.Height = height;
+		this.MinDepth = minDepth;
+		this.MaxDepth = maxDepth;
+	}
+}
 
 // -----------------------------------------------------
 // ----------------- API Initialization ----------------
@@ -248,11 +271,6 @@ function D3D11CreateDevice(canvas) // Canvas acts as the adapter here
 	}
 
 	return new ID3D11Device(gl);
-}
-
-function D3D11CreateDeviceContext(device)
-{
-	return new ID3D11DeviceContext(device);
 }
 
 function DXGICreateSwapChain(device)
@@ -306,16 +324,23 @@ class ID3D11DeviceChild extends IUnknown
 class ID3D11Device extends IUnknown
 {
 	#gl;
+	#immediateContext;
 
 	constructor(gl)
 	{
 		super();
 		this.#gl = gl;
+		this.#immediateContext = new ID3D11DeviceContext(this);
 	}
 
 	GetAdapter()
 	{
 		return this.#gl;
+	}
+
+	GetImmediateContext()
+	{
+		return this.#immediateContext;
 	}
 
 	// TODO: Add description
@@ -394,6 +419,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 {
 	#gl;
 
+	// Input Assembler ---
 	#inputAssemblerDirty;
 	#inputLayout;
 
@@ -405,6 +431,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#indexBufferFormat;
 	#indexBufferOffset;
 
+	// Rasterizer ---
+	#viewport;
 
 
 	constructor(device)
@@ -473,6 +501,35 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#vertexBufferStrides[startSlot + i] = strides[i];
 			this.#vertexBufferOffsets[startSlot + i] = offsets[i];
 		}
+	}
+
+	// Note: Sticking to the API here, even though WebGL doesn't
+	// support multiple viewports (which are really just for
+	// geometry shaders with SV_ViewportArrayIndex)
+	//
+	// Might just simplify this down to a single viewport always
+	// TODO: Determine if DepthRange() works like D3D's min/max depth
+	RSSetViewports(numViewports, viewports)
+	{
+		// Must be at least 1
+		if (numViewports <= 0)
+			return;
+
+		// Copy the first element
+		this.#viewport = Object.assign({}, viewports[0]);
+
+		// Set the relevant details
+		var invertY = this.#gl.canvas.height - this.#viewport.Height;
+		this.#gl.viewport(
+			this.#viewport.TopLeftX,
+			invertY - this.#viewport.TopLeftY,
+			this.#viewport.Width,
+			this.#viewport.Height);
+
+		// TODO: Does this do what I think!?
+		this.#gl.depthRange(
+			this.#viewport.MinDepth,
+			this.#viewport.MaxDepth);
 	}
 
 	// TODO: Handle instancing

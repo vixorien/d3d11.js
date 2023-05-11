@@ -16,7 +16,7 @@
 	
 		// Init the API
 		var device = D3D11CreateDevice(document.querySelector("#viewport"));
-		var context = D3D11CreateDeviceContext(device);
+		var context = device.GetImmediateContext();
 		var swapChain = DXGICreateSwapChain(device);
 
 		// Make an RTV of the back buffer
@@ -110,19 +110,9 @@
 		var prog = createProgram(gl, vs, ps);
 
 		gl.useProgram(prog);
-		
-		// Input layout stuff
-		//var posAttrLoc = gl.getAttribLocation(prog, "a_position");
-		//var colorAttrLoc = gl.getAttribLocation(prog, "a_color");
 
-		//gl.vertexAttribPointer(posAttrLoc, 3, gl.FLOAT, false, 7 * 4, 0);
-		//gl.vertexAttribPointer(colorAttrLoc, 4, gl.FLOAT, false, 7 * 4, 3 * 4);
-
-		//gl.enableVertexAttribArray(posAttrLoc);
-		//gl.enableVertexAttribArray(colorAttrLoc);
-
-
-		//gl.drawArrays(gl.TRIANGLES, 0, 3);
+		var vp = new D3D11_VIEWPORT(200, 200, 500, 500, 0, 1);
+		context.RSSetViewports(1, [vp]);
 
 		//context.Draw(3, 0);
 		context.DrawIndexed(6, 0, 0);
