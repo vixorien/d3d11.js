@@ -112,11 +112,22 @@
 		gl.useProgram(prog);
 
 		var vp = new D3D11_VIEWPORT(200, 200, 500, 500, 0, 1);
-		context.RSSetViewports(1, [vp]);
+		//context.RSSetViewports(1, [vp]);
+
+		context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 		//context.Draw(3, 0);
 		context.DrawIndexed(6, 0, 0);
 
+		var t = new HLSLTokenizer();
+		var tokens = t.Tokenize(vsCode);
+
+		var test = "";
+		for (var i = 0; i < tokens.length; i++)
+		{
+			test += tokens[i].Text + "\n";
+		}
+		console.log(test);
 	</script>
 </body>
 </html>

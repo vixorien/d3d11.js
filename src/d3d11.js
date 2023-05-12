@@ -39,6 +39,15 @@ const D3D11_BIND_VIDEO_ENCODER = 0x400;
 const D3D11_INPUT_PER_VERTEX_DATA = 0;
 const D3D11_INPUT_PER_INSTANCE_DATA = 1;
 
+// Values that indicate how the pipeline interprets
+// vertex data that is bound to the input assembler stage
+const D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED = 0;
+const D3D11_PRIMITIVE_TOPOLOGY_POINTLIST = 1;
+const D3D11_PRIMITIVE_TOPOLOGY_LINELIST = 2;
+const D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP = 3;
+const D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST = 4;
+const D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP = 5;
+
 // Identifies the type of resource being used
 const D3D11_RESOURCE_DIMENSION_UNKNOWN = 0;
 const D3D11_RESOURCE_DIMENSION_BUFFER = 1;
@@ -412,6 +421,13 @@ class ID3D11Device extends IUnknown
 	{
 		return new ID3D11InputLayout(this, inputElementDescs);
 	}
+
+	// TODO: Oh god SO MUCH
+	// Note: Not using bytecode, just a big string, so only one parameter
+	CreateVertexShader(shaderCode)
+	{
+		// Take the shader code, convert it and pass to GL functions
+	}
 }
 
 
@@ -422,6 +438,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	// Input Assembler ---
 	#inputAssemblerDirty;
 	#inputLayout;
+	#primitiveTopology
 
 	#vertexBuffers;
 	#vertexBufferStrides;
@@ -431,8 +448,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#indexBufferFormat;
 	#indexBufferOffset;
 
+	// Vertex Shader ---
+
 	// Rasterizer ---
 	#viewport;
+
+	// Pixel Shader ---
+
+	// Output Merger ---
 
 
 	constructor(device)
@@ -440,14 +463,30 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		super(device);
 		this.#gl = device.GetAdapter();
 
-		this.#vertexBuffers = [];
-		this.#vertexBufferStrides = [];
-		this.#vertexBufferOffsets = [];
-		this.#inputAssemblerDirty = true;
+		// Input Assembler
+		{
+			this.#inputAssemblerDirty = true;
+			this.#inputLayout = null;
+			this.#primitiveTopology = D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED;
 
-		this.#indexBuffer = null;
-		this.#indexBufferFormat = DXGI_FORMAT_R16_FLOAT;
-		this.#indexBufferOffset = 0;
+			this.#vertexBuffers = [];
+			this.#vertexBufferStrides = [];
+			this.#vertexBufferOffsets = [];
+
+			this.#indexBuffer = null;
+			this.#indexBufferFormat = DXGI_FORMAT_R16_FLOAT;
+			this.#indexBufferOffset = 0;
+
+		}
+
+		// Vertex Shader
+
+		// Rasterizer
+		this.#viewport = null;
+
+		// Pixel Shader
+
+		// Output Merger
 	}
 
 
@@ -483,6 +522,19 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#indexBuffer = indexBuffer;
 		this.#indexBufferFormat = format;
 		this.#indexBufferOffset = offset;
+
+		// Determine if we're binding or unbinding
+		if (indexBuffer == null)
+			this.#gl.bindBuffer(this.#gl.ELEMENT_ARRAY_BUFFER, null);
+		else
+			this.#gl.bindBuffer(this.#gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer.GetGLResource());
+	}
+
+	// NOTE: Points require the vertex shader to output
+	// a value to gl_PointSize (which defaults to zero) :(
+	IASetPrimitiveTopology(topology)
+	{
+		this.#primitiveTopology = topology;
 	}
 
 	// TODO: Actually use params
@@ -508,7 +560,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	// geometry shaders with SV_ViewportArrayIndex)
 	//
 	// Might just simplify this down to a single viewport always
-	// TODO: Determine if DepthRange() works like D3D's min/max depth
 	RSSetViewports(numViewports, viewports)
 	{
 		// Must be at least 1
@@ -526,7 +577,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#viewport.Width,
 			this.#viewport.Height);
 
-		// TODO: Does this do what I think!?
 		this.#gl.depthRange(
 			this.#viewport.MinDepth,
 			this.#viewport.MaxDepth);
@@ -570,12 +620,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				this.#vertexBufferOffsets[bufferIndex] + ie.AlignedByteOffset); // TOOD: Verify this is correct
 		}
 
-		// Set index buffer
-		if (this.#indexBuffer != null)
-		{
-			this.#gl.bindBuffer(this.#gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer.GetGLResource());
-		}
-
 		this.#inputAssemblerDirty = false;
 	}
 
@@ -584,8 +628,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	Draw(vertexCount, startVertexLocation)
 	{
 		this.#PrepareInputAssembler();
-		
-		this.#gl.drawArrays(gl.TRIANGLES, startVertexLocation, vertexCount);
+
+		this.#gl.drawArrays(
+			this.#GetGLPrimitiveType(this.#primitiveTopology),
+			startVertexLocation,
+			vertexCount);
 	}
 
 	DrawIndexed(indexCount, startIndexLocation, baseVertexLocation)
@@ -601,7 +648,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// TODO: Vertify offset + startIndex thing
-		this.#gl.drawElements(gl.TRIANGLES, indexCount, format, this.#indexBufferOffset + startIndexLocation);
+		this.#gl.drawElements(
+			this.#GetGLPrimitiveType(this.#primitiveTopology),
+			indexCount,
+			format,
+			this.#indexBufferOffset + startIndexLocation);
 	}
 
 	// NOTE: Assuming floats only for now!
@@ -611,7 +662,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		return this.#gl.FLOAT;
 	}
 
-	// NOTE: Assming only floats and only 1-4 for now!
+	// NOTE: Assuming only floats and only 1-4 for now!
 	#GetDXGIFormatComponentCount(format)
 	{
 		switch (format)
@@ -621,6 +672,22 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			case DXGI_FORMAT_R32G32B32_FLOAT: return 3;
 			case DXGI_FORMAT_R32G32B32A32_FLOAT: return 4;
 			default: return 0;
+		}
+	}
+
+	#GetGLPrimitiveType(d3dPrimType)
+	{
+		switch (d3dPrimType)
+		{
+			case D3D11_PRIMITIVE_TOPOLOGY_POINTLIST: return this.#gl.POINTS;
+			case D3D11_PRIMITIVE_TOPOLOGY_LINELIST: return this.#gl.LINES;
+			case D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP: return this.#gl.LINE_STRIP;
+			case D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST: return this.#gl.TRIANGLES;
+			case D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP: return this.#gl.TRIANGLE_STRIP;
+
+			// Default to triangles
+			case D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED: 
+			default: return this.#gl.TRIANGLES;
 		}
 	}
 }
@@ -677,7 +744,15 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 	}
 }
 
+class ID3D11VertexShader extends ID3D11DeviceChild
+{
 
+}
+
+class ID3D11PixelShader extends ID3D11DeviceChild
+{
+
+}
 
 
 // -----------------------------------------------------
@@ -760,5 +835,108 @@ class ID3D11RenderTargetView extends ID3D11View
 	constructor(device, resource)
 	{
 		super(device, resource);
+	}
+}
+
+
+// -----------------------------------------------------
+// ------------------ Non-API Helpers ------------------
+// -----------------------------------------------------
+
+const TokenUnknown = -1;
+const TokenWhiteSpace = 0;
+const TokenOperator = 1;
+const TokenIdentifier = 2;
+const TokenScope = 3;
+const TokenParentheses = 4;
+const TokenBrackets = 5;
+const TokenSemicolon = 6;
+
+class HLSLTokenizer
+{
+	// Define lexical rules
+	Rules = [
+		{
+			Type: TokenWhiteSpace,
+			Pattern: /^s/
+		},
+		{
+			Type: TokenOperator, // Triples
+			Pattern: /^((<<=)|(>>=))/
+		},
+		{
+			Type: TokenOperator, // Doubles
+			Pattern: /^((\+=)|(-=)|(\*=)|(\/=)|(%=)|(<<)|(>>)|(&=)|(\|=)|(^=)|(&&)|(\|\|)|(==)|(!=)|(<=)|(>=)|(\+\+)|(--))/
+		},
+		{
+			Type: TokenOperator, // Singles
+			Pattern: /^[\+\-\*\/\%\=\~\&\|\^\?\:\,\<\>\.\!]/
+		},
+		{
+			Type: TokenIdentifier,
+			Pattern: /^[_A-Za-z][_A-Za-z0-9]*/
+		},
+		{
+			Type: TokenScope,
+			Pattern: /^[{}]/
+		},
+		{
+			Type: TokenParentheses,
+			Pattern: /^[()]/
+		},
+		{
+			Type: TokenBrackets,
+			Pattern: /^[[]]/
+		},
+		{
+			Type: TokenSemicolon,
+			Pattern: /^[;]/
+		},
+		{
+			Type: TokenUnknown,
+			Pattern: /^./
+		}
+	];
+
+
+	// Read the code and tokenize
+	Tokenize(hlslCode)
+	{
+		var tokens = [];
+
+		// Loop through entire string
+		while (hlslCode.length > 0)
+		{
+			// Check each rule
+			var anyMatch = false;
+			for (var r = 0; r < this.Rules.length; r++)
+			{
+				// Run the regex
+				const re = new RegExp(this.Rules[r].Pattern, "g");
+				const matches = re.exec(hlslCode);
+
+				// Did it work?
+				if (matches == null)
+					continue;
+
+				// Worked
+				anyMatch = true;
+				tokens.push({
+					Type: this.Rules[r].Type,
+					Text: matches[0]
+				});
+				hlslCode = hlslCode.substring(re.lastIndex);
+			}
+
+			// Any matches?
+			if (!anyMatch)
+			{
+				// Problem!
+				alert("problem");
+				break;
+			}
+		}
+
+		return tokens;
 	}
 }
