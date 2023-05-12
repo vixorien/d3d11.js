@@ -101,7 +101,7 @@
 		var gl = device.GetAdapter();
 
 		// Test GLSL shaders
-		var vsCode = "attribute vec3 a_position; attribute vec4 a_color; varying vec4 v_color; void main() { v_color = a_color; gl_Position = vec4(a_position, 1); }";
+		var vsCode = "attribute vec3 a_position; attribute vec4 a_color; varying vec4 v_color; void main() {\n v_color = a_color; gl_Position = vec4(a_position, 1.0); }";
 		var psCode = "precision mediump float; varying vec4 v_color; void main() { gl_FragColor = v_color; }";
 
 		var vs = compileShader(gl, vsCode, gl.VERTEX_SHADER);
@@ -119,13 +119,45 @@
 		//context.Draw(3, 0);
 		context.DrawIndexed(6, 0, 0);
 
+		var hlslCode =
+`struct Test
+{
+	float3 pos;
+	float other;
+}
+
+cbuffer ExternalData : register(b0)
+{
+	Test test;  // Comments, yo!
+	float3 wow;
+	float pad;
+}
+
+Texture2D albedo : register(t0);
+SamplerState samp : register(s0);
+
+/*
+TextureCube sky : register(t1);
+float test(){return 1;}
+*/
+
+float4 main(float3 posIn) : SV_POSITION
+{
+/*
+// single inside multi
+*/
+
+	return float4(posIn, 1.0f);
+}
+`;
+
 		var t = new HLSLTokenizer();
-		var tokens = t.Tokenize(vsCode);
+		var tokens = t.Tokenize(hlslCode);
 
 		var test = "";
 		for (var i = 0; i < tokens.length; i++)
 		{
-			test += tokens[i].Text + "\n";
+			test += "[" + tokens[i].Type + "] " + tokens[i].Text + "\n";
 		}
 		console.log(test);
 	</script>

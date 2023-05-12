@@ -843,14 +843,17 @@ class ID3D11RenderTargetView extends ID3D11View
 // ------------------ Non-API Helpers ------------------
 // -----------------------------------------------------
 
-const TokenUnknown = -1;
-const TokenWhiteSpace = 0;
-const TokenOperator = 1;
-const TokenIdentifier = 2;
-const TokenScope = 3;
-const TokenParentheses = 4;
-const TokenBrackets = 5;
-const TokenSemicolon = 6;
+const TokenUnknown = 0;
+const TokenWhiteSpace = 1;
+const TokenCommentMultiline = 2;
+const TokenCommentSingle = 3;
+const TokenOperator = 4;
+const TokenIdentifier = 5;
+const TokenNumericLiteral = 6;
+const TokenScope = 7;
+const TokenParentheses = 8;
+const TokenBrackets = 9;
+const TokenSemicolon = 10;
 
 class HLSLTokenizer
 {
@@ -858,7 +861,15 @@ class HLSLTokenizer
 	Rules = [
 		{
 			Type: TokenWhiteSpace,
-			Pattern: /^s/
+			Pattern: /^\s+/
+		},
+		{
+			Type: TokenCommentMultiline,
+			Pattern: /^\/\*([^*]|[\r\n]|(\*+([^*/]|[\r\n])))*\*+\//
+		},
+		{
+			Type: TokenCommentSingle,
+			Pattern: /^\/\/.*/
 		},
 		{
 			Type: TokenOperator, // Triples
@@ -875,6 +886,10 @@ class HLSLTokenizer
 		{
 			Type: TokenIdentifier,
 			Pattern: /^[_A-Za-z][_A-Za-z0-9]*/
+		},
+		{
+			Type: TokenNumericLiteral,
+			Pattern: /^[+-]?([0-9]*[.])?[0-9]+[f]?/
 		},
 		{
 			Type: TokenScope,
@@ -915,23 +930,25 @@ class HLSLTokenizer
 				const re = new RegExp(this.Rules[r].Pattern, "g");
 				const matches = re.exec(hlslCode);
 
-				// Did it work?
-				if (matches == null)
-					continue;
+				// Match found, add result and break
+				if (matches != null)
+				{
+					anyMatch = true;
+					tokens.push({
+						Type: this.Rules[r].Type,
+						Text: matches[0]
+					});
 
-				// Worked
-				anyMatch = true;
-				tokens.push({
-					Type: this.Rules[r].Type,
-					Text: matches[0]
-				});
-				hlslCode = hlslCode.substring(re.lastIndex);
+					// Update string
+					hlslCode = hlslCode.substring(re.lastIndex);
+					break;
+				}
 			}
 
 			// Any matches?
 			if (!anyMatch)
 			{
-				// Problem!
+				// None, which means we're probably missing a necessary rule
 				alert("problem");
 				break;
 			}
