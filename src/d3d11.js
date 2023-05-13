@@ -850,10 +850,13 @@ const TokenCommentSingle = 3;
 const TokenOperator = 4;
 const TokenIdentifier = 5;
 const TokenNumericLiteral = 6;
-const TokenScope = 7;
-const TokenParentheses = 8;
-const TokenBrackets = 9;
-const TokenSemicolon = 10;
+const TokenScopeLeft = 7;
+const TokenScopeRight = 8;
+const TokenParenLeft = 9;
+const TokenParenRight = 10;
+const TokenBracketLeft = 11;
+const TokenBracketRight = 12;
+const TokenSemicolon = 13;
 
 class HLSLTokenizer
 {
@@ -892,16 +895,28 @@ class HLSLTokenizer
 			Pattern: /^[+-]?([0-9]*[.])?[0-9]+[f]?/
 		},
 		{
-			Type: TokenScope,
-			Pattern: /^[{}]/
+			Type: TokenScopeLeft,
+			Pattern: /^[{]/
 		},
 		{
-			Type: TokenParentheses,
-			Pattern: /^[()]/
+			Type: TokenScopeRight,
+			Pattern: /^[}]/
 		},
 		{
-			Type: TokenBrackets,
-			Pattern: /^[[]]/
+			Type: TokenParenLeft,
+			Pattern: /^[(]/
+		},
+		{
+			Type: TokenParenRight,
+			Pattern: /^[)]/
+		},
+		{
+			Type: TokenBracketLeft,
+			Pattern: /^[\[]/
+		},
+		{
+			Type: TokenBracketRight,
+			Pattern: /^[\]]/
 		},
 		{
 			Type: TokenSemicolon,
@@ -955,5 +970,10 @@ class HLSLTokenizer
 		}
 
 		return tokens;
+	}
+
+	Parse(tokens)
+	{
+
 	}
 }
