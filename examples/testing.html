@@ -122,9 +122,9 @@
 		var hlslCode =
 `struct Test
 {
-	float3 pos;
-	float other;
-}
+	float3 pos : SEMANTIC;
+	centroid float other;
+};
 
 cbuffer ExternalData : register(b0)
 {
@@ -153,21 +153,7 @@ float4 main(float3 posIn) : SV_POSITION
 `;
 
 		var t = new HLSLTokenizer(hlslCode);
-		//var tokens = t.Tokenize(hlslCode);
-		//t.Parse(tokens);
-
-		var test = "";
-		//for (var i = 0; i < tokens.length; i++)
-		//{
-		//	test += "[" + tokens[i].Type + "] " + tokens[i].Text + "\n";
-		//}
-		var token = null;
-		var tokens = t.GetTokens();
-		//while ((token = tokens.nextTokenSkipWS()) != null)
-		//{
-		//	test += "[" + token.Type + "] " + token.Text + "\n";
-		//}
-		console.log(test);
+		
 	</script>
 </body>
 </html>

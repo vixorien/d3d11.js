@@ -858,86 +858,177 @@ const TokenBracketLeft = 11;
 const TokenBracketRight = 12;
 const TokenSemicolon = 13;
 
-class TokenList
+class TokenIterator
 {
 	#tokens;
-	#iteratorIndex;
+	#position;
 
-	constructor()
+	constructor(tokens)
 	{
-		this.#tokens = [];
-		this.#iteratorIndex = 0;
-	}
-
-	Push(t)
-	{
-		this.#tokens.push(t);
-	}
-
-	Get(index)
-	{
-		if (index >= this.#tokens.length)
-			return null;
-
-		return this.#tokens[index];
-	}
-
-	ResetIteration()
-	{
-		this.#iteratorIndex = 0;
-	}
-
-	CurrentIsValid()
-	{
-		return this.#iteratorIndex < this.#tokens.length;
-	}
-
-	GetCurrent()
-	{
-		if (!CurrentIsValid())
-			return null;
-
-		return this.#tokens[this.#iteratorIndex];
+		this.#tokens = tokens;
+		this.#position = -1;
 	}
 
 	MoveNext()
 	{
-		if (!this.CurrentIsValid())
-			return false;
-
-		this.#iteratorIndex++;
-		return this.CurrentIsValid();
+		this.#position++;
+		return this.#position < this.#tokens.length;
 	}
 
 	MoveNextSkipWS()
 	{
-		if (!this.CurrentIsValid())
-			return false;
-
-		// Move ahead one
-		this.MoveNext();
-		if (!this.CurrentIsValid())
-			return false;
-
-		// If it's whitespace, move ahead
+		this.#position++;
 		while (
-			this.#tokens[this.#iteratorIndex].Type == TokenWhiteSpace &&
-			this.MoveNext()
-		) { }
+			this.#position < this.#tokens.length &&
+			this.#tokens[this.#position].Type == TokenWhiteSpace)
+		{
+			this.#position++;
+		}
 
-		// Determine final validity
-		return this.CurrentIsValid();
+		return this.#position < this.#tokens.length;
+	}
+
+	Current()
+	{
+		if (this.#position >= this.#tokens.length)
+			return null;
+
+		return this.#tokens[this.#position];
+	}
+
+	PeekNext()
+	{
+		var peekPos = this.#position + 1;
+		if (peekPos >= this.#tokens.length)
+			return null;
+
+		return this.#tokens[peekPos];
+	}
+
+	PeekNextSkipWS()
+	{
+		var peekPos = this.#position + 1;
+		
+		while (
+			peekPos < this.#tokens.length &&
+			this.#tokens[peekPos].Type == TokenWhiteSpace)
+		{
+			peekPos++;
+		}
+
+		if (peekPos >= this.#tokens.length)
+			return null;
+
+		return this.#tokens[peekPos];
 	}
 }
+
+//class TokenList
+//{
+//	#tokens;
+//	#iteratorIndex;
+
+//	constructor()
+//	{
+//		this.Clear();
+//	}
+
+//	Push(t)
+//	{
+//		this.#tokens.push(t);
+//	}
+
+//	Get(index)
+//	{
+//		if (index >= this.#tokens.length)
+//			return null;
+
+//		return this.#tokens[index];
+//	}
+
+//	Clear()
+//	{
+//		this.#tokens = [];
+//		this.ResetIteration();
+//	}
+
+//	ResetIteration()
+//	{
+//		this.#iteratorIndex = 0;
+//	}
+
+//	CurrentIsValid()
+//	{
+//		return this.#iteratorIndex < this.#tokens.length;
+//	}
+
+//	GetCurrent()
+//	{
+//		if (!this.CurrentIsValid())
+//			return null;
+
+//		return this.#tokens[this.#iteratorIndex];
+//	}
+
+//	PeekNext()
+//	{
+//		if (this.#iteratorIndex >= this.#tokens.length - 1)
+//			return null;
+
+//		return this.#tokens[this.#iteratorIndex + 1];
+//	}
+
+//	PeekNextSkipWS()
+//	{
+//		if (this.#iteratorIndex >= this.#tokens.length - 1)
+//			return null;
+
+//		var i = this.#iteratorIndex + 1;
+//		while (this.#tokens[i].Type == TokenWhiteSpace && i < this.#tokens.length - 1)
+//			i++;
+
+//		if (i >= this.#tokens.length)
+//			return null;
+
+//		return this.#tokens[i];
+//	}
+
+//	MoveNext()
+//	{
+//		if (!this.CurrentIsValid())
+//			return false;
+
+//		this.#iteratorIndex++;
+//		return true;
+//	}
+
+//	MoveNextSkipWS()
+//	{
+//		if (!this.CurrentIsValid())
+//			return false;
+
+//		// Move ahead one
+//		this.MoveNext();
+//		if (!this.CurrentIsValid())
+//			return false;
+
+//		// If it's whitespace, move ahead
+//		while (
+//			this.#tokens[this.#iteratorIndex].Type == TokenWhiteSpace &&
+//			this.MoveNext()
+//		) { }
+
+//		return true;
+//	}
+//}
 
 class HLSLTokenizer
 {
 	// Initial data
-	#code;
+	#hlsl;
 
 	// Tokens
 	#tokens;
-	#tokensNoWS;
 
 	// Shader elements
 	#structs;
@@ -1034,55 +1125,28 @@ class HLSLTokenizer
 
 	constructor(hlslCode)
 	{
-		this.#code = hlslCode;
+		this.#hlsl = hlslCode.repeat(1); // Copy
+		this.#tokens = [];
 
 		// Tokenize
-		this.#Tokenize(hlslCode);
+		this.#Tokenize();
+		console.log(this.#tokens);
 		this.#Parse();
+		console.log(this.#structs);
 	}
 
-	GetTokens() { return this.#tokens; }
-	GetTokensNoWS() { return this.#tokensNoWS; }
+	GetTokens()
+	{
+		return this.#tokens;
+	}
 
 	// Read the code and tokenize
-	#Tokenize(hlslCode)
+	#Tokenize()
 	{
-		this.#tokens = [];
-		this.#tokensNoWS = [];
+		var code = this.#hlsl.repeat(1); // Copy
 
-		//tokens.iteratorIndex = 0;
-		//tokens.resetIteration = function () { this.iteratorIndex = 0; }
-		//tokens.nextToken = function ()
-		//{
-		//	// Ensure index is still valid (if we ended with whitespace)
-		//	if (this.iteratorIndex >= this.length)
-		//		return null;
-
-		//	// Grab this token
-		//	var t = this[this.iteratorIndex];
-		//	this.iteratorIndex++;
-		//	return t;
-		//}
-		//tokens.nextTokenSkipWS = function () 
-		//{
-		//	// Skip past any white space
-		//	while (this.iteratorIndex < this.length && this[this.iteratorIndex].Type == TokenWhiteSpace)
-		//	{
-		//		this.iteratorIndex++;
-		//	}
-
-		//	// Ensure index is still valid (if we ended with whitespace)
-		//	if (this.iteratorIndex >= this.length)
-		//		return null;
-
-		//	// Grab this token
-		//	var t = this[this.iteratorIndex];
-		//	this.iteratorIndex++;
-		//	return t;
-		//}
-		
 		// Loop through entire string
-		while (hlslCode.length > 0)
+		while (code.length > 0)
 		{
 			// Check each rule
 			var anyMatch = false;
@@ -1090,7 +1154,7 @@ class HLSLTokenizer
 			{
 				// Run the regex
 				const re = new RegExp(this.Rules[r].Pattern, "g");
-				const matches = re.exec(hlslCode);
+				const matches = re.exec(code);
 
 				// Match found, add result and break
 				if (matches != null)
@@ -1104,12 +1168,8 @@ class HLSLTokenizer
 					// Push to the full token list
 					this.#tokens.push(t);
 
-					// Push to non-WS list if necessary
-					if (t.Type != TokenWhiteSpace)
-						this.#tokensNoWS.push(t);
-
 					// Update string
-					hlslCode = hlslCode.substring(re.lastIndex);
+					code = code.substring(re.lastIndex);
 					break;
 				}
 			}
@@ -1126,19 +1186,22 @@ class HLSLTokenizer
 
 	#Parse()
 	{
-		// Reset
+		// Reset data
 		this.#structs = [];
 
-		// Loop through tokens and farm out processing
-		for (var t = 0; t < this.#tokensNoWS.length; t++)
-		{
-			if (this.#tokensNoWS[t].Type != TokenIdentifier)
-				continue;
+		// Create the iterator
+		var it = new TokenIterator(this.#tokens);
 
-			switch (this.#tokensNoWS[t].Text)
+		// Work through tokens, skipping whitespace
+		while (it.MoveNextSkipWS())
+		{
+			var current = it.Current();
+
+			// Farm out processing of each type
+			switch (current.Text)
 			{
 				case "struct":
-					var s = this.#GetStruct(this.#tokensNoWS, t);
+					var s = this.#GetStruct(it);
 					if (s != null)
 						this.#structs.push(s);
 					break;
@@ -1188,34 +1251,46 @@ class HLSLTokenizer
 
 	}
 
-	#GetStruct(tokens, tokenIndex)
+	#GetStruct(it)
 	{
 		// Make the struct
 		var s = {};
 
-		// Next should be identifier
-		tokenIndex++;
-		var structName = tokens[tokenIndex];
-		if (structName.Type != TokenIdentifier)
+		// Current token is "struct", so next should be identifier
+		if (!it.MoveNextSkipWS() || it.Current().Type != TokenIdentifier)
 			return null;
-		s.Name = structName.Text;
+
+		// Valid
+		s.Name = it.Current().Text;
 
 		// Then start scope
-		tokenIndex++;
-		if (tokens[tokenIndex].Type != TokenScopeLeft)
+		if (!it.MoveNextSkipWS() || it.Current().Type != TokenScopeLeft)
+			return null;
+
+		// Valid, so move inside the scope
+		if (!it.MoveNextSkipWS())
 			return null;
 
 		// Some number of variable definitions (datatype identifier, maybe semantic)
-		// NOTE: Can call GetVarDef() below, but how to know how far to progress index???
+		s.Variables = [];
+		var v = 0;
+		while ((v = this.#GetVariableDefinition(it)) != null)
+		{
+			s.Variables.push(v);
+		}
 
-
-		// End scope
-
+		// A failed variable check will already be at the end scope
+		if (it.Current().Type != TokenScopeRight ||
+			!it.MoveNextSkipWS() ||
+			it.Current().Type != TokenSemicolon)
+		{
+			return null;
+		}
 
 		return s;
 	}
 
-	#GetVariableDefinition(tokens, tokenIndex)
+	#GetVariableDefinition(it)
 	{
 		var variable = {
 			InterpMod: null,
@@ -1225,46 +1300,58 @@ class HLSLTokenizer
 		};
 
 		// Check for interpolation modifiers
-		if (this.InterpolationModifiers.indexOf(tokens[tokenIndex].Text) != -1)
+		if (this.InterpolationModifiers.indexOf(it.Current().Text) != -1)
 		{
 			// This is an interpolation modifier
-			variable.InterpMod = tokens[tokenIndex].Text;
-			tokenIndex++;
+			variable.InterpMod = it.Current().Text;
+
+			// Move ahead and verify
+			it.MoveNextSkipWS();
+			if (it.Current() == null)
+				return null;
 		}
 
 		// Data type
-		if (this.DataTypes.indexOf(tokens[tokenIndex].Text) >= 0)
+		if (this.DataTypes.indexOf(it.Current().Text) == -1)
 		{
-			variable.DataType = tokens[tokenIndex].Text;
-			tokenIndex++;
-		}
-		else
-		{
-			// Not a data type - problem!
-			alert("problem with variable def - data type");
 			return null;
 		}
 
-		// Identifier
-		if (tokens[tokenIndex].Type == TokenIdentifier)
+		// Success, this is the data type
+		variable.DataType = it.Current().Text;
+
+		// Move on to the identifier and verify
+		if (!it.MoveNextSkipWS() || it.Current().Type != TokenIdentifier)
 		{
-			variable.Identifier = tokens[tokenIndex].text;
-			tokenIndex++;
-		}
-		else
-		{
-			// Not an ident - problem!
-			alert("problem with variable def - ident");
 			return null;
 		}
+
+		// Success, this is the identifier
+		variable.Identifier = it.Current().Text;
+
+		// Move on
+		if (!it.MoveNextSkipWS())
+			return null;
 
 		// Check for colon and semantic
-		if (tokens[tokenIndex].Text == ":" &&
-			tokens[tokenIndex + 1].Type == TokenIdentifier)
+		var semName = null;
+		if (it.Current().Text == ":" &&
+			(semName = it.PeekNextSkipWS()) != null &&
+			semName.Type == TokenIdentifier)
 		{
-			variable.Semantic = tokens[tokenIndex + 1].Text;
+			variable.Semantic = semName.Text;
+
+			// Skip colon and semantic
+			it.MoveNextSkipWS();
+			it.MoveNextSkipWS();
 		}
 
+		// Verify semicolon
+		if (it.Current().Type != TokenSemicolon)
+			return null;
+
+		// Skip the semicolon
+		it.MoveNextSkipWS();
 		return variable;
 	}
 }
