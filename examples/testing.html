@@ -4,7 +4,7 @@
 	<script src="../src/d3d11.js"></script>
 	
 </head>
-<body>
+<body style="background-color:#666;">
 	<h1>D3D11.js Test</h1>
 
 	<canvas id="viewport" width="800" height="600"></canvas>
@@ -152,14 +152,21 @@ float4 main(float3 posIn) : SV_POSITION
 }
 `;
 
-		var t = new HLSLTokenizer();
-		var tokens = t.Tokenize(hlslCode);
+		var t = new HLSLTokenizer(hlslCode);
+		//var tokens = t.Tokenize(hlslCode);
+		//t.Parse(tokens);
 
 		var test = "";
-		for (var i = 0; i < tokens.length; i++)
-		{
-			test += "[" + tokens[i].Type + "] " + tokens[i].Text + "\n";
-		}
+		//for (var i = 0; i < tokens.length; i++)
+		//{
+		//	test += "[" + tokens[i].Type + "] " + tokens[i].Text + "\n";
+		//}
+		var token = null;
+		var tokens = t.GetTokens();
+		//while ((token = tokens.nextTokenSkipWS()) != null)
+		//{
+		//	test += "[" + token.Type + "] " + token.Text + "\n";
+		//}
 		console.log(test);
 	</script>
 </body>

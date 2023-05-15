@@ -858,8 +858,19 @@ const TokenBracketLeft = 11;
 const TokenBracketRight = 12;
 const TokenSemicolon = 13;
 
+
 class HLSLTokenizer
 {
+	// Initial data
+	#code;
+
+	// Tokens
+	#tokens;
+	#tokensNoWS;
+
+	// Shader elements
+	#structs;
+
 	// Define lexical rules
 	Rules = [
 		{
@@ -928,12 +939,77 @@ class HLSLTokenizer
 		}
 	];
 
+	// Note: missing a few permutations (especially matrices)
+	DataTypes = [
+		"bool", "bool2", "bool3", "bool4",
+		"int", "int2", "int3", "int4",
+		"uint", "uint2", "uint3", "uint4",
+		"dword", "dword2", "dword3", "dword4",
+		"half", "half2", "half3", "half4",
+		"float", "float2", "float3", "float4",
+		"double", "double2", "double3", "double4",
+
+		"float3x3", "float3x4", "float4x3", "float4x4",
+		"matrix"
+	];
+
+	InterpolationModifiers = [
+		"linear",
+		"centroid",
+		"nointerpolation",
+		"noperspective",
+		"sample"
+	];
+
+	constructor(hlslCode)
+	{
+		this.#code = hlslCode;
+
+		// Tokenize
+		this.#Tokenize(hlslCode);
+		this.#Parse();
+	}
+
+	GetTokens() { return this.#tokens; }
+	GetTokensNoWS() { return this.#tokensNoWS; }
 
 	// Read the code and tokenize
-	Tokenize(hlslCode)
+	#Tokenize(hlslCode)
 	{
-		var tokens = [];
+		this.#tokens = [];
+		this.#tokensNoWS = [];
 
+		//tokens.iteratorIndex = 0;
+		//tokens.resetIteration = function () { this.iteratorIndex = 0; }
+		//tokens.nextToken = function ()
+		//{
+		//	// Ensure index is still valid (if we ended with whitespace)
+		//	if (this.iteratorIndex >= this.length)
+		//		return null;
+
+		//	// Grab this token
+		//	var t = this[this.iteratorIndex];
+		//	this.iteratorIndex++;
+		//	return t;
+		//}
+		//tokens.nextTokenSkipWS = function () 
+		//{
+		//	// Skip past any white space
+		//	while (this.iteratorIndex < this.length && this[this.iteratorIndex].Type == TokenWhiteSpace)
+		//	{
+		//		this.iteratorIndex++;
+		//	}
+
+		//	// Ensure index is still valid (if we ended with whitespace)
+		//	if (this.iteratorIndex >= this.length)
+		//		return null;
+
+		//	// Grab this token
+		//	var t = this[this.iteratorIndex];
+		//	this.iteratorIndex++;
+		//	return t;
+		//}
+		
 		// Loop through entire string
 		while (hlslCode.length > 0)
 		{
@@ -949,10 +1025,17 @@ class HLSLTokenizer
 				if (matches != null)
 				{
 					anyMatch = true;
-					tokens.push({
+					var t = {
 						Type: this.Rules[r].Type,
 						Text: matches[0]
-					});
+					};
+
+					// Push to the full token list
+					this.#tokens.push(t);
+
+					// Push to non-WS list if necessary
+					if (t.Type != TokenWhiteSpace)
+						this.#tokensNoWS.push(t);
 
 					// Update string
 					hlslCode = hlslCode.substring(re.lastIndex);
@@ -968,12 +1051,149 @@ class HLSLTokenizer
 				break;
 			}
 		}
-
-		return tokens;
 	}
 
-	Parse(tokens)
+	#Parse()
 	{
+		// Reset
+		this.#structs = [];
 
+		// Loop through tokens and farm out processing
+		for (var t = 0; t < this.#tokensNoWS.length; t++)
+		{
+			if (this.#tokensNoWS[t].Type != TokenIdentifier)
+				continue;
+
+			switch (this.#tokensNoWS[t].Text)
+			{
+				case "struct":
+					var s = this.#GetStruct(this.#tokensNoWS, t);
+					if (s != null)
+						this.#structs.push(s);
+					break;
+			}
+		}
+
+		// Scan for the following:
+		// - attributes?
+		// - structs
+		// - cbuffers
+		// - Textures & Samplers
+		// - functions
+		//   - main()
+		//   - helpers
+
+		// Formats
+		{
+			// Structs
+			//
+			// struct ident
+			// {
+			//    datatype ident; // zero or more
+			//    datatype ident : SEMANTIC; // zero or more
+			// }
+
+			// CBuffers
+			//
+			// cbuffer ident { }
+			// cbuffer ident : register(ident)
+			// {
+			//     datatype ident; // zero or more
+			// }
+
+			// Textures & Samplers
+			//
+			// datatype ident;
+			// datatype ident : register(ident);
+
+			// functions
+			// - Need to find one "main"
+			//
+			// datatype ident() { }
+			// datatype ident() : SEMANTIC { }
+			// datatype ident(datatype ident, ...) { }
+			// datatype ident(datatype ident, ...) : SEMANTIC { }
+		}
+
+	}
+
+	#GetStruct(tokens, tokenIndex)
+	{
+		// Make the struct
+		var s = {};
+
+		// Next should be identifier
+		tokenIndex++;
+		var structName = tokens[tokenIndex];
+		if (structName.Type != TokenIdentifier)
+			return null;
+		s.Name = structName.Text;
+
+		// Then start scope
+		tokenIndex++;
+		if (tokens[tokenIndex].Type != TokenScopeLeft)
+			return null;
+
+		// Some number of variable definitions (datatype identifier, maybe semantic)
+		// NOTE: Can call GetVarDef() below, but how to know how far to progress index???
+
+
+		// End scope
+
+
+		return s;
+	}
+
+	#GetVariableDefinition(tokens, tokenIndex)
+	{
+		var variable = {
+			InterpMod: null,
+			DataType: null,
+			Identifier: null,
+			Semantic: null
+		};
+
+		// Check for interpolation modifiers
+		if (this.InterpolationModifiers.indexOf(tokens[tokenIndex].Text) != -1)
+		{
+			// This is an interpolation modifier
+			variable.InterpMod = tokens[tokenIndex].Text;
+			tokenIndex++;
+		}
+
+		// Data type
+		if (this.DataTypes.indexOf(tokens[tokenIndex].Text) >= 0)
+		{
+			variable.DataType = tokens[tokenIndex].Text;
+			tokenIndex++;
+		}
+		else
+		{
+			// Not a data type - problem!
+			alert("problem with variable def - data type");
+			return null;
+		}
+
+		// Identifier
+		if (tokens[tokenIndex].Type == TokenIdentifier)
+		{
+			variable.Identifier = tokens[tokenIndex].text;
+			tokenIndex++;
+		}
+		else
+		{
+			// Not an ident - problem!
+			alert("problem with variable def - ident");
+			return null;
+		}
+
+		// Check for colon and semantic
+		if (tokens[tokenIndex].Text == ":" &&
+			tokens[tokenIndex + 1].Type == TokenIdentifier)
+		{
+			variable.Semantic = tokens[tokenIndex + 1].Text;
+		}
+
+		return variable;
 	}
 }
