@@ -858,6 +858,77 @@ const TokenBracketLeft = 11;
 const TokenBracketRight = 12;
 const TokenSemicolon = 13;
 
+class TokenList
+{
+	#tokens;
+	#iteratorIndex;
+
+	constructor()
+	{
+		this.#tokens = [];
+		this.#iteratorIndex = 0;
+	}
+
+	Push(t)
+	{
+		this.#tokens.push(t);
+	}
+
+	Get(index)
+	{
+		if (index >= this.#tokens.length)
+			return null;
+
+		return this.#tokens[index];
+	}
+
+	ResetIteration()
+	{
+		this.#iteratorIndex = 0;
+	}
+
+	CurrentIsValid()
+	{
+		return this.#iteratorIndex < this.#tokens.length;
+	}
+
+	GetCurrent()
+	{
+		if (!CurrentIsValid())
+			return null;
+
+		return this.#tokens[this.#iteratorIndex];
+	}
+
+	MoveNext()
+	{
+		if (!this.CurrentIsValid())
+			return false;
+
+		this.#iteratorIndex++;
+		return this.CurrentIsValid();
+	}
+
+	MoveNextSkipWS()
+	{
+		if (!this.CurrentIsValid())
+			return false;
+
+		// Move ahead one
+		this.MoveNext();
+		if (!this.CurrentIsValid())
+			return false;
+
+		// If it's whitespace, move ahead
+		while (
+			this.#tokens[this.#iteratorIndex].Type == TokenWhiteSpace &&
+			this.MoveNext()
+		) { }
+
+		// Determine final validity
+		return this.CurrentIsValid();
+	}
+}
 
 class HLSLTokenizer
 {
