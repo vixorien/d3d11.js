@@ -4,8 +4,8 @@
 	<script src="../src/d3d11.js"></script>
 	
 </head>
-<body style="background-color:#fff;">
-	<h1>D3D11.js Test</h1>
+<body style="background-color:#000;">
+	<h1 style="color:#fff;">D3D11.js Test</h1>
 
 	<canvas id="viewport" width="800" height="600"></canvas>
 
@@ -153,7 +153,7 @@ float4 main(float3 posIn) : SV_POSITION
 `;
 
 		var t = new HLSLTokenizer(hlslCode);
-		
+		console.log(t.GetTokens());
 	</script>
 </body>
 </html>

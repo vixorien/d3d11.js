@@ -1130,14 +1130,26 @@ class HLSLTokenizer
 
 		// Tokenize
 		this.#Tokenize();
-		console.log(this.#tokens);
 		this.#Parse();
-		console.log(this.#structs);
 	}
 
 	GetTokens()
 	{
 		return this.#tokens;
+	}
+
+	#DataTypeIsStruct(type)
+	{
+		// Check each struct's name
+		for (var s = 0; s < this.#structs.length; s++)
+		{
+			if (this.#structs[s].Name == type)
+			{
+				return true;
+			}
+		}
+
+		return false;
 	}
 
 	// Read the code and tokenize
@@ -1160,13 +1172,21 @@ class HLSLTokenizer
 				if (matches != null)
 				{
 					anyMatch = true;
-					var t = {
-						Type: this.Rules[r].Type,
-						Text: matches[0]
-					};
 
-					// Push to the full token list
-					this.#tokens.push(t);
+					// Worth keeping?
+					if (this.Rules[r].Type != TokenCommentMultiline &&
+						this.Rules[r].Type != TokenCommentSingle &&
+						this.Rules[r].Type != TokenWhiteSpace)
+					{
+
+						var t = {
+							Type: this.Rules[r].Type,
+							Text: matches[0]
+						};
+
+						// Push to the full token list
+						this.#tokens.push(t);
+					}
 
 					// Update string
 					code = code.substring(re.lastIndex);
@@ -1201,9 +1221,38 @@ class HLSLTokenizer
 			switch (current.Text)
 			{
 				case "struct":
+					console.log("struct found");
 					var s = this.#GetStruct(it);
 					if (s != null)
 						this.#structs.push(s);
+					break;
+
+				case "cbuffer":
+					console.log("cbuffer found");
+					break;
+
+				case "Texture1D":
+				case "Texture2D":
+				case "Texture3D":
+				case "TextureCube":
+					console.log("texture found");
+					break;
+
+				case "SamplerState":
+				case "SamplerComparisonState":
+					console.log("sampler found");
+					break;
+
+				default:
+					// Should be a data type
+					var isStructType = this.#DataTypeIsStruct(current.Text);
+					var isDataType = this.DataTypes.indexOf(current.Text) >= 0;
+					if (!isStructType && !isDataType)
+						break;
+
+					// Data type - either global variable or function
+					console.log("data type found: " + current.Text);
+
 					break;
 			}
 		}
