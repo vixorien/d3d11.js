@@ -1032,6 +1032,7 @@ class HLSLTokenizer
 
 	// Shader elements
 	#structs;
+	#cbuffers;
 
 	// Define lexical rules
 	Rules = [
@@ -1208,6 +1209,7 @@ class HLSLTokenizer
 	{
 		// Reset data
 		this.#structs = [];
+		this.#cbuffers = [];
 
 		// Create the iterator
 		var it = new TokenIterator(this.#tokens);
@@ -1229,13 +1231,21 @@ class HLSLTokenizer
 
 				case "cbuffer":
 					console.log("cbuffer found");
+					var cb = this.#GetCBuffer(it);
+					if (cb != null)
+						this.#cbuffers.push(cb);
 					break;
 
-				case "Texture1D":
-				case "Texture2D":
+				case "Texture1D": case "Texture1DArray":
+				case "Texture2D": case "Texture2DArray":
+				case "TextureCube": case "TextureCubeArray":
 				case "Texture3D":
-				case "TextureCube":
 					console.log("texture found");
+					break;
+
+				case "Texture2DMS":
+				case "Texture2DMSArray":
+					console.log("Not currently handling multisampled textures");
 					break;
 
 				case "SamplerState":
@@ -1297,49 +1307,10 @@ class HLSLTokenizer
 			// datatype ident(datatype ident, ...) { }
 			// datatype ident(datatype ident, ...) : SEMANTIC { }
 		}
-
 	}
 
-	#GetStruct(it)
-	{
-		// Make the struct
-		var s = {};
 
-		// Current token is "struct", so next should be identifier
-		if (!it.MoveNextSkipWS() || it.Current().Type != TokenIdentifier)
-			return null;
-
-		// Valid
-		s.Name = it.Current().Text;
-
-		// Then start scope
-		if (!it.MoveNextSkipWS() || it.Current().Type != TokenScopeLeft)
-			return null;
-
-		// Valid, so move inside the scope
-		if (!it.MoveNextSkipWS())
-			return null;
-
-		// Some number of variable definitions (datatype identifier, maybe semantic)
-		s.Variables = [];
-		var v = 0;
-		while ((v = this.#GetVariableDefinition(it)) != null)
-		{
-			s.Variables.push(v);
-		}
-
-		// A failed variable check will already be at the end scope
-		if (it.Current().Type != TokenScopeRight ||
-			!it.MoveNextSkipWS() ||
-			it.Current().Type != TokenSemicolon)
-		{
-			return null;
-		}
-
-		return s;
-	}
-
-	#GetVariableDefinition(it)
+	#GetVariable(it, interpModAllowed, semanticAllowed)
 	{
 		var variable = {
 			InterpMod: null,
@@ -1356,12 +1327,13 @@ class HLSLTokenizer
 
 			// Move ahead and verify
 			it.MoveNextSkipWS();
-			if (it.Current() == null)
+			if (it.Current() == null || !interpModAllowed)
 				return null;
 		}
 
 		// Data type
-		if (this.DataTypes.indexOf(it.Current().Text) == -1)
+		if (this.DataTypes.indexOf(it.Current().Text) == -1 &&
+			!this.#DataTypeIsStruct(it.Current().Text))
 		{
 			return null;
 		}
@@ -1388,6 +1360,10 @@ class HLSLTokenizer
 			(semName = it.PeekNextSkipWS()) != null &&
 			semName.Type == TokenIdentifier)
 		{
+			// Is this allowed?
+			if (!semanticAllowed)
+				return null;
+
 			variable.Semantic = semName.Text;
 
 			// Skip colon and semantic
@@ -1403,4 +1379,119 @@ class HLSLTokenizer
 		it.MoveNextSkipWS();
 		return variable;
 	}
+
+
+	#GetStruct(it)
+	{
+		// Make the struct
+		var s = {
+			Name: null,
+			Variables: []
+		};
+
+		// Current token is "struct", so next should be identifier
+		if (!it.MoveNextSkipWS() || it.Current().Type != TokenIdentifier)
+			return null;
+
+		// Valid
+		s.Name = it.Current().Text;
+
+		// Then start scope
+		if (!it.MoveNextSkipWS() || it.Current().Type != TokenScopeLeft)
+			return null;
+
+		// Valid, so move inside the scope
+		if (!it.MoveNextSkipWS())
+			return null;
+
+		// Some number of variable definitions (datatype identifier, maybe semantic)
+		var v = 0;
+		while ((v = this.#GetVariable(it, true, true)) != null)
+		{
+			s.Variables.push(v);
+		}
+
+		// A failed variable check will already be at the end scope
+		if (it.Current().Type != TokenScopeRight ||
+			!it.MoveNextSkipWS() ||
+			it.Current().Type != TokenSemicolon)
+		{
+			return null;
+		}
+
+		return s;
+	}
+
+
+	#GetCBuffer(it)
+	{
+		// Make the cbuffer - assume consecutive registers unless otherwise noted
+		var cb = {
+			Name: null,
+			RegisterIndex: this.#cbuffers.length,
+			ExplicitRegister: false,
+			Variables: []
+		};
+
+		// Current token is "cbuffer", so next should be identifier
+		if (!it.MoveNextSkipWS() || it.Current().Type != TokenIdentifier)
+			return null;
+
+		// Valid, save and skip
+		cb.Name = it.Current().Text;
+		if (!it.MoveNextSkipWS())
+			return null;
+		
+		// Check for possible ": register(b0)"
+		if (it.Current().Text == ":")
+		{
+			// Good chance we have it, so proceed as if we do
+			if (it.MoveNextSkipWS() && it.Current().Text == "register" &&
+				it.MoveNextSkipWS() && it.Current().Type == TokenParenLeft &&
+				it.MoveNextSkipWS() && // current is now register index
+				it.PeekNextSkipWS().Type == TokenParenRight) // Next is end parens
+			{
+				// Validate register
+				var regText = it.Current().Text;
+				if (!regText.startsWith("b"))
+					return null;
+
+				// Get index
+				cb.RegisterIndex = parseInt(regText.substring(1));
+				if (isNaN(cb.RegisterIndex))
+					return null;
+
+				// Skip the register index end parens
+				cb.ExplicitRegister = true;
+				it.MoveNextSkipWS();
+				it.MoveNextSkipWS();
+			}
+			else
+			{
+				return null;
+			}
+		}
+
+		// Then start scope
+		if (it.Current().Type != TokenScopeLeft)
+			return null;
+
+		// Valid, so move inside the scope
+		if (!it.MoveNextSkipWS())
+			return null;
+
+		// Some number of variable definitions (datatype identifier, never semantic)
+		var v = 0;
+		while ((v = this.#GetVariable(it, false, false)) != null)
+		{
+			cb.Variables.push(v);
+		}
+
+		// A failed variable check will already be at the end scope (no semicolon on cbuffers!)
+		if (it.Current().Type != TokenScopeRight)
+			return null;
+
+		return cb;
+	}
+
 }

@@ -133,6 +133,11 @@ cbuffer ExternalData : register(b0)
 	float pad;
 }
 
+cbuffer AnotherCBuffer
+{
+	float4 color;
+}
+
 Texture2D albedo : register(t0);
 SamplerState samp : register(s0);
 
