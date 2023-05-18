@@ -850,13 +850,13 @@ const TokenCommentSingle = 3;
 const TokenOperator = 4;
 const TokenIdentifier = 5;
 const TokenNumericLiteral = 6;
-const TokenScopeLeft = 7;
-const TokenScopeRight = 8;
-const TokenParenLeft = 9;
-const TokenParenRight = 10;
-const TokenBracketLeft = 11;
-const TokenBracketRight = 12;
-const TokenSemicolon = 13;
+const TokenSemicolon = 7;
+const TokenScopeLeft = 8;
+const TokenScopeRight = 9;
+const TokenParenLeft = 10;
+const TokenParenRight = 11;
+const TokenBracketLeft = 12;
+const TokenBracketRight = 13;
 
 class TokenIterator
 {
@@ -1033,6 +1033,8 @@ class HLSLTokenizer
 	// Shader elements
 	#structs;
 	#cbuffers;
+	#textures;
+	#samplers;
 
 	// Define lexical rules
 	Rules = [
@@ -1210,6 +1212,8 @@ class HLSLTokenizer
 		// Reset data
 		this.#structs = [];
 		this.#cbuffers = [];
+		this.#textures = [];
+		this.#samplers = [];
 
 		// Create the iterator
 		var it = new TokenIterator(this.#tokens);
@@ -1241,6 +1245,9 @@ class HLSLTokenizer
 				case "TextureCube": case "TextureCubeArray":
 				case "Texture3D":
 					console.log("texture found");
+					var t = this.#GetTexture(it);
+					if (t != null)
+						this.#textures.push(t);
 					break;
 
 				case "Texture2DMS":
@@ -1266,6 +1273,8 @@ class HLSLTokenizer
 					break;
 			}
 		}
+
+		// TODO: Fill in implicit register indices!!!
 
 		// Scan for the following:
 		// - attributes?
@@ -1371,12 +1380,11 @@ class HLSLTokenizer
 			it.MoveNextSkipWS();
 		}
 
-		// Verify semicolon
-		if (it.Current().Type != TokenSemicolon)
+		// Verify semicolon and move past
+		if (it.Current().Type != TokenSemicolon ||
+			!it.MoveNextSkipWS())
 			return null;
 
-		// Skip the semicolon
-		it.MoveNextSkipWS();
 		return variable;
 	}
 
@@ -1396,12 +1404,10 @@ class HLSLTokenizer
 		// Valid
 		s.Name = it.Current().Text;
 
-		// Then start scope
-		if (!it.MoveNextSkipWS() || it.Current().Type != TokenScopeLeft)
-			return null;
-
-		// Valid, so move inside the scope
-		if (!it.MoveNextSkipWS())
+		// Move, verify scope and move inside
+		if (!it.MoveNextSkipWS() ||
+			it.Current().Type != TokenScopeLeft ||
+			!it.MoveNextSkipWS())
 			return null;
 
 		// Some number of variable definitions (datatype identifier, maybe semantic)
@@ -1422,13 +1428,42 @@ class HLSLTokenizer
 		return s;
 	}
 
+	#GetRegisterIndex(it, registerLabel) // "b", "s" or "t"
+	{
+		// Should be on ":" character
+		if (it.Current().Text == ":" &&
+			it.MoveNextSkipWS() && it.Current().Text == "register" &&
+			it.MoveNextSkipWS() && it.Current().Type == TokenParenLeft &&
+			it.MoveNextSkipWS() && // current is now register index
+			it.PeekNextSkipWS().Type == TokenParenRight) // Next is end parens
+		{
+			// Validate register
+			var regText = it.Current().Text;
+			if (!regText.startsWith(registerLabel))
+				return -1;
+
+			// Get index
+			var index = parseInt(regText.substring(1));
+			if (isNaN(index))
+				return -1;
+
+			// Skip the register index and end parens
+			it.MoveNextSkipWS();
+			it.MoveNextSkipWS();
+			return index;
+		}
+
+		// No register, or malformed syntax
+		return -1;
+	}
+
 
 	#GetCBuffer(it)
 	{
 		// Make the cbuffer - assume consecutive registers unless otherwise noted
 		var cb = {
 			Name: null,
-			RegisterIndex: this.#cbuffers.length,
+			RegisterIndex: -1,
 			ExplicitRegister: false,
 			Variables: []
 		};
@@ -1441,43 +1476,15 @@ class HLSLTokenizer
 		cb.Name = it.Current().Text;
 		if (!it.MoveNextSkipWS())
 			return null;
-		
-		// Check for possible ": register(b0)"
-		if (it.Current().Text == ":")
-		{
-			// Good chance we have it, so proceed as if we do
-			if (it.MoveNextSkipWS() && it.Current().Text == "register" &&
-				it.MoveNextSkipWS() && it.Current().Type == TokenParenLeft &&
-				it.MoveNextSkipWS() && // current is now register index
-				it.PeekNextSkipWS().Type == TokenParenRight) // Next is end parens
-			{
-				// Validate register
-				var regText = it.Current().Text;
-				if (!regText.startsWith("b"))
-					return null;
 
-				// Get index
-				cb.RegisterIndex = parseInt(regText.substring(1));
-				if (isNaN(cb.RegisterIndex))
-					return null;
+		// Scan for register
+		cb.RegisterIndex = this.#GetRegisterIndex(it, "b");
+		if (cb.RegisterIndex >= 0)
+			cb.ExplicitRegister = true;
 
-				// Skip the register index end parens
-				cb.ExplicitRegister = true;
-				it.MoveNextSkipWS();
-				it.MoveNextSkipWS();
-			}
-			else
-			{
-				return null;
-			}
-		}
-
-		// Then start scope
-		if (it.Current().Type != TokenScopeLeft)
-			return null;
-
-		// Valid, so move inside the scope
-		if (!it.MoveNextSkipWS())
+		// Should be scope at this point - verify and move inside
+		if (it.Current().Type != TokenScopeLeft ||
+			!it.MoveNextSkipWS())
 			return null;
 
 		// Some number of variable definitions (datatype identifier, never semantic)
@@ -1492,6 +1499,42 @@ class HLSLTokenizer
 			return null;
 
 		return cb;
+	}
+
+	#GetTexture(it)
+	{
+		var t = {
+			Type: null,
+			Name: null,
+			RegisterIndex: -1,
+			ExplicitRegister: false,
+		};
+
+		// Assuming we're on the texture token
+		t.Type = it.Current().Text;
+
+		// TODO: Handle typed textures?
+		// Move to the identifier
+		if (!it.MoveNextSkipWS() ||
+			it.Current().Type != TokenIdentifier)
+			return null;
+
+		// Grab identifier and move
+		t.Name = it.Current().Text;
+		if (!it.MoveNextSkipWS())
+			return null;
+
+		// Scan for register
+		t.RegisterIndex = this.#GetRegisterIndex(it, "t");
+		if (t.RegisterIndex >= 0)
+			t.ExplicitRegister = true;
+
+		// Should be semicolon
+		if (it.Current().Type != TokenSemicolon ||
+			!it.MoveNextSkipWS())
+			return null;
+
+		return t;
 	}
 
 }
