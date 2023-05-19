@@ -875,19 +875,6 @@ class TokenIterator
 		return this.#position < this.#tokens.length;
 	}
 
-	MoveNextSkipWS()
-	{
-		this.#position++;
-		while (
-			this.#position < this.#tokens.length &&
-			this.#tokens[this.#position].Type == TokenWhiteSpace)
-		{
-			this.#position++;
-		}
-
-		return this.#position < this.#tokens.length;
-	}
-
 	Current()
 	{
 		if (this.#position >= this.#tokens.length)
@@ -904,123 +891,8 @@ class TokenIterator
 
 		return this.#tokens[peekPos];
 	}
-
-	PeekNextSkipWS()
-	{
-		var peekPos = this.#position + 1;
-		
-		while (
-			peekPos < this.#tokens.length &&
-			this.#tokens[peekPos].Type == TokenWhiteSpace)
-		{
-			peekPos++;
-		}
-
-		if (peekPos >= this.#tokens.length)
-			return null;
-
-		return this.#tokens[peekPos];
-	}
 }
 
-//class TokenList
-//{
-//	#tokens;
-//	#iteratorIndex;
-
-//	constructor()
-//	{
-//		this.Clear();
-//	}
-
-//	Push(t)
-//	{
-//		this.#tokens.push(t);
-//	}
-
-//	Get(index)
-//	{
-//		if (index >= this.#tokens.length)
-//			return null;
-
-//		return this.#tokens[index];
-//	}
-
-//	Clear()
-//	{
-//		this.#tokens = [];
-//		this.ResetIteration();
-//	}
-
-//	ResetIteration()
-//	{
-//		this.#iteratorIndex = 0;
-//	}
-
-//	CurrentIsValid()
-//	{
-//		return this.#iteratorIndex < this.#tokens.length;
-//	}
-
-//	GetCurrent()
-//	{
-//		if (!this.CurrentIsValid())
-//			return null;
-
-//		return this.#tokens[this.#iteratorIndex];
-//	}
-
-//	PeekNext()
-//	{
-//		if (this.#iteratorIndex >= this.#tokens.length - 1)
-//			return null;
-
-//		return this.#tokens[this.#iteratorIndex + 1];
-//	}
-
-//	PeekNextSkipWS()
-//	{
-//		if (this.#iteratorIndex >= this.#tokens.length - 1)
-//			return null;
-
-//		var i = this.#iteratorIndex + 1;
-//		while (this.#tokens[i].Type == TokenWhiteSpace && i < this.#tokens.length - 1)
-//			i++;
-
-//		if (i >= this.#tokens.length)
-//			return null;
-
-//		return this.#tokens[i];
-//	}
-
-//	MoveNext()
-//	{
-//		if (!this.CurrentIsValid())
-//			return false;
-
-//		this.#iteratorIndex++;
-//		return true;
-//	}
-
-//	MoveNextSkipWS()
-//	{
-//		if (!this.CurrentIsValid())
-//			return false;
-
-//		// Move ahead one
-//		this.MoveNext();
-//		if (!this.CurrentIsValid())
-//			return false;
-
-//		// If it's whitespace, move ahead
-//		while (
-//			this.#tokens[this.#iteratorIndex].Type == TokenWhiteSpace &&
-//			this.MoveNext()
-//		) { }
-
-//		return true;
-//	}
-//}
 
 class HLSLTokenizer
 {
@@ -1181,13 +1053,11 @@ class HLSLTokenizer
 						this.Rules[r].Type != TokenCommentSingle &&
 						this.Rules[r].Type != TokenWhiteSpace)
 					{
-
+						// Build the token and push to list
 						var t = {
 							Type: this.Rules[r].Type,
 							Text: matches[0]
 						};
-
-						// Push to the full token list
 						this.#tokens.push(t);
 					}
 
@@ -1218,8 +1088,8 @@ class HLSLTokenizer
 		// Create the iterator
 		var it = new TokenIterator(this.#tokens);
 
-		// Work through tokens, skipping whitespace
-		while (it.MoveNextSkipWS())
+		// Work through tokens
+		while (it.MoveNext())
 		{
 			var current = it.Current();
 
@@ -1240,6 +1110,11 @@ class HLSLTokenizer
 						this.#cbuffers.push(cb);
 					break;
 
+				case "SamplerState":
+				case "SamplerComparisonState":
+					console.log("sampler found");
+					break;
+
 				case "Texture1D": case "Texture1DArray":
 				case "Texture2D": case "Texture2DArray":
 				case "TextureCube": case "TextureCubeArray":
@@ -1253,11 +1128,6 @@ class HLSLTokenizer
 				case "Texture2DMS":
 				case "Texture2DMSArray":
 					console.log("Not currently handling multisampled textures");
-					break;
-
-				case "SamplerState":
-				case "SamplerComparisonState":
-					console.log("sampler found");
 					break;
 
 				default:
@@ -1318,6 +1188,28 @@ class HLSLTokenizer
 		}
 	}
 
+	#Allow(it, tokenType)
+	{
+		if (it.Current().Type == tokenType)
+		{
+			it.MoveNext();
+			return true;
+		}
+
+		return false;
+	}
+
+	#Require(it, tokenType)
+	{
+		if (this.#Allow(it, tokenType))
+		{
+			return true;
+		}
+
+		// TODO: Throw exception?
+		return false;
+	}
+
 
 	#GetVariable(it, interpModAllowed, semanticAllowed)
 	{
@@ -1335,7 +1227,7 @@ class HLSLTokenizer
 			variable.InterpMod = it.Current().Text;
 
 			// Move ahead and verify
-			it.MoveNextSkipWS();
+			it.MoveNext();
 			if (it.Current() == null || !interpModAllowed)
 				return null;
 		}
@@ -1351,7 +1243,7 @@ class HLSLTokenizer
 		variable.DataType = it.Current().Text;
 
 		// Move on to the identifier and verify
-		if (!it.MoveNextSkipWS() || it.Current().Type != TokenIdentifier)
+		if (!it.MoveNext() || it.Current().Type != TokenIdentifier)
 		{
 			return null;
 		}
@@ -1360,13 +1252,13 @@ class HLSLTokenizer
 		variable.Identifier = it.Current().Text;
 
 		// Move on
-		if (!it.MoveNextSkipWS())
+		if (!it.MoveNext())
 			return null;
 
 		// Check for colon and semantic
 		var semName = null;
 		if (it.Current().Text == ":" &&
-			(semName = it.PeekNextSkipWS()) != null &&
+			(semName = it.PeekNext()) != null &&
 			semName.Type == TokenIdentifier)
 		{
 			// Is this allowed?
@@ -1376,13 +1268,13 @@ class HLSLTokenizer
 			variable.Semantic = semName.Text;
 
 			// Skip colon and semantic
-			it.MoveNextSkipWS();
-			it.MoveNextSkipWS();
+			it.MoveNext();
+			it.MoveNext();
 		}
 
 		// Verify semicolon and move past
 		if (it.Current().Type != TokenSemicolon ||
-			!it.MoveNextSkipWS())
+			!it.MoveNext())
 			return null;
 
 		return variable;
@@ -1398,16 +1290,16 @@ class HLSLTokenizer
 		};
 
 		// Current token is "struct", so next should be identifier
-		if (!it.MoveNextSkipWS() || it.Current().Type != TokenIdentifier)
+		if (!it.MoveNext() || it.Current().Type != TokenIdentifier)
 			return null;
 
 		// Valid
 		s.Name = it.Current().Text;
 
 		// Move, verify scope and move inside
-		if (!it.MoveNextSkipWS() ||
+		if (!it.MoveNext() ||
 			it.Current().Type != TokenScopeLeft ||
-			!it.MoveNextSkipWS())
+			!it.MoveNext())
 			return null;
 
 		// Some number of variable definitions (datatype identifier, maybe semantic)
@@ -1419,7 +1311,7 @@ class HLSLTokenizer
 
 		// A failed variable check will already be at the end scope
 		if (it.Current().Type != TokenScopeRight ||
-			!it.MoveNextSkipWS() ||
+			!it.MoveNext() ||
 			it.Current().Type != TokenSemicolon)
 		{
 			return null;
@@ -1432,10 +1324,10 @@ class HLSLTokenizer
 	{
 		// Should be on ":" character
 		if (it.Current().Text == ":" &&
-			it.MoveNextSkipWS() && it.Current().Text == "register" &&
-			it.MoveNextSkipWS() && it.Current().Type == TokenParenLeft &&
-			it.MoveNextSkipWS() && // current is now register index
-			it.PeekNextSkipWS().Type == TokenParenRight) // Next is end parens
+			it.MoveNext() && it.Current().Text == "register" &&
+			it.MoveNext() && it.Current().Type == TokenParenLeft &&
+			it.MoveNext() && // current is now register index
+			it.PeekNext().Type == TokenParenRight) // Next is end parens
 		{
 			// Validate register
 			var regText = it.Current().Text;
@@ -1448,8 +1340,8 @@ class HLSLTokenizer
 				return -1;
 
 			// Skip the register index and end parens
-			it.MoveNextSkipWS();
-			it.MoveNextSkipWS();
+			it.MoveNext();
+			it.MoveNext();
 			return index;
 		}
 
@@ -1469,12 +1361,12 @@ class HLSLTokenizer
 		};
 
 		// Current token is "cbuffer", so next should be identifier
-		if (!it.MoveNextSkipWS() || it.Current().Type != TokenIdentifier)
+		if (!it.MoveNext() || it.Current().Type != TokenIdentifier)
 			return null;
 
 		// Valid, save and skip
 		cb.Name = it.Current().Text;
-		if (!it.MoveNextSkipWS())
+		if (!it.MoveNext())
 			return null;
 
 		// Scan for register
@@ -1484,7 +1376,7 @@ class HLSLTokenizer
 
 		// Should be scope at this point - verify and move inside
 		if (it.Current().Type != TokenScopeLeft ||
-			!it.MoveNextSkipWS())
+			!it.MoveNext())
 			return null;
 
 		// Some number of variable definitions (datatype identifier, never semantic)
@@ -1515,13 +1407,13 @@ class HLSLTokenizer
 
 		// TODO: Handle typed textures?
 		// Move to the identifier
-		if (!it.MoveNextSkipWS() ||
+		if (!it.MoveNext() ||
 			it.Current().Type != TokenIdentifier)
 			return null;
 
 		// Grab identifier and move
 		t.Name = it.Current().Text;
-		if (!it.MoveNextSkipWS())
+		if (!it.MoveNext())
 			return null;
 
 		// Scan for register
@@ -1531,7 +1423,7 @@ class HLSLTokenizer
 
 		// Should be semicolon
 		if (it.Current().Type != TokenSemicolon ||
-			!it.MoveNextSkipWS())
+			!it.MoveNext())
 			return null;
 
 		return t;
