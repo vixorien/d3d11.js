@@ -149,7 +149,7 @@ TextureCube sky : register(t1);
 float test(){return 1;}
 */
 
-float4 main(float3 posIn) : SV_POSITION
+float4 main(float3 posIn : POSITION, float2 uvIn : TEXCOORD) : SV_POSITION
 {
 	float x = posIn[0];
 /*
