@@ -885,10 +885,18 @@ class TokenIterator
 		return this.#tokens[this.#position];
 	}
 
-	PeekNext()
+	More()
 	{
-		var peekPos = this.#position + 1;
-		if (peekPos >= this.#tokens.length)
+		return this.#position < this.#tokens.length - 1;
+	}
+
+	PeekNext() { return this.#Peek(1); }
+	PeekPrev() { return this.#Peek(-1); }
+
+	#Peek(offset)
+	{
+		var peekPos = this.#position + offset;
+		if (peekPos < 0 || peekPos >= this.#tokens.length)
 			return null;
 
 		return this.#tokens[peekPos];
@@ -896,7 +904,7 @@ class TokenIterator
 }
 
 
-class HLSLTokenizer
+class HLSLConverter
 {
 	// Initial data
 	#hlsl;
@@ -1116,7 +1124,8 @@ class HLSLTokenizer
 		};
 
 		// Work through tokens
-		while (it.MoveNext())
+		it.MoveNext();
+		while (it.More())
 		{
 			var current = it.Current();
 
@@ -1124,22 +1133,15 @@ class HLSLTokenizer
 			switch (current.Text)
 			{
 				case "struct":
-					console.log("struct found");
-					var s = this.#GetStruct(it);
-					if (s != null)
-						this.#structs.push(s);
+					this.#structs.push(this.#GetStruct(it));
 					break;
 
 				case "cbuffer":
-					console.log("cbuffer found");
-					var cb = this.#GetCBuffer(it);
-					if (cb != null)
-						this.#cbuffers.push(cb);
+					this.#cbuffers.push(this.#GetCBuffer(it));
 					break;
 
 				case "SamplerState":
 				case "SamplerComparisonState":
-					console.log("sampler found");
 					var samp = this.#GetSampler(it);
 					if (samp != null)
 						this.#samplers.push(samp);
@@ -1149,7 +1151,6 @@ class HLSLTokenizer
 				case "Texture2D": case "Texture2DArray":
 				case "TextureCube": case "TextureCubeArray":
 				case "Texture3D":
-					console.log("texture found");
 					var t = this.#GetTexture(it);
 					if (t != null)
 						this.#textures.push(t);
@@ -1184,6 +1185,8 @@ class HLSLTokenizer
 			this.#cbuffers.push(globalCB);
 		}
 		// TODO: Fill in implicit register indices!!!
+
+		console.log(this);
 
 		// Scan for the following:
 		// - attributes?
@@ -1238,12 +1241,30 @@ class HLSLTokenizer
 		return false;
 	}
 
+	#AllowIdentifier(it, ident)
+	{
+		if (it.Current().Type == TokenIdentifier &&
+			it.Current().Text == ident)
+		{
+			it.MoveNext();
+			return true;
+		}
+
+		return false;
+	}
+
 	#Require(it, tokenType)
 	{
 		if (this.#Allow(it, tokenType))
-		{
 			return true;
-		}
+
+		throw new Error("Error parsing HLSL on line " + it.Current().Line);
+	}
+
+	#RequireIdentifier(it, ident)
+	{
+		if (this.#AllowIdentifier(it, ident))
+			return true;
 
 		throw new Error("Error parsing HLSL on line " + it.Current().Line);
 	}
@@ -1342,18 +1363,15 @@ class HLSLTokenizer
 			Variables: []
 		};
 
-		// Current token is "struct", so next should be identifier
-		if (!it.MoveNext() || it.Current().Type != TokenIdentifier)
-			return null;
+		// Ensure we start with "struct", followed by another identifier
+		this.#RequireIdentifier(it, "struct");
+		this.#Require(it, TokenIdentifier);
 
-		// Valid
-		s.Name = it.Current().Text;
+		// We have the identifiers, so grab the name
+		s.Name = it.PeekPrev().Text;
 
-		// Move, verify scope and move inside
-		if (!it.MoveNext() ||
-			it.Current().Type != TokenScopeLeft ||
-			!it.MoveNext())
-			return null;
+		// Scope
+		this.#Require(it, TokenScopeLeft);
 
 		// Some number of variable definitions (datatype identifier, maybe semantic)
 		var v = 0;
@@ -1362,13 +1380,9 @@ class HLSLTokenizer
 			s.Variables.push(v);
 		}
 
-		// A failed variable check will already be at the end scope
-		if (it.Current().Type != TokenScopeRight ||
-			!it.MoveNext() ||
-			it.Current().Type != TokenSemicolon)
-		{
-			return null;
-		}
+		// End scope and semicolon
+		this.#Require(it, TokenScopeRight);
+		this.#Require(it, TokenSemicolon);
 
 		return s;
 	}
@@ -1413,14 +1427,12 @@ class HLSLTokenizer
 			Variables: []
 		};
 
-		// Current token is "cbuffer", so next should be identifier
-		if (!it.MoveNext() || it.Current().Type != TokenIdentifier)
-			return null;
+		// Verify identifiers
+		this.#RequireIdentifier(it, "cbuffer");
+		this.#Require(it, TokenIdentifier);
 
-		// Valid, save and skip
-		cb.Name = it.Current().Text;
-		if (!it.MoveNext())
-			return null;
+		// Success, save the name
+		cb.Name = it.PeekPrev().Text;
 
 		// Scan for register
 		cb.RegisterIndex = this.#GetRegisterIndex(it, "b");
@@ -1428,9 +1440,7 @@ class HLSLTokenizer
 			cb.ExplicitRegister = true;
 
 		// Should be scope at this point - verify and move inside
-		if (it.Current().Type != TokenScopeLeft ||
-			!it.MoveNext())
-			return null;
+		this.#Require(it, TokenScopeLeft);
 
 		// Some number of variable definitions (datatype identifier, never semantic)
 		var v = 0;
@@ -1439,10 +1449,8 @@ class HLSLTokenizer
 			cb.Variables.push(v);
 		}
 
-		// A failed variable check will already be at the end scope (no semicolon on cbuffers!)
-		if (it.Current().Type != TokenScopeRight)
-			return null;
-
+		// End scope
+		this.#Require(it, TokenScopeRight);
 		return cb;
 	}
 
@@ -1455,30 +1463,22 @@ class HLSLTokenizer
 			ExplicitRegister: false,
 		};
 
-		// Assuming we're on the texture token
-		t.Type = it.Current().Text;
-
+		// Texture type
 		// TODO: Handle typed textures?
-		// Move to the identifier
-		if (!it.MoveNext() ||
-			it.Current().Type != TokenIdentifier)
-			return null;
+		this.#Require(it, TokenIdentifier);
+		t.Type = it.PeekPrev().Text;
 
-		// Grab identifier and move
-		t.Name = it.Current().Text;
-		if (!it.MoveNext())
-			return null;
-
+		// Identifier
+		this.#Require(it, TokenIdentifier);
+		t.name = it.PeekPrev().Text;
+		
 		// Scan for register
 		t.RegisterIndex = this.#GetRegisterIndex(it, "t");
 		if (t.RegisterIndex >= 0)
 			t.ExplicitRegister = true;
 
-		// Should be semicolon
-		if (it.Current().Type != TokenSemicolon ||
-			!it.MoveNext())
-			return null;
-
+		// Semicolon to end
+		this.#Require(it, TokenSemicolon);
 		return t;
 	}
 
@@ -1490,46 +1490,38 @@ class HLSLTokenizer
 			RegisterIndex: -1,
 			ExplicitRegister: false,
 		};
+		
+		// Sampler type
+		this.#Require(it, TokenIdentifier);
+		s.Type = it.PeekPrev().Text;
 
-		// Assuming we're on the sampler token
-		s.Type = it.Current().Text;
-
-		// Move to the identifier
-		if (!it.MoveNext() ||
-			it.Current().Type != TokenIdentifier)
-			return null;
-
-		// Grab identifier and move
-		s.Name = it.Current().Text;
-		if (!it.MoveNext())
-			return null;
-
+		// Name
+		this.#Require(it, TokenIdentifier);
+		s.Name = it.PeekPrev().Text;
+		
 		// Scan for register
 		s.RegisterIndex = this.#GetRegisterIndex(it, "s");
 		if (s.RegisterIndex >= 0)
 			s.ExplicitRegister = true;
 
-		// Should be semicolon
-		if (it.Current().Type != TokenSemicolon ||
-			!it.MoveNext())
-			return null;
-
-		return t;
+		// Semicolon to end
+		this.#Require(it, TokenSemicolon);
+		return s;
 	}
 
 	#GlobalVarOrFunction(it, globalCB)
 	{
-		// We've got "datatype ident", so save and move ahead
-		var type = it.Current().Text;
-		it.MoveNext();
-		var name = it.Current().Text;
-		it.MoveNext();
+		// Data type
+		this.#Require(it, TokenIdentifier);
+		var type = it.PeekPrev().Text;
+
+		// Name
+		this.#Require(it, TokenIdentifier);
+		var name = it.PeekPrev().Text;
 
 		// Check for parens, which means function
-		if (it.Current().Type == TokenParenLeft)
+		if (this.#Allow(it, TokenParenLeft))
 		{
-			console.log("function found");
-
 			var f = {
 				ReturnType: type,
 				Name: name,
@@ -1537,9 +1529,6 @@ class HLSLTokenizer
 				Parameters: [],
 				BodyTokens: []
 			};
-
-			// Move ahead one
-			it.MoveNext();
 
 			// It's a function, so skip to the end parens
 			var v = null;
@@ -1556,9 +1545,9 @@ class HLSLTokenizer
 			// Might have a semantic!
 			if (this.#Allow(it, TokenColon))
 			{
-				// Skip the identifier
-				// TODO: Track this
+				// Verify identifier and save
 				this.#Require(it, TokenIdentifier);
+				f.Semantic = it.PeekPrev().Text;
 			}
 
 			// Add this to the token body
@@ -1585,12 +1574,9 @@ class HLSLTokenizer
 			// Is this main?
 			if (f.Name == "main")
 			{
-				// Too many?
+				// Too many mains?
 				if (this.#main != null)
-				{
-					// Too many mains!
 					throw new Error("Multiple main functions detected");
-				}
 
 				// Save main specially
 				this.#main = f;
@@ -1601,9 +1587,8 @@ class HLSLTokenizer
 				this.#functions.push(f);
 			}
 		}
-		else if (it.Current().Type == TokenSemicolon)
+		else if (this.#Allow(it, TokenSemicolon))
 		{
-			console.log("global variable found: " + type + " " + name);
 			// Should be end of a variable, so add to the global cbuffer
 			var v = {
 				InterpMod: null,
@@ -1611,8 +1596,7 @@ class HLSLTokenizer
 				Identifier: name,
 				Semantic: null
 			};
-			globalCB.Variables.push(v);
-			// While loop will do MoveNext
+			globalCB.Variables.push(v); // Note: main loop will do MoveNext
 		}
 	}
 

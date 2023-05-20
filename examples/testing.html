@@ -142,12 +142,18 @@ float2 anotherGlobal;
 float4 globalAmbient;
 
 Texture2D albedo : register(t0);
+Texture2D normalMap : register(t1);
 SamplerState samp : register(s0);
 
 /*
 TextureCube sky : register(t1);
 float test(){return 1;}
 */
+
+float GetRed(float4 color)
+{
+	return color.r;
+}
 
 float4 main(float3 posIn : POSITION, float2 uvIn : TEXCOORD) : SV_POSITION
 {
@@ -160,7 +166,7 @@ float4 main(float3 posIn : POSITION, float2 uvIn : TEXCOORD) : SV_POSITION
 }
 `;
 
-		var t = new HLSLTokenizer(hlslCode);
+		var t = new HLSLConverter(hlslCode);
 		console.log(t.GetTokens());
 
 	</script>
