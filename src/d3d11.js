@@ -850,13 +850,14 @@ const TokenCommentSingle = 3;
 const TokenOperator = 4;
 const TokenIdentifier = 5;
 const TokenNumericLiteral = 6;
-const TokenSemicolon = 7;
-const TokenScopeLeft = 8;
-const TokenScopeRight = 9;
-const TokenParenLeft = 10;
-const TokenParenRight = 11;
-const TokenBracketLeft = 12;
-const TokenBracketRight = 13;
+const TokenColon = 7;
+const TokenSemicolon = 8;
+const TokenScopeLeft = 9;
+const TokenScopeRight = 10;
+const TokenParenLeft = 11;
+const TokenParenRight = 12;
+const TokenBracketLeft = 13;
+const TokenBracketRight = 14;
 
 class TokenIterator
 {
@@ -932,7 +933,7 @@ class HLSLTokenizer
 		},
 		{
 			Type: TokenOperator, // Singles
-			Pattern: /^[\+\-\*\/\%\=\~\&\|\^\?\:\,\<\>\.\!]/
+			Pattern: /^[\+\-\*\/\%\=\~\&\|\^\?\,\<\>\.\!]/
 		},
 		{
 			Type: TokenIdentifier,
@@ -969,6 +970,10 @@ class HLSLTokenizer
 		{
 			Type: TokenSemicolon,
 			Pattern: /^[;]/
+		},
+		{
+			Type: TokenColon,
+			Pattern: /^[:]/
 		},
 		{
 			Type: TokenUnknown,
@@ -1093,6 +1098,14 @@ class HLSLTokenizer
 		// Create the iterator
 		var it = new TokenIterator(this.#tokens);
 
+		// Possible global cbuffer
+		var globalCB = {
+			Name: "$Global",
+			RegisterIndex: -1,
+			ExplicitRegister: false,
+			Variables: []
+		};
+
 		// Work through tokens
 		while (it.MoveNext())
 		{
@@ -1139,17 +1152,73 @@ class HLSLTokenizer
 					break;
 
 				default:
-					// Should be a data type
-					var isStructType = this.#DataTypeIsStruct(current.Text);
-					var isDataType = this.DataTypes.indexOf(current.Text) >= 0;
-					if (!isStructType && !isDataType)
+					// Should be a data type and the next should be an identifier
+					if (!this.#IsDataType(current.Text) || it.PeekNext().Type != TokenIdentifier)
 						break;
 
-					// Data type - either global variable or function
-					console.log("data type found: " + current.Text);
+					// We've got "datatype ident", so save and move ahead
+					var type = it.Current().Text;
+					it.MoveNext();
+					var name = it.Current().Text;
+					it.MoveNext();
+					
+					// Check for parens, which means function
+					if (it.Current().Type == TokenParenLeft)
+					{
+						console.log("function found");
+
+						// It's a function, so skip to the end parens
+						while (it.Current().Type != TokenParenRight)
+							it.MoveNext();
+
+						// Skip the right parens
+						it.MoveNext();
+
+						// Might have a semantic!
+						if (this.#Allow(it, TokenColon))
+						{
+							// Skip the identifier
+							// TODO: Track this
+							this.#Require(it, TokenIdentifier);
+						}
+
+						// Next should be open scope
+						var scopeLevel = 1;
+						this.#Require(it, TokenScopeLeft);
+						do
+						{
+							// Check for scope change and skip everything else
+							if (this.#Allow(it, TokenScopeLeft))
+								scopeLevel++;
+							else if (this.#Allow(it, TokenScopeRight))
+								scopeLevel--;
+							else
+								it.MoveNext();
+						}
+						while (scopeLevel >= 1);
+					}
+					else if (it.Current().Type == TokenSemicolon)
+					{
+						console.log("global variable found: " + type + " " + name);
+						// Should be end of a variable, so add to the global cbuffer
+						var v = {
+							InterpMod: null,
+							DataType: type,
+							Identifier: name,
+							Semantic: null
+						};
+						globalCB.Variables.push(v);
+						// While loop will do MoveNext
+					}
 
 					break;
 			}
+		}
+
+		// Add global cbuffer if necessary
+		if (globalCB.Variables.length > 0)
+		{
+			this.#cbuffers.push(globalCB);
 		}
 
 		// TODO: Fill in implicit register indices!!!
@@ -1215,6 +1284,13 @@ class HLSLTokenizer
 		}
 
 		throw new Error("Error parsing HLSL on line " + it.Current().Line);
+	}
+
+	#IsDataType(text)
+	{
+		var isStructType = this.#DataTypeIsStruct(text);
+		var isDataType = this.DataTypes.indexOf(text) >= 0;
+		return isStructType || isDataType;
 	}
 
 
