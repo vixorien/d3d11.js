@@ -1118,6 +1118,9 @@ class HLSLTokenizer
 				case "SamplerState":
 				case "SamplerComparisonState":
 					console.log("sampler found");
+					var samp = this.#GetSampler(it);
+					if (samp != null)
+						this.#samplers.push(samp);
 					break;
 
 				case "Texture1D": case "Texture1DArray":
@@ -1424,6 +1427,41 @@ class HLSLTokenizer
 		t.RegisterIndex = this.#GetRegisterIndex(it, "t");
 		if (t.RegisterIndex >= 0)
 			t.ExplicitRegister = true;
+
+		// Should be semicolon
+		if (it.Current().Type != TokenSemicolon ||
+			!it.MoveNext())
+			return null;
+
+		return t;
+	}
+
+	#GetSampler(it)
+	{
+		var s = {
+			Type: null,
+			Name: null,
+			RegisterIndex: -1,
+			ExplicitRegister: false,
+		};
+
+		// Assuming we're on the sampler token
+		s.Type = it.Current().Text;
+
+		// Move to the identifier
+		if (!it.MoveNext() ||
+			it.Current().Type != TokenIdentifier)
+			return null;
+
+		// Grab identifier and move
+		s.Name = it.Current().Text;
+		if (!it.MoveNext())
+			return null;
+
+		// Scan for register
+		s.RegisterIndex = this.#GetRegisterIndex(it, "s");
+		if (s.RegisterIndex >= 0)
+			s.ExplicitRegister = true;
 
 		// Should be semicolon
 		if (it.Current().Type != TokenSemicolon ||
