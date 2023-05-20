@@ -1031,6 +1031,7 @@ class HLSLTokenizer
 	#Tokenize()
 	{
 		var code = this.#hlsl.repeat(1); // Copy
+		var lineNum = 1;
 
 		// Loop through entire string
 		while (code.length > 0)
@@ -1048,6 +1049,9 @@ class HLSLTokenizer
 				{
 					anyMatch = true;
 
+					// How many line breaks, if any
+					lineNum += (matches[0].match(/\n/g) || []).length;
+
 					// Worth keeping?
 					if (this.Rules[r].Type != TokenCommentMultiline &&
 						this.Rules[r].Type != TokenCommentSingle &&
@@ -1056,7 +1060,8 @@ class HLSLTokenizer
 						// Build the token and push to list
 						var t = {
 							Type: this.Rules[r].Type,
-							Text: matches[0]
+							Text: matches[0],
+							Line: lineNum
 						};
 						this.#tokens.push(t);
 					}
@@ -1066,7 +1071,7 @@ class HLSLTokenizer
 					break;
 				}
 			}
-
+			
 			// Any matches?
 			if (!anyMatch)
 			{
@@ -1206,8 +1211,7 @@ class HLSLTokenizer
 			return true;
 		}
 
-		// TODO: Throw exception?
-		return false;
+		throw new Error("Error parsing HLSL on line " + it.Current().Line);
 	}
 
 
