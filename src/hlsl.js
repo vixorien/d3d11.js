@@ -63,10 +63,11 @@ class TokenIterator
 }
 
 
-class HLSL2GLSL
+class HLSLtoGLSL
 {
 	// Initial data
 	#hlsl;
+	#shaderType;
 
 	// Tokens
 	#tokens;
@@ -155,8 +156,10 @@ class HLSL2GLSL
 		}
 	];
 
-	// Note: missing a few permutations (especially matrices)
+	// Note: possibly missing a few matrix permutations (1xN, Nx1)?
 	DataTypes = [
+		"void",
+
 		"bool", "bool2", "bool3", "bool4",
 		"int", "int2", "int3", "int4",
 		"uint", "uint2", "uint3", "uint4",
@@ -165,7 +168,9 @@ class HLSL2GLSL
 		"float", "float2", "float3", "float4",
 		"double", "double2", "double3", "double4",
 
-		"float3x3", "float3x4", "float4x3", "float4x4",
+		"float2x2", "float2x3", "float2x4",
+		"float3x2", "float3x3", "float3x4",
+		"float4x2", "float4x3", "float4x4",
 		"matrix"
 	];
 
@@ -177,12 +182,71 @@ class HLSL2GLSL
 		"sample"
 	];
 
-	constructor(hlslCode)
-	{
-		this.#hlsl = hlslCode.repeat(1); // Copy
-		this.#tokens = [];
+	DataTypeConversion = {
+		"void": "void",
 
-		// Tokenize
+		"bool": "bool",
+		"bool2": "bvec2",
+		"bool3": "bvec3",
+		"bool4": "bvec4",
+
+		"int": "int",
+		"int2": "ivec2",
+		"int3": "ivec3",
+		"int4": "ivec4",
+
+		"uint": "uint",
+		"uint2": "uvec2",
+		"uint3": "uvec3",
+		"uint4": "uvec4",
+
+		"dword": "uint",
+		"dword2": "uvec2",
+		"dword3": "uvec3",
+		"dword4": "uvec4",
+
+		"half": "float",
+		"half2": "vec2",
+		"half3": "vec3",
+		"half4": "vec4",
+
+		"float": "float",
+		"float2": "vec2",
+		"float3": "vec3",
+		"float4": "vec4",
+
+		"double": "float",
+		"double2": "vec2",
+		"double3": "vec3",
+		"double4": "vec4",
+
+		"float2x2": "mat2x2",
+		"float2x3": "mat2x3",
+		"float2x4": "mat2x4",
+
+		"float3x2": "mat3x2",
+		"float3x3": "mat3x3",
+		"float3x4": "mat3x4",
+
+		"float4x2": "mat4x2",
+		"float4x3": "mat4x3",
+		"float4x4": "mat4x4",
+
+		"matrix": "mat4x4"
+	};
+
+	constructor(hlslCode, shaderType)
+	{
+		// Validate shader type
+		if (shaderType != ShaderTypeVertex &&
+			shaderType != ShaderTypePixel)
+			throw new Error("Invalid shader type specified");
+
+		// Save and prepare
+		this.#hlsl = hlslCode.repeat(1); // Copy
+		this.#shaderType = shaderType;
+
+		// Tokenize & parse
 		this.#Tokenize();
 		this.#Parse();
 	}
@@ -209,8 +273,12 @@ class HLSL2GLSL
 	// Read the code and tokenize
 	#Tokenize()
 	{
-		var code = this.#hlsl.repeat(1); // Copy
+		// Reset
+		this.#tokens = [];
 		var lineNum = 1;
+
+		// Make a copy of the code as we'll be substringing it
+		var code = this.#hlsl.repeat(1); // Copy
 
 		// Loop through entire string
 		while (code.length > 0)
@@ -292,23 +360,23 @@ class HLSL2GLSL
 			switch (current.Text)
 			{
 				case "struct":
-					this.#structs.push(this.#GetStruct(it));
+					this.#structs.push(this.#ParseStruct(it));
 					break;
 
 				case "cbuffer":
-					this.#cbuffers.push(this.#GetCBuffer(it));
+					this.#cbuffers.push(this.#ParseCBuffer(it));
 					break;
 
 				case "SamplerState":
 				case "SamplerComparisonState":
-					this.#samplers.push(this.#GetSampler(it));
+					this.#samplers.push(this.#ParseSampler(it));
 					break;
 
 				case "Texture1D": case "Texture1DArray":
 				case "Texture2D": case "Texture2DArray":
 				case "TextureCube": case "TextureCubeArray":
 				case "Texture3D":
-					this.#textures.push(this.#GetTexture(it));
+					this.#textures.push(this.#ParseTexture(it));
 					break;
 
 				case "Texture2DMS":
@@ -391,12 +459,12 @@ class HLSL2GLSL
 	}
 
 
-	#GetVariable(it, interpModAllowed, semanticAllowed)
+	#ParseVariable(it, interpModAllowed, semanticAllowed)
 	{
 		var variable = {
 			InterpMod: null,
 			DataType: null,
-			Identifier: null,
+			Name: null,
 			Semantic: null
 		};
 
@@ -425,7 +493,7 @@ class HLSL2GLSL
 
 		// Identifier
 		this.#Require(it, TokenIdentifier);
-		variable.Identifier = it.PeekPrev().Text;
+		variable.Name = it.PeekPrev().Text;
 
 		// Check for semantic
 		if (this.#Allow(it, TokenColon))
@@ -442,7 +510,7 @@ class HLSL2GLSL
 	}
 
 
-	#GetStruct(it)
+	#ParseStruct(it)
 	{
 		// Make the struct
 		var s = {
@@ -463,7 +531,7 @@ class HLSL2GLSL
 		// Some number of variables
 		do
 		{
-			var v = this.#GetVariable(it, true, true);
+			var v = this.#ParseVariable(it, true, true);
 			if (v != null)
 			{
 				s.Variables.push(v);
@@ -478,7 +546,7 @@ class HLSL2GLSL
 		return s;
 	}
 
-	#GetRegisterIndex(it, registerLabel) // "b", "s" or "t"
+	#ParseRegisterIndex(it, registerLabel) // "b", "s" or "t"
 	{
 		// Should be on ":" character
 		if (it.Current().Text == ":" &&
@@ -508,7 +576,7 @@ class HLSL2GLSL
 	}
 
 
-	#GetCBuffer(it)
+	#ParseCBuffer(it)
 	{
 		// Make the cbuffer - assume consecutive registers unless otherwise noted
 		var cb = {
@@ -526,7 +594,7 @@ class HLSL2GLSL
 		cb.Name = it.PeekPrev().Text;
 
 		// Scan for register
-		cb.RegisterIndex = this.#GetRegisterIndex(it, "b");
+		cb.RegisterIndex = this.#ParseRegisterIndex(it, "b");
 		if (cb.RegisterIndex >= 0)
 			cb.ExplicitRegister = true;
 
@@ -536,7 +604,7 @@ class HLSL2GLSL
 		// Process any variables
 		do
 		{
-			var v = this.#GetVariable(it, false, false);
+			var v = this.#ParseVariable(it, false, false);
 			if (v != null)
 			{
 				cb.Variables.push(v);
@@ -549,7 +617,7 @@ class HLSL2GLSL
 		return cb;
 	}
 
-	#GetTexture(it)
+	#ParseTexture(it)
 	{
 		var t = {
 			Type: null,
@@ -568,7 +636,7 @@ class HLSL2GLSL
 		t.name = it.PeekPrev().Text;
 
 		// Scan for register
-		t.RegisterIndex = this.#GetRegisterIndex(it, "t");
+		t.RegisterIndex = this.#ParseRegisterIndex(it, "t");
 		if (t.RegisterIndex >= 0)
 			t.ExplicitRegister = true;
 
@@ -577,7 +645,7 @@ class HLSL2GLSL
 		return t;
 	}
 
-	#GetSampler(it)
+	#ParseSampler(it)
 	{
 		var s = {
 			Type: null,
@@ -595,7 +663,7 @@ class HLSL2GLSL
 		s.Name = it.PeekPrev().Text;
 
 		// Scan for register
-		s.RegisterIndex = this.#GetRegisterIndex(it, "s");
+		s.RegisterIndex = this.#ParseRegisterIndex(it, "s");
 		if (s.RegisterIndex >= 0)
 			s.ExplicitRegister = true;
 
@@ -628,7 +696,7 @@ class HLSL2GLSL
 			// It's a function, so it may have parameters
 			do
 			{
-				var v = this.#GetVariable(it, true, true);
+				var v = this.#ParseVariable(it, true, true);
 				if (v != null)
 				{
 					f.Parameters.push(v);
@@ -690,44 +758,117 @@ class HLSL2GLSL
 			var v = {
 				InterpMod: null,
 				DataType: type,
-				Identifier: name,
+				Name: name,
 				Semantic: null
 			};
 			globalCB.Variables.push(v); // Note: main loop will do MoveNext
 		}
 	}
 
-	ConvertToGLSL(shaderType)
+	GetGLSL()
 	{
-		var glsl = "";
+		switch (this.#shaderType)
+		{
+			case ShaderTypeVertex: return this.#ConvertVertexShader();
+			case ShaderTypePixel: return this.#ConvertPixelShader();
+			default: throw new Error("Invalid shader type");
+		}
+	}
 
-		// Converting hlsl to glsl
-		//
-		// - VS input --> attributes
-		//   - scan all main() params, including structs
-		//   - list of all variables, in order
-		//   - each becomes an attribute
-		//
-		// - keep struct(s)
-		//   - strip semantics
-		//
-		// - HLSL's main --> rename to hlslMain()
-		//   - keep params, but strip all semantics
-		//
-		// - VS output & PS input
-		//   - turn everything into varyings?
-		//   - or maybe an "interface block"?
-		//
-		// - main()
-		//   - create blank main (void, no params)
-		//   - create varaible for each param to hlslMain(), including structs
-		//   - "hook up" attributes into these new variables
-		//   - pass them to hlslMain()
-		//   - capture return value
-		//   - determine which value (whole thing, or struct member) is SV_POSITION
-		//   - set SV_POSITION member to gl_Position
-		//   - varyings (or interface block) for the rest
+	// Converting hlsl to glsl
+	//
+	// - VS input --> attributes
+	//   - scan all main() params, including structs
+	//   - list of all variables, in order
+	//   - each becomes an attribute
+	//
+	// - keep struct(s)
+	//   - strip semantics
+	//
+	// - HLSL's main --> rename to hlslMain()
+	//   - keep params, but strip all semantics
+	//
+	// - VS output & PS input
+	//   - turn everything into varyings?
+	//   - or maybe an "interface block"?
+	//
+	// - main()
+	//   - create blank main (void, no params)
+	//   - create varaible for each param to hlslMain(), including structs
+	//   - "hook up" attributes into these new variables
+	//   - pass them to hlslMain()
+	//   - capture return value
+	//   - determine which value (whole thing, or struct member) is SV_POSITION
+	//   - set SV_POSITION member to gl_Position
+	//   - varyings (or interface block) for the rest
+
+	#GetStructByName(name)
+	{
+		for (var s = 0; s < this.#structs.length; s++)
+			if (this.#structs[s].Name == name)
+				return this.#structs[s];
+
+		return null;
+	}
+
+	#ConvertVertexShader()
+	{
+		// Start with attributes
+		var glsl = this.#GetVSInputAsAttributes();
+
+		// Next is structs (or should this come first?)
+
 
 		return glsl;
+	}
+
+	#GetVSInputAsAttributes()
+	{
+		// Validate main
+		if (this.#main == null)
+			throw new Error("Missing main() function in shader");
+
+		// Get all of the VS input
+		var vsInputs = [];
+		for (var p = 0; p < this.#main.Parameters.length; p++)
+		{
+			var param = this.#main.Parameters[p];
+
+			// If this is a data type, we have to scan the whole thing
+			if (this.#DataTypeIsStruct(param.DataType))
+			{
+				var struct = this.#GetStructByName(param.Name);
+				if (struct == null)
+					throw new Error("Invalid data type in vertex shader input");
+
+				// Add each struct member to the VS input
+				for (var v = 0; v < struct.Variables.length; v++)
+				{
+					vsInputs.push(struct.Variables[v]);
+				}
+			}
+			else
+			{
+				vsInputs.push(param);
+			}
+		}
+
+		// Turn each vs input into an attribute
+		var attribs = "";
+
+		for (var i = 0; i < vsInputs.length; i++)
+		{
+			attribs +=
+				"attribute " +
+				this.DataTypeConversion[vsInputs[i].DataType] + " " +
+				vsInputs[i].Name + ";\n";
+		}
+
+		return attribs;
+	}
+
+	#ConvertPixelShader()
+	{
+
 	}
 }

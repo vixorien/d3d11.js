@@ -172,8 +172,8 @@ float4 main(float3 posIn : POSITION, float2 uvIn : TEXCOORD) : SV_POSITION
 }
 `;
 
-		var t = new HLSL2GLSL(hlslCode);
-
+		var t = new HLSLtoGLSL(hlslCode, ShaderTypeVertex);
+		console.log(t.GetGLSL());
 	</script>
 </body>
 </html>
