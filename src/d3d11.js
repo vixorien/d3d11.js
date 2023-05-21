@@ -1277,7 +1277,7 @@ class HLSLConverter
 	}
 
 
-	#GetVariable(it, endTokenTypes, interpModAllowed, semanticAllowed)
+	#GetVariable(it, interpModAllowed, semanticAllowed)
 	{
 		var variable = {
 			InterpMod: null,
@@ -1289,67 +1289,40 @@ class HLSLConverter
 		// Check for interpolation modifiers
 		if (this.InterpolationModifiers.indexOf(it.Current().Text) != -1)
 		{
+			// Interpolation modifiers allowed?
+			if (!interpModAllowed)
+				throw new Error("Error parsing HLSL on line " + it.Current().Line + ": interpolation modifier not allowed here.");
+
 			// This is an interpolation modifier
-			variable.InterpMod = it.Current().Text;
-
-			// Move ahead and verify
-			it.MoveNext();
-			if (it.Current() == null || !interpModAllowed)
-				return null;
+			this.#Require(it, TokenIdentifier);
+			variable.InterpMod = it.PeekPrev().Text;
 		}
 
-		// Data type
-		if (this.DataTypes.indexOf(it.Current().Text) == -1 &&
-			!this.#DataTypeIsStruct(it.Current().Text))
-		{
-			return null;
-		}
-
-		// Success, this is the data type
-		variable.DataType = it.Current().Text;
-
-		// Move on to the identifier and verify
-		if (!it.MoveNext() || it.Current().Type != TokenIdentifier)
-		{
-			return null;
-		}
-
-		// Success, this is the identifier
-		variable.Identifier = it.Current().Text;
-
-		// Move on
-		if (!it.MoveNext())
+		// If this isn't actually a variable, we should exit early
+		if (it.Current().Type != TokenIdentifier)
 			return null;
 
-		// Check for colon and semantic
-		var semName = null;
-		if (it.Current().Type == TokenColon &&
-			(semName = it.PeekNext()) != null &&
-			semName.Type == TokenIdentifier)
+		// It's a data type, so presumably a variable
+		this.#Require(it, TokenIdentifier);
+		variable.DataType = it.PeekPrev().Text;
+
+		if (!this.#IsDataType(variable.DataType))
+			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": unknown data type found.");
+
+		// Identifier
+		this.#Require(it, TokenIdentifier);
+		variable.Identifier = it.PeekPrev().Text;
+
+		// Check for semantic
+		if (this.#Allow(it, TokenColon))
 		{
-			// Is this allowed?
+			// Presumably a semantic - allowed?
 			if (!semanticAllowed)
-				return null;
+				throw new Error("Error parsing HLSL on line " + it.Current().Line + ": semantic not allowed here.");
 
-			variable.Semantic = semName.Text;
-
-			// Skip colon and semantic
-			it.MoveNext();
-			it.MoveNext();
+			this.#Require(it, TokenIdentifier);
+			variable.Semantic = it.PeekPrev().Text;
 		}
-
-		// Verify end token match
-		if (endTokenTypes.indexOf(it.Current().Type) == -1 ||
-			!it.MoveNext())
-		{
-			// Invalid ending
-			return null;
-		}
-
-		// Verify semicolon and move past
-		//if (it.Current().Type != TokenSemicolon ||
-		//	!it.MoveNext())
-		//	return null;
 
 		return variable;
 	}
@@ -1373,12 +1346,16 @@ class HLSLConverter
 		// Scope
 		this.#Require(it, TokenScopeLeft);
 
-		// Some number of variable definitions (datatype identifier, maybe semantic)
-		var v = 0;
-		while ((v = this.#GetVariable(it, [TokenSemicolon], true, true)) != null)
+		// Some number of variables
+		do
 		{
-			s.Variables.push(v);
+			var v = this.#GetVariable(it, true, true);
+			if (v != null)
+			{
+				s.Variables.push(v);
+			}
 		}
+		while (this.#Allow(it, TokenSemicolon));
 
 		// End scope and semicolon
 		this.#Require(it, TokenScopeRight);
@@ -1439,15 +1416,19 @@ class HLSLConverter
 		if (cb.RegisterIndex >= 0)
 			cb.ExplicitRegister = true;
 
-		// Should be scope at this point - verify and move inside
+		// Should be scope at this point
 		this.#Require(it, TokenScopeLeft);
 
-		// Some number of variable definitions (datatype identifier, never semantic)
-		var v = 0;
-		while ((v = this.#GetVariable(it, [TokenSemicolon], false, false)) != null)
+		// Process any variables
+		do
 		{
-			cb.Variables.push(v);
+			var v = this.#GetVariable(it, false, false);
+			if (v != null)
+			{
+				cb.Variables.push(v);
+			}
 		}
+		while (this.#Allow(it, TokenSemicolon));
 
 		// End scope
 		this.#Require(it, TokenScopeRight);
@@ -1530,17 +1511,19 @@ class HLSLConverter
 				BodyTokens: []
 			};
 
-			// It's a function, so skip to the end parens
-			var v = null;
+			// It's a function, so it may have parameters
 			do
 			{
-				var v = this.#GetVariable(it, [TokenComma, TokenParenRight], true, true);
+				var v = this.#GetVariable(it, true, true);
 				if (v != null)
 				{
 					f.Parameters.push(v);
 				}
 			}
-			while (v != null);
+			while (this.#Allow(it, TokenComma));
+
+			// Done with variables
+			this.#Require(it, TokenParenRight);
 
 			// Might have a semantic!
 			if (this.#Allow(it, TokenColon))
