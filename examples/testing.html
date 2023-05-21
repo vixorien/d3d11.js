@@ -2,7 +2,8 @@
 <html>
 <head>
 	<script src="../src/d3d11.js"></script>
-	
+	<script src="../src/hlsl.js"></script>
+
 </head>
 <body style="background-color:#000;">
 	<h1 style="color:#fff;">D3D11.js Test</h1>
@@ -171,8 +172,7 @@ float4 main(float3 posIn : POSITION, float2 uvIn : TEXCOORD) : SV_POSITION
 }
 `;
 
-		var t = new HLSLConverter(hlslCode);
-		console.log(t.GetTokens());
+		var t = new HLSL2GLSL(hlslCode);
 
 	</script>
 </body>
