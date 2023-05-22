@@ -123,7 +123,7 @@
 				return output;
 			}
 		`;
-		var vsToGLSL = new HLSLtoGLSL(hlslVS, ShaderTypeVertex);
+		var vsToGLSL = new HLSL(hlslVS, ShaderTypeVertex);
 		console.log(vsToGLSL.GetGLSL());
 		var testVS = compileShader(gl, vsToGLSL.GetGLSL(), gl.VERTEX_SHADER);
 
@@ -218,7 +218,7 @@ VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 }
 `;
 
-		var t = new HLSLtoGLSL(hlslCodeTest, ShaderTypeVertex);
+		var t = new HLSL(hlslCodeTest, ShaderTypeVertex);
 		console.log(t.GetGLSL());
 	</script>
 </body>

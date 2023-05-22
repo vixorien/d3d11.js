@@ -21,6 +21,7 @@ const ShaderTypePixel = 1;
 
 const PrefixAttribute = "_attrib_";
 const PrefixVarying = "_vary_";
+const PrefixVSInput = "_vs_input_";
 const PrefixVSOutput = "_vs_output_";
 
 class TokenIterator
@@ -67,7 +68,7 @@ class TokenIterator
 }
 
 
-class HLSLtoGLSL
+class HLSL
 {
 	// Initial data
 	#hlsl;
@@ -988,7 +989,7 @@ class HLSLtoGLSL
 		return str;
 	}
 
-	// TODO: Swap this to use a token iterator for function body
+	
 	#GetFunctionString(func, prependName = "")
 	{
 		var newFuncName = prependName + func.Name;
@@ -1081,12 +1082,37 @@ class HLSLtoGLSL
 			main += PrefixAttribute + vsInputs[v].Name + ";\n";
 		}
 
+		// Are any of the actual function inputs structs?
+		for (var p = 0; p < this.#main.Parameters.length; p++)
+		{
+			var param = this.#main.Parameters[p];
+			if (this.#DataTypeIsStruct(param.DataType))
+			{
+				// Yes, so build a struct object and "hook up" vsInputs
+				var newParamName = this.#Translate(param.Name);
+				main += "\n\t" + param.DataType;
+				main += " " + newParamName + ";\n";
+
+				// Handle each struct member
+				var struct = this.#GetStructByName(param.DataType);
+				for (var v = 0; v < struct.Variables.length; v++)
+				{
+					var member = struct.Variables[v];
+					main += "\t" + newParamName + "." + this.#Translate(member.Name) + " = ";
+
+					// NOTE: Assumption here is that the struct member name is identical to the
+					//       vsInput identifier used throughout the rest of the function
+					main += this.#Translate(member.Name) + ";\n";
+				}
+			}
+		}
+
 		// Call the function and capture the return value
 		main += "\n\t" + this.#main.ReturnType + " " + PrefixVSOutput + " = hlsl_main(";
-		for (var v = 0; v < vsInputs.length; v++)
+		for (var p = 0; p < this.#main.Parameters.length; p++)
 		{
-			main += vsInputs[v].Name;
-			if (v < vsInputs.length - 1)
+			main += this.#Translate(this.#main.Parameters[p].Name);
+			if (p < this.#main.Parameters.length - 1)
 				main += ", ";
 		}
 		main += ");\n\n";
