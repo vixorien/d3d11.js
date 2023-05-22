@@ -19,6 +19,10 @@ const TokenBracketRight = 15;
 const ShaderTypeVertex = 0;
 const ShaderTypePixel = 1;
 
+const PrefixAttribute = "_attrib_";
+const PrefixVarying = "_vary_";
+const PrefixVSOutput = "_vs_output_";
+
 class TokenIterator
 {
 	#tokens;
@@ -234,6 +238,17 @@ class HLSLtoGLSL
 		"float4x4": "mat4x4",
 
 		"matrix": "mat4x4"
+	};
+
+	// Words that may cause problems when used as identifiers
+	ReservedWords = [
+		"input",
+		"output"
+	];
+
+	ReservedWordConversion = {
+		"input": "_input",
+		"output": "_output"
 	};
 
 	constructor(hlslCode, shaderType)
@@ -457,6 +472,11 @@ class HLSLtoGLSL
 		var isStructType = this.#DataTypeIsStruct(text);
 		var isDataType = this.DataTypes.indexOf(text) >= 0;
 		return isStructType || isDataType;
+	}
+
+	#IsReservedWord(text)
+	{
+		return this.ReservedWords.indexOf(text) >= 0;
 	}
 
 
@@ -770,6 +790,10 @@ class HLSLtoGLSL
 
 	// Converting hlsl to glsl
 	//
+	// - Handle reserved words as identifiers!
+	//   - "input"
+	//   - "output"
+	//
 	// - VS input --> attributes
 	//   - scan all main() params, including structs
 	//   - list of all variables, in order
@@ -818,6 +842,8 @@ class HLSLtoGLSL
 	{
 		if (this.#IsDataType(identifier) && !this.#DataTypeIsStruct(identifier))
 			return this.DataTypeConversion[identifier];
+		else if (this.#IsReservedWord(identifier))
+			return this.ReservedWordConversion[identifier];
 		else
 			return identifier;
 	}
@@ -872,7 +898,7 @@ class HLSLtoGLSL
 			// If this is a data type, we have to scan the whole thing
 			if (this.#DataTypeIsStruct(param.DataType))
 			{
-				var struct = this.#GetStructByName(param.Name);
+				var struct = this.#GetStructByName(param.DataType);
 				if (struct == null)
 					throw new Error("Invalid data type in vertex shader input");
 
@@ -901,7 +927,7 @@ class HLSLtoGLSL
 			attribs +=
 				"attribute " +
 				this.#Translate(vsInputs[i].DataType) + " " +
-				"__attrib_" + vsInputs[i].Name + ";\n";
+				PrefixAttribute + vsInputs[i].Name + ";\n";
 		}
 
 		attribs += "\n";
@@ -928,7 +954,8 @@ class HLSLtoGLSL
 				member.Semantic.toUpperCase() == "SV_POSITION")
 				continue;
 
-			vary += "varying " + this.#Translate(member.DataType) + " __vary_" + member.Name + ";\n";
+			vary += "varying " + this.#Translate(member.DataType);	// Data type
+			vary += " " + PrefixVarying + member.Name + ";\n";		// Identifier
 		}
 
 		vary += "\n";
@@ -950,7 +977,8 @@ class HLSLtoGLSL
 			for (var v = 0; v < struct.Variables.length; v++)
 			{
 				var variable = struct.Variables[v];
-				str += "\t" + this.#Translate(variable.DataType) + " " + variable.Name + ";\n";
+				str += "\t" + this.#Translate(variable.DataType); // Datatype
+				str += " " + this.#Translate(variable.Name) + ";\n"; // Identifier
 			}
 
 			// End the struct
@@ -963,40 +991,68 @@ class HLSLtoGLSL
 	// TODO: Swap this to use a token iterator for function body
 	#GetFunctionString(func, prependName = "")
 	{
+		var newFuncName = prependName + func.Name;
 		var funcStr = "";
 
 		// Start the function
-		funcStr += this.#Translate(func.ReturnType) + " " + prependName + func.Name + "(";
+		funcStr += this.#Translate(func.ReturnType); // Data type
+		funcStr += " " + this.#Translate(newFuncName) + "("; // Identifier
 
 		// Parameters
 		for (var p = 0; p < func.Parameters.length; p++)
 		{
 			var param = func.Parameters[p];
-			funcStr += this.#Translate(param.DataType) + " " + param.Name;
+			funcStr += this.#Translate(param.DataType); // Data type
+			funcStr += " " + this.#Translate(param.Name); // Identifier
 
 			if (p < func.Parameters.length - 1)
 				funcStr += ", ";
 		}
 
 		// End header
-		funcStr += ")\n";
+		funcStr += ")";
 
 		// Body (including scope!)
+		var it = new TokenIterator(func.BodyTokens);
 		var indent = 0;
-		for (var t = 0; t < func.BodyTokens.length; t++)
+		var parenDepth = 0;
+		while (it.MoveNext())
 		{
-			var token = func.BodyTokens[t];
+			var t = it.Current();
 
-			funcStr += this.#TranslateToken(token);
-
-			// Determine what to do next
-			switch (token.Type)
+			// Track parens (due to for loops)
+			switch (t.Type)
 			{
-				case TokenScopeLeft: indent++; funcStr += "\n" + "\t".repeat(indent); break;
-				case TokenScopeRight: indent--; funcStr += "\n" + "\t".repeat(indent); break;
-				case TokenIdentifier: funcStr += " "; break;
-				case TokenSemicolon: funcStr += "\n" + "\t".repeat(indent); break;
+				case TokenParenLeft: parenDepth++; break;
+				case TokenParenRight: parenDepth--; break;
 			}
+
+			// End scope needs to "unindent" BEFORE
+			if (t.Type == TokenScopeRight)
+				indent--;
+
+			// Beginning of line - indent?
+			if (funcStr.charAt(funcStr.length - 1) == "\n")
+			{
+				funcStr += "\t".repeat(Math.max(indent, 0));
+			}
+
+			// Start scope adds indentation AFTER
+			if (t.Type == TokenScopeLeft)
+				indent++;
+
+			// Add the token
+			funcStr += this.#TranslateToken(t);
+
+			// Is a space necessary?  Yes for 2 idents in a row
+			if (t.Type == TokenIdentifier && it.PeekNext().Type == TokenIdentifier)
+				funcStr += " ";
+
+			// New line?
+			if ((t.Type == TokenSemicolon && parenDepth == 0) ||	// End of line, but not for loops
+				t.Type == TokenScopeLeft ||
+				t.Type == TokenScopeRight)
+				funcStr += "\n";
 		}
 
 		// End body
@@ -1012,35 +1068,35 @@ class HLSLtoGLSL
 		return functions;
 	}
 
-	
+	// TODO: Need to handle VS taking in an entire struct!
 	#BuildVertexShaderMain(vsInputs)
 	{
 		var main = "void main()\n";
 		main += "{\n";
 
 		// Create a variable for each vs input
-		//for (var v = 0; v < vsInputs.length; v++)
-		//{
-		//	main += "\t" + this.#Translate(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
-		//	main += "__attrib_" + vsInputs[v].Name + ";\n";
-		//}
-
-		// Call the function and capture the return value
-		main += "\t" + this.#main.ReturnType + " __vsOutput = hlsl_main(";
 		for (var v = 0; v < vsInputs.length; v++)
 		{
-			main += "__attrib_" + vsInputs[v].Name;
+			main += "\t" + this.#Translate(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
+			main += PrefixAttribute + vsInputs[v].Name + ";\n";
+		}
+
+		// Call the function and capture the return value
+		main += "\n\t" + this.#main.ReturnType + " " + PrefixVSOutput + " = hlsl_main(";
+		for (var v = 0; v < vsInputs.length; v++)
+		{
+			main += vsInputs[v].Name;
 			if (v < vsInputs.length - 1)
 				main += ", ";
 		}
-		main += ");\n";
+		main += ");\n\n";
 
 		// Handle output - might be return value directly or part of struct
 		if (this.#main.Semantic != null &&
 			this.#main.Semantic.toUpperCase() == "SV_POSITION")
 		{
 			// This is the only output
-			main += "\tgl_Position = __vsOutput;\n";
+			main += "\tgl_Position = " + PrefixVSOutput + ";\n";
 		}
 		else
 		{
@@ -1061,11 +1117,11 @@ class HLSLtoGLSL
 				else
 				{
 					// This is other VS->PS data
-					main += "\t__vary_" + member.Name + " = __vsOutput." + member.Name + ";\n";
+					main += "\t" + PrefixVarying + member.Name + " = " + PrefixVSOutput + "." + member.Name + ";\n";
 				}
 			}
 
-			main += "\tgl_Position = __vsOutput." + posName + ";\n";
+			main += "\tgl_Position = " + PrefixVSOutput + "." + posName + ";\n";
 		}
 
 		main += "}\n";
