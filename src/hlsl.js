@@ -579,7 +579,7 @@ class HLSLtoGLSL
 
 	#ParseCBuffer(it)
 	{
-		// Make the cbuffer - assume consecutive registers unless otherwise noted
+		// Make the cbuffer
 		var cb = {
 			Name: null,
 			RegisterIndex: -1,
@@ -960,7 +960,7 @@ class HLSLtoGLSL
 		return str;
 	}
 
-
+	// TODO: Swap this to use a token iterator for function body
 	#GetFunctionString(func, prependName = "")
 	{
 		var funcStr = "";
