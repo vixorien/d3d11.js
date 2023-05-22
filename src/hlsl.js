@@ -112,7 +112,8 @@ class HLSLtoGLSL
 		},
 		{
 			Type: TokenNumericLiteral,
-			Pattern: /^[+-]?([0-9]*[.])?[0-9]+[f]?/
+			//Pattern: /^[+-]?([0-9]*[.])?[0-9]+[f]?/	// Note: this didn't handle "1.f"
+			Pattern: /^[+-]?[0-9]+([.]?[0-9]?[f]?)?/	// Might be overkill, but seems to work
 		},
 		{
 			Type: TokenScopeLeft,
@@ -765,15 +766,7 @@ class HLSLtoGLSL
 		}
 	}
 
-	GetGLSL()
-	{
-		switch (this.#shaderType)
-		{
-			case ShaderTypeVertex: return this.#ConvertVertexShader();
-			case ShaderTypePixel: return this.#ConvertPixelShader();
-			default: throw new Error("Invalid shader type");
-		}
-	}
+	
 
 	// Converting hlsl to glsl
 	//
@@ -802,6 +795,16 @@ class HLSLtoGLSL
 	//   - set SV_POSITION member to gl_Position
 	//   - varyings (or interface block) for the rest
 
+	GetGLSL()
+	{
+		switch (this.#shaderType)
+		{
+			case ShaderTypeVertex: return this.#ConvertVertexShader();
+			case ShaderTypePixel: return this.#ConvertPixelShader();
+			default: throw new Error("Invalid shader type");
+		}
+	}
+
 	#GetStructByName(name)
 	{
 		for (var s = 0; s < this.#structs.length; s++)
@@ -811,18 +814,50 @@ class HLSLtoGLSL
 		return null;
 	}
 
+	#Translate(identifier)
+	{
+		if (this.#IsDataType(identifier) && !this.#DataTypeIsStruct(identifier))
+			return this.DataTypeConversion[identifier];
+		else
+			return identifier;
+	}
+
+	#TranslateToken(token)
+	{
+		// Check for numbers - need to remove the "f"
+		if (token.Type == TokenNumericLiteral &&
+			token.Text.charAt(token.Text.length - 1) == "f")
+		{
+			// Might be left with a "." at the end, in the case of "1.f"
+			var stripSize = 1;
+			if (token.Text.charAt(token.Text.length - 2) == ".")
+				stripSize = 2;
+
+			return token.Text.substring(0, token.Text.length - stripSize);
+		}
+		else
+		{
+			return this.#Translate(token.Text);
+		}
+	}
+
 	#ConvertVertexShader()
 	{
-		// Start with attributes
-		var glsl = this.#GetVSInputAsAttributes();
+		var glsl = "";
+		var vsInputs = this.#GetVSInputs();
 
-		// Next is structs (or should this come first?)
-
+		// Append each type of shader element
+		glsl += this.#GetAttributesString(vsInputs);
+		glsl += this.#GetVSVaryings();
+		glsl += this.#GetStructsString();
+		glsl += this.#GetHelperFunctionsString();
+		glsl += this.#GetFunctionString(this.#main, "hlsl_");
+		glsl += this.#BuildVertexShaderMain(vsInputs);
 
 		return glsl;
 	}
 
-	#GetVSInputAsAttributes()
+	#GetVSInputs()
 	{
 		// Validate main
 		if (this.#main == null)
@@ -853,6 +888,11 @@ class HLSLtoGLSL
 			}
 		}
 
+		return vsInputs;
+	}
+
+	#GetAttributesString(vsInputs)
+	{
 		// Turn each vs input into an attribute
 		var attribs = "";
 
@@ -860,12 +900,178 @@ class HLSLtoGLSL
 		{
 			attribs +=
 				"attribute " +
-				this.DataTypeConversion[vsInputs[i].DataType] + " " +
-				vsInputs[i].Name + ";\n";
+				this.#Translate(vsInputs[i].DataType) + " " +
+				"__attrib_" + vsInputs[i].Name + ";\n";
 		}
+
+		attribs += "\n";
 
 		return attribs;
 	}
+
+	#GetVSVaryings()
+	{
+		// Does main actually return a struct?
+		if (!this.#DataTypeIsStruct(this.#main.ReturnType))
+			return "";
+
+		// Grab the struct and put together varyings
+		var struct = this.#GetStructByName(this.#main.ReturnType);
+		var vary = "";
+
+		for (var v = 0; v < struct.Variables.length; v++)
+		{
+			var member = struct.Variables[v];
+
+			// Skip SV_POSITION
+			if (member.Semantic != null &&
+				member.Semantic.toUpperCase() == "SV_POSITION")
+				continue;
+
+			vary += "varying " + this.#Translate(member.DataType) + " __vary_" + member.Name + ";\n";
+		}
+
+		vary += "\n";
+		return vary;
+	}
+
+	#GetStructsString()
+	{
+		var str = "";
+
+		for (var s = 0; s < this.#structs.length; s++)
+		{
+			// Start the struct
+			var struct = this.#structs[s];
+			str += "struct " + struct.Name + "\n";
+			str += "{\n";
+
+			// Handle each variable (no semantics)
+			for (var v = 0; v < struct.Variables.length; v++)
+			{
+				var variable = struct.Variables[v];
+				str += "\t" + this.#Translate(variable.DataType) + " " + variable.Name + ";\n";
+			}
+
+			// End the struct
+			str += "};\n\n";
+		}
+
+		return str;
+	}
+
+
+	#GetFunctionString(func, prependName = "")
+	{
+		var funcStr = "";
+
+		// Start the function
+		funcStr += this.#Translate(func.ReturnType) + " " + prependName + func.Name + "(";
+
+		// Parameters
+		for (var p = 0; p < func.Parameters.length; p++)
+		{
+			var param = func.Parameters[p];
+			funcStr += this.#Translate(param.DataType) + " " + param.Name;
+
+			if (p < func.Parameters.length - 1)
+				funcStr += ", ";
+		}
+
+		// End header
+		funcStr += ")\n";
+
+		// Body (including scope!)
+		var indent = 0;
+		for (var t = 0; t < func.BodyTokens.length; t++)
+		{
+			var token = func.BodyTokens[t];
+
+			funcStr += this.#TranslateToken(token);
+
+			// Determine what to do next
+			switch (token.Type)
+			{
+				case TokenScopeLeft: indent++; funcStr += "\n" + "\t".repeat(indent); break;
+				case TokenScopeRight: indent--; funcStr += "\n" + "\t".repeat(indent); break;
+				case TokenIdentifier: funcStr += " "; break;
+				case TokenSemicolon: funcStr += "\n" + "\t".repeat(indent); break;
+			}
+		}
+
+		// End body
+		funcStr += "\n";
+		return funcStr;
+	}
+
+	#GetHelperFunctionsString()
+	{
+		var functions = "";
+		for (var f = 0; f < this.#functions.length; f++)
+			functions += this.#GetFunctionString(this.#functions[f]);
+		return functions;
+	}
+
+	
+	#BuildVertexShaderMain(vsInputs)
+	{
+		var main = "void main()\n";
+		main += "{\n";
+
+		// Create a variable for each vs input
+		//for (var v = 0; v < vsInputs.length; v++)
+		//{
+		//	main += "\t" + this.#Translate(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
+		//	main += "__attrib_" + vsInputs[v].Name + ";\n";
+		//}
+
+		// Call the function and capture the return value
+		main += "\t" + this.#main.ReturnType + " __vsOutput = hlsl_main(";
+		for (var v = 0; v < vsInputs.length; v++)
+		{
+			main += "__attrib_" + vsInputs[v].Name;
+			if (v < vsInputs.length - 1)
+				main += ", ";
+		}
+		main += ");\n";
+
+		// Handle output - might be return value directly or part of struct
+		if (this.#main.Semantic != null &&
+			this.#main.Semantic.toUpperCase() == "SV_POSITION")
+		{
+			// This is the only output
+			main += "\tgl_Position = __vsOutput;\n";
+		}
+		else
+		{
+			// SV_POSITION is part of a struct - handle all that data
+			var posName = null;
+			var struct = this.#GetStructByName(this.#main.ReturnType);
+			for (var v = 0; v < struct.Variables.length; v++)
+			{
+				var member = struct.Variables[v];
+
+				// Is this our SV_Position?
+				if (member.Semantic != null &&
+					member.Semantic.toUpperCase() == "SV_POSITION")
+				{
+					// Remember for later
+					posName = member.Name;
+				}
+				else
+				{
+					// This is other VS->PS data
+					main += "\t__vary_" + member.Name + " = __vsOutput." + member.Name + ";\n";
+				}
+			}
+
+			main += "\tgl_Position = __vsOutput." + posName + ";\n";
+		}
+
+		main += "}\n";
+		return main;
+	}
+
 
 	#ConvertPixelShader()
 	{

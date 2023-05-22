@@ -120,11 +120,17 @@
 		//context.Draw(3, 0);
 		context.DrawIndexed(6, 0, 0);
 
-		var hlslCode =
+		var hlslCodeTest =
 `struct Test
 {
 	float3 pos : SEMANTIC;
 	centroid float other;
+};
+
+struct VS_Output
+{
+	float4 pos : SV_POSITION;
+	float2 uv : TEXCOORD;
 };
 
 cbuffer ExternalData : register(b0)
@@ -153,7 +159,13 @@ float test(){return 1;}
 
 float4 NoParams()
 {
-	return float4(1,1,1,1);
+	float x = sin(5.0f);
+	float y = 0;
+	if(true)
+	{
+		y = cos(99);
+	}
+	return float4(x,y,1.f,1.0f);
 }
 
 float GetRed(float4 color)
@@ -161,7 +173,7 @@ float GetRed(float4 color)
 	return color.r;
 }
 
-float4 main(float3 posIn : POSITION, float2 uvIn : TEXCOORD) : SV_POSITION
+VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 {
 	float x = posIn[0];
 /*
@@ -172,7 +184,7 @@ float4 main(float3 posIn : POSITION, float2 uvIn : TEXCOORD) : SV_POSITION
 }
 `;
 
-		var t = new HLSLtoGLSL(hlslCode, ShaderTypeVertex);
+		var t = new HLSLtoGLSL(hlslCodeTest, ShaderTypeVertex);
 		console.log(t.GetGLSL());
 	</script>
 </body>
