@@ -109,15 +109,15 @@
 				float4 color;
 			};
 
-			struct VSOutput
+			struct VertexToPixel
 			{
 				float4 position : SV_POSITION;
 				float4 color	: COLOR;
 			};
 
-			VSOutput main(VSInput input)
+			VertexToPixel main(VSInput input)
 			{
-				VSOutput output;
+				VertexToPixel output;
 				output.position = float4(input.position, 1);
 				output.color = input.color;
 				return output;
@@ -126,6 +126,26 @@
 		var vsToGLSL = new HLSL(hlslVS, ShaderTypeVertex);
 		console.log(vsToGLSL.GetGLSL());
 		var testVS = compileShader(gl, vsToGLSL.GetGLSL(), gl.VERTEX_SHADER);
+
+		var hlslPS = `
+		
+			struct VertexToPixel
+			{
+				float4 position : SV_POSITION;
+				float4 color	: COLOR;
+			};
+
+			float4 main(VertexToPixel input) : SV_TARGET
+			{
+				return input.color;
+			}
+		`;
+
+		var psToGLSL = new HLSL(hlslPS, ShaderTypePixel);
+		console.log(psToGLSL.GetGLSL());
+		var testPS = compileShader(gl, psToGLSL.GetGLSL(), gl.FRAGMENT_SHADER);
+
+		var testProg = createProgram(gl, testVS, testPS);
 
 		// Test GLSL shaders
 		var vsCode = "attribute vec3 a_position; attribute vec4 a_color; varying vec4 v_color; void main() {\n v_color = a_color; gl_Position = vec4(a_position, 1.0); }";
@@ -136,7 +156,7 @@
 
 		var prog = createProgram(gl, vs, ps);
 
-		gl.useProgram(prog);
+		gl.useProgram(testProg);
 
 		var vp = new D3D11_VIEWPORT(200, 200, 500, 500, 0, 1);
 		//context.RSSetViewports(1, [vp]);

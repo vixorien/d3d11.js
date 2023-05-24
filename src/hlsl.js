@@ -23,6 +23,8 @@ const PrefixAttribute = "_attrib_";
 const PrefixVarying = "_vary_";
 const PrefixVSInput = "_vs_input_";
 const PrefixVSOutput = "_vs_output_";
+const PrefixPSInput = "_ps_input_";
+const PrefixPSOutput = "_ps_output_";
 
 class TokenIterator
 {
@@ -956,7 +958,7 @@ class HLSL
 				continue;
 
 			vary += "varying " + this.#Translate(member.DataType);	// Data type
-			vary += " " + PrefixVarying + member.Name + ";\n";		// Identifier
+			vary += " " + PrefixVarying + member.Semantic + ";\n";	// Identifier is semantic!
 		}
 
 		vary += "\n";
@@ -1069,13 +1071,14 @@ class HLSL
 		return functions;
 	}
 
-	// TODO: Need to handle VS taking in an entire struct!
 	#BuildVertexShaderMain(vsInputs)
 	{
 		var main = "void main()\n";
 		main += "{\n";
 
 		// Create a variable for each vs input
+		// NOTE: This could be skipped and the attributes could be 
+		//       directly set to the variables/structs below
 		for (var v = 0; v < vsInputs.length; v++)
 		{
 			main += "\t" + this.#Translate(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
@@ -1108,7 +1111,7 @@ class HLSL
 		}
 
 		// Call the function and capture the return value
-		main += "\n\t" + this.#main.ReturnType + " " + PrefixVSOutput + " = hlsl_main(";
+		main += "\n\t" + this.#Translate(this.#main.ReturnType) + " " + PrefixVSOutput + " = hlsl_main(";
 		for (var p = 0; p < this.#main.Parameters.length; p++)
 		{
 			main += this.#Translate(this.#main.Parameters[p].Name);
@@ -1142,8 +1145,8 @@ class HLSL
 				}
 				else
 				{
-					// This is other VS->PS data
-					main += "\t" + PrefixVarying + member.Name + " = " + PrefixVSOutput + "." + member.Name + ";\n";
+					// This is other VS->PS data (varying identifier is semantic!)
+					main += "\t" + PrefixVarying + member.Semantic + " = " + PrefixVSOutput + "." + member.Name + ";\n";
 				}
 			}
 
@@ -1196,39 +1199,170 @@ class HLSL
 		if (psInputs.length == 0)
 			return "";
 
+		var vary = "";
+
 		// Loop through all main parameters
+		var needFragCoord = false;
 		for (var p = 0; p < this.#main.Parameters.length; p++)
 		{
 			var param = this.#main.Parameters[p];
-			if (this.#DataTypeIsStruct(praam.DataType))
+			if (this.#DataTypeIsStruct(param.DataType))
 			{
 				// This param is an entire struct, so make a varying for each member
+				// Note: Using semantic as varying identifiers!
+				var struct = this.#GetStructByName(param.DataType);
+				for (var v = 0; v < struct.Variables.length; v++)
+				{
+					var member = struct.Variables[v];
 
-				// TODO: Should these be "hooked up" via semantic rather than variable name?  PROBABLY
+					// Skip SV_POSITION
+					if (member.Semantic != null &&
+						member.Semantic.toUpperCase() == "SV_POSITION")
+					{
+						needFragCoord = true;
+						continue;
+					}
 
+					vary += "varying " + this.#Translate(member.DataType); // Data type
+					vary += " " + PrefixVarying + member.Semantic + ";\n"; // Identifier is semantic!
+				}
+
+			}
+			else if (param.Semantic != null && param.Semantic.toUpperCase() == "SV_POSITION")
+			{
+				needFragCoord = true;
 			}
 			else
 			{
 				// This is a normal variable, so just one varying
+				vary += "varying " + this.#Translate(param.DataType); // Data type
+				vary += " " + PrefixVarying + param.Semantic + ";\n"; // Identifier is semantic!
 			}
 		}
 
-		var vary = "";
+		// Do we need gl_FragCoord due to an expected SV_POSITION input?
+		if (needFragCoord)
+		{
+			// Nothing to do here yet...
+			// TODO: handle upside down Y coord!!!
+			// How? Automatically add data so we can flip ourselves, maybe?
+		}
+
+		// Extra line break just for readability when debugging
+		vary += "\n";
+
+		return vary;
+	}
+
+	#BuildPixelShaderMain(psInputs)
+	{
+		var main = "void main()\n";
+		main += "{\n";
+
+		// Create a variable for each ps input (which comes from a varying)
+		// NOTE: This could be skipped and the varyings could be
+		//       directly set to the variables/structs below
+		for (var v = 0; v < psInputs.length; v++)
+		{
+			main += "\t" + this.#Translate(psInputs[v].DataType) + " " + psInputs[v].Name + " = ";
+
+			// SV_POSITION is really just gl_FragCoord
+			if (psInputs[v].Semantic.toUpperCase() == "SV_POSITION")
+				main += "gl_FragCoord;\n";
+			else
+				main += PrefixVarying + psInputs[v].Semantic + ";\n"; // Identifier is semantic!
+		}
+
+		// Are any of the actual function inputs structs?
+		for (var p = 0; p < this.#main.Parameters.length; p++)
+		{
+			var param = this.#main.Parameters[p];
+			if (this.#DataTypeIsStruct(param.DataType))
+			{
+				// Yes, so build a struct object and "hook up" psInputs
+				var newParamName = this.#Translate(param.Name);
+				main += "\n\t" + param.DataType;
+				main += " " + newParamName + ";\n";
+
+				// Handle each struct member
+				var struct = this.#GetStructByName(param.DataType);
+				for (var v = 0; v < struct.Variables.length; v++)
+				{
+					var member = struct.Variables[v];
+					main += "\t" + newParamName + "." + this.#Translate(member.Name) + " = ";
+
+					// NOTE: Assumption here is that the struct member name is identical to the
+					//       psInput identifier used throughout the rest of the function
+					main += this.#Translate(member.Name) + ";\n";
+				}
+			}
+		}
+
+		// Call the function and capture the return value
+		main += "\n\t" + this.#Translate(this.#main.ReturnType) + " " + PrefixPSOutput + " = hlsl_main(";
+		for (var p = 0; p < this.#main.Parameters.length; p++)
+		{
+			main += this.#Translate(this.#main.Parameters[p].Name);
+			if (p < this.#main.Parameters.length - 1)
+				main += ", ";
+		}
+		main += ");\n\n";
+
+		// Handle output - NOTE: Currently, only handling a single render target!
+		if (this.#main.Semantic != null &&
+			(this.#main.Semantic.toUpperCase() == "SV_TARGET" ||
+			this.#main.Semantic.toUpperCase() == "SV_TARGET0"))
+		{
+			main += "\tgl_FragColor = " + PrefixPSOutput + ";\n";
+		}
+		else
+		{
+			// Presumably part of a struct - figure out which member
+			// NOTE: Still only handling a single render target!
+			// TODO: Figure out multiple render targets in webgl
+
+			var targetName = null;
+			var struct = this.#GetStructByName(this.#main.ReturnType);
+			for (var v = 0; v < struct.Variables.length; v++)
+			{
+				var member = struct.Variables[v];
+
+				// Is this our SV_Position?
+				if (member.Semantic != null &&
+					(member.toUpperCase() == "SV_TARGET" ||
+					member.toUpperCase() == "SV_TARGET0"))
+				{
+					// Remember for later
+					targetName = member.Name;
+				}
+				else
+				{
+					// This is a semantic other than SV_TARGET or SV_TARGET0
+					throw new Error("Error converting pixel shader: Only 1 render target currently supported");
+				}
+			}
+
+			main += "\tgl_FragColor = " + PrefixPSOutput + "." + targetName + ";\n";
+		}
+
+
+		main += "}\n";
+		return main;
 	}
 
 
 	#ConvertPixelShader()
 	{
-		// NOTE: If the PS expects an SV_POSITION, we'll need the following:
-		// layout(origin_upper_left) in vec4 gl_FragCoord;
-		// - May also need "pixel_center_integer" in the layout params, too
-
-
 		var glsl = "";
 		var psInputs = this.#GetPSInputs();
 
 		// Append each element
-
+		glsl += "precision mediump float;\n\n";
+		glsl += this.#GetPSVaryings(psInputs);
+		glsl += this.#GetStructsString();
+		glsl += this.#GetHelperFunctionsString();
+		glsl += this.#GetFunctionString(this.#main, "hlsl_");
+		glsl += this.#BuildPixelShaderMain(psInputs);
 
 		return glsl;
 	}
