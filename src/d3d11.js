@@ -466,7 +466,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#gl;
 
 	// General pipeline ---
-	#shaderPrograms;
+	#shaderProgramMap;
 	#shadersDirty;
 
 	// Input Assembler ---
@@ -500,7 +500,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#gl = device.GetAdapter();
 
 		// General
-		this.#shaderPrograms = {};
+		this.#shaderProgramMap = new Map();
 		this.#shadersDirty = true;
 
 		// Input Assembler
@@ -690,27 +690,26 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		if (this.#pixelShader == null) throw new Error("No pixel shader bound!");
 
 		// Determine if we've seen this vertex shader before
-		if (!(this.#vertexShader in this.#shaderPrograms))
+		if (!this.#shaderProgramMap.has(this.#vertexShader))
 		{
-			this.#shaderPrograms[this.#vertexShader] = {};
+			this.#shaderProgramMap.set(this.#vertexShader, new Map());
 		}
 
 		// Determine if we've seen this pixel shader before
-		if (!(this.#pixelShader in this.#shaderPrograms[this.#vertexShader]))
+		var vsMap = this.#shaderProgramMap.get(this.#vertexShader);
+		if (!vsMap.has(this.#pixelShader))
 		{
-			this.#shaderPrograms[this.#vertexShader][this.#pixelShader] = {
-				GLProgram: null
-			};
+			vsMap.set(this.#pixelShader, { GLProgram: null }); // Note: May want to store more stuff?
 		}
 
 		// Does this program exist?
-		var prog = this.#shaderPrograms[this.#vertexShader][this.#pixelShader].GLProgram;
+		var vspsMap = vsMap.get(this.#pixelShader);
+		var prog = vspsMap.GLProgram;
 		if (prog == null)
 		{
 			// Create the program and cache for later
 			prog = this.#CreateShaderProgram(this.#vertexShader, this.#pixelShader);
-			this.#shaderPrograms[this.#vertexShader][this.#pixelShader].GLProgram = prog;
-				
+			vspsMap.GLProgram = prog;
 		}
 
 		// Activate this program and we're clean

@@ -49,7 +49,7 @@
 		var hlslPS_SolidColor = `
 			float4 main() : SV_TARGET
 			{
-				return float4(1,0,0,1);
+				return float4(0,0,0,1);
 			}
 		`;
 
@@ -109,28 +109,27 @@
 		var inputLayout = device.CreateInputLayout(inputElements);
 		context.IASetInputLayout(inputLayout);
 
-		// Set primitive type
-		context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
 		// Create shaders
 		var vs = device.CreateVertexShader(hlslVS);
 		var ps = device.CreatePixelShader(hlslPS);
 		var psSolid = device.CreatePixelShader(hlslPS_SolidColor);
 
-		context.VSSetShader(vs);
-		context.PSSetShader(ps);
-
 		// Viewport testing
 		//var vp = new D3D11_VIEWPORT(200, 200, 500, 500, 0, 1);
 		//context.RSSetViewports(1, [vp]);
 
+		// Set the common vertex shader
+		context.VSSetShader(vs);
 
-		//context.Draw(3, 0);
+		// Draw triangles
+		context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		context.PSSetShader(ps);
 		context.DrawIndexed(6, 0, 0);
 
-		// Note: This draw gets culled due to depth buffer
+		// Draw solid lines over the triangles
+		context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP);
 		context.PSSetShader(psSolid);
-		context.DrawIndexed(3, 0, 0);
+		context.DrawIndexed(6, 0, 0);
 
 		// Flush the frame
 		swapChain.Present();
@@ -251,7 +250,7 @@ VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 `;
 
 		var t = new HLSL(hlslCodeTest, ShaderTypeVertex);
-		console.log(t.GetGLSL());
+		//console.log(t.GetGLSL());
 	</script>
 </body>
 </html>
