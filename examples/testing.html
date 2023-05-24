@@ -114,6 +114,10 @@
 		var ps = device.CreatePixelShader(hlslPS);
 		var psSolid = device.CreatePixelShader(hlslPS_SolidColor);
 
+		var gl = device.GetAdapter();
+		var a = gl.getContextAttributes();
+		console.log(a);
+
 		// Viewport testing
 		//var vp = new D3D11_VIEWPORT(200, 200, 500, 500, 0, 1);
 		//context.RSSetViewports(1, [vp]);

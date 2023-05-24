@@ -275,7 +275,15 @@ class D3D11_VIEWPORT
 function D3D11CreateDevice(canvas) // Canvas acts as the adapter here
 {
 	// Verify and turn on WebGL
-	const gl = canvas.getContext("webgl2");
+	// Note: Attempting to match D3D defaults
+	//       in the options (no depth buffer, etc.)
+	// Full list: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext
+	const gl = canvas.getContext("webgl2",
+		{
+			antialias: false,
+			depth: false,
+			preserveDrawingBuffer: true
+		});
 	if (gl === null) {
 		return false; // TODO: Throw exception?
 	}
