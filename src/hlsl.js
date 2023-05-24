@@ -1155,8 +1155,81 @@ class HLSL
 	}
 
 
+
+	#GetPSInputs()
+	{
+		// Validate main
+		if (this.#main == null)
+			throw new Error("Missing main() function in shader");
+
+		// Get all of the PS inputs
+		var psInputs = [];
+		for (var p = 0; p < this.#main.Parameters.length; p++)
+		{
+			var param = this.#main.Parameters[p];
+
+			// If this is a data type, we have to scan the whole thing
+			if (this.#DataTypeIsStruct(param.DataType))
+			{
+				var struct = this.#GetStructByName(param.DataType);
+				if (struct == null)
+					throw new Error("Invalid data type in pixel shader input");
+
+				// Add each struct member to the VS input
+				for (var v = 0; v < struct.Variables.length; v++)
+				{
+					psInputs.push(struct.Variables[v]);
+				}
+			}
+			else
+			{
+				psInputs.push(param);
+			}
+		}
+
+		return psInputs;
+	}
+
+	#GetPSVaryings(psInputs)
+	{
+		// Any inputs?
+		if (psInputs.length == 0)
+			return "";
+
+		// Loop through all main parameters
+		for (var p = 0; p < this.#main.Parameters.length; p++)
+		{
+			var param = this.#main.Parameters[p];
+			if (this.#DataTypeIsStruct(praam.DataType))
+			{
+				// This param is an entire struct, so make a varying for each member
+
+				// TODO: Should these be "hooked up" via semantic rather than variable name?  PROBABLY
+
+			}
+			else
+			{
+				// This is a normal variable, so just one varying
+			}
+		}
+
+		var vary = "";
+	}
+
+
 	#ConvertPixelShader()
 	{
+		// NOTE: If the PS expects an SV_POSITION, we'll need the following:
+		// layout(origin_upper_left) in vec4 gl_FragCoord;
+		// - May also need "pixel_center_integer" in the layout params, too
 
+
+		var glsl = "";
+		var psInputs = this.#GetPSInputs();
+
+		// Append each element
+
+
+		return glsl;
 	}
 }
