@@ -770,7 +770,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			// We now have a combined VS+PS set
 			vsMap.set(this.#pixelShader, {
 				GLProgram: null,
-				CBufferMap: []
+				CBufferMap: Array(this.#maxVSConstantBuffers + this.#maxPSConstantBuffers).fill(-1)
 			}); // Note: May want to store more stuff?
 		}
 
@@ -830,8 +830,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#currentCBufferMap = vspsMap.CBufferMap;
 		this.#shadersDirty = false;
 
-		// NOTE: I think we need to rebind cbuffers after a shader program swap?
-		// TODO: Verify this
+		// After shader program swap, we need to double check cbuffers
 		this.#vsConstantBuffersDirty = true;
 		this.#psConstantBuffersDirty = true;
 	}
@@ -865,33 +864,52 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#PrepareConstantBuffers()
 	{
 		// Bind all VS cbuffers to the proper registers, then map them to uniform block indices
-		for (var v = 0; v < this.#vsConstantBuffers.length && this.#vsConstantBuffersDirty; v++)
+		for (var v = 0; this.#vsConstantBuffersDirty && v < this.#vsConstantBuffers.length; v++)
 		{
 			var cb = this.#vsConstantBuffers[v];
 			if (cb == null)
 				continue;
-			// Bind to correct "register slot"
-			this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, v, cb.GetGLResource());
 
-			// Map the "register slot" to the uniform block index in the program
+			// Check to see if the shader program expects a buffer
 			var ubIndex = this.#currentCBufferMap[v];
-			this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, v);
+			if (ubIndex == -1)
+			{
+				// Doesn't want this buffer, so unbind
+				this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, v, null);
+			}
+			else
+			{
+				// Bind to correct "register slot"
+				this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, v, cb.GetGLResource());
+
+				// Map the "register slot" to the uniform block index in the program
+				this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, v);
+			}
 		}
 
 		// Bind all PS cbuffers, too - taking into account an offset to put them after all VS cbuffers
-		for (var p = 0; p < this.#psConstantBuffers.length && this.#psConstantBuffersDirty; p++)
+		for (var p = 0; this.#psConstantBuffersDirty && p < this.#psConstantBuffers.length; p++)
 		{
 			var cb = this.#psConstantBuffers[p];
 			if (cb == null)
 				continue;
 
-			// Bind to correct "register slot", taking into account VS register offset
+			// Expecting a buffer? (Use PS offset index)
 			var psIndex = p + this.#maxVSConstantBuffers;
-			this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, psIndex, cb.GetGLResource());
-
-			// Map the "register slot" to the uniform block index in the program
 			var ubIndex = this.#currentCBufferMap[psIndex];
-			this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, psIndex);
+			if (ubIndex == -1)
+			{
+				// Doesn't want this buffer, so unbind
+				this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, psIndex, null);
+			}
+			else
+			{
+				// Bind to correct "register slot", taking into account VS register offset
+				this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, psIndex, cb.GetGLResource());
+
+				// Map the "register slot" to the uniform block index in the program
+				this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, psIndex);
+			}
 		}
 
 		// All clean
