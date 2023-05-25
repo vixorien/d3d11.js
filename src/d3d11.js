@@ -448,8 +448,8 @@ class ID3D11Device extends IUnknown
 		// Take the shader code, convert it and pass to GL functions
 		var vs = new HLSL(hlslCode, ShaderTypeVertex);
 		var glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
-		
-		return new ID3D11VertexShader(this, glShader);
+
+		return new ID3D11VertexShader(this, glShader, vs.GetCBuffers());
 	}
 
 	CreatePixelShader(hlslCode)
@@ -458,7 +458,7 @@ class ID3D11Device extends IUnknown
 		var ps = new HLSL(hlslCode, ShaderTypePixel);
 		var glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
 
-		return new ID3D11PixelShader(this, glShader);
+		return new ID3D11PixelShader(this, glShader, ps.GetCBuffers());
 	}
 
 	#CompileGLShader(glslCode, glShaderType)
@@ -486,6 +486,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// General pipeline ---
 	#shaderProgramMap;
+	#currentShaderProgram;
+	#currentCBufferMap;
 	#shadersDirty;
 
 	// Input Assembler ---
@@ -503,12 +505,18 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// Vertex Shader ---
 	#vertexShader;
+	#maxVSConstantBuffers;
+	#vsConstantBuffers;
+	#vsConstantBuffersDirty;
 
 	// Rasterizer ---
 	#viewport;
 
 	// Pixel Shader ---
 	#pixelShader;
+	#maxPSConstantBuffers;
+	#psConstantBuffers;
+	#psConstantBuffersDirty;
 
 	// Output Merger ---
 
@@ -520,6 +528,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 		// General
 		this.#shaderProgramMap = new Map();
+		this.#currentShaderProgram = null;
+		this.#currentCBufferMap = null;
 		this.#shadersDirty = true;
 
 		// Input Assembler
@@ -539,15 +549,28 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Vertex Shader
-		this.#vertexShader = null;
+		{
+			this.#vertexShader = null;
+			this.#maxVSConstantBuffers = this.#gl.getParameter(this.#gl.MAX_VERTEX_UNIFORM_BLOCKS);
+			this.#vsConstantBuffers = Array(this.#maxVSConstantBuffers).fill(null);
+			this.#vsConstantBuffersDirty = true;
+		}
 
 		// Rasterizer
-		this.#viewport = null;
+		{
+			this.#viewport = null;
+		}
 
 		// Pixel Shader
-		this.#pixelShader = null;
+		{
+			this.#pixelShader = null;
+			this.#maxPSConstantBuffers = this.#gl.getParameter(this.#gl.MAX_FRAGMENT_UNIFORM_BLOCKS);
+			this.#psConstantBuffers = Array(this.#maxPSConstantBuffers).fill(null);
+			this.#psConstantBuffersDirty = true;
+		}
 
 		// Output Merger
+
 	}
 
 
@@ -622,6 +645,22 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#shadersDirty = true;
 	}
 
+	VSSetConstantBuffers(startSlot, constantBuffers)
+	{
+		// Validate overall slots
+		if (startSlot + constantBuffers.length < 0 ||
+			startSlot + constantBuffers.length >= this.#maxVSConstantBuffers)
+			throw new Error("Attempting to set VS constant buffers outside valid range");
+
+		// Place buffers in contiguous slots, offset by starting index
+		for (var c = 0; c < constantBuffers.length; c++)
+		{
+			this.#vsConstantBuffers[c + startSlot] = constantBuffers[c];
+		}
+
+		this.#vsConstantBuffersDirty = true;
+	}
+
 	// Note: Just taking a single viewport, though
 	// the name suggests otherwise, as WebGL only handles
 	// a single viewport
@@ -647,6 +686,22 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	{
 		this.#pixelShader = pixelShader;
 		this.#shadersDirty = true;
+	}
+
+	PSSetConstantBuffers(startSlot, constantBuffers)
+	{
+		// Validate overall slots
+		if (startSlot + constantBuffers.length < 0 ||
+			startSlot + constantBuffers.length >= this.#maxPSConstantBuffers)
+			throw new Error("Attempting to set PS constant buffers outside valid range");
+
+		// Place buffers in contiguous slots, offset by starting index
+		for (var c = 0; c < constantBuffers.length; c++)
+		{
+			this.#psConstantBuffers[c + startSlot] = constantBuffers[c];
+		}
+
+		this.#psConstantBuffersDirty = true;
 	}
 
 	// TODO: Handle instancing
@@ -712,7 +767,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		var vsMap = this.#shaderProgramMap.get(this.#vertexShader);
 		if (!vsMap.has(this.#pixelShader))
 		{
-			vsMap.set(this.#pixelShader, { GLProgram: null }); // Note: May want to store more stuff?
+			// We now have a combined VS+PS set
+			vsMap.set(this.#pixelShader, {
+				GLProgram: null,
+				CBufferMap: []
+			}); // Note: May want to store more stuff?
 		}
 
 		// Does this program exist?
@@ -723,11 +782,58 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			// Create the program and cache for later
 			prog = this.#CreateShaderProgram(this.#vertexShader, this.#pixelShader);
 			vspsMap.GLProgram = prog;
+
+			// Now that we have a program, cache cbuffer (uniform buffer) indices
+
+			// Start with vertex shader cbuffers
+			var vsCBs = this.#vertexShader.GetCBuffers();
+			for (var v = 0; v < vsCBs.length; v++)
+			{
+				var cb = vsCBs[v];
+
+				// Validate index
+				if (cb.RegisterIndex < 0 || cb.RegisterIndex >= this.#maxVSConstantBuffers)
+					throw new Error("Invalid register index for vertex shader constant buffer");
+
+				// Get the uniform block index
+				// TODO: Check translated names!
+				var ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
+
+				// Store in the map
+				vspsMap.CBufferMap[cb.RegisterIndex] = ubIndex;
+			}
+
+			// Next, pixel shader cbuffers
+			var psCBs = this.#pixelShader.GetCBuffers();
+			for (var p = 0; p < psCBs.length; p++)
+			{
+				var cb = psCBs[p];
+
+				// Validate index
+				if (cb.RegisterIndex < 0 || cb.RegisterIndex >= this.#maxPSConstantBuffers)
+					throw new Error("Invalid register index for pixel shader constant buffer");
+
+				// Get the uniform block index
+				// TODO: Check translated names!
+				var ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
+
+				// Store in the map - Note the offset for uniform block indices, since
+				// we need PS indices to start after all possible VS indices
+				var offsetPSIndex = cb.RegisterIndex + this.#maxVSConstantBuffers;
+				vspsMap.CBufferMap[offsetPSIndex] = ubIndex;
+			}
 		}
 
 		// Activate this program and we're clean
 		this.#gl.useProgram(prog);
+		this.#currentShaderProgram = prog;
+		this.#currentCBufferMap = vspsMap.CBufferMap;
 		this.#shadersDirty = false;
+
+		// NOTE: I think we need to rebind cbuffers after a shader program swap?
+		// TODO: Verify this
+		this.#vsConstantBuffersDirty = true;
+		this.#psConstantBuffersDirty = true;
 	}
 
 	#CreateShaderProgram(vs, ps)
@@ -756,12 +862,50 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		return program;
 	}
 
+	#PrepareConstantBuffers()
+	{
+		// Bind all VS cbuffers to the proper registers, then map them to uniform block indices
+		for (var v = 0; v < this.#vsConstantBuffers.length && this.#vsConstantBuffersDirty; v++)
+		{
+			var cb = this.#vsConstantBuffers[v];
+			if (cb == null)
+				continue;
+			// Bind to correct "register slot"
+			this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, v, cb.GetGLResource());
+
+			// Map the "register slot" to the uniform block index in the program
+			var ubIndex = this.#currentCBufferMap[v];
+			this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, v);
+		}
+
+		// Bind all PS cbuffers, too - taking into account an offset to put them after all VS cbuffers
+		for (var p = 0; p < this.#psConstantBuffers.length && this.#psConstantBuffersDirty; p++)
+		{
+			var cb = this.#psConstantBuffers[p];
+			if (cb == null)
+				continue;
+
+			// Bind to correct "register slot", taking into account VS register offset
+			var psIndex = p + this.#maxVSConstantBuffers;
+			this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, psIndex, cb.GetGLResource());
+
+			// Map the "register slot" to the uniform block index in the program
+			var ubIndex = this.#currentCBufferMap[psIndex];
+			this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, psIndex);
+		}
+
+		// All clean
+		this.#vsConstantBuffersDirty = false;
+		this.#psConstantBuffersDirty = false;
+	}
+
 	// TODO: Prepare rest of pipeline
 	// TODO: Handle primitive topology
 	Draw(vertexCount, startVertexLocation)
 	{
 		this.#PrepareInputAssembler();
 		this.#PrepareShaders();
+		this.#PrepareConstantBuffers();
 
 		this.#gl.drawArrays(
 			this.#GetGLPrimitiveType(this.#primitiveTopology),
@@ -773,6 +917,32 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	{
 		this.#PrepareInputAssembler();
 		this.#PrepareShaders();
+		this.#PrepareConstantBuffers();
+		
+
+		//console.log("Max vs cbuffers: " + this.#gl.getParameter(this.#gl.MAX_VERTEX_UNIFORM_BLOCKS));
+		//console.log("Max ps cbuffers: " + this.#gl.getParameter(this.#gl.MAX_FRAGMENT_UNIFORM_BLOCKS));
+		//console.log("Max total cbuffers: " + this.#gl.getParameter(this.#gl.MAX_COMBINED_UNIFORM_BLOCKS));
+		//console.log("Max bindings: " + this.#gl.getParameter(this.#gl.MAX_UNIFORM_BUFFER_BINDINGS));
+		//console.log("Max cbuffer size: " + this.#gl.getParameter(this.#gl.MAX_UNIFORM_BLOCK_SIZE));
+
+		//// TESTING UNIFORM BLOCK
+		//var vsIndex = this.#gl.getUniformBlockIndex(this.#currentShaderProgram, "vsData");
+		////console.log(vsIndex);
+
+		//var data = new Float32Array(1);
+		//data[0] = 0.25;
+		//var cbuffer = this.#gl.createBuffer();
+		//this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, cbuffer);
+		//this.#gl.bufferData(this.#gl.UNIFORM_BUFFER, data, this.#gl.DYNAMIC_DRAW);
+
+		//// Place uniform buffer in a specific "spot" (index ZERO here)
+		//// This just gives us a spot to map to
+		//var reg = 0;
+		//this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, reg, cbuffer);
+
+		//// Map buffer[reg] to uniformBlockInShaderProgram[vsIndex]
+		//this.#gl.uniformBlockBinding(this.#currentShaderProgram, vsIndex, reg);
 
 		// Get proper format
 		var format = this.#gl.UNSIGNED_SHORT;
@@ -928,34 +1098,48 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 class ID3D11VertexShader extends ID3D11DeviceChild
 {
 	#shader;
+	#cbuffers;
 
-	constructor(device, glShader)
+	constructor(device, glShader, cbuffers)
 	{
 		super(device);
 
 		this.#shader = glShader;
+		this.#cbuffers = cbuffers;
 	}
 
 	GetShader()
 	{
 		return this.#shader;
+	}
+
+	GetCBuffers()
+	{
+		return this.#cbuffers;
 	}
 }
 
 class ID3D11PixelShader extends ID3D11DeviceChild
 {
 	#shader;
+	#cbuffers;
 
-	constructor(device, glShader)
+	constructor(device, glShader, cbuffers)
 	{
 		super(device);
 
 		this.#shader = glShader;
+		this.#cbuffers = cbuffers;
 	}
 
 	GetShader()
 	{
 		return this.#shader;
+	}
+
+	GetCBuffers()
+	{
+		return this.#cbuffers;
 	}
 }
 
@@ -1332,9 +1516,10 @@ class HLSL
 		this.#Parse();
 	}
 
-	GetTokens()
+	GetCBuffers()
 	{
-		return this.#tokens;
+		// Return a copy so we don't have any refs
+		return this.#cbuffers.slice();
 	}
 
 	#DataTypeIsStruct(type)
@@ -1488,7 +1673,12 @@ class HLSL
 		{
 			this.#cbuffers.push(globalCB);
 		}
-		// TODO: Fill in implicit register indices!!!
+
+		// Resolve any implicit register indices
+		// TODO: Actually find and use maximums for each register type!
+		this.#ResolveImplicitRegisters(this.#cbuffers, 999);
+		this.#ResolveImplicitRegisters(this.#samplers, 999);
+		this.#ResolveImplicitRegisters(this.#textures, 999);
 	}
 
 	#Allow(it, tokenType)
@@ -1756,6 +1946,7 @@ class HLSL
 		return s;
 	}
 
+	// TODO: Skip const globals in the global CB
 	#GlobalVarOrFunction(it, globalCB)
 	{
 		// Data type
@@ -1849,7 +2040,41 @@ class HLSL
 		}
 	}
 
+	#RegisterExists(elements, registerIndex)
+	{
+		for (var e = 0; e < elements.length; e++)
+		{
+			if (elements[e].RegisterIndex == registerIndex)
+				return true;
+		}
 
+		return false;
+	}
+
+	#ResolveImplicitRegisters(elements, maxRegisters)
+	{
+		// The current index for an implicit register
+		var currentIndex = 0;
+
+		for (var e = 0; e < elements.length; e++)
+		{
+			// Does this element need a register?
+			if (elements[e].RegisterIndex == -1)
+			{
+				// If the current index is taken, check the next
+				while (this.#RegisterExists(elements, currentIndex))
+					currentIndex++;
+
+				// TODO: Validate register indices - ensure they don't go above MAX for this type
+				if (currentIndex >= maxRegisters)
+					throw new Error("Too many registers in use for shader");
+
+				// Current index is open
+				elements[e].RegisterIndex = currentIndex;
+				currentIndex++;
+			}
+		}
+	}
 
 	// Converting hlsl to glsl
 	//
@@ -2052,6 +2277,8 @@ class HLSL
 		return str;
 	}
 
+	// Note: Using the same variable name in uniform blocks in VS/PS seems to throw a webgl error
+	// TODO: Handle this by prepending ALL cbuffer variables with "vs_" or "ps_" perhaps?
 	#GetCBuffersString()
 	{
 		var cbStr = "";
@@ -2060,7 +2287,7 @@ class HLSL
 		{
 			// Start the uniform block
 			var cb = this.#cbuffers[c];
-			cbStr += "uniform " + this.#Translate(cb.Name) + "\n";
+			cbStr += "layout(std140) uniform " + this.#Translate(cb.Name) + "\n";
 			cbStr += "{\n";
 
 			// Handle each variable (no semantics)

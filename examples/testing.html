@@ -24,14 +24,15 @@
 				float4 color	: COLOR;
 			};
 
-			//cbuffer data : register(b0)
-			//{
-			//	float offset;
-			//}
+			cbuffer vsData : register(b0)
+			{
+				float offset;
+			}
 
 			VertexToPixel main(VSInput input)
 			{
 				VertexToPixel output;
+				input.position.x += offset;
 				output.position = float4(input.position, 1);
 				output.color = input.color;
 				return output;
@@ -117,10 +118,16 @@
 			0, 0, 0);
 		var cb = device.CreateBuffer(cbDesc, null);
 
-		var vsData = new ArrayBuffer(elementCount * floatSize);
-		new DataView(vsData).setFloat32(0, 0.5);
+		//var vsData = new ArrayBuffer(elementCount * floatSize);
+		//new DataView(vsData).setFloat32(0, 0.25);
+
+		var vsData = new Float32Array(1);
+		vsData[0] = 0.25;
 
 		context.UpdateSubresource(cb, 0, null, vsData, 0, 0);
+
+		// Set this as a VS constant buffer
+		context.VSSetConstantBuffers(0, [cb]);
 
 		// Create an input layout
 		var inputElements = [];
@@ -210,7 +217,7 @@ struct VS_Output
 	float2 uv : TEXCOORD;
 };
 
-cbuffer ExternalData : register(b0)
+cbuffer ExternalData : register(b5)
 {
 	Test test;  // Comments, yo!
 	float3 wow;
@@ -270,7 +277,7 @@ VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 `;
 
 		var t = new HLSL(hlslCodeTest, ShaderTypeVertex);
-		console.log(t.GetGLSL());
+		//console.log(t.GetGLSL());
 	</script>
 </body>
 </html>
