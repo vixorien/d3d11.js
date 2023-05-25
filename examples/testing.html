@@ -24,6 +24,11 @@
 				float4 color	: COLOR;
 			};
 
+			//cbuffer data : register(b0)
+			//{
+			//	float offset;
+			//}
+
 			VertexToPixel main(VSInput input)
 			{
 				VertexToPixel output;
@@ -71,7 +76,7 @@
 		// Create a vertex buffer
 		var vertCount = 4;
 		var vertSize = 7;
-		var floatSize = 4;
+		var floatSize = Float32Array.BYTES_PER_ELEMENT;
 		var vbDesc = new D3D11_BUFFER_DESC(
 			vertCount * vertSize * floatSize,
 			D3D11_USAGE_IMMUTABLE,
@@ -102,6 +107,21 @@
 		var ib = device.CreateBuffer(ibDesc, indices);
 		context.IASetIndexBuffer(ib, DXGI_FORMAT_R16_UINT, 0);
 
+
+		// Create constant buffer
+		var elementCount = 1;
+		var cbDesc = new D3D11_BUFFER_DESC(
+			elementCount * floatSize,
+			D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
+			D3D11_BIND_CONSTANT_BUFFER,
+			0, 0, 0);
+		var cb = device.CreateBuffer(cbDesc, null);
+
+		var vsData = new ArrayBuffer(elementCount * floatSize);
+		new DataView(vsData).setFloat32(0, 0.5);
+
+		context.UpdateSubresource(cb, 0, null, vsData, 0, 0);
+
 		// Create an input layout
 		var inputElements = [];
 		inputElements[0] = new D3D11_INPUT_ELEMENT_DESC("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0); 
@@ -114,13 +134,9 @@
 		var ps = device.CreatePixelShader(hlslPS);
 		var psSolid = device.CreatePixelShader(hlslPS_SolidColor);
 
-		var gl = device.GetAdapter();
-		var a = gl.getContextAttributes();
-		console.log(a);
-
 		// Viewport testing
 		//var vp = new D3D11_VIEWPORT(200, 200, 500, 500, 0, 1);
-		//context.RSSetViewports(1, [vp]);
+		//context.RSSetViewports(vp);
 
 		// Set the common vertex shader
 		context.VSSetShader(vs);
@@ -254,7 +270,7 @@ VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 `;
 
 		var t = new HLSL(hlslCodeTest, ShaderTypeVertex);
-		//console.log(t.GetGLSL());
+		console.log(t.GetGLSL());
 	</script>
 </body>
 </html>

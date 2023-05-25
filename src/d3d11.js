@@ -36,6 +36,10 @@ const D3D11_BIND_UNORDERED_ACCESS = 0x80;
 const D3D11_BIND_DECODER = 0x200;
 const D3D11_BIND_VIDEO_ENCODER = 0x400;
 
+// Specifies the types of CPU access allowed for a resource
+const D3D11_CPU_ACCESS_WRITE = 0x10000;
+const D3D11_CPU_ACCESS_READ = 0x20000;
+
 // Type of data contained in an input slot
 const D3D11_INPUT_PER_VERTEX_DATA = 0;
 const D3D11_INPUT_PER_INSTANCE_DATA = 1;
@@ -385,10 +389,12 @@ class ID3D11Device extends IUnknown
 		{
 			case D3D11_USAGE_IMMUTABLE: usage = this.#gl.STATIC_DRAW; break;
 			case D3D11_USAGE_DYNAMIC: usage = this.#gl.DYNAMIC_DRAW; break;
-			case D3D11D3D11_USAGE_STAGING: usage = this.#gl.DYNAMIC_COPY; break; // ???
+			case D3D11_USAGE_STAGING: usage = this.#gl.DYNAMIC_COPY; break; // ???
 			case D3D11_USAGE_DEFAULT:
 			default:
 				usage = this.#gl.STATIC_DRAW; // ???
+				// NOTE: Constant buffers with default usage should probably still be dyanmic draw
+				// TODO: Test this and handle here
 				break;
 		}
 
@@ -402,6 +408,11 @@ class ID3D11Device extends IUnknown
 		{
 			bufferType = this.#gl.ELEMENT_ARRAY_BUFFER;
 			prevBuffer = this.#gl.getParameter(this.#gl.ELEMENT_ARRAY_BUFFER_BINDING);
+		}
+		else if (bufferDesc.BindFlags == D3D11_BIND_CONSTANT_BUFFER)
+		{
+			bufferType = this.#gl.UNIFORM_BUFFER;
+			prevBuffer = this.#gl.getParameter(this.#gl.UNIFORM_BUFFER_BINDING);
 		}
 		else
 		{
@@ -437,7 +448,7 @@ class ID3D11Device extends IUnknown
 		// Take the shader code, convert it and pass to GL functions
 		var vs = new HLSL(hlslCode, ShaderTypeVertex);
 		var glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
-
+		
 		return new ID3D11VertexShader(this, glShader);
 	}
 
@@ -580,10 +591,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#gl.bindBuffer(this.#gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer.GetGLResource());
 	}
 
-	// NOTE: Points require the vertex shader to output
-	// a value to gl_PointSize (which defaults to zero) :(
 	IASetPrimitiveTopology(topology)
 	{
+		// Note: All vertex shaders have "gl_PointSize = 1.0"
+		// to account for D3D points always being exactly 1 pixel
 		this.#primitiveTopology = topology;
 	}
 
@@ -611,19 +622,13 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#shadersDirty = true;
 	}
 
-	// Note: Sticking to the API here, even though WebGL doesn't
-	// support multiple viewports (which are really just for
-	// geometry shaders with SV_ViewportArrayIndex)
-	//
-	// Might just simplify this down to a single viewport always
-	RSSetViewports(numViewports, viewports)
+	// Note: Just taking a single viewport, though
+	// the name suggests otherwise, as WebGL only handles
+	// a single viewport
+	RSSetViewports(viewport)
 	{
-		// Must be at least 1
-		if (numViewports <= 0)
-			return;
-
 		// Copy the first element
-		this.#viewport = Object.assign({}, viewports[0]);
+		this.#viewport = Object.assign({}, viewports);
 
 		// Set the relevant details
 		var invertY = this.#gl.canvas.height - this.#viewport.Height;
@@ -783,6 +788,45 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			indexCount,
 			format,
 			this.#indexBufferOffset + startIndexLocation);
+	}
+
+	// NOTE: Not using all of the params just yet
+	// TODO: Support texture updates once textures are working
+	UpdateSubresource(dstResource, dstSubresource, dstBox, srcData, srcRowPitch, srcDepthPitch)
+	{
+		// If this is a standard buffer, we ignore most params and just set the data
+		if (dstResource instanceof ID3D11Buffer)
+		{
+			// Check for immutable
+			// Note: Some D3D docs say this shouldn't work on dynamic usage, others say it's fine
+			if (dstResource.GetDesc().Usage == D3D11_USAGE_IMMUTABLE)
+				throw new Error("Cannot update immutable resource");
+
+			// Subresource must be zero here
+			if (dstSubresource != 0)
+				throw new Error("Invalid subresource (" + dstSubresource + ") used for buffer update");
+
+			// No box update on buffers
+			if (dstBox != null)
+				throw new Error("Cannot update a box within a buffer resource");
+
+			// Safe to update!  Save any previously bound buffer
+			var prevBuffer = this.#gl.getParameter(this.#gl.UNIFORM_BUFFER_BINDING);
+
+			// Bind and update
+			this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, dstResource.GetGLResource());
+			this.#gl.bufferSubData(
+				this.#gl.UNIFORM_BUFFER,
+				0,
+				srcData);
+
+			// Restore the previous buffer
+			this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, prevBuffer);
+		}
+		else
+		{
+			throw new Error("Updating non-buffer resource not yet implemented!");
+		}
 	}
 
 	// NOTE: Assuming floats only for now!
@@ -1040,6 +1084,7 @@ const PrefixVSInput = "_vs_input_";
 const PrefixVSOutput = "_vs_output_";
 const PrefixPSInput = "_ps_input_";
 const PrefixPSOutput = "_ps_output_";
+const PSOutputVariable = "_sv_target_";
 
 class TokenIterator
 {
@@ -1260,13 +1305,15 @@ class HLSL
 
 	// Words that may cause problems when used as identifiers
 	ReservedWords = [
+		"$Global", // "Global" constant buffer name
 		"input",
 		"output"
 	];
 
 	ReservedWordConversion = {
 		"input": "_input",
-		"output": "_output"
+		"output": "_output",
+		"$Global": "_global_cbuffer"
 	};
 
 	constructor(hlslCode, shaderType)
@@ -1885,13 +1932,14 @@ class HLSL
 
 	#ConvertVertexShader()
 	{
-		var glsl = "";
+		var glsl = "#version 300 es\n\n";
 		var vsInputs = this.#GetVSInputs();
 
 		// Append each type of shader element
 		glsl += this.#GetAttributesString(vsInputs);
 		glsl += this.#GetVSVaryings();
 		glsl += this.#GetStructsString();
+		glsl += this.#GetCBuffersString();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildVertexShaderMain(vsInputs);
@@ -1941,7 +1989,7 @@ class HLSL
 		for (var i = 0; i < vsInputs.length; i++)
 		{
 			attribs +=
-				"attribute " +
+				"in " + // Note: Changes from "attribute" to "in" for GLSL 3
 				this.#Translate(vsInputs[i].DataType) + " " +
 				PrefixAttribute + vsInputs[i].Name + ";\n";
 		}
@@ -1970,7 +2018,7 @@ class HLSL
 				member.Semantic.toUpperCase() == "SV_POSITION")
 				continue;
 
-			vary += "varying " + this.#Translate(member.DataType);	// Data type
+			vary += "out " + this.#Translate(member.DataType);	// Data type - Note: "varying" to "out" for GLSL 3
 			vary += " " + PrefixVarying + member.Semantic + ";\n";	// Identifier is semantic!
 		}
 
@@ -1986,7 +2034,7 @@ class HLSL
 		{
 			// Start the struct
 			var struct = this.#structs[s];
-			str += "struct " + struct.Name + "\n";
+			str += "struct " + this.#Translate(struct.Name) + "\n";
 			str += "{\n";
 
 			// Handle each variable (no semantics)
@@ -2002,6 +2050,32 @@ class HLSL
 		}
 
 		return str;
+	}
+
+	#GetCBuffersString()
+	{
+		var cbStr = "";
+
+		for (var c = 0; c < this.#cbuffers.length; c++)
+		{
+			// Start the uniform block
+			var cb = this.#cbuffers[c];
+			cbStr += "uniform " + this.#Translate(cb.Name) + "\n";
+			cbStr += "{\n";
+
+			// Handle each variable (no semantics)
+			for (var v = 0; v < cb.Variables.length; v++)
+			{
+				var variable = cb.Variables[v];
+				cbStr += "\t" + this.#Translate(variable.DataType); // Datatype
+				cbStr += " " + this.#Translate(variable.Name) + ";\n"; // Identifier
+			}
+
+			// End the block
+			cbStr += "};\n\n";
+		}
+
+		return cbStr;
 	}
 
 
@@ -2166,6 +2240,7 @@ class HLSL
 			main += "\tgl_Position = " + PrefixVSOutput + "." + posName + ";\n";
 		}
 
+		main += "\tgl_PointSize = 1.0;\n"; // Just in case we need to draw points!
 		main += "}\n";
 		return main;
 	}
@@ -2236,7 +2311,7 @@ class HLSL
 						continue;
 					}
 
-					vary += "varying " + this.#Translate(member.DataType); // Data type
+					vary += "in " + this.#Translate(member.DataType); // Data type - Note: "varying" to "in" for GLSL 3
 					vary += " " + PrefixVarying + member.Semantic + ";\n"; // Identifier is semantic!
 				}
 
@@ -2248,7 +2323,7 @@ class HLSL
 			else
 			{
 				// This is a normal variable, so just one varying
-				vary += "varying " + this.#Translate(param.DataType); // Data type
+				vary += "in " + this.#Translate(param.DataType); // Data type
 				vary += " " + PrefixVarying + param.Semantic + ";\n"; // Identifier is semantic!
 			}
 		}
@@ -2326,7 +2401,7 @@ class HLSL
 			(this.#main.Semantic.toUpperCase() == "SV_TARGET" ||
 				this.#main.Semantic.toUpperCase() == "SV_TARGET0"))
 		{
-			main += "\tgl_FragColor = " + PrefixPSOutput + ";\n";
+			main += "\t" + PSOutputVariable + " = " + PrefixPSOutput + ";\n";
 		}
 		else
 		{
@@ -2355,7 +2430,7 @@ class HLSL
 				}
 			}
 
-			main += "\tgl_FragColor = " + PrefixPSOutput + "." + targetName + ";\n";
+			main += "\t" + PSOutputVariable+ " = " + PrefixPSOutput + "." + targetName + ";\n";
 		}
 
 
@@ -2366,13 +2441,15 @@ class HLSL
 
 	#ConvertPixelShader()
 	{
-		var glsl = "";
+		var glsl = "#version 300 es\n\n";
 		var psInputs = this.#GetPSInputs();
 
 		// Append each element
 		glsl += "precision mediump float;\n\n";
+		glsl += "out vec4 " + PSOutputVariable + ";\n\n";
 		glsl += this.#GetPSVaryings(psInputs);
 		glsl += this.#GetStructsString();
+		glsl += this.#GetCBuffersString();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
