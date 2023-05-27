@@ -16,6 +16,11 @@
 
 // General javascript thoughts:
 // - Description objects should always be copied (as if it were passed by value)
+// - Could enforce abstract base classes by checking constructors: https://stackoverflow.com/questions/597769/how-do-i-create-an-abstract-base-class-in-javascript
+//   - Could we even prevent instantiation of higher level
+//     interfaces by using anonymous classes when instantiating?
+//     Probably a javascript no-no, but might test it.
+
 
 // -----------------------------------------------------
 // ------------- "Enums" & Other Constants -------------
@@ -307,8 +312,22 @@ function DXGICreateSwapChain(device)
 
 class IUnknown
 {
-	#refCount = 0;
-	
+	#refCount;
+
+	constructor()
+	{
+		this.#refCount = 0;
+		this.AddRef();
+	}
+
+	// Not to spec, but necessary due to a lack
+	// of protected access in javascript
+	// NOTE: Could be "faked" with an Add(), Release() pair, but that feels silly
+	GetRef()
+	{
+		return this.#refCount;
+	}
+
 	AddRef()
 	{
 		this.#refCount++;
@@ -317,8 +336,16 @@ class IUnknown
 	
 	Release()
 	{
+		this.#CheckRef();
+
 		this.#refCount--;
 		return this.#refCount;
+	}
+
+	#CheckRef()
+	{
+		if (this.#refCount <= 0)
+			throw new Error("Object has been released and is no longer available");
 	}
 }
 
@@ -331,10 +358,23 @@ class ID3D11DeviceChild extends IUnknown
 	{
 		super();
 		this.#device = device;
+
+		// Add another ref to the device, too
+		this.#device.AddRef();
+	}
+
+	Release()
+	{
+		super.Release();
+
+		// If we're done, release the device
+		if (this.GetRef() <= 0)
+			this.#device.Release();
 	}
 
 	GetDevice()
 	{
+		this.#device.AddRef();
 		return this.#device;
 	}
 }
@@ -351,8 +391,9 @@ class ID3D11Device extends IUnknown
 	constructor(gl)
 	{
 		super();
+
 		this.#gl = gl;
-		this.#immediateContext = new ID3D11DeviceContext(this);
+		this.#immediateContext = null;
 	}
 
 	GetAdapter()
@@ -362,6 +403,9 @@ class ID3D11Device extends IUnknown
 
 	GetImmediateContext()
 	{
+		if (this.#immediateContext == null)
+			this.#immediateContext = new ID3D11DeviceContext(this);
+
 		return this.#immediateContext;
 	}
 
@@ -591,6 +635,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Reset old framebuffer if necessary
 		if (prevRT != rtvResource)
 			this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, prevRT);
+
+		// Done with extra ref
+		rtv.Release();
 	}
 
 
@@ -936,31 +983,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareInputAssembler();
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
-		
-
-		//console.log("Max vs cbuffers: " + this.#gl.getParameter(this.#gl.MAX_VERTEX_UNIFORM_BLOCKS));
-		//console.log("Max ps cbuffers: " + this.#gl.getParameter(this.#gl.MAX_FRAGMENT_UNIFORM_BLOCKS));
-		//console.log("Max total cbuffers: " + this.#gl.getParameter(this.#gl.MAX_COMBINED_UNIFORM_BLOCKS));
-		//console.log("Max bindings: " + this.#gl.getParameter(this.#gl.MAX_UNIFORM_BUFFER_BINDINGS));
-		//console.log("Max cbuffer size: " + this.#gl.getParameter(this.#gl.MAX_UNIFORM_BLOCK_SIZE));
-
-		//// TESTING UNIFORM BLOCK
-		//var vsIndex = this.#gl.getUniformBlockIndex(this.#currentShaderProgram, "vsData");
-		////console.log(vsIndex);
-
-		//var data = new Float32Array(1);
-		//data[0] = 0.25;
-		//var cbuffer = this.#gl.createBuffer();
-		//this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, cbuffer);
-		//this.#gl.bufferData(this.#gl.UNIFORM_BUFFER, data, this.#gl.DYNAMIC_DRAW);
-
-		//// Place uniform buffer in a specific "spot" (index ZERO here)
-		//// This just gives us a spot to map to
-		//var reg = 0;
-		//this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, reg, cbuffer);
-
-		//// Map buffer[reg] to uniformBlockInShaderProgram[vsIndex]
-		//this.#gl.uniformBlockBinding(this.#currentShaderProgram, vsIndex, reg);
 
 		// Get proper format
 		var format = this.#gl.UNSIGNED_SHORT;
@@ -1131,9 +1153,26 @@ class ID3D11VertexShader extends ID3D11DeviceChild
 		return this.#shader;
 	}
 
+	// Not to spec but necessary for program creation
+	// and mapping HLSL cbuffers -> GLSL uniform blocks
 	GetCBuffers()
 	{
 		return this.#cbuffers;
+	}
+
+	// TODO: Do we need to scan the context for any
+	// outstanding programs and delete if necessary?
+	Release()
+	{
+		super.Release();
+
+		// Actually remove shader if necessary
+		if (this.GetRef() <= 0)
+		{
+			var dev = this.GetDevice();
+			dev.GetAdapter().deleteShader(this.#shader);
+			dev.Release();
+		}
 	}
 }
 
@@ -1155,9 +1194,26 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 		return this.#shader;
 	}
 
+	// Not to spec but necessary for program creation
+	// and mapping HLSL cbuffers -> GLSL uniform blocks
 	GetCBuffers()
 	{
 		return this.#cbuffers;
+	}
+
+	// TODO: Do we need to scan the context for any
+	// outstanding programs and delete if necessary?
+	Release()
+	{
+		super.Release();
+
+		// Actually remove shader if necessary
+		if (this.GetRef() <= 0)
+		{
+			var dev = this.GetDevice();
+			dev.GetAdapter().deleteShader(this.#shader);
+			dev.Release();
+		}
 	}
 }
 
@@ -1178,8 +1234,6 @@ class ID3D11Resource extends ID3D11DeviceChild
 		this.#desc = Object.assign({}, description); // Copy
 		this.#dimension = dimension;
 		this.#glResource = glResource;
-
-		// TODO: Enforce abstract
 	}
 
 	GetDesc()
@@ -1206,6 +1260,18 @@ class ID3D11Buffer extends ID3D11Resource
 		super(device, description, D3D11_RESOURCE_DIMENSION_BUFFER, glBuffer);
 	}
 
+	Release()
+	{
+		super.Release();
+
+		// Actually remove buffer if necessary
+		if (this.GetRef() <= 0)
+		{
+			var dev = this.GetDevice();
+			dev.GetAdapter().deleteBuffer(this.GetGLResource());
+			dev.Release();
+		}
+	}
 }
 
 class ID3D11Texture2D extends ID3D11Resource
@@ -1233,6 +1299,7 @@ class ID3D11View extends ID3D11DeviceChild
 
 	GetResource()
 	{
+		this.#resource.AddRef();
 		return this.#resource;
 	}
 }
