@@ -74,7 +74,7 @@
 
 		// Make an RTV of the back buffer
 		var rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
-
+		
 		// Create a vertex buffer
 		var vertCount = 4;
 		var vertSize = 7;
@@ -162,6 +162,20 @@
 		// Viewport testing
 		//var vp = new D3D11_VIEWPORT(200, 200, 500, 500, 0, 1);
 		//context.RSSetViewports(vp);
+
+		// Create a sampler
+		var sampDesc = new D3D11_SAMPLER_DESC(
+			D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+			D3D11_TEXTURE_ADDRESS_WRAP,
+			D3D11_TEXTURE_ADDRESS_WRAP,
+			D3D11_TEXTURE_ADDRESS_WRAP,
+			0,
+			16,
+			D3D11_COMPARISON_NEVER,
+			[1, 1, 1, 1],
+			0,
+			D3D11_FLOAT32_MAX);
+		var sampler = device.CreateSamplerState(sampDesc);
 
 		function frameloop(time)
 		{

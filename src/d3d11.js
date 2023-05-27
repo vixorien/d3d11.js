@@ -41,9 +41,51 @@ const D3D11_BIND_UNORDERED_ACCESS = 0x80;
 const D3D11_BIND_DECODER = 0x200;
 const D3D11_BIND_VIDEO_ENCODER = 0x400;
 
+// Comparison options
+const D3D11_COMPARISON_NEVER = 1;
+const D3D11_COMPARISON_LESS = 2;
+const D3D11_COMPARISON_EQUAL = 3;
+const D3D11_COMPARISON_LESS_EQUAL = 4;
+const D3D11_COMPARISON_GREATER = 5;
+const D3D11_COMPARISON_NOT_EQUAL = 6;
+const D3D11_COMPARISON_GREATER_EQUAL = 7;
+const D3D11_COMPARISON_ALWAYS = 8;
+
 // Specifies the types of CPU access allowed for a resource
 const D3D11_CPU_ACCESS_WRITE = 0x10000;
 const D3D11_CPU_ACCESS_READ = 0x20000;
+
+// Filtering options during texture sampling							// Hex -> Binary
+const D3D11_FILTER_MIN_MAG_MIP_POINT = 0;								// 00000000
+const D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR = 0x1;						// 00000001
+const D3D11_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT = 0x4;				// 00000100
+const D3D11_FILTER_MIN_POINT_MAG_MIP_LINEAR = 0x5;						// 00000101
+const D3D11_FILTER_MIN_LINEAR_MAG_MIP_POINT = 0x10;						// 00010000
+const D3D11_FILTER_MIN_LINEAR_MAG_POINT_MIP_LINEAR = 0x11;				// 00010001
+const D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT = 0x14;						// 00010100
+const D3D11_FILTER_MIN_MAG_MIP_LINEAR = 0x15;							// 00010101
+const D3D11_FILTER_ANISOTROPIC = 0x55;									// 01010101
+const D3D11_FILTER_COMPARISON_MIN_MAG_MIP_POINT = 0x80;					// 10000000
+const D3D11_FILTER_COMPARISON_MIN_MAG_POINT_MIP_LINEAR = 0x81;			// 10000001
+const D3D11_FILTER_COMPARISON_MIN_POINT_MAG_LINEAR_MIP_POINT = 0x84;	// 10000100
+const D3D11_FILTER_COMPARISON_MIN_POINT_MAG_MIP_LINEAR = 0x85;			// 10000101
+const D3D11_FILTER_COMPARISON_MIN_LINEAR_MAG_MIP_POINT = 0x90;			// 10010000
+const D3D11_FILTER_COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR = 0x91;	// 10010001
+const D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT = 0x94;			// 10010100
+const D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR = 0x95;				// 10010101
+const D3D11_FILTER_COMPARISON_ANISOTROPIC = 0xd5;						// 11010101
+// Notes on filter bits:
+// 1 bit: Mip filter --> 0 = point, 1 = linear
+// 2 bit: unused
+// 4 bit: Mag filter --> 0 = point, 1 = linear
+// 8 bit: unused
+// 16 bit: Min filter --> 0 = point, 1 = linear
+// 32 bit: unused
+// 64 bit: Anisotropic --> 0 = no, 1 = yes
+// 128 bit: Comparison --> 0 = no, 1 = yes
+
+// Maximum float32 value
+const D3D11_FLOAT32_MAX = 3.402823466e+38;
 
 // Type of data contained in an input slot
 const D3D11_INPUT_PER_VERTEX_DATA = 0;
@@ -64,6 +106,13 @@ const D3D11_RESOURCE_DIMENSION_BUFFER = 1;
 const D3D11_RESOURCE_DIMENSION_TEXTURE1D = 2;
 const D3D11_RESOURCE_DIMENSION_TEXTURE2D = 3;
 const D3D11_RESOURCE_DIMENSION_TEXTURE3D = 4;
+
+// Identify a technique for resolving texture coordinates that are outside of the boundaries of a texture.
+const D3D11_TEXTURE_ADDRESS_WRAP = 1;
+const D3D11_TEXTURE_ADDRESS_MIRROR = 2;
+const D3D11_TEXTURE_ADDRESS_CLAMP = 3;
+const D3D11_TEXTURE_ADDRESS_BORDER = 4;
+const D3D11_TEXTURE_ADDRESS_MIRROR_ONCE = 5;
 
 // Identifies expected resource use during rendering
 const D3D11_USAGE_DEFAULT = 0;
@@ -253,6 +302,45 @@ class D3D11_INPUT_ELEMENT_DESC
 	}
 }
 
+// Describes a sampler state
+class D3D11_SAMPLER_DESC
+{
+	Filter;
+	AddressU;
+	AddressV;
+	AddressW;
+	MipLODBias;
+	MaxAnisotropy;
+	ComparisonFunc;
+	BorderColor;
+	MinLOD;
+	MaxLOD;
+
+	constructor(
+		filter,
+		addressU,
+		addressV,
+		addressW,
+		mipLODBias,
+		maxAnisotropy,
+		comparisonFunc,
+		borderColor,
+		minLOD,
+		maxLOD)
+	{
+		this.Filter = filter;
+		this.AddressU = addressU;
+		this.AddressV = addressV;
+		this.AddressW = addressW;
+		this.MipLODBias = mipLODBias;
+		this.MaxAnisotropy = maxAnisotropy;
+		this.ComparisonFunc = comparisonFunc;
+		this.BorderColor = borderColor;
+		this.MinLOD = minLOD;
+		this.MaxLOD = maxLOD;
+	}
+}
+
 // -----------------------------------------------------
 // ------------------ Other Structures -----------------
 // -----------------------------------------------------
@@ -277,38 +365,10 @@ class D3D11_VIEWPORT
 	}
 }
 
-// -----------------------------------------------------
-// ----------------- API Initialization ----------------
-// -----------------------------------------------------
-
-function D3D11CreateDevice(canvas) // Canvas acts as the adapter here
-{
-	// Verify and turn on WebGL
-	// Note: Attempting to match D3D defaults
-	//       in the options (no depth buffer, etc.)
-	// Full list: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext
-	const gl = canvas.getContext("webgl2",
-		{
-			antialias: false,
-			depth: false,
-			preserveDrawingBuffer: true
-		});
-	if (gl === null) {
-		return false; // TODO: Throw exception?
-	}
-
-	return new ID3D11Device(gl);
-}
-
-function DXGICreateSwapChain(device)
-{
-	return new IDXGISwapChain(device);
-}
 
 // -----------------------------------------------------
 // -------------- API Object Base Classes --------------
 // -----------------------------------------------------
-
 
 class IUnknown
 {
@@ -378,6 +438,38 @@ class ID3D11DeviceChild extends IUnknown
 		return this.#device;
 	}
 }
+
+
+// -----------------------------------------------------
+// ----------------- API Initialization ----------------
+// -----------------------------------------------------
+
+// TODO: Determine if any actual d3d parameters are useful here
+function D3D11CreateDevice(canvas) // Canvas acts as the adapter here
+{
+	// Verify and turn on WebGL
+	// Note: Attempting to match D3D defaults
+	//       in the options (no depth buffer, etc.)
+	// Full list: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext
+	const gl = canvas.getContext("webgl2",
+		{
+			antialias: false,
+			depth: false,
+			preserveDrawingBuffer: true
+		});
+	if (gl === null) {
+		return false; // TODO: Throw exception?
+	}
+
+	return new ID3D11Device(gl);
+}
+
+// TODO: Determine if any params of the actual swap chain desc are useful
+function DXGICreateSwapChain(device)
+{
+	return new IDXGISwapChain(device);
+}
+
 
 // -----------------------------------------------------
 // ----------------- Main API Objects ------------------
@@ -487,15 +579,6 @@ class ID3D11Device extends IUnknown
 	}
 
 	// Note: Not using bytecode, just a big string, so only one parameter
-	CreateVertexShader(hlslCode)
-	{
-		// Take the shader code, convert it and pass to GL functions
-		var vs = new HLSL(hlslCode, ShaderTypeVertex);
-		var glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
-
-		return new ID3D11VertexShader(this, glShader, vs.GetCBuffers());
-	}
-
 	CreatePixelShader(hlslCode)
 	{
 		// Take the shader code, convert it and pass to GL functions
@@ -503,6 +586,23 @@ class ID3D11Device extends IUnknown
 		var glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
 
 		return new ID3D11PixelShader(this, glShader, ps.GetCBuffers());
+	}
+
+
+	CreateSamplerState(samplerDesc)
+	{
+		// Object will verify the description
+		return new ID3D11SamplerState(this, samplerDesc);
+	}
+
+	// Note: Not using bytecode, just a big string, so only one parameter
+	CreateVertexShader(hlslCode)
+	{
+		// Take the shader code, convert it and pass to GL functions
+		var vs = new HLSL(hlslCode, ShaderTypeVertex);
+		var glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
+
+		return new ID3D11VertexShader(this, glShader, vs.GetCBuffers());
 	}
 
 	#CompileGLShader(glslCode, glShaderType)
@@ -529,6 +629,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#gl;
 
 	// General pipeline ---
+	#defaultSamplerState;
+	#samplerState;
+
+	// General shaders ---
 	#shaderProgramMap;
 	#currentShaderProgram;
 	#currentCBufferMap;
@@ -1089,6 +1193,8 @@ class IDXGISwapChain extends IUnknown
 		this.#gl = device.GetAdapter();
 	}
 
+	// TODO: Wrap this in an ID3D11Texture2D whose glResource is null,
+	// so we don't need a million null checks just for this
 	GetBuffer()
 	{
 		// Note: null corresponds to the default back buffer in WebGL (I think?)
@@ -1135,46 +1241,6 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 	}
 }
 
-class ID3D11VertexShader extends ID3D11DeviceChild
-{
-	#shader;
-	#cbuffers;
-
-	constructor(device, glShader, cbuffers)
-	{
-		super(device);
-
-		this.#shader = glShader;
-		this.#cbuffers = cbuffers;
-	}
-
-	GetShader()
-	{
-		return this.#shader;
-	}
-
-	// Not to spec but necessary for program creation
-	// and mapping HLSL cbuffers -> GLSL uniform blocks
-	GetCBuffers()
-	{
-		return this.#cbuffers;
-	}
-
-	// TODO: Do we need to scan the context for any
-	// outstanding programs and delete if necessary?
-	Release()
-	{
-		super.Release();
-
-		// Actually remove shader if necessary
-		if (this.GetRef() <= 0)
-		{
-			var dev = this.GetDevice();
-			dev.GetAdapter().deleteShader(this.#shader);
-			dev.Release();
-		}
-	}
-}
 
 class ID3D11PixelShader extends ID3D11DeviceChild
 {
@@ -1217,6 +1283,125 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 	}
 }
 
+
+class ID3D11SamplerState extends ID3D11DeviceChild
+{
+	#desc;
+
+	constructor(device, description)
+	{
+		super(device);
+		this.#desc = Object.assign({}, description); // Copy
+
+		// Validate
+		this.#ValidateDesc();
+	}
+
+	#ValidateDesc()
+	{
+		// Release our ref to the device just in case we throw an exception
+		this.GetDevice().Release();
+
+		// Check filter mode
+		const filter = this.#desc.Filter;
+		if (filter < 0 || filter > D3D11_FILTER_COMPARISON_ANISOTROPIC ||
+			(filter & 2) == 2 || // The 2 bit should be unused
+			(filter & 8) == 8 || // The 8 bit should be unused
+			(filter & 32) == 32) // The 32 bit should be unused
+		{
+			// Invalid range, or an invalid bit is set
+			throw new Error("Invalid filter mode for sampler state");
+		}
+
+		// Check address modes
+		const u = this.#desc.AddressU;
+		const v = this.#desc.AddressV;
+		const w = this.#desc.AddressW;
+		if (u < D3D11_TEXTURE_ADDRESS_WRAP || u > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
+			throw new Error("Invalid address U mode for sampler state");
+		if (v < D3D11_TEXTURE_ADDRESS_WRAP || v > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
+			throw new Error("Invalid address V mode for sampler state");
+		if (w < D3D11_TEXTURE_ADDRESS_WRAP || w > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
+			throw new Error("Invalid address W mode for sampler state");
+
+		// Max anisotropy should be between 1 and 16
+		// TODO: Determine if we need to check device capabilities here
+		const ani = this.#desc.MaxAnisotropy;
+		if (ani < 1 || ani > 16)
+			throw new Error("Invalid max anisotropy for sampler state");
+
+		// Check comparison, but only if filter requires it
+		const comp = this.#desc.ComparisonFunc;
+		if ((filter & 128) == 128 &&
+			(comp < D3D11_COMPARISON_NEVER || comp > D3D11_COMPARISON_ALWAYS))
+			throw new Error("Invalid comparison function for sampler state");
+
+		// Verify border color elements, but only if address mode requires it
+		const border = this.#desc.BorderColor;
+		if ((u == D3D11_TEXTURE_ADDRESS_BORDER ||
+			v == D3D11_TEXTURE_ADDRESS_BORDER ||
+			w == D3D11_TEXTURE_ADDRESS_BORDER) &&
+			border[0] < 0 || border[0] > 1 ||
+			border[1] < 0 || border[1] > 1 ||
+			border[2] < 0 || border[2] > 1 ||
+			border[3] < 0 || border[3] > 1)
+		{
+			throw new Error("Invalid border color for sampler state");
+		}
+
+		// We're fine, so add the ref back
+		this.GetDevice().AddRef();
+		return true;
+	}
+
+	GetDesc()
+	{
+		// Returns a copy so that we can't alter the original
+		return Object.assign({}, this.#desc);
+	}
+}
+
+
+class ID3D11VertexShader extends ID3D11DeviceChild
+{
+	#shader;
+	#cbuffers;
+
+	constructor(device, glShader, cbuffers)
+	{
+		super(device);
+
+		this.#shader = glShader;
+		this.#cbuffers = cbuffers;
+	}
+
+	GetShader()
+	{
+		return this.#shader;
+	}
+
+	// Not to spec but necessary for program creation
+	// and mapping HLSL cbuffers -> GLSL uniform blocks
+	GetCBuffers()
+	{
+		return this.#cbuffers;
+	}
+
+	// TODO: Do we need to scan the context for any
+	// outstanding programs and delete if necessary?
+	Release()
+	{
+		super.Release();
+
+		// Actually remove shader if necessary
+		if (this.GetRef() <= 0)
+		{
+			var dev = this.GetDevice();
+			dev.GetAdapter().deleteShader(this.#shader);
+			dev.Release();
+		}
+	}
+}
 
 // -----------------------------------------------------
 // --------------------- Resources ---------------------
@@ -1299,11 +1484,32 @@ class ID3D11View extends ID3D11DeviceChild
 
 	GetResource()
 	{
-		this.#resource.AddRef();
+		// Need a check for a null resource, specifically
+		// for our back buffer RTV - in WebGL, the back
+		// buffer gl resource is just "null".
+		// NOTE: Can't just override this in the RTV class,
+		// as we don't have access to private resource!
+		if(this.#resource != null)
+			this.#resource.AddRef();
+
 		return this.#resource;
+	}
+
+	// TODO: Refactor swap chain to actually make an ID3D11Texture2D
+	// for the back buffer, so we don't need these null checks everywhere
+	Release()
+	{
+		super.Release();
+
+		// If we're done, release the resource ref, too
+		if (this.GetRef() <= 0 && this.#resource != null)
+		{
+			this.#resource.Release();
+		}
 	}
 }
 
+// still a work in progress until we get actual textures
 class ID3D11RenderTargetView extends ID3D11View
 {
 	constructor(device, resource)
