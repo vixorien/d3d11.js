@@ -59,21 +59,17 @@
 			}
 		}
 
-		async function loadRemoteFile(url)
+		async function loadOBJFile(device, url)
 		{
 			const resp = await fetch(url);
 			const fileText = await resp.text();
-			return fileText;
-		}
 
-		function loadOBJFile(device, fileText)
-		{
 			var positions = [];
 			var normals = [];
 			var uvs = [];
 			var vertices = [];
 			var indices = [];
-
+			
 			var lines = fileText.split("\n");
 			for (var i = 0; i < lines.length; i++)
 			{
@@ -339,8 +335,8 @@
 		// Make an RTV of the back buffer
 		var rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
 
-
-		var cubeBuffs = loadOBJFile(device, cubeOBJ);
+		var cubeBuffs = loadOBJFile(device, "cube.obj");
+		
 
 		// Create a vertex buffer
 		var vertCount = 4;
