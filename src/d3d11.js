@@ -599,7 +599,7 @@ class ID3D11Device extends IUnknown
 	CreateVertexShader(hlslCode)
 	{
 		// Take the shader code, convert it and pass to GL functions
-		var vs = new HLSL(hlslCode, ShaderTypeVertex);
+		var vs = new HLSL(hlslCode, ShaderTypeVertex); console.log(vs.GetGLSL());
 		var glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
 
 		return new ID3D11VertexShader(this, glShader, vs.GetCBuffers());
@@ -757,7 +757,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#indexBuffer = indexBuffer;
 		this.#indexBufferFormat = format;
 		this.#indexBufferOffset = offset;
-
+		
 		// Determine if we're binding or unbinding
 		if (indexBuffer == null)
 			this.#gl.bindBuffer(this.#gl.ELEMENT_ARRAY_BUFFER, null);
@@ -881,7 +881,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, this.#vertexBuffers[bufferIndex].GetGLResource());
 				currentBufferIndex = bufferIndex;
 			}
-
+			
 			// Enable this attribute and then set up the details
 			this.#gl.enableVertexAttribArray(i);
 			this.#gl.vertexAttribPointer(
@@ -2446,6 +2446,25 @@ class HLSL
 		}
 	}
 
+	#GetHLSLOnlyFunctions()
+	{
+		var glsl = "";
+
+		glsl += "mat4 mul(mat4 m1, mat4 m2){ return m1 * m2; }\n"
+		glsl += "vec4 mul(vec4 v, mat4 m){ return v * m; }\n"
+		glsl += "vec4 mul(mat4 m, vec4 v){ return m * v; }\n\n"
+
+		glsl += "mat3 mul(mat3 m1, mat3 m2){ return m1 * m2; }\n"
+		glsl += "vec3 mul(vec3 v, mat3 m){ return v * m; }\n"
+		glsl += "vec3 mul(mat3 m, vec3 v){ return m * v; }\n\n"
+
+		glsl += "mat2 mul(mat2 m1, mat2 m2){ return m1 * m2; }\n"
+		glsl += "vec2 mul(vec2 v, mat2 m){ return v * m; }\n"
+		glsl += "vec2 mul(mat2 m, vec2 v){ return m * v; }\n\n"
+
+		return glsl;
+	}
+
 	#ConvertVertexShader()
 	{
 		var glsl = "#version 300 es\n\n";
@@ -2456,6 +2475,7 @@ class HLSL
 		glsl += this.#GetVSVaryings();
 		glsl += this.#GetStructsString();
 		glsl += this.#GetCBuffersString();
+		glsl += this.#GetHLSLOnlyFunctions();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildVertexShaderMain(vsInputs);
@@ -2968,6 +2988,7 @@ class HLSL
 		glsl += this.#GetPSVaryings(psInputs);
 		glsl += this.#GetStructsString();
 		glsl += this.#GetCBuffersString();
+		glsl += this.#GetHLSLOnlyFunctions();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
