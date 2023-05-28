@@ -599,7 +599,7 @@ class ID3D11Device extends IUnknown
 	CreateVertexShader(hlslCode)
 	{
 		// Take the shader code, convert it and pass to GL functions
-		var vs = new HLSL(hlslCode, ShaderTypeVertex); console.log(vs.GetGLSL());
+		var vs = new HLSL(hlslCode, ShaderTypeVertex);
 		var glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
 
 		return new ID3D11VertexShader(this, glShader, vs.GetCBuffers());
@@ -674,6 +674,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		super(device);
 		this.#gl = device.GetAdapter();
 
+		// Set some defaults
+		// TODO: Extrapolate this into proper states
+		this.#gl.enable(this.#gl.CULL_FACE); // Turns on culling (default is backs)
+		this.#gl.frontFace(this.#gl.CW);	// Clockwise fronts to match D3D
+
 		// General
 		this.#shaderProgramMap = new Map();
 		this.#currentShaderProgram = null;
@@ -741,7 +746,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, prevRT);
 
 		// Done with extra ref
-		rtv.Release();
+		// TODO: Fix this once the resource is an ID3D11Resource
+		if (rtvResource != null)
+			rtvResource.Release();
 	}
 
 
@@ -818,7 +825,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	RSSetViewports(viewport)
 	{
 		// Copy the first element
-		this.#viewport = Object.assign({}, viewports);
+		this.#viewport = Object.assign({}, viewport);
 
 		// Set the relevant details
 		var invertY = this.#gl.canvas.height - this.#viewport.Height;
@@ -1126,7 +1133,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 			// Safe to update!  Save any previously bound buffer
 			var prevBuffer = this.#gl.getParameter(this.#gl.UNIFORM_BUFFER_BINDING);
-
+			
 			// Bind and update
 			this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, dstResource.GetGLResource());
 			this.#gl.bufferSubData(

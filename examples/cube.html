@@ -62,7 +62,23 @@
 				return mat;
 			}
 
-			static rowMajor = false;
+			static RotationY(angle)
+			{
+				const sinAngle = Math.sin(angle);
+				const cosAngle = Math.cos(angle);
+
+				// [cos, 0, -sin, 0]
+				// [0    1,    0, 0]
+				// [sin, 0,  cos, 0]
+				// [0    0     0, 1]
+
+				var mat = this.Identity();
+				mat[0] = cosAngle;
+				mat[2] = -sinAngle;
+				mat[8] = sinAngle;
+				mat[10] = cosAngle;
+				return mat;
+			}
 
 			static PerspectiveFovLH(fovAngleY, aspectRatio, nearZ, farZ)
 			{
@@ -75,35 +91,17 @@
 
 				var mat = new Matrix4x4();
 
-				if (this.rowMajor)
-				{
-					// Matrix we're making:
-					// [width, 0,      0,               0]
-					// [0,     height, 0,               0]
-					// [0,     0,      fRange,          1]
-					// [0,     0,      -fRange * nearZ, 0]
+				// [width, 0,      0,               0]
+				// [0,     height, 0,               0]
+				// [0,     0,      fRange,          1]
+				// [0,     0,      -fRange * nearZ, 0]
 
-					mat[0] = width;
-					mat[5] = height;
-					mat[10] = fRange;
-					mat[11] = 1.0;
-					mat[14] = -fRange * nearZ;
-				}
-				else
-				{
-					// Gotta swap to column major!
-					// [width, 0,      0,                    0]
-					// [0,     height, 0,                    0]
-					// [0,     0,      fRange, -fRange * nearZ]
-					// [0,     0,      1,                    0]
-
-					mat[0] = width;
-					mat[5] = height;
-					mat[10] = fRange;
-					mat[11] = -fRange * nearZ;
-					mat[14] = 1.0;
-				}
-
+				mat[0] = width;
+				mat[5] = height;
+				mat[10] = fRange;
+				mat[11] = 1.0;
+				mat[14] = -fRange * nearZ;
+			
 				return mat;
 			}
 
@@ -111,30 +109,14 @@
 			{
 				var mat = Matrix4x4.Identity();
 
-				if (this.rowMajor)
-				{
-					// Row major
-					// [1, 0, 0, -x]
-					// [0, 1, 0, -y]
-					// [0, 0, 1, -z]
-					// [0, 0, 0, 1]
+				// [1, 0, 0, 0]
+				// [0, 1, 0, 0]
+				// [0, 0, 1, 0]
+				// [-x, -y, -z, 1]
 
-					mat[3] = -x;
-					mat[7] = -y;
-					mat[11] = -z;
-				}
-				else
-				{
-					// Column major
-					// [1, 0, 0, 0]
-					// [0, 1, 0, 0]
-					// [0, 0, 1, 0]
-					// [-x, -y, -z, 1]
-
-					mat[12] = -x;
-					mat[13] = -y;
-					mat[14] = -z;
-				}
+				mat[12] = -x;
+				mat[13] = -y;
+				mat[14] = -z;
 
 				return mat;
 			}
@@ -148,9 +130,9 @@
 
 			constructor(pos, uv, norm)
 			{
-				this.Position = pos;
-				this.UV = uv;
-				this.Normal = norm;
+				this.Position = pos.slice();
+				this.UV = uv.slice();
+				this.Normal = norm.slice();
 			}
 		}
 
@@ -314,6 +296,7 @@
 
 				cbuffer vsData : register(b0)
 				{
+					matrix world;
 					matrix view;
 					matrix proj;
 				}
@@ -322,11 +305,8 @@
 				{
 					VertexToPixel output;
 
-					matrix wvp = mul(view, proj);
-					output.position = mul(float4(input.position, 1), wvp);
-
-					//matrix wvp = mul(proj, view);
-					//output.position = mul(wvp, float4(input.position, 1));
+					matrix wvp = mul(mul(proj, view), world);
+					output.position = mul(wvp, float4(input.position, 1));
 
 					output.color = float4(input.uv, 0, 1);
 					return output;
@@ -363,7 +343,7 @@
 			var rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
 
 			// Load an .obj file and set buffers
-			var cubeBuffs = await loadOBJFile(device, "cube.obj");
+			var cubeBuffs = await loadOBJFile(device, "../assets/meshes/cube.obj");
 			var vb = cubeBuffs[0];
 			var ib = cubeBuffs[1];
 			var indexCount = cubeBuffs[2];
@@ -374,7 +354,7 @@
 			context.IASetIndexBuffer(ib, DXGI_FORMAT_R16_UINT, 0);
 			
 			// Create constant buffer
-			var elementCount = 32; // Two matrices
+			var elementCount = 16 * 3; // 3 matrices
 			var vsCBDesc = new D3D11_BUFFER_DESC(
 				elementCount * Float32Array.BYTES_PER_ELEMENT,
 				D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
@@ -382,15 +362,18 @@
 				0, 0, 0);
 			var vsCB = device.CreateBuffer(vsCBDesc, null);
 
+			var gl = device.GetAdapter();
+			var aspectRatio = gl.canvas.width / gl.canvas.height;
+
 			// Set up the initial VS CB data
-			var vMat = Matrix4x4.Identity();//Matrix4x4.TestView(0, 0, -100);
-			var pMat = Matrix4x4.Identity();// Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, 1.0, 0.01, 1000);
-			console.log(vMat);
-			console.log(pMat);
+			var wMat = Matrix4x4.RotationY(0);
+			var vMat = Matrix4x4.TestView(0, 0, -2);
+			var pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 2.0, aspectRatio, 0.01, 100);
 
 			var vsData = new Float32Array(elementCount);
-			vsData.set(vMat, 0);
-			vsData.set(pMat, 16);
+			vsData.set(wMat, 0);
+			vsData.set(vMat, 16);
+			vsData.set(pMat, 32);
 			context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 			// Cbuffer for pixel shader
@@ -423,6 +406,11 @@
 			// Create shaders
 			var vs = device.CreateVertexShader(hlslVS);
 			var ps = device.CreatePixelShader(hlslPS);
+			context.VSSetShader(vs);
+			context.PSSetShader(ps);
+
+			// Ensure we're set for triangles
+			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 			function frameloop(time)
 			{
@@ -431,21 +419,17 @@
 				context.ClearRenderTargetView(rtv, cornflowerBlue);
 
 				// Update data
-				vsData[0] += 0.001;
+				wMat = Matrix4x4.RotationY(time * 0.001);
+				vsData.set(wMat, 0);
 				context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
-				// Set the common vertex shader
-				context.VSSetShader(vs);
-
 				// Draw triangles
-				context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-				context.PSSetShader(ps);
 				context.DrawIndexed(indexCount, 0, 0);
 
 				// Flush the frame
 				swapChain.Present();
 
-				//window.requestAnimationFrame(frameloop);
+				window.requestAnimationFrame(frameloop);
 			}
 
 			window.requestAnimationFrame(frameloop);
