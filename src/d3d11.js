@@ -12,6 +12,8 @@
 //  - glDrawElements() --> DrawIndexed()
 //  - glDrawArrays() --> Draw()
 //
+// Uniform buffers
+//  - vec3 ALWAYS pads out to a vec4!!!
 
 
 // General javascript thoughts:
@@ -616,6 +618,7 @@ class ID3D11Device extends IUnknown
 		let success = this.#gl.getShaderParameter(shader, this.#gl.COMPILE_STATUS);
 		if (!success)
 		{
+			console.log(glslCode);
 			throw new Error("Error compiling shader: " + this.#gl.getShaderInfoLog(shader));
 		}
 
@@ -770,6 +773,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#gl.bindBuffer(this.#gl.ELEMENT_ARRAY_BUFFER, null);
 		else
 			this.#gl.bindBuffer(this.#gl.ELEMENT_ARRAY_BUFFER, this.#indexBuffer.GetGLResource());
+
+		this.#inputAssemblerDirty = true;
 	}
 
 	IASetPrimitiveTopology(topology)
@@ -783,10 +788,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	// TODO: Limit num buffers to actual WebGL max
 	IASetVertexBuffers(startSlot, buffers, strides, offsets)
 	{
-		// Reset existing vb data (see: https://stackoverflow.com/a/1232046)
-		this.#vertexBuffers.length = 0;
-		this.#vertexBufferStrides.length = 0;
-		this.#vertexBufferOffsets.length = 0;
+		// Reset existing vb data
+		this.#vertexBuffers = [];
+		this.#vertexBufferStrides = [];
+		this.#vertexBufferOffsets = [];
 
 		// Save buffers in correct slots
 		for (let i = 0; i < buffers.length; i++)
@@ -795,6 +800,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#vertexBufferStrides[startSlot + i] = strides[i];
 			this.#vertexBufferOffsets[startSlot + i] = offsets[i];
 		}
+
+		this.#inputAssemblerDirty = true;
 	}
 
 	VSSetShader(vertexShader)
@@ -1076,7 +1083,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	}
 
 	// TODO: Prepare rest of pipeline
-	// TODO: Handle primitive topology
 	Draw(vertexCount, startVertexLocation)
 	{
 		this.#PrepareInputAssembler();
@@ -2036,6 +2042,7 @@ class HLSL
 		let variable = {
 			InterpMod: null,
 			DataType: null,
+			ArraySize: null,
 			Name: null,
 			Semantic: null
 		};
@@ -2076,6 +2083,19 @@ class HLSL
 
 			this.#Require(it, TokenIdentifier);
 			variable.Semantic = it.PeekPrev().Text;
+		}
+		
+		// Check for array
+		if (this.#Allow(it, TokenBracketLeft))
+		{
+			// TODO: Handle a whole expression?
+			if (!this.#Allow(it, TokenNumericLiteral) &&
+				!this.#Allow(it, TokenIdentifier))
+				throw new Error("Error parsing HLSL on line " + it.Current().Line + ": invalid array size.");
+
+			// Grab the array details
+			variable.ArraySize = it.PeekPrev().Text;
+			this.#Require(it, TokenBracketRight);
 		}
 
 		return variable;
@@ -2245,6 +2265,11 @@ class HLSL
 	}
 
 	// TODO: Skip const globals in the global CB
+	// TODO: Handle casting differences between hlsl and glsl
+	//       (float3x3)thing --> float3x3(thing)
+	// TODO: Handle swizzling of non-vector types (variable.xxx)
+	// TODO: Saturate()
+	// TODO: auto "casting" ints to floats - maybe just make "int" versions of all functions?  UGH
 	#GlobalVarOrFunction(it, globalCB)
 	{
 		// Data type
@@ -2585,7 +2610,14 @@ class HLSL
 			{
 				let variable = struct.Variables[v];
 				str += "\t" + this.#Translate(variable.DataType); // Datatype
-				str += " " + this.#Translate(variable.Name) + ";\n"; // Identifier
+				str += " " + this.#Translate(variable.Name); // Identifier
+
+				// Array?
+				if (variable.ArraySize != null)
+				{
+					str += "[" + variable.ArraySize + "]";
+				}
+				str += ";\n"; // Finished
 			}
 
 			// End the struct
@@ -2613,7 +2645,14 @@ class HLSL
 			{
 				let variable = cb.Variables[v];
 				cbStr += "\t" + this.#Translate(variable.DataType); // Datatype
-				cbStr += " " + this.#Translate(variable.Name) + ";\n"; // Identifier
+				cbStr += " " + this.#Translate(variable.Name); // Identifier
+				
+				// Array?
+				if (variable.ArraySize != null)
+				{
+					cbStr += "[" + variable.ArraySize + "]";
+				}
+				cbStr += ";\n"; // Finished
 			}
 
 			// End the block

@@ -62,6 +62,31 @@
 				return mat;
 			}
 
+			static Translation(x, y, z)
+			{
+				let mat = Matrix4x4.Identity();
+
+				// [1, 0, 0, 0]
+				// [0, 1, 0, 0]
+				// [0, 0, 1, 0]
+				// [x, y, z, 1]
+
+				mat[12] = x;
+				mat[13] = y;
+				mat[14] = z;
+
+				return mat;
+			}
+
+			static Scale(x, y, z)
+			{
+				let mat = Matrix4x4.Identity();
+				mat[0] = x;
+				mat[5] = y;
+				mat[10] = z;
+				return mat;
+			}
+
 			static RotationY(angle)
 			{
 				const sinAngle = Math.sin(angle);
@@ -291,7 +316,9 @@
 				struct VertexToPixel
 				{
 					float4 position : SV_POSITION;
-					float4 color	: COLOR;
+					float2 uv		: TEXCOORD;
+					float3 normal	: NORMAL;
+					float3 worldPos	: POSITION;
 				};
 
 				cbuffer vsData : register(b0)
@@ -308,7 +335,9 @@
 					matrix wvp = mul(mul(proj, view), world);
 					output.position = mul(wvp, float4(input.position, 1));
 
-					output.color = float4(input.uv, 0, 1);
+					output.worldPos = mul(world, float4(input.position, 1)).xyz;
+					output.normal = mul(float3x3(world), input.normal);
+					output.uv = input.uv;
 					return output;
 				}
 			`;
@@ -317,17 +346,76 @@
 				struct VertexToPixel
 				{
 					float4 position : SV_POSITION;
-					float4 color	: COLOR;
+					float2 uv		: TEXCOORD;
+					float3 normal	: NORMAL;
+					float3 worldPos	: POSITION;
+				};
+
+				struct Light
+				{
+					float type;
+					float intensity;
+					float range;
+					float pad;
+					float3 position;	// auto pad
+					float3 direction;	// auto pad
+					float3 color;		// auto pad
 				};
 
 				cbuffer psData : register(b0)
 				{
-					float3 tint;
+					float3 cameraPos;	// Auto pad
+					float3 tint;		// Auto pad
+
+					Light lights[8];
 				}
 
 				float4 main(VertexToPixel input) : SV_TARGET
 				{
-					return float4(input.color.rgb * tint, 1);
+					input.normal = normalize(input.normal);
+
+					float metal = 0.0;
+					//if(input.worldPos.y > 0.0) metal = 1.0;
+
+					float3 color = float3(0,0,0);
+					for(int i = 0; i < 8; i++)
+					{
+						Light l = lights[i];
+
+						float3 toLight = normalize(l.position - input.worldPos);
+						float3 toCam = normalize(cameraPos - input.worldPos);
+
+						float3 diffuse = max(0.0, dot(input.normal, toLight)) * tint;
+					
+						float3 refl = reflect(-toLight, input.normal);
+						float spec = pow(max(0.0, dot(refl, toCam)), 64.0);
+
+						float3 lightColor = l.color * l.intensity;
+						color += (metal == 0.0) ? diffuse * lightColor : float3(0,0,0);
+						color += spec * lightColor * (metal == 1.0 ? tint : float3(1,1,1));
+					}
+
+					return float4(color, 1);
+				}
+			`;
+
+			let solidHLSLPS = `
+				struct VertexToPixel
+				{
+					float4 position : SV_POSITION;
+					float2 uv		: TEXCOORD;
+					float3 normal	: NORMAL;
+					float3 worldPos	: POSITION;
+				};
+
+				cbuffer psData : register(b0)
+				{
+					float3 color;	// Auto pad
+				}
+
+				float4 main(VertexToPixel input) : SV_TARGET
+				{
+					return float4(color, 1);
 				}
 			`;
 
@@ -342,16 +430,24 @@
 			// Make an RTV of the back buffer
 			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
 
-			// Load an .obj file and set buffers
-			let cubeBuffs = await loadOBJFile(device, "../assets/meshes/cube.obj");
-			let vb = cubeBuffs[0];
-			let ib = cubeBuffs[1];
-			let indexCount = cubeBuffs[2];
-
+			// Common for all verts
 			let vbStride = float32Size * 8;
 			let vbOffset = 0;
-			context.IASetVertexBuffers(0, [vb], [vbStride], [vbOffset]);
-			context.IASetIndexBuffer(ib, DXGI_FORMAT_R16_UINT, 0);
+
+			// Load an .obj file and set buffers
+			let cubeBuffs = await loadOBJFile(device, "../assets/meshes/cube.obj");
+			let cubeVB = cubeBuffs[0];
+			let cubeIB = cubeBuffs[1];
+			let cubeIndexCount = cubeBuffs[2];
+
+			let sphereBuffs = await loadOBJFile(device, "../assets/meshes/sphere.obj");
+			let sphereVB = sphereBuffs[0];
+			let sphereIB = sphereBuffs[1];
+			let sphereIndexCount = sphereBuffs[2];
+
+			// Start with the cube
+			context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);
+			context.IASetIndexBuffer(cubeIB, DXGI_FORMAT_R16_UINT, 0);
 			
 			// Create constant buffer
 			let elementCount = 16 * 3; // 3 matrices
@@ -367,8 +463,8 @@
 
 			// Set up the initial VS CB data
 			let wMat = Matrix4x4.RotationY(0);
-			let vMat = Matrix4x4.TestView(0, 0, -2);
-			let pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 2.0, aspectRatio, 0.01, 100);
+			let vMat = Matrix4x4.TestView(0, 0, -10);
+			let pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, aspectRatio, 0.01, 100);
 
 			let vsData = new Float32Array(elementCount);
 			vsData.set(wMat, 0);
@@ -377,19 +473,54 @@
 			context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 			// Cbuffer for pixel shader
+			let psElementCount = 8 + 16 * 8; // Two vectors, and 8 lights
 			let psCBDesc = new D3D11_BUFFER_DESC(
-				3 * Float32Array.BYTES_PER_ELEMENT,
+				psElementCount * Float32Array.BYTES_PER_ELEMENT,
 				D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
 				D3D11_BIND_CONSTANT_BUFFER,
 				0, 0, 0);
 			let psCB = device.CreateBuffer(psCBDesc, null);
 
 			// Set up initial PS CB data
-			let psData = new Float32Array(3);
-			psData[0] = 1.0;
-			psData[1] = 1.0;
-			psData[2] = 1.0;
+			let lightColors = [];
+			for (let i = 0; i < 8; i++)
+			{
+				// Pick one to be bright
+				let bright = Math.random() * 3;
+				let r = bright < 1 ? 1 : Math.random();
+				let g = bright >= 1 && bright < 2 ? 1 : Math.random();
+				let b = bright >= 2 ? 1 : Math.random();
+				lightColors.push([r, g, b]);
+			}
+			let psData = new Float32Array(psElementCount);
+			psData.set([0, 0, -10], 0); // Camera pos
+			psData.set([1, 1, 1], 4); // Tint
+			for (let i = 0; i < 8; i++)
+			{
+				psData.set(
+					[
+						1, // type - 0:dir, 1:point
+						1, // intensity
+						25, // range
+						0, // Pad
+						Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5, 0, // pos + pad
+						0, 0, 0, 0, // direction + pad
+						lightColors[i][0], lightColors[i][1], lightColors[i][2], 0 //color + pad
+					],
+					8 + i * 16);
+			}
 			context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
+
+			// Cbuffer for solid color
+			let solidCBDesc = new D3D11_BUFFER_DESC(
+				4 * Float32Array.BYTES_PER_ELEMENT,
+				D3D11_USAGE_DEFAULT, // TODO: Dynamic?
+				D3D11_BIND_CONSTANT_BUFFER,
+				0, 0, 0);
+			let solidCB = device.CreateBuffer(solidCBDesc, null);
+			let solidData = new Float32Array(4);
+			solidData.set([1, 1, 1], 0);
+			context.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
 
 			// Set constant buffers
 			context.VSSetConstantBuffers(0, [vsCB]);
@@ -406,11 +537,23 @@
 			// Create shaders
 			let vs = device.CreateVertexShader(hlslVS);
 			let ps = device.CreatePixelShader(hlslPS);
+			let solidPS = device.CreatePixelShader(solidHLSLPS);
 			context.VSSetShader(vs);
 			context.PSSetShader(ps);
 
 			// Ensure we're set for triangles
 			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+			// Create an array of 8 lights
+			let lights = [];
+			lights.push(new Vector3(3, 3, 3));
+			lights.push(new Vector3(3, 3, -3));
+			lights.push(new Vector3(-3, 3, 3));
+			lights.push(new Vector3(-3, 3, -3));
+			lights.push(new Vector3(3, -3, 3));
+			lights.push(new Vector3(3, -3, -3));
+			lights.push(new Vector3(-3, -3, 3));
+			lights.push(new Vector3(-3, -3, -3));
 
 			function frameloop(time)
 			{
@@ -418,17 +561,57 @@
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
 				context.ClearRenderTargetView(rtv, cornflowerBlue);
 
-				// Update data
-				wMat = Matrix4x4.RotationY(time * 0.001);
-				vsData.set(wMat, 0);
-				context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
+				// Sphere draws
+				{
+					// Swap to sphere buffers
+					context.PSSetShader(solidPS);
+					context.PSSetConstantBuffers(0, [solidCB]);
+					context.IASetVertexBuffers(0, [sphereVB], [vbStride], [vbOffset]);
+					context.IASetIndexBuffer(sphereIB, DXGI_FORMAT_R16_UINT, 0);
 
-				// Draw triangles
-				context.DrawIndexed(indexCount, 0, 0);
+					for (let i = 0; i < lights.length; i++)
+					{
+						let offset = (i / 4) * Math.PI * 2;
+						let s = Math.sin(time * 0.0005 + offset);
+						let c = Math.cos(time * 0.0005 + offset);
+
+						let lightPos = [3 * s, lights[i].Y, 3 * c];
+
+						wMat = Matrix4x4.Translation(lightPos[0], lightPos[1], lightPos[2]);
+						vsData.set(wMat, 0);
+						context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
+
+						// Update PS data for later (8 initial, 16 per light, 4 floats deep)
+						psData.set(lightPos, 8 + i * 16 + 4);
+
+						// Update data for this draw
+						solidData.set(lightColors[i], 0);
+						context.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
+
+						// Draw sphere
+						context.DrawIndexed(sphereIndexCount, 0, 0);
+					}
+				}
+
+				// Cube draw
+				{
+					// Update data
+					wMat = Matrix4x4.RotationY(time * -0.00025);
+					vsData.set(wMat, 0);
+					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
+
+					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
+
+					// Draw cube
+					context.PSSetShader(ps);
+					context.PSSetConstantBuffers(0, [psCB]);
+					context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);
+					context.IASetIndexBuffer(cubeIB, DXGI_FORMAT_R16_UINT, 0);
+					context.DrawIndexed(cubeIndexCount, 0, 0);
+				}
 
 				// Flush the frame
 				swapChain.Present();
-
 				window.requestAnimationFrame(frameloop);
 			}
 
