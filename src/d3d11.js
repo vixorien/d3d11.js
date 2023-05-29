@@ -514,13 +514,13 @@ class ID3D11Device extends IUnknown
 	CreateBuffer(bufferDesc, initialData)
 	{
 		// Create the gl buffer and final D3D buffer
-		var glBuffer = this.#gl.createBuffer();
-		var d3dBuffer = new ID3D11Buffer(this, bufferDesc, glBuffer);
+		let glBuffer = this.#gl.createBuffer();
+		let d3dBuffer = new ID3D11Buffer(this, bufferDesc, glBuffer);
 
 		// Determine usage flag
 		// TODO: Analyze CPUAccessFlag to further refine these options
 		// See "usage" at: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/bufferData
-		var usage = this.#gl.STATIC_DRAW;
+		let usage = this.#gl.STATIC_DRAW;
 		switch (bufferDesc.Usage)
 		{
 			case D3D11_USAGE_IMMUTABLE: usage = this.#gl.STATIC_DRAW; break;
@@ -538,8 +538,8 @@ class ID3D11Device extends IUnknown
 		// - Maybe just disallow mixing index buffers with others?
 
 		// Determine the buffer type and store the previous buffer to restore
-		var bufferType;
-		var prevBuffer;
+		let bufferType;
+		let prevBuffer;
 		if (bufferDesc.BindFlags == D3D11_BIND_INDEX_BUFFER)
 		{
 			bufferType = this.#gl.ELEMENT_ARRAY_BUFFER;
@@ -582,8 +582,8 @@ class ID3D11Device extends IUnknown
 	CreatePixelShader(hlslCode)
 	{
 		// Take the shader code, convert it and pass to GL functions
-		var ps = new HLSL(hlslCode, ShaderTypePixel);
-		var glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
+		let ps = new HLSL(hlslCode, ShaderTypePixel);
+		let glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
 
 		return new ID3D11PixelShader(this, glShader, ps.GetCBuffers());
 	}
@@ -599,8 +599,8 @@ class ID3D11Device extends IUnknown
 	CreateVertexShader(hlslCode)
 	{
 		// Take the shader code, convert it and pass to GL functions
-		var vs = new HLSL(hlslCode, ShaderTypeVertex);
-		var glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
+		let vs = new HLSL(hlslCode, ShaderTypeVertex);
+		let glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
 
 		return new ID3D11VertexShader(this, glShader, vs.GetCBuffers());
 	}
@@ -608,12 +608,12 @@ class ID3D11Device extends IUnknown
 	#CompileGLShader(glslCode, glShaderType)
 	{
 		// Make the shader and attempt to compile
-		var shader = this.#gl.createShader(glShaderType);
+		let shader = this.#gl.createShader(glShaderType);
 		this.#gl.shaderSource(shader, glslCode);
 		this.#gl.compileShader(shader);
 
 		// Capture any errors and throw
-		var success = this.#gl.getShaderParameter(shader, this.#gl.COMPILE_STATUS);
+		let success = this.#gl.getShaderParameter(shader, this.#gl.COMPILE_STATUS);
 		if (!success)
 		{
 			throw new Error("Error compiling shader: " + this.#gl.getShaderInfoLog(shader));
@@ -730,8 +730,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	ClearRenderTargetView(rtv, color)
 	{
 		// Grab existing target and RTV
-		var prevRT = this.#gl.getParameter(this.#gl.FRAMEBUFFER_BINDING);
-		var rtvResource = rtv.GetResource();
+		let prevRT = this.#gl.getParameter(this.#gl.FRAMEBUFFER_BINDING);
+		let rtvResource = rtv.GetResource();
 
 		// Bind the RTV if necessary
 		if (prevRT != rtvResource)
@@ -789,7 +789,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#vertexBufferOffsets.length = 0;
 
 		// Save buffers in correct slots
-		for (var i = 0; i < buffers.length; i++)
+		for (let i = 0; i < buffers.length; i++)
 		{
 			this.#vertexBuffers[startSlot + i] = buffers[i];
 			this.#vertexBufferStrides[startSlot + i] = strides[i];
@@ -811,7 +811,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			throw new Error("Attempting to set VS constant buffers outside valid range");
 
 		// Place buffers in contiguous slots, offset by starting index
-		for (var c = 0; c < constantBuffers.length; c++)
+		for (let c = 0; c < constantBuffers.length; c++)
 		{
 			this.#vsConstantBuffers[c + startSlot] = constantBuffers[c];
 		}
@@ -828,7 +828,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#viewport = Object.assign({}, viewport);
 
 		// Set the relevant details
-		var invertY = this.#gl.canvas.height - this.#viewport.Height;
+		let invertY = this.#gl.canvas.height - this.#viewport.Height;
 		this.#gl.viewport(
 			this.#viewport.TopLeftX,
 			invertY - this.#viewport.TopLeftY,
@@ -854,7 +854,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			throw new Error("Attempting to set PS constant buffers outside valid range");
 
 		// Place buffers in contiguous slots, offset by starting index
-		for (var c = 0; c < constantBuffers.length; c++)
+		for (let c = 0; c < constantBuffers.length; c++)
 		{
 			this.#psConstantBuffers[c + startSlot] = constantBuffers[c];
 		}
@@ -870,19 +870,19 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			return;
 		
 		// Handle each input element
-		var inputElementDescs = this.#inputLayout.GetInputElementDescs();
-		var currentBufferIndex = -1;
+		let inputElementDescs = this.#inputLayout.GetInputElementDescs();
+		let currentBufferIndex = -1;
 		
-		for (var i = 0; i < inputElementDescs.length; i++)
+		for (let i = 0; i < inputElementDescs.length; i++)
 		{
 			// Grab this element and associated data
 			// TODO: bake format details into the input layout to save time here?
-			var ie = inputElementDescs[i];
-			var dataType = this.#GetDXGIFormatDataType(ie.Format);
-			var compCount = this.#GetDXGIFormatComponentCount(ie.Format);
+			let ie = inputElementDescs[i];
+			let dataType = this.#GetDXGIFormatDataType(ie.Format);
+			let compCount = this.#GetDXGIFormatComponentCount(ie.Format);
 			
 			// Bind the correct buffer for this element
-			var bufferIndex = ie.InputSlot;
+			let bufferIndex = ie.InputSlot;
 			if (bufferIndex != currentBufferIndex) // TODO: Performance worry?  Or skip
 			{
 				this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, this.#vertexBuffers[bufferIndex].GetGLResource());
@@ -922,7 +922,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Determine if we've seen this pixel shader before
-		var vsMap = this.#shaderProgramMap.get(this.#vertexShader);
+		let vsMap = this.#shaderProgramMap.get(this.#vertexShader);
 		if (!vsMap.has(this.#pixelShader))
 		{
 			// We now have a combined VS+PS set
@@ -933,8 +933,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Does this program exist?
-		var vspsMap = vsMap.get(this.#pixelShader);
-		var prog = vspsMap.GLProgram;
+		let vspsMap = vsMap.get(this.#pixelShader);
+		let prog = vspsMap.GLProgram;
 		if (prog == null)
 		{
 			// Create the program and cache for later
@@ -944,10 +944,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			// Now that we have a program, cache cbuffer (uniform buffer) indices
 
 			// Start with vertex shader cbuffers
-			var vsCBs = this.#vertexShader.GetCBuffers();
-			for (var v = 0; v < vsCBs.length; v++)
+			let vsCBs = this.#vertexShader.GetCBuffers();
+			for (let v = 0; v < vsCBs.length; v++)
 			{
-				var cb = vsCBs[v];
+				let cb = vsCBs[v];
 
 				// Validate index
 				if (cb.RegisterIndex < 0 || cb.RegisterIndex >= this.#maxVSConstantBuffers)
@@ -955,17 +955,17 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 				// Get the uniform block index
 				// TODO: Check translated names!
-				var ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
+				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
 
 				// Store in the map
 				vspsMap.CBufferMap[cb.RegisterIndex] = ubIndex;
 			}
 
 			// Next, pixel shader cbuffers
-			var psCBs = this.#pixelShader.GetCBuffers();
-			for (var p = 0; p < psCBs.length; p++)
+			let psCBs = this.#pixelShader.GetCBuffers();
+			for (let p = 0; p < psCBs.length; p++)
 			{
-				var cb = psCBs[p];
+				let cb = psCBs[p];
 
 				// Validate index
 				if (cb.RegisterIndex < 0 || cb.RegisterIndex >= this.#maxPSConstantBuffers)
@@ -973,11 +973,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 				// Get the uniform block index
 				// TODO: Check translated names!
-				var ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
+				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
 
 				// Store in the map - Note the offset for uniform block indices, since
 				// we need PS indices to start after all possible VS indices
-				var offsetPSIndex = cb.RegisterIndex + this.#maxVSConstantBuffers;
+				let offsetPSIndex = cb.RegisterIndex + this.#maxVSConstantBuffers;
 				vspsMap.CBufferMap[offsetPSIndex] = ubIndex;
 			}
 		}
@@ -996,13 +996,13 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#CreateShaderProgram(vs, ps)
 	{
 		// Create the new program and attach shaders
-		var program = this.#gl.createProgram();
+		let program = this.#gl.createProgram();
 		this.#gl.attachShader(program, vs.GetShader());
 		this.#gl.attachShader(program, ps.GetShader());
 
 		// Link and check status
 		this.#gl.linkProgram(program);
-		var linkSuccess = this.#gl.getProgramParameter(program, this.#gl.LINK_STATUS);
+		let linkSuccess = this.#gl.getProgramParameter(program, this.#gl.LINK_STATUS);
 		if (!linkSuccess)
 		{
 			throw new Error("Error linking shaders: " + this.#gl.getProgramInfoLog(program));
@@ -1010,7 +1010,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 		// Validate and check status
 		this.#gl.validateProgram(program);
-		var validSuccess = this.#gl.getProgramParameter(program, this.#gl.VALIDATE_STATUS);
+		let validSuccess = this.#gl.getProgramParameter(program, this.#gl.VALIDATE_STATUS);
 		if (!validSuccess)
 		{
 			throw new Error("Error validating shaders: " + this.#gl.getProgramInfoLog(program));
@@ -1022,14 +1022,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#PrepareConstantBuffers()
 	{
 		// Bind all VS cbuffers to the proper registers, then map them to uniform block indices
-		for (var v = 0; this.#vsConstantBuffersDirty && v < this.#vsConstantBuffers.length; v++)
+		for (let v = 0; this.#vsConstantBuffersDirty && v < this.#vsConstantBuffers.length; v++)
 		{
-			var cb = this.#vsConstantBuffers[v];
+			let cb = this.#vsConstantBuffers[v];
 			if (cb == null)
 				continue;
 
 			// Check to see if the shader program expects a buffer
-			var ubIndex = this.#currentCBufferMap[v];
+			let ubIndex = this.#currentCBufferMap[v];
 			if (ubIndex == -1)
 			{
 				// Doesn't want this buffer, so unbind
@@ -1046,15 +1046,15 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Bind all PS cbuffers, too - taking into account an offset to put them after all VS cbuffers
-		for (var p = 0; this.#psConstantBuffersDirty && p < this.#psConstantBuffers.length; p++)
+		for (let p = 0; this.#psConstantBuffersDirty && p < this.#psConstantBuffers.length; p++)
 		{
-			var cb = this.#psConstantBuffers[p];
+			let cb = this.#psConstantBuffers[p];
 			if (cb == null)
 				continue;
 
 			// Expecting a buffer? (Use PS offset index)
-			var psIndex = p + this.#maxVSConstantBuffers;
-			var ubIndex = this.#currentCBufferMap[psIndex];
+			let psIndex = p + this.#maxVSConstantBuffers;
+			let ubIndex = this.#currentCBufferMap[psIndex];
 			if (ubIndex == -1)
 			{
 				// Doesn't want this buffer, so unbind
@@ -1096,7 +1096,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareConstantBuffers();
 
 		// Get proper format
-		var format = this.#gl.UNSIGNED_SHORT;
+		let format = this.#gl.UNSIGNED_SHORT;
 		switch (this.#indexBufferFormat)
 		{
 			case DXGI_FORMAT_R16_UINT: format = this.#gl.UNSIGNED_SHORT; break;
@@ -1132,7 +1132,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				throw new Error("Cannot update a box within a buffer resource");
 
 			// Safe to update!  Save any previously bound buffer
-			var prevBuffer = this.#gl.getParameter(this.#gl.UNIFORM_BUFFER_BINDING);
+			let prevBuffer = this.#gl.getParameter(this.#gl.UNIFORM_BUFFER_BINDING);
 			
 			// Bind and update
 			this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, dstResource.GetGLResource());
@@ -1236,8 +1236,8 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 
 	#CopyDescriptions(descriptionArray)
 	{
-		var descs = [];
-		for (var i = 0; i < descriptionArray.length; i++)
+		let descs = [];
+		for (let i = 0; i < descriptionArray.length; i++)
 			descs[i] = Object.assign({}, descriptionArray[i]);
 		return descs;
 	}
@@ -1283,7 +1283,7 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 		// Actually remove shader if necessary
 		if (this.GetRef() <= 0)
 		{
-			var dev = this.GetDevice();
+			let dev = this.GetDevice();
 			dev.GetAdapter().deleteShader(this.#shader);
 			dev.Release();
 		}
@@ -1403,7 +1403,7 @@ class ID3D11VertexShader extends ID3D11DeviceChild
 		// Actually remove shader if necessary
 		if (this.GetRef() <= 0)
 		{
-			var dev = this.GetDevice();
+			let dev = this.GetDevice();
 			dev.GetAdapter().deleteShader(this.#shader);
 			dev.Release();
 		}
@@ -1459,7 +1459,7 @@ class ID3D11Buffer extends ID3D11Resource
 		// Actually remove buffer if necessary
 		if (this.GetRef() <= 0)
 		{
-			var dev = this.GetDevice();
+			let dev = this.GetDevice();
 			dev.GetAdapter().deleteBuffer(this.GetGLResource());
 			dev.Release();
 		}
@@ -1603,7 +1603,7 @@ class TokenIterator
 
 	#Peek(offset)
 	{
-		var peekPos = this.#position + offset;
+		let peekPos = this.#position + offset;
 		if (peekPos < 0 || peekPos >= this.#tokens.length)
 			return null;
 
@@ -1823,7 +1823,7 @@ class HLSL
 	#DataTypeIsStruct(type)
 	{
 		// Check each struct's name
-		for (var s = 0; s < this.#structs.length; s++)
+		for (let s = 0; s < this.#structs.length; s++)
 		{
 			if (this.#structs[s].Name == type)
 			{
@@ -1839,17 +1839,17 @@ class HLSL
 	{
 		// Reset
 		this.#tokens = [];
-		var lineNum = 1;
+		let lineNum = 1;
 
 		// Make a copy of the code as we'll be substringing it
-		var code = this.#hlsl.repeat(1); // Copy
+		let code = this.#hlsl.repeat(1); // Copy
 
 		// Loop through entire string
 		while (code.length > 0)
 		{
 			// Check each rule
-			var anyMatch = false;
-			for (var r = 0; r < this.Rules.length; r++)
+			let anyMatch = false;
+			for (let r = 0; r < this.Rules.length; r++)
 			{
 				// Run the regex
 				const re = new RegExp(this.Rules[r].Pattern, "g");
@@ -1869,7 +1869,7 @@ class HLSL
 						this.Rules[r].Type != TokenWhiteSpace)
 					{
 						// Build the token and push to list
-						var t = {
+						let t = {
 							Type: this.Rules[r].Type,
 							Text: matches[0],
 							Line: lineNum
@@ -1904,10 +1904,10 @@ class HLSL
 		this.#main = null;
 
 		// Create the iterator
-		var it = new TokenIterator(this.#tokens);
+		let it = new TokenIterator(this.#tokens);
 
 		// Possible global cbuffer
-		var globalCB = {
+		let globalCB = {
 			Name: "$Global",
 			RegisterIndex: -1,
 			ExplicitRegister: false,
@@ -1918,7 +1918,7 @@ class HLSL
 		it.MoveNext();
 		while (it.More())
 		{
-			var current = it.Current();
+			let current = it.Current();
 
 			// Farm out processing of each type
 			switch (current.Text)
@@ -2020,8 +2020,8 @@ class HLSL
 
 	#IsDataType(text)
 	{
-		var isStructType = this.#DataTypeIsStruct(text);
-		var isDataType = this.DataTypes.indexOf(text) >= 0;
+		let isStructType = this.#DataTypeIsStruct(text);
+		let isDataType = this.DataTypes.indexOf(text) >= 0;
 		return isStructType || isDataType;
 	}
 
@@ -2033,7 +2033,7 @@ class HLSL
 
 	#ParseVariable(it, interpModAllowed, semanticAllowed)
 	{
-		var variable = {
+		let variable = {
 			InterpMod: null,
 			DataType: null,
 			Name: null,
@@ -2085,7 +2085,7 @@ class HLSL
 	#ParseStruct(it)
 	{
 		// Make the struct
-		var s = {
+		let s = {
 			Name: null,
 			Variables: []
 		};
@@ -2103,7 +2103,7 @@ class HLSL
 		// Some number of variables
 		do
 		{
-			var v = this.#ParseVariable(it, true, true);
+			let v = this.#ParseVariable(it, true, true);
 			if (v != null)
 			{
 				s.Variables.push(v);
@@ -2128,12 +2128,12 @@ class HLSL
 			it.PeekNext().Type == TokenParenRight) // Next is end parens
 		{
 			// Validate register
-			var regText = it.Current().Text;
+			let regText = it.Current().Text;
 			if (!regText.startsWith(registerLabel))
 				return -1;
 
 			// Get index
-			var index = parseInt(regText.substring(1));
+			let index = parseInt(regText.substring(1));
 			if (isNaN(index))
 				return -1;
 
@@ -2151,7 +2151,7 @@ class HLSL
 	#ParseCBuffer(it)
 	{
 		// Make the cbuffer
-		var cb = {
+		let cb = {
 			Name: null,
 			RegisterIndex: -1,
 			ExplicitRegister: false,
@@ -2176,7 +2176,7 @@ class HLSL
 		// Process any variables
 		do
 		{
-			var v = this.#ParseVariable(it, false, false);
+			let v = this.#ParseVariable(it, false, false);
 			if (v != null)
 			{
 				cb.Variables.push(v);
@@ -2191,7 +2191,7 @@ class HLSL
 
 	#ParseTexture(it)
 	{
-		var t = {
+		let t = {
 			Type: null,
 			Name: null,
 			RegisterIndex: -1,
@@ -2219,7 +2219,7 @@ class HLSL
 
 	#ParseSampler(it)
 	{
-		var s = {
+		let s = {
 			Type: null,
 			Name: null,
 			RegisterIndex: -1,
@@ -2249,16 +2249,16 @@ class HLSL
 	{
 		// Data type
 		this.#Require(it, TokenIdentifier);
-		var type = it.PeekPrev().Text;
+		let type = it.PeekPrev().Text;
 
 		// Name
 		this.#Require(it, TokenIdentifier);
-		var name = it.PeekPrev().Text;
+		let name = it.PeekPrev().Text;
 
 		// Check for parens, which means function
 		if (this.#Allow(it, TokenParenLeft))
 		{
-			var f = {
+			let f = {
 				ReturnType: type,
 				Name: name,
 				Semantic: null,
@@ -2269,7 +2269,7 @@ class HLSL
 			// It's a function, so it may have parameters
 			do
 			{
-				var v = this.#ParseVariable(it, true, true);
+				let v = this.#ParseVariable(it, true, true);
 				if (v != null)
 				{
 					f.Parameters.push(v);
@@ -2292,7 +2292,7 @@ class HLSL
 			f.BodyTokens.push(it.Current());
 
 			// Next should be open scope
-			var scopeLevel = 1;
+			let scopeLevel = 1;
 			this.#Require(it, TokenScopeLeft);
 			do
 			{
@@ -2328,7 +2328,7 @@ class HLSL
 		else if (this.#Allow(it, TokenSemicolon))
 		{
 			// Should be end of a variable, so add to the global cbuffer
-			var v = {
+			let v = {
 				InterpMod: null,
 				DataType: type,
 				Name: name,
@@ -2340,7 +2340,7 @@ class HLSL
 
 	#RegisterExists(elements, registerIndex)
 	{
-		for (var e = 0; e < elements.length; e++)
+		for (let e = 0; e < elements.length; e++)
 		{
 			if (elements[e].RegisterIndex == registerIndex)
 				return true;
@@ -2352,9 +2352,9 @@ class HLSL
 	#ResolveImplicitRegisters(elements, maxRegisters)
 	{
 		// The current index for an implicit register
-		var currentIndex = 0;
+		let currentIndex = 0;
 
-		for (var e = 0; e < elements.length; e++)
+		for (let e = 0; e < elements.length; e++)
 		{
 			// Does this element need a register?
 			if (elements[e].RegisterIndex == -1)
@@ -2417,7 +2417,7 @@ class HLSL
 
 	#GetStructByName(name)
 	{
-		for (var s = 0; s < this.#structs.length; s++)
+		for (let s = 0; s < this.#structs.length; s++)
 			if (this.#structs[s].Name == name)
 				return this.#structs[s];
 
@@ -2441,7 +2441,7 @@ class HLSL
 			token.Text.charAt(token.Text.length - 1) == "f")
 		{
 			// Might be left with a "." at the end, in the case of "1.f"
-			var stripSize = 1;
+			let stripSize = 1;
 			if (token.Text.charAt(token.Text.length - 2) == ".")
 				stripSize = 2;
 
@@ -2455,7 +2455,7 @@ class HLSL
 
 	#GetHLSLOnlyFunctions()
 	{
-		var glsl = "";
+		let glsl = "";
 
 		glsl += "mat4 mul(mat4 m1, mat4 m2){ return m1 * m2; }\n"
 		glsl += "vec4 mul(vec4 v, mat4 m){ return v * m; }\n"
@@ -2474,8 +2474,8 @@ class HLSL
 
 	#ConvertVertexShader()
 	{
-		var glsl = "#version 300 es\n\n";
-		var vsInputs = this.#GetVSInputs();
+		let glsl = "#version 300 es\n\n";
+		let vsInputs = this.#GetVSInputs();
 
 		// Append each type of shader element
 		glsl += this.#GetAttributesString(vsInputs);
@@ -2497,20 +2497,20 @@ class HLSL
 			throw new Error("Missing main() function in shader");
 
 		// Get all of the VS input
-		var vsInputs = [];
-		for (var p = 0; p < this.#main.Parameters.length; p++)
+		let vsInputs = [];
+		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
-			var param = this.#main.Parameters[p];
+			let param = this.#main.Parameters[p];
 
 			// If this is a data type, we have to scan the whole thing
 			if (this.#DataTypeIsStruct(param.DataType))
 			{
-				var struct = this.#GetStructByName(param.DataType);
+				let struct = this.#GetStructByName(param.DataType);
 				if (struct == null)
 					throw new Error("Invalid data type in vertex shader input");
 
 				// Add each struct member to the VS input
-				for (var v = 0; v < struct.Variables.length; v++)
+				for (let v = 0; v < struct.Variables.length; v++)
 				{
 					vsInputs.push(struct.Variables[v]);
 				}
@@ -2527,9 +2527,9 @@ class HLSL
 	#GetAttributesString(vsInputs)
 	{
 		// Turn each vs input into an attribute
-		var attribs = "";
+		let attribs = "";
 
-		for (var i = 0; i < vsInputs.length; i++)
+		for (let i = 0; i < vsInputs.length; i++)
 		{
 			attribs +=
 				"in " + // Note: Changes from "attribute" to "in" for GLSL 3
@@ -2549,12 +2549,12 @@ class HLSL
 			return "";
 
 		// Grab the struct and put together varyings
-		var struct = this.#GetStructByName(this.#main.ReturnType);
-		var vary = "";
+		let struct = this.#GetStructByName(this.#main.ReturnType);
+		let vary = "";
 
-		for (var v = 0; v < struct.Variables.length; v++)
+		for (let v = 0; v < struct.Variables.length; v++)
 		{
-			var member = struct.Variables[v];
+			let member = struct.Variables[v];
 
 			// Skip SV_POSITION
 			if (member.Semantic != null &&
@@ -2571,19 +2571,19 @@ class HLSL
 
 	#GetStructsString()
 	{
-		var str = "";
+		let str = "";
 
-		for (var s = 0; s < this.#structs.length; s++)
+		for (let s = 0; s < this.#structs.length; s++)
 		{
 			// Start the struct
-			var struct = this.#structs[s];
+			let struct = this.#structs[s];
 			str += "struct " + this.#Translate(struct.Name) + "\n";
 			str += "{\n";
 
 			// Handle each variable (no semantics)
-			for (var v = 0; v < struct.Variables.length; v++)
+			for (let v = 0; v < struct.Variables.length; v++)
 			{
-				var variable = struct.Variables[v];
+				let variable = struct.Variables[v];
 				str += "\t" + this.#Translate(variable.DataType); // Datatype
 				str += " " + this.#Translate(variable.Name) + ";\n"; // Identifier
 			}
@@ -2599,19 +2599,19 @@ class HLSL
 	// TODO: Handle this by prepending ALL cbuffer variables with "vs_" or "ps_" perhaps?
 	#GetCBuffersString()
 	{
-		var cbStr = "";
+		let cbStr = "";
 
-		for (var c = 0; c < this.#cbuffers.length; c++)
+		for (let c = 0; c < this.#cbuffers.length; c++)
 		{
 			// Start the uniform block
-			var cb = this.#cbuffers[c];
+			let cb = this.#cbuffers[c];
 			cbStr += "layout(std140) uniform " + this.#Translate(cb.Name) + "\n";
 			cbStr += "{\n";
 
 			// Handle each variable (no semantics)
-			for (var v = 0; v < cb.Variables.length; v++)
+			for (let v = 0; v < cb.Variables.length; v++)
 			{
-				var variable = cb.Variables[v];
+				let variable = cb.Variables[v];
 				cbStr += "\t" + this.#Translate(variable.DataType); // Datatype
 				cbStr += " " + this.#Translate(variable.Name) + ";\n"; // Identifier
 			}
@@ -2626,17 +2626,17 @@ class HLSL
 
 	#GetFunctionString(func, prependName = "")
 	{
-		var newFuncName = prependName + func.Name;
-		var funcStr = "";
+		let newFuncName = prependName + func.Name;
+		let funcStr = "";
 
 		// Start the function
 		funcStr += this.#Translate(func.ReturnType); // Data type
 		funcStr += " " + this.#Translate(newFuncName) + "("; // Identifier
 
 		// Parameters
-		for (var p = 0; p < func.Parameters.length; p++)
+		for (let p = 0; p < func.Parameters.length; p++)
 		{
-			var param = func.Parameters[p];
+			let param = func.Parameters[p];
 			funcStr += this.#Translate(param.DataType); // Data type
 			funcStr += " " + this.#Translate(param.Name); // Identifier
 
@@ -2648,12 +2648,12 @@ class HLSL
 		funcStr += ")";
 
 		// Body (including scope!)
-		var it = new TokenIterator(func.BodyTokens);
-		var indent = 0;
-		var parenDepth = 0;
+		let it = new TokenIterator(func.BodyTokens);
+		let indent = 0;
+		let parenDepth = 0;
 		while (it.MoveNext())
 		{
-			var t = it.Current();
+			let t = it.Current();
 
 			// Track parens (due to for loops)
 			switch (t.Type)
@@ -2697,42 +2697,42 @@ class HLSL
 
 	#GetHelperFunctionsString()
 	{
-		var functions = "";
-		for (var f = 0; f < this.#functions.length; f++)
+		let functions = "";
+		for (let f = 0; f < this.#functions.length; f++)
 			functions += this.#GetFunctionString(this.#functions[f]);
 		return functions;
 	}
 
 	#BuildVertexShaderMain(vsInputs)
 	{
-		var main = "void main()\n";
+		let main = "void main()\n";
 		main += "{\n";
 
 		// Create a variable for each vs input
 		// NOTE: This could be skipped and the attributes could be 
 		//       directly set to the variables/structs below
-		for (var v = 0; v < vsInputs.length; v++)
+		for (let v = 0; v < vsInputs.length; v++)
 		{
 			main += "\t" + this.#Translate(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
 			main += PrefixAttribute + vsInputs[v].Name + ";\n";
 		}
 
 		// Are any of the actual function inputs structs?
-		for (var p = 0; p < this.#main.Parameters.length; p++)
+		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
-			var param = this.#main.Parameters[p];
+			let param = this.#main.Parameters[p];
 			if (this.#DataTypeIsStruct(param.DataType))
 			{
 				// Yes, so build a struct object and "hook up" vsInputs
-				var newParamName = this.#Translate(param.Name);
+				let newParamName = this.#Translate(param.Name);
 				main += "\n\t" + param.DataType;
 				main += " " + newParamName + ";\n";
 
 				// Handle each struct member
-				var struct = this.#GetStructByName(param.DataType);
-				for (var v = 0; v < struct.Variables.length; v++)
+				let struct = this.#GetStructByName(param.DataType);
+				for (let v = 0; v < struct.Variables.length; v++)
 				{
-					var member = struct.Variables[v];
+					let member = struct.Variables[v];
 					main += "\t" + newParamName + "." + this.#Translate(member.Name) + " = ";
 
 					// NOTE: Assumption here is that the struct member name is identical to the
@@ -2744,7 +2744,7 @@ class HLSL
 
 		// Call the function and capture the return value
 		main += "\n\t" + this.#Translate(this.#main.ReturnType) + " " + PrefixVSOutput + " = hlsl_main(";
-		for (var p = 0; p < this.#main.Parameters.length; p++)
+		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
 			main += this.#Translate(this.#main.Parameters[p].Name);
 			if (p < this.#main.Parameters.length - 1)
@@ -2762,11 +2762,11 @@ class HLSL
 		else
 		{
 			// SV_POSITION is part of a struct - handle all that data
-			var posName = null;
-			var struct = this.#GetStructByName(this.#main.ReturnType);
-			for (var v = 0; v < struct.Variables.length; v++)
+			let posName = null;
+			let struct = this.#GetStructByName(this.#main.ReturnType);
+			for (let v = 0; v < struct.Variables.length; v++)
 			{
-				var member = struct.Variables[v];
+				let member = struct.Variables[v];
 
 				// Is this our SV_Position?
 				if (member.Semantic != null &&
@@ -2799,20 +2799,20 @@ class HLSL
 			throw new Error("Missing main() function in shader");
 
 		// Get all of the PS inputs
-		var psInputs = [];
-		for (var p = 0; p < this.#main.Parameters.length; p++)
+		let psInputs = [];
+		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
-			var param = this.#main.Parameters[p];
+			let param = this.#main.Parameters[p];
 
 			// If this is a data type, we have to scan the whole thing
 			if (this.#DataTypeIsStruct(param.DataType))
 			{
-				var struct = this.#GetStructByName(param.DataType);
+				let struct = this.#GetStructByName(param.DataType);
 				if (struct == null)
 					throw new Error("Invalid data type in pixel shader input");
 
 				// Add each struct member to the VS input
-				for (var v = 0; v < struct.Variables.length; v++)
+				for (let v = 0; v < struct.Variables.length; v++)
 				{
 					psInputs.push(struct.Variables[v]);
 				}
@@ -2832,21 +2832,21 @@ class HLSL
 		if (psInputs.length == 0)
 			return "";
 
-		var vary = "";
+		let vary = "";
 
 		// Loop through all main parameters
-		var needFragCoord = false;
-		for (var p = 0; p < this.#main.Parameters.length; p++)
+		let needFragCoord = false;
+		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
-			var param = this.#main.Parameters[p];
+			let param = this.#main.Parameters[p];
 			if (this.#DataTypeIsStruct(param.DataType))
 			{
 				// This param is an entire struct, so make a varying for each member
 				// Note: Using semantic as varying identifiers!
-				var struct = this.#GetStructByName(param.DataType);
-				for (var v = 0; v < struct.Variables.length; v++)
+				let struct = this.#GetStructByName(param.DataType);
+				for (let v = 0; v < struct.Variables.length; v++)
 				{
-					var member = struct.Variables[v];
+					let member = struct.Variables[v];
 
 					// Skip SV_POSITION
 					if (member.Semantic != null &&
@@ -2889,13 +2889,13 @@ class HLSL
 
 	#BuildPixelShaderMain(psInputs)
 	{
-		var main = "void main()\n";
+		let main = "void main()\n";
 		main += "{\n";
 
 		// Create a variable for each ps input (which comes from a varying)
 		// NOTE: This could be skipped and the varyings could be
 		//       directly set to the variables/structs below
-		for (var v = 0; v < psInputs.length; v++)
+		for (let v = 0; v < psInputs.length; v++)
 		{
 			main += "\t" + this.#Translate(psInputs[v].DataType) + " " + psInputs[v].Name + " = ";
 
@@ -2907,21 +2907,21 @@ class HLSL
 		}
 
 		// Are any of the actual function inputs structs?
-		for (var p = 0; p < this.#main.Parameters.length; p++)
+		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
-			var param = this.#main.Parameters[p];
+			let param = this.#main.Parameters[p];
 			if (this.#DataTypeIsStruct(param.DataType))
 			{
 				// Yes, so build a struct object and "hook up" psInputs
-				var newParamName = this.#Translate(param.Name);
+				let newParamName = this.#Translate(param.Name);
 				main += "\n\t" + param.DataType;
 				main += " " + newParamName + ";\n";
 
 				// Handle each struct member
-				var struct = this.#GetStructByName(param.DataType);
-				for (var v = 0; v < struct.Variables.length; v++)
+				let struct = this.#GetStructByName(param.DataType);
+				for (let v = 0; v < struct.Variables.length; v++)
 				{
-					var member = struct.Variables[v];
+					let member = struct.Variables[v];
 					main += "\t" + newParamName + "." + this.#Translate(member.Name) + " = ";
 
 					// NOTE: Assumption here is that the struct member name is identical to the
@@ -2933,7 +2933,7 @@ class HLSL
 
 		// Call the function and capture the return value
 		main += "\n\t" + this.#Translate(this.#main.ReturnType) + " " + PrefixPSOutput + " = hlsl_main(";
-		for (var p = 0; p < this.#main.Parameters.length; p++)
+		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
 			main += this.#Translate(this.#main.Parameters[p].Name);
 			if (p < this.#main.Parameters.length - 1)
@@ -2954,11 +2954,11 @@ class HLSL
 			// NOTE: Still only handling a single render target!
 			// TODO: Figure out multiple render targets in webgl
 
-			var targetName = null;
-			var struct = this.#GetStructByName(this.#main.ReturnType);
-			for (var v = 0; v < struct.Variables.length; v++)
+			let targetName = null;
+			let struct = this.#GetStructByName(this.#main.ReturnType);
+			for (let v = 0; v < struct.Variables.length; v++)
 			{
-				var member = struct.Variables[v];
+				let member = struct.Variables[v];
 
 				// Is this our SV_Position?
 				if (member.Semantic != null &&
@@ -2986,8 +2986,8 @@ class HLSL
 
 	#ConvertPixelShader()
 	{
-		var glsl = "#version 300 es\n\n";
-		var psInputs = this.#GetPSInputs();
+		let glsl = "#version 300 es\n\n";
+		let psInputs = this.#GetPSInputs();
 
 		// Append each element
 		glsl += "precision mediump float;\n\n";

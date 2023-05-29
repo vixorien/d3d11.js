@@ -72,7 +72,7 @@
 				// [sin, 0,  cos, 0]
 				// [0    0     0, 1]
 
-				var mat = this.Identity();
+				let mat = this.Identity();
 				mat[0] = cosAngle;
 				mat[2] = -sinAngle;
 				mat[8] = sinAngle;
@@ -89,7 +89,7 @@
 				const width = height / aspectRatio;
 				const fRange = farZ / (farZ - nearZ);
 
-				var mat = new Matrix4x4();
+				let mat = new Matrix4x4();
 
 				// [width, 0,      0,               0]
 				// [0,     height, 0,               0]
@@ -107,7 +107,7 @@
 
 			static TestView(x, y, z)
 			{
-				var mat = Matrix4x4.Identity();
+				let mat = Matrix4x4.Identity();
 
 				// [1, 0, 0, 0]
 				// [0, 1, 0, 0]
@@ -141,14 +141,14 @@
 			const resp = await fetch(url);
 			const fileText = await resp.text();
 
-			var positions = [];
-			var normals = [];
-			var uvs = [];
-			var vertices = [];
-			var indices = [];
+			let positions = [];
+			let normals = [];
+			let uvs = [];
+			let vertices = [];
+			let indices = [];
 			
-			var lines = fileText.split("\n");
-			for (var i = 0; i < lines.length; i++)
+			let lines = fileText.split("\n");
+			for (let i = 0; i < lines.length; i++)
 			{
 				// Trim and verify
 				lines[i] = lines[i].trim();
@@ -159,7 +159,7 @@
 				if (lines[i].charAt(0) == 'v' && lines[i].charAt(1) == 'n')
 				{
 					// vn x y z
-					var normLine = lines[i].split(' ');
+					let normLine = lines[i].split(' ');
 					normals.push(new Vector3(
 						parseFloat(normLine[1]),
 						parseFloat(normLine[2]),
@@ -168,7 +168,7 @@
 				else if (lines[i].charAt(0) == 'v' && lines[i].charAt(1) == 't')
 				{
 					// vt u v
-					var uvLine = lines[i].split(' ');
+					let uvLine = lines[i].split(' ');
 					uvs.push(new Vector2(
 						parseFloat(uvLine[1]),
 						parseFloat(uvLine[2])));
@@ -176,7 +176,7 @@
 				else if (lines[i].charAt(0) == 'v')
 				{
 					// v x y z
-					var posLine = lines[i].split(' ');
+					let posLine = lines[i].split(' ');
 					positions.push(new Vector3(
 						parseFloat(posLine[1]),
 						parseFloat(posLine[2]),
@@ -187,17 +187,17 @@
 					// f 1/2/3 1/2/3 1/2/3
 					//  - or -
 					// f 1/2/3 1/2/3 1/2/3 1/2/3
-					var faceLine = lines[i].split(' ');
+					let faceLine = lines[i].split(' ');
 					
 					// Assume at least 3 verts per face
-					for (var f = 1; f <= 3; f++)
+					for (let f = 1; f <= 3; f++)
 					{
-						var data = faceLine[f].split('/');
-						var p = parseInt(data[0]);
-						var u = parseInt(data[1]);
-						var n = parseInt(data[2]);
+						let data = faceLine[f].split('/');
+						let p = parseInt(data[0]);
+						let u = parseInt(data[1]);
+						let n = parseInt(data[2]);
 
-						var vert = new Vertex(
+						let vert = new Vertex(
 							positions[p - 1],
 							uvs[u - 1],
 							normals[n - 1]);
@@ -212,7 +212,7 @@
 					}
 
 					// Add indices (0, 2, 1)
-					var ind = indices.length;
+					let ind = indices.length;
 					indices.push(ind + 0);
 					indices.push(ind + 2);
 					indices.push(ind + 1);
@@ -220,12 +220,12 @@
 					// A fourth face? (So 5 total elements after split)
 					if (faceLine.length == 5)
 					{
-						var data = faceLine[f].split('/');
-						var p = parseInt(data[0]);
-						var u = parseInt(data[1]);
-						var n = parseInt(data[2]);
+						let data = faceLine[f].split('/');
+						let p = parseInt(data[0]);
+						let u = parseInt(data[1]);
+						let n = parseInt(data[2]);
 
-						var vert = new Vertex(
+						let vert = new Vertex(
 							positions[p - 1],
 							uvs[u - 1],
 							normals[n - 1]);
@@ -247,9 +247,9 @@
 			}
 			
 			// Copy data to float array
-			var floatsPerVert = 3 + 2 + 3;
-			var vbData = new Float32Array(vertices.length * floatsPerVert);
-			for (var v = 0; v < vertices.length; v++)
+			let floatsPerVert = 3 + 2 + 3;
+			let vbData = new Float32Array(vertices.length * floatsPerVert);
+			for (let v = 0; v < vertices.length; v++)
 			{
 				vbData.set(vertices[v].Position, v * floatsPerVert + 0);
 				vbData.set(vertices[v].UV, v * floatsPerVert + 3);
@@ -257,7 +257,7 @@
 			}
 			
 			// Create vertex buffer
-			var vbDesc = new D3D11_BUFFER_DESC(
+			let vbDesc = new D3D11_BUFFER_DESC(
 				Float32Array.BYTES_PER_ELEMENT * 7 * vertices.length,
 				D3D11_USAGE_IMMUTABLE,
 				D3D11_BIND_VERTEX_BUFFER,
@@ -265,8 +265,8 @@
 			let vb = device.CreateBuffer(vbDesc, vbData);
 
 			// Create index buffer
-			var ibData = new Int16Array(indices);
-			var ibDesc = new D3D11_BUFFER_DESC(
+			let ibData = new Int16Array(indices);
+			let ibDesc = new D3D11_BUFFER_DESC(
 				Int16Array.BYTES_PER_ELEMENT * indices.length,
 				D3D11_USAGE_IMMUTABLE,
 				D3D11_BIND_INDEX_BUFFER,
@@ -280,7 +280,7 @@
 		{
 
 			// Shaders
-			var hlslVS = `
+			let hlslVS = `
 				struct VSInput
 				{
 					float3 position;
@@ -313,7 +313,7 @@
 				}
 			`;
 
-			var hlslPS = `
+			let hlslPS = `
 				struct VertexToPixel
 				{
 					float4 position : SV_POSITION;
@@ -332,60 +332,60 @@
 			`;
 
 			// Some quick vars
-			var float32Size = Float32Array.BYTES_PER_ELEMENT;
+			let float32Size = Float32Array.BYTES_PER_ELEMENT;
 
 			// Init the API
-			var device = D3D11CreateDevice(document.querySelector("#viewport"));
-			var context = device.GetImmediateContext();
-			var swapChain = DXGICreateSwapChain(device);
+			let device = D3D11CreateDevice(document.querySelector("#viewport"));
+			let context = device.GetImmediateContext();
+			let swapChain = DXGICreateSwapChain(device);
 
 			// Make an RTV of the back buffer
-			var rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
+			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
 
 			// Load an .obj file and set buffers
-			var cubeBuffs = await loadOBJFile(device, "../assets/meshes/cube.obj");
-			var vb = cubeBuffs[0];
-			var ib = cubeBuffs[1];
-			var indexCount = cubeBuffs[2];
+			let cubeBuffs = await loadOBJFile(device, "../assets/meshes/cube.obj");
+			let vb = cubeBuffs[0];
+			let ib = cubeBuffs[1];
+			let indexCount = cubeBuffs[2];
 
-			var vbStride = float32Size * 8;
-			var vbOffset = 0;
+			let vbStride = float32Size * 8;
+			let vbOffset = 0;
 			context.IASetVertexBuffers(0, [vb], [vbStride], [vbOffset]);
 			context.IASetIndexBuffer(ib, DXGI_FORMAT_R16_UINT, 0);
 			
 			// Create constant buffer
-			var elementCount = 16 * 3; // 3 matrices
-			var vsCBDesc = new D3D11_BUFFER_DESC(
+			let elementCount = 16 * 3; // 3 matrices
+			let vsCBDesc = new D3D11_BUFFER_DESC(
 				elementCount * Float32Array.BYTES_PER_ELEMENT,
 				D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
 				D3D11_BIND_CONSTANT_BUFFER,
 				0, 0, 0);
-			var vsCB = device.CreateBuffer(vsCBDesc, null);
+			let vsCB = device.CreateBuffer(vsCBDesc, null);
 
-			var gl = device.GetAdapter();
-			var aspectRatio = gl.canvas.width / gl.canvas.height;
+			let gl = device.GetAdapter();
+			let aspectRatio = gl.canvas.width / gl.canvas.height;
 
 			// Set up the initial VS CB data
-			var wMat = Matrix4x4.RotationY(0);
-			var vMat = Matrix4x4.TestView(0, 0, -2);
-			var pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 2.0, aspectRatio, 0.01, 100);
+			let wMat = Matrix4x4.RotationY(0);
+			let vMat = Matrix4x4.TestView(0, 0, -2);
+			let pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 2.0, aspectRatio, 0.01, 100);
 
-			var vsData = new Float32Array(elementCount);
+			let vsData = new Float32Array(elementCount);
 			vsData.set(wMat, 0);
 			vsData.set(vMat, 16);
 			vsData.set(pMat, 32);
 			context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 			// Cbuffer for pixel shader
-			var psCBDesc = new D3D11_BUFFER_DESC(
+			let psCBDesc = new D3D11_BUFFER_DESC(
 				3 * Float32Array.BYTES_PER_ELEMENT,
 				D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
 				D3D11_BIND_CONSTANT_BUFFER,
 				0, 0, 0);
-			var psCB = device.CreateBuffer(psCBDesc, null);
+			let psCB = device.CreateBuffer(psCBDesc, null);
 
 			// Set up initial PS CB data
-			var psData = new Float32Array(3);
+			let psData = new Float32Array(3);
 			psData[0] = 1.0;
 			psData[1] = 1.0;
 			psData[2] = 1.0;
@@ -396,16 +396,16 @@
 			context.PSSetConstantBuffers(0, [psCB]);
 
 			// Create an input layout
-			var inputElements = [];
+			let inputElements = [];
 			inputElements[0] = new D3D11_INPUT_ELEMENT_DESC("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0);
 			inputElements[1] = new D3D11_INPUT_ELEMENT_DESC("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 3 * float32Size, D3D11_INPUT_PER_VERTEX_DATA, 0);
 			inputElements[2] = new D3D11_INPUT_ELEMENT_DESC("NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 5 * float32Size, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			var inputLayout = device.CreateInputLayout(inputElements);
+			let inputLayout = device.CreateInputLayout(inputElements);
 			context.IASetInputLayout(inputLayout);
 
 			// Create shaders
-			var vs = device.CreateVertexShader(hlslVS);
-			var ps = device.CreatePixelShader(hlslPS);
+			let vs = device.CreateVertexShader(hlslVS);
+			let ps = device.CreatePixelShader(hlslPS);
 			context.VSSetShader(vs);
 			context.PSSetShader(ps);
 
@@ -415,7 +415,7 @@
 			function frameloop(time)
 			{
 				// Clear the RTV
-				var cornflowerBlue = [0.39, 0.58, 0.93, 1];
+				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
 				context.ClearRenderTargetView(rtv, cornflowerBlue);
 
 				// Update data
