@@ -245,7 +245,7 @@
 					// A fourth face? (So 5 total elements after split)
 					if (faceLine.length == 5)
 					{
-						let data = faceLine[f].split('/');
+						let data = faceLine[4].split('/');
 						let p = parseInt(data[0]);
 						let u = parseInt(data[1]);
 						let n = parseInt(data[2]);
@@ -430,25 +430,37 @@
 			// Make an RTV of the back buffer
 			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
 
+			// Create a depth buffer
+			let gl = device.GetAdapter();
+			let depthDesc = new D3D11_TEXTURE2D_DESC(
+				gl.canvas.width,
+				gl.canvas.height,
+				1,
+				1,
+				DXGI_FORMAT_D24_UNORM_S8_UINT,
+				new DXGI_SAMPLE_DESC(1, 0),
+				D3D11_USAGE_DEFAULT,
+				D3D11_BIND_DEPTH_STENCIL,
+				0,
+				0);
+			let depthBuffer = device.CreateTexture2D(depthDesc, null);
+
+
 			// Common for all verts
 			let vbStride = float32Size * 8;
 			let vbOffset = 0;
 
 			// Load an .obj file and set buffers
-			let cubeBuffs = await loadOBJFile(device, "../assets/meshes/cube.obj");
-			let cubeVB = cubeBuffs[0];
-			let cubeIB = cubeBuffs[1];
-			let cubeIndexCount = cubeBuffs[2];
+			let helixBuffs = await loadOBJFile(device, "../assets/meshes/helix.obj");
+			let helixVB = helixBuffs[0];
+			let helixIB = helixBuffs[1];
+			let helixIndexCount = helixBuffs[2];
 
 			let sphereBuffs = await loadOBJFile(device, "../assets/meshes/sphere.obj");
 			let sphereVB = sphereBuffs[0];
 			let sphereIB = sphereBuffs[1];
 			let sphereIndexCount = sphereBuffs[2];
 
-			// Start with the cube
-			context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);
-			context.IASetIndexBuffer(cubeIB, DXGI_FORMAT_R16_UINT, 0);
-			
 			// Create constant buffer
 			let elementCount = 16 * 3; // 3 matrices
 			let vsCBDesc = new D3D11_BUFFER_DESC(
@@ -458,7 +470,7 @@
 				0, 0, 0);
 			let vsCB = device.CreateBuffer(vsCBDesc, null);
 
-			let gl = device.GetAdapter();
+			
 			let aspectRatio = gl.canvas.width / gl.canvas.height;
 
 			// Set up the initial VS CB data
@@ -544,19 +556,9 @@
 			// Ensure we're set for triangles
 			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-			// Create an array of 8 lights
-			let lights = [];
-			lights.push(new Vector3(3, 3, 3));
-			lights.push(new Vector3(3, 3, -3));
-			lights.push(new Vector3(-3, 3, 3));
-			lights.push(new Vector3(-3, 3, -3));
-			lights.push(new Vector3(3, -3, 3));
-			lights.push(new Vector3(3, -3, -3));
-			lights.push(new Vector3(-3, -3, 3));
-			lights.push(new Vector3(-3, -3, -3));
-
 			function frameloop(time)
 			{
+
 				// Clear the RTV
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
 				context.ClearRenderTargetView(rtv, cornflowerBlue);
@@ -569,13 +571,13 @@
 					context.IASetVertexBuffers(0, [sphereVB], [vbStride], [vbOffset]);
 					context.IASetIndexBuffer(sphereIB, DXGI_FORMAT_R16_UINT, 0);
 
-					for (let i = 0; i < lights.length; i++)
+					for (let i = 0; i < 8; i++)
 					{
 						let offset = (i / 4) * Math.PI * 2;
 						let s = Math.sin(time * 0.0005 + offset);
 						let c = Math.cos(time * 0.0005 + offset);
 
-						let lightPos = [3 * s, lights[i].Y, 3 * c];
+						let lightPos = [3 * s, i < 4 ? -3 : 3, 3 * c];
 
 						wMat = Matrix4x4.Translation(lightPos[0], lightPos[1], lightPos[2]);
 						vsData.set(wMat, 0);
@@ -593,7 +595,7 @@
 					}
 				}
 
-				// Cube draw
+				// Helix draw
 				{
 					// Update data
 					wMat = Matrix4x4.RotationY(time * -0.00025);
@@ -602,12 +604,12 @@
 
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
-					// Draw cube
+					// Draw
 					context.PSSetShader(ps);
 					context.PSSetConstantBuffers(0, [psCB]);
-					context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);
-					context.IASetIndexBuffer(cubeIB, DXGI_FORMAT_R16_UINT, 0);
-					context.DrawIndexed(cubeIndexCount, 0, 0);
+					context.IASetVertexBuffers(0, [helixVB], [vbStride], [vbOffset]);
+					context.IASetIndexBuffer(helixIB, DXGI_FORMAT_R16_UINT, 0);
+					context.DrawIndexed(helixIndexCount, 0, 0);
 				}
 
 				// Flush the frame

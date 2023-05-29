@@ -93,6 +93,10 @@ const D3D11_FLOAT32_MAX = 3.402823466e+38;
 const D3D11_INPUT_PER_VERTEX_DATA = 0;
 const D3D11_INPUT_PER_INSTANCE_DATA = 1;
 
+// Identifies options for resources
+const D3D11_RESOURCE_MISC_GENERATE_MIPS = 0x1;
+const D3D11_RESOURCE_MISC_TEXTURECUBE = 0x4;
+
 // Values that indicate how the pipeline interprets
 // vertex data that is bound to the input assembler stage
 const D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED = 0;
@@ -343,6 +347,57 @@ class D3D11_SAMPLER_DESC
 	}
 }
 
+class D3D11_TEXTURE2D_DESC
+{
+	Width;
+	Height;
+	MipLevels;
+	ArraySize;
+	Format;
+	SampleDesc;
+	Usage;
+	BindFlags;
+	CPUAccessFlags;
+	MiscFlags;
+
+	constructor(
+		width,
+		height,
+		mipLevels,
+		arraySize,
+		format,
+		sampleDesc,
+		usage,
+		bindFlags,
+		cpuAccessFlags,
+		miscFlags
+	)
+	{
+		this.Width = width;
+		this.Height = height;
+		this.MipLevels = mipLevels;
+		this.ArraySize = arraySize;
+		this.Format = format;
+		this.SampleDesc = Object.assign({}, sampleDesc);
+		this.Usage = usage;
+		this.BindFlags = bindFlags;
+		this.CPUAccessFlags = cpuAccessFlags;
+		this.MiscFlags = miscFlags;
+	}
+}
+
+class DXGI_SAMPLE_DESC
+{
+	Count;
+	Quality;
+
+	constructor(count, quality)
+	{
+		this.Count = count;
+		this.Quality = quality;
+	}
+}
+
 // -----------------------------------------------------
 // ------------------ Other Structures -----------------
 // -----------------------------------------------------
@@ -513,6 +568,7 @@ class ID3D11Device extends IUnknown
 	// TODO: Respect buffer desc
 	// TODO: Use SubresourceData struct for initial data to match d3d spec?
 	// TODO: Ensure array types for initial data? 
+	// TODO: Full validation of description
 	CreateBuffer(bufferDesc, initialData)
 	{
 		// Create the gl buffer and final D3D buffer
@@ -595,6 +651,100 @@ class ID3D11Device extends IUnknown
 	{
 		// Object will verify the description
 		return new ID3D11SamplerState(this, samplerDesc);
+	}
+
+	// TODO: Validate full description
+	// NOTE: Immutable textures are possible:
+	//  - https://registry.khronos.org/OpenGL/specs/es/3.0/es_spec_3.0.pdf#nameddest=subsection.3.8.4
+	//  - Using texStorage2D() makes the resource immutable
+	//  - Immutable here means it cannot be resized or mip levels be changed
+	//  - Its DATA can still change!
+	CreateTexture2D(desc, initialData)
+	{
+		// Create the gl texture and final D3D texture object
+		let glTexture = this.#gl.createTexture();
+		let d3dTexture = new ID3D11Texture2D(this, desc, glTexture);
+
+		// TODO: Determine usage and how this will affect the texture (if at all)
+		// - Seems like webgl just uses texImage2D() to basically "rebuild" the texture?
+		// - Note: Look into "pixel buffer objects" and "pixel unpack buffers" for staging resources!
+		// Skipping usage for now (see above)
+
+		// TODO: Check description for texture array or cube, as they have different constants
+		if (desc.ArraySize < 1) throw new Error("Invalid array size specified");
+		if (desc.ArraySize > 1) throw new Error("Texture arrays not implemented yet!");
+		if (desc.MiscFlags == D3D11_RESOURCE_MISC_TEXTURECUBE) throw new Error("Texture cubes not implemented yet!");
+
+		// Is this a depth texture?
+		let isDepth = false;
+		let hasStencil = false;
+		let internalFormat;
+		let format;
+		let type;
+		// Table of format/type/internal format: https://registry.khronos.org/OpenGL/specs/es/3.0/es_spec_3.0.pdf#nameddest=subsection.3.8.4
+		
+		switch (desc.Format)
+		{
+			case DXGI_FORMAT_D16_UNORM:
+				isDepth = true;
+				hasStencil = false;
+				internalFormat = this.#gl.DEPTH_COMPONENT16;
+				format = this.#gl.DEPTH_COMPONENT;
+				type = this.#gl.UNSIGNED_SHORT;
+				break;
+
+			case DXGI_FORMAT_D24_UNORM_S8_UINT:
+				isDepth = true;
+				hasStencil = true;
+				internalFormat = this.#gl.DEPTH24_STENCIL8;
+				format = this.#gl.DEPTH_STENCIL;
+				type = this.#gl.UNSIGNED_INT_24_8;
+				break;
+
+			case DXGI_FORMAT_D32_FLOAT:
+				isDepth = true;
+				hasStencil = false;
+				internalFormat = this.#gl.DEPTH_COMPONENT32F;
+				format = this.#gl.DEPTH_COMPONENT;
+				type = this.#gl.FLOAT;
+				break;
+
+			default:
+				throw new Error("Format specified is not implemented yet!");
+		}
+		
+
+		// Store the previous texture
+		//TODO: Handle different types of textures (array, cube)
+		let prevTexture = this.#gl.getParameter(this.#gl.TEXTURE_BINDING_2D);
+
+		// Set new texture
+		// TODO: Handle types
+		this.#gl.bindTexture(this.#gl.TEXTURE_2D, glTexture);
+
+		// Any initial data?
+		if (initialData == null)
+		{
+			// Use texStorage2D() to initialize the entire
+			// texture and all subresources at once
+			// See here for details on formats/types/etc: https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexStorage2D.xhtml
+			// Note: Doesn't seem to work for texture arrays!
+			this.#gl.texStorage2D(
+				this.#gl.TEXTURE_2D,
+				desc.MipLevels,
+				internalFormat,
+				desc.Width,
+				desc.Height);
+		}
+		else
+		{
+			// TODO: Create the texture with source data
+		}
+
+		//TODO: Handle different types of textures (array, cube)
+		this.#gl.bindTexture(this.#gl.TEXTURE_2D, prevTexture);
+		return d3dTexture;
+
 	}
 
 	// Note: Not using bytecode, just a big string, so only one parameter
@@ -1474,9 +1624,22 @@ class ID3D11Buffer extends ID3D11Resource
 
 class ID3D11Texture2D extends ID3D11Resource
 {
-	constructor(device, description)
+	constructor(device, description, glBuffer)
 	{
-		super(device, description, D3D11_RESOURCE_DIMENSION_TEXTURE2D);
+		super(device, description, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glBuffer);
+	}
+
+	Release()
+	{
+		super.Release();
+
+		// Actually remove buffer if necessary
+		if (this.GetRef() <= 0)
+		{
+			let dev = this.GetDevice();
+			dev.GetAdapter().deleteBuffer(this.GetGLResource());
+			dev.Release();
+		}
 	}
 }
 
