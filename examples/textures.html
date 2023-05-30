@@ -328,6 +328,27 @@
 			return [vb, ib, indices.length];
 		}
 
+		async function loadTexture2D(device, url)
+		{
+			// Fetch and grab the binary data, then turn into an image
+			const resp = await fetch(url);
+			const imageBlob = await resp.blob();
+			const bitmap = await createImageBitmap(imageBlob);
+
+			// Set up the texture
+			let desc = new D3D11_TEXTURE2D_DESC(
+				bitmap.width,
+				bitmap.height,
+				1,
+				1,
+				DXGI_FORMAT_R8G8B8A8_UNORM,
+				new DXGI_SAMPLE_DESC(1, 0),
+				D3D11_USAGE_DEFAULT,
+				D3D11_BIND_SHADER_RESOURCE,
+				0, 0);
+			return device.CreateTexture2D(desc, bitmap);
+		}
+
 		async function main()
 		{
 
@@ -450,7 +471,7 @@
 
 				cbuffer psData : register(b0)
 				{
-					float3 color;	// Auto pad
+					float3 color;
 				}
 
 				float4 main(VertexToPixel input) : SV_TARGET
@@ -468,6 +489,9 @@
 			let swapChain = DXGICreateSwapChain(device);
 			
 			let gl = device.GetAdapter();
+
+			// Attempt to load an image
+			await loadTexture2D(device, "../assets/textures/crate.png");
 
 			// Make an RTV of the back buffer
 			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
@@ -610,8 +634,8 @@
 			function frameloop(time)
 			{
 				// Clear the frame
-				//let cornflowerBlue = [0.39, 0.58, 0.93, 1];
-				context.ClearRenderTargetView(rtv, [0,0,0,1]);
+				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
+				context.ClearRenderTargetView(rtv, cornflowerBlue);
 				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
 
 				// Sphere draws

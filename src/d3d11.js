@@ -817,8 +817,18 @@ class ID3D11Device extends IUnknown
 		}
 		else
 		{
-			// TODO: Create the texture with source data
-			throw new Error("Texture with initial data not yet implemented!");
+			// Use texImage2D() to set initial data
+			// TODO: Handle multiple mips/array elements/etc?
+			this.#gl.texImage2D(
+				this.#gl.TEXTURE_2D,
+				0, // TODO: Handle specific mip levels?
+				internalFormat,
+				desc.Width,
+				desc.Height,
+				0,
+				format,
+				type,
+				initialData);
 		}
 
 		//TODO: Handle different types of textures (array, cube)
@@ -2859,7 +2869,6 @@ class HLSL
 	// TODO: Handle casting differences between hlsl and glsl
 	//       (float3x3)thing --> float3x3(thing)
 	// TODO: Handle swizzling of non-vector types (variable.xxx)
-	// TODO: Saturate()
 	// TODO: auto "casting" ints to floats - maybe just make "int" versions of all functions?  UGH
 	#GlobalVarOrFunction(it, globalCB)
 	{
