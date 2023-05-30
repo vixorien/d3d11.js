@@ -57,6 +57,16 @@ const D3D11_COMPARISON_ALWAYS = 8;
 const D3D11_CPU_ACCESS_WRITE = 0x10000;
 const D3D11_CPU_ACCESS_READ = 0x20000;
 
+// Specifies how to access a resource used in a depth-stencil view
+// Note: The "unknown" dimension is not valid, as per documentation
+//const D3D11_DSV_DIMENSION_UNKNOWN = 0;
+const D3D11_DSV_DIMENSION_TEXTURE1D = 1;
+const D3D11_DSV_DIMENSION_TEXTURE1DARRAY = 2;
+const D3D11_DSV_DIMENSION_TEXTURE2D = 3;
+const D3D11_DSV_DIMENSION_TEXTURE2DARRAY = 4;
+//const D3D11_DSV_DIMENSION_TEXTURE2DMS = 5;
+//const D3D11_DSV_DIMENSION_TEXTURE2DMSARRAY = 6;
+
 // Filtering options during texture sampling							// Hex -> Binary
 const D3D11_FILTER_MIN_MAG_MIP_POINT = 0;								// 00000000
 const D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR = 0x1;						// 00000001
@@ -278,6 +288,44 @@ class D3D11_BUFFER_DESC
 		this.StructureByteStride = structureByteStride;
 	}
 }
+
+class D3D11_DEPTH_STENCIL_VIEW_DESC
+{
+	Format;
+	ViewDimension;
+	Flags;
+
+	MipSlice;
+	FirstArraySlice;
+	ArraySize;
+	// The actual description has these union'd
+	// together, but I've opted to simply include
+	// their common members above
+	// Texture1D;
+	// Texture1DArray;
+	// Texture2D;
+	// Texture2DArray;
+	// Texture2DMS;
+	// Texture2DMSArray;
+
+
+	constructor(
+		format,
+		viewDimension,
+		flags,
+		mipSlice = 0,
+		firstArraySlice = 0,
+		arraySize = 1)
+	{
+		this.Format = format;
+		this.ViewDimension = viewDimension;
+		this.Flags = flags;
+		this.MipSlice = mipSlice;
+		this.FirstArraySlice = firstArraySlice;
+		this.ArraySize = arraySize;
+	}
+}
+
 
 class D3D11_INPUT_ELEMENT_DESC 
 {
@@ -1576,10 +1624,10 @@ class ID3D11Resource extends ID3D11DeviceChild
 	#dimension;
 	#glResource;
 
-	constructor(device, description, dimension, glResource)
+	constructor(device, desc, dimension, glResource)
 	{
 		super(device);
-		this.#desc = Object.assign({}, description); // Copy
+		this.#desc = Object.assign({}, desc); // Copy
 		this.#dimension = dimension;
 		this.#glResource = glResource;
 	}
@@ -1603,9 +1651,9 @@ class ID3D11Resource extends ID3D11DeviceChild
 
 class ID3D11Buffer extends ID3D11Resource
 {
-	constructor(device, description, glBuffer)
+	constructor(device, desc, glBuffer)
 	{
-		super(device, description, D3D11_RESOURCE_DIMENSION_BUFFER, glBuffer);
+		super(device, desc, D3D11_RESOURCE_DIMENSION_BUFFER, glBuffer);
 	}
 
 	Release()
@@ -1624,9 +1672,9 @@ class ID3D11Buffer extends ID3D11Resource
 
 class ID3D11Texture2D extends ID3D11Resource
 {
-	constructor(device, description, glBuffer)
+	constructor(device, desc, glBuffer)
 	{
-		super(device, description, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glBuffer);
+		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glBuffer);
 	}
 
 	Release()
@@ -1651,11 +1699,18 @@ class ID3D11Texture2D extends ID3D11Resource
 class ID3D11View extends ID3D11DeviceChild
 {
 	#resource;
+	#desc;
 
-	constructor(device, resource)
+	constructor(device, resource, desc)
 	{
 		super(device);
 		this.#resource = resource;
+		this.#desc = Object.assign({}, desc);
+	}
+
+	GetDesc()
+	{
+		return Object.assign({}, this.#desc);
 	}
 
 	GetResource()
@@ -1685,12 +1740,49 @@ class ID3D11View extends ID3D11DeviceChild
 	}
 }
 
+
+class ID3D11DepthStencilView extends ID3D11View
+{
+	constructor(device, resource, desc)
+	{
+		super(device, resource, desc);
+
+		// Check the resource
+		let resDesc = resource.GetDesc();
+
+		// Has to have the correct bind flag
+		if ((resDesc.BindFlags & D3D11_BIND_DEPTH_STENCIL) == 0)
+			throw new Error("Resource not set for depth stencil binding");
+
+		// Must be the right dimension!
+		// TODO: Handle the rest of the types
+		switch (desc.ViewDimension)
+		{
+			//case D3D11_DSV_DIMENSION_TEXTURE1D:
+			//case D3D11_DSV_DIMENSION_TEXTURE1DARRAY: break;
+			//case D3D11_DSV_DIMENSION_TEXTURE2DARRAY: break;
+
+			case D3D11_DSV_DIMENSION_TEXTURE2D:
+
+				// Has to actually be a texture2d
+				if (!(resource instanceof ID3D11Texture2D))
+					throw new Error("Resource type does not match view description");
+
+				break;
+
+			default:
+				throw new Error("Invalid view dimension for depth stencil view");
+		}
+	}
+}
+
+
 // still a work in progress until we get actual textures
 class ID3D11RenderTargetView extends ID3D11View
 {
-	constructor(device, resource)
+	constructor(device, resource, desc)
 	{
-		super(device, resource);
+		super(device, resource, desc);
 	}
 }
 

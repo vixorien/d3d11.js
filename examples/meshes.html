@@ -5,7 +5,7 @@
 
 </head>
 <body style="background-color:#000;">
-	<h1 style="color:#fff;">D3D11.js - Cube Test</h1>
+	<h1 style="color:#fff;">D3D11.js - Mesh Test</h1>
 
 	<canvas id="viewport" width="800" height="600"></canvas>
 
@@ -426,12 +426,13 @@
 			let device = D3D11CreateDevice(document.querySelector("#viewport"));
 			let context = device.GetImmediateContext();
 			let swapChain = DXGICreateSwapChain(device);
+			
+			let gl = device.GetAdapter();
 
 			// Make an RTV of the back buffer
 			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
 
 			// Create a depth buffer
-			let gl = device.GetAdapter();
 			let depthDesc = new D3D11_TEXTURE2D_DESC(
 				gl.canvas.width,
 				gl.canvas.height,
