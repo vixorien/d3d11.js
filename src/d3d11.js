@@ -99,13 +99,13 @@ const D3D11_FILTER_COMPARISON_ANISOTROPIC = 0xd5;						// 11010101
 // Maximum float32 value
 const D3D11_FLOAT32_MAX = 3.402823466e+38;
 
+// Specifies the parts of the depth stencil to clear
+const D3D11_CLEAR_DEPTH = 0x1;
+const D3D11_CLEAR_STENCIL = 0x2;
+
 // Type of data contained in an input slot
 const D3D11_INPUT_PER_VERTEX_DATA = 0;
 const D3D11_INPUT_PER_INSTANCE_DATA = 1;
-
-// Identifies options for resources
-const D3D11_RESOURCE_MISC_GENERATE_MIPS = 0x1;
-const D3D11_RESOURCE_MISC_TEXTURECUBE = 0x4;
 
 // Values that indicate how the pipeline interprets
 // vertex data that is bound to the input assembler stage
@@ -122,6 +122,10 @@ const D3D11_RESOURCE_DIMENSION_BUFFER = 1;
 const D3D11_RESOURCE_DIMENSION_TEXTURE1D = 2;
 const D3D11_RESOURCE_DIMENSION_TEXTURE2D = 3;
 const D3D11_RESOURCE_DIMENSION_TEXTURE3D = 4;
+
+// Identifies options for resources
+const D3D11_RESOURCE_MISC_GENERATE_MIPS = 0x1;
+const D3D11_RESOURCE_MISC_TEXTURECUBE = 0x4;
 
 // Identify a technique for resolving texture coordinates that are outside of the boundaries of a texture.
 const D3D11_TEXTURE_ADDRESS_WRAP = 1;
@@ -313,7 +317,7 @@ class D3D11_DEPTH_STENCIL_VIEW_DESC
 		format,
 		viewDimension,
 		flags,
-		mipSlice = 0,
+		mipSlice,
 		firstArraySlice = 0,
 		arraySize = 1)
 	{
@@ -676,6 +680,51 @@ class ID3D11Device extends IUnknown
 		return d3dBuffer;
 	}
 
+	// TODO: Determine if we should do ALL verification at this level
+	//       and let the view constructor just be super simple.  Ideally,
+	//       no one else is creating views, though we may want to formalize
+	//       that somehow?  (anonymous classes?)
+	CreateDepthStencilView(resource, desc)
+	{
+		// Have to have a valid resource
+		if (resource == null)
+			throw new Error("Must provide a non-null resource to create a depth stencil view");
+
+		// Null descriptions are valid here!  Create a default one
+		if (desc == null)
+		{
+			let resDesc = resource.GetDesc();
+			let viewDim;
+
+			// Determine the view dimension by analyzing the resource
+			// TODO: Texture 1D
+			if (resource instanceof ID3D11Texture1D)
+			{
+				viewDim = D3D11_DSV_DIMENSION_TEXTURE1D;
+			}
+			else if (resource instanceof ID3D11Texture2D)
+			{
+				viewDim = D3D11_DSV_DIMENSION_TEXTURE2D;
+			}
+			else
+			{
+				// Invalid resource type
+				throw new Error("Invalid resource for depth stencil view creation");
+			}
+
+			// Basic, 0-mip, first-array-slice description
+			desc = new D3D11_DEPTH_STENCIL_VIEW_DESC(
+				resDesc.Format,
+				viewDim,
+				0,
+				0);
+		}
+
+		// Create the view (which will verify the description elements like bind flag)
+		return new ID3D11DepthStencilView(this, resource, desc);
+	}
+
+
 	// TODO: Verification of parameters?  Validate data as d3d11 does
 	// TODO: Any reason to actually compare against shader?
 	// NOTE: gl.MAX_VERTEX_ATTRIBS - maybe max descs?
@@ -683,6 +732,7 @@ class ID3D11Device extends IUnknown
 	{
 		return new ID3D11InputLayout(this, inputElementDescs);
 	}
+
 
 	// Note: Not using bytecode, just a big string, so only one parameter
 	CreatePixelShader(hlslCode)
@@ -694,12 +744,17 @@ class ID3D11Device extends IUnknown
 		return new ID3D11PixelShader(this, glShader, ps.GetCBuffers());
 	}
 
-
+	// TODO: Decide if we want to handle description verification here instead
 	CreateSamplerState(samplerDesc)
 	{
+		// Description is not optional
+		if (samplerDesc == null)
+			throw new Error("Sampler description cannot be null");
+
 		// Object will verify the description
 		return new ID3D11SamplerState(this, samplerDesc);
 	}
+
 
 	// TODO: Validate full description
 	// NOTE: Immutable textures are possible:
@@ -723,44 +778,20 @@ class ID3D11Device extends IUnknown
 		if (desc.ArraySize > 1) throw new Error("Texture arrays not implemented yet!");
 		if (desc.MiscFlags == D3D11_RESOURCE_MISC_TEXTURECUBE) throw new Error("Texture cubes not implemented yet!");
 
-		// Is this a depth texture?
-		let isDepth = false;
-		let hasStencil = false;
-		let internalFormat;
-		let format;
-		let type;
-		// Table of format/type/internal format: https://registry.khronos.org/OpenGL/specs/es/3.0/es_spec_3.0.pdf#nameddest=subsection.3.8.4
-		
-		switch (desc.Format)
-		{
-			case DXGI_FORMAT_D16_UNORM:
-				isDepth = true;
-				hasStencil = false;
-				internalFormat = this.#gl.DEPTH_COMPONENT16;
-				format = this.#gl.DEPTH_COMPONENT;
-				type = this.#gl.UNSIGNED_SHORT;
-				break;
+		// TODO: Use the usage and/or bind flags to determine if this should
+		//       be a texture or renderbuffer
+		//       Texture: Can be read from later on
+		//        - BIND_SHADER_RESOURCE
+		//       RenderBuffer: Cannot be read from
+		//        - BIND_RENDER_TARGET, BIND_DEPTH_STENCIL
 
-			case DXGI_FORMAT_D24_UNORM_S8_UINT:
-				isDepth = true;
-				hasStencil = true;
-				internalFormat = this.#gl.DEPTH24_STENCIL8;
-				format = this.#gl.DEPTH_STENCIL;
-				type = this.#gl.UNSIGNED_INT_24_8;
-				break;
-
-			case DXGI_FORMAT_D32_FLOAT:
-				isDepth = true;
-				hasStencil = false;
-				internalFormat = this.#gl.DEPTH_COMPONENT32F;
-				format = this.#gl.DEPTH_COMPONENT;
-				type = this.#gl.FLOAT;
-				break;
-
-			default:
-				throw new Error("Format specified is not implemented yet!");
-		}
-		
+		// Grab GL details
+		let glFormatDetails = this.#GetFormatDetails(desc.Format);
+		let internalFormat = glFormatDetails.InternalFormat;
+		let format = glFormatDetails.Format;
+		let type = glFormatDetails.Type;
+		let isDepth = glFormatDetails.IsDepth;
+		let hasStencil = glFormatDetails.HasStencil;
 
 		// Store the previous texture
 		//TODO: Handle different types of textures (array, cube)
@@ -787,13 +818,14 @@ class ID3D11Device extends IUnknown
 		else
 		{
 			// TODO: Create the texture with source data
+			throw new Error("Texture with initial data not yet implemented!");
 		}
 
 		//TODO: Handle different types of textures (array, cube)
 		this.#gl.bindTexture(this.#gl.TEXTURE_2D, prevTexture);
 		return d3dTexture;
-
 	}
+
 
 	// Note: Not using bytecode, just a big string, so only one parameter
 	CreateVertexShader(hlslCode)
@@ -822,6 +854,59 @@ class ID3D11Device extends IUnknown
 
 		return shader;
 	}
+
+	// Gets the GL format details based on a DXGI Format
+	// See table here: https://registry.khronos.org/OpenGL/specs/es/3.0/es_spec_3.0.pdf#page=124
+	#GetFormatDetails(dxgiFormat)
+	{
+		let glFormatDetails = {
+			Type: null,
+			Format: null,
+			InternalFormat: null,
+			IsDepth: false,
+			HasStencil: false
+		};
+
+		switch (dxgiFormat)
+		{
+			// --- DEPTH/Stencil ------------------------
+			case DXGI_FORMAT_D16_UNORM:
+				glFormatDetails.Type = this.#gl.UNSIGNED_SHORT;
+				glFormatDetails.Format = this.#gl.DEPTH_COMPONENT;
+				glFormatDetails.InternalFormat = this.#gl.DEPTH_COMPONENT16;
+				glFormatDetails.IsDepth = true;
+				glFormatDetails.HasStencil = false;
+				break;
+
+			case DXGI_FORMAT_D24_UNORM_S8_UINT:
+				glFormatDetails.Type = this.#gl.UNSIGNED_INT_24_8;
+				glFormatDetails.Format = this.#gl.DEPTH_STENCIL;
+				glFormatDetails.InternalFormat = this.#gl.DEPTH24_STENCIL8;
+				glFormatDetails.IsDepth = true;
+				glFormatDetails.HasStencil = true;
+				break;
+
+			case DXGI_FORMAT_D32_FLOAT:
+				glFormatDetails.Type = this.#gl.FLOAT;
+				glFormatDetails.Format = this.#gl.DEPTH_COMPONENT;
+				glFormatDetails.InternalFormat = this.#gl.DEPTH_COMPONENT32F;
+				glFormatDetails.IsDepth = true;
+				glFormatDetails.HasStencil = false;
+				break;
+
+			// --- COLOR ---------------------------
+			case DXGI_FORMAT_R8G8B8A8_UNORM:
+				glFormatDetails.Type = this.#gl.UNSIGNED_BYTE;
+				glFormatDetails.Format = this.#gl.RGBA;
+				glFormatDetails.InternalFormat = this.#gl.RGBA8;
+				break;
+
+			default:
+				throw new Error("Format specified is not implemented yet!");
+		}
+
+		return glFormatDetails;
+	}
 }
 
 
@@ -830,6 +915,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#gl;
 
 	// General pipeline ---
+	#fakeBackBufferFrameBuffer;
 	#defaultSamplerState;
 	#samplerState;
 
@@ -868,7 +954,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#psConstantBuffersDirty;
 
 	// Output Merger ---
-
+	#renderTargetViews;
+	#depthStencilView;
+	#outputMergerDirty;
 
 	constructor(device)
 	{
@@ -879,8 +967,13 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// TODO: Extrapolate this into proper states
 		this.#gl.enable(this.#gl.CULL_FACE); // Turns on culling (default is backs)
 		this.#gl.frontFace(this.#gl.CW);	// Clockwise fronts to match D3D
+		this.#gl.enable(this.#gl.DEPTH_TEST);
 
 		// General
+		this.#fakeBackBufferFrameBuffer = this.#gl.createFramebuffer();
+		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
+
+		// General shaders
 		this.#shaderProgramMap = new Map();
 		this.#currentShaderProgram = null;
 		this.#currentCBufferMap = null;
@@ -924,32 +1017,72 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Output Merger
-
+		{
+			this.#renderTargetViews = [];
+			this.#depthStencilView = null;
+			this.#outputMergerDirty = true;
+		}
 	}
 
-
-	ClearRenderTargetView(rtv, color)
+	// TODO: Handle texture vs. renderbuffer once
+	//       that distinction is implemented elsewhere
+	// NOTE: No longer restoring bindings after clear!
+	// TODO: Clear the entire resource (all mips, array slices and cube faces)
+	ClearRenderTargetView(renderTargetView, color)
 	{
-		// Grab existing target and RTV
-		let prevRT = this.#gl.getParameter(this.#gl.FRAMEBUFFER_BINDING);
-		let rtvResource = rtv.GetResource();
+		// Validate RTV
+		if (renderTargetView == null)
+			throw new Error("Invalid RenderTargetView for clear");
 
-		// Bind the RTV if necessary
-		if (prevRT != rtvResource)
-			this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, rtvResource);
-		
+		// Bind the RTV
+		this.#BindFakeFramebuffer();
+		this.#BindRenderTargets([renderTargetView]);
+
+		// TODO: Turn off scissor and buffer write masks, as
+		//       D3D does not take those into account when clearing
+
 		// Clear
 		this.#gl.clearColor(color[0], color[1], color[2], color[3]);
 		this.#gl.clear(this.#gl.COLOR_BUFFER_BIT);
+	}
 
-		// Reset old framebuffer if necessary
-		if (prevRT != rtvResource)
-			this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, prevRT);
 
-		// Done with extra ref
-		// TODO: Fix this once the resource is an ID3D11Resource
-		if (rtvResource != null)
-			rtvResource.Release();
+	ClearDepthStencilView(depthStencilView, clearFlags, depth, stencil)
+	{
+		// Validate DSV
+		if (depthStencilView == null)
+			throw new Error("Invalid DepthStencilView for clear");
+
+		// Any clear flags?
+		let clearingDepth = (clearFlags & D3D11_CLEAR_DEPTH == D3D11_CLEAR_DEPTH);
+		let clearingStencil = (clearFlags & D3D11_CLEAR_STENCIL == D3D11_CLEAR_STENCIL);
+		if (!clearingDepth && !clearingStencil)
+			return;
+
+		// Bind the depth stencil
+		this.#BindFakeFramebuffer();
+		this.#BindDepthStencil(depthStencilView);
+
+		// TODO: Turn off scissor and buffer write masks, as
+		//       D3D does not take those into account when clearing
+
+		// Set values for clears
+		let mask = 0;
+
+		if (clearingDepth)
+		{
+			this.#gl.clearDepth(depth);
+			mask |= this.#gl.DEPTH_BUFFER_BIT;
+		}
+
+		if (clearingStencil)
+		{
+			this.#gl.clearStencil(stencil);
+			mask |= this.#gl.STENCIL_BUFFER_BIT;
+		}
+
+		// Actual clear
+		this.#gl.clear(mask);
 	}
 
 
@@ -958,6 +1091,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#inputLayout = inputLayout;
 		this.#inputAssemblerDirty = true;
 	}
+
 
 	// TODO: Validate format! (and offset?)
 	IASetIndexBuffer(indexBuffer, format, offset)
@@ -1065,6 +1199,24 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		this.#psConstantBuffersDirty = true;
+	}
+
+	// TODO: Handle multiple render targets
+	// TODO: Unbind when rtv parameter is empty/null
+	// TODO: Validate render target details?
+	// TODO: Check input/output bindings?  (UGH)
+	OMSetRenderTargets(renderTargetViews, depthStencilView)
+	{
+		if (renderTargetViews == null || renderTargetViews.length == 0)
+			throw new Error("Unbinding render targets not yet implemented!");
+
+		if (renderTargetViews.length > 1)
+			throw new Error("Multiple render targets not yet implemented!");
+
+		// Save and dirty
+		this.#renderTargetViews = renderTargetViews.slice(); // Copy
+		this.#depthStencilView = depthStencilView;
+		this.#outputMergerDirty = true;
 	}
 
 	// TODO: Handle instancing
@@ -1280,12 +1432,118 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#psConstantBuffersDirty = false;
 	}
 
+	#PrepareOutputMerger()
+	{
+		if (!this.#outputMergerDirty)
+			return;
+
+		// Ensure the framebuffer is bound first
+		this.#BindFakeFramebuffer();
+
+		// Bind the render target and depth buffer as necessary
+		this.#BindRenderTargets(this.#renderTargetViews);
+		this.#BindDepthStencil(this.#depthStencilView);
+		
+		// All done
+		this.#outputMergerDirty = false;
+	}
+
+	#BindFakeFramebuffer()
+	{
+		// Determine if we need to rebind framebuffer
+		let fb = this.#gl.getParameter(this.#gl.FRAMEBUFFER_BINDING);
+		if (fb != this.#fakeBackBufferFrameBuffer)
+			this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
+
+	}
+
+	#BindRenderTargets(rtvs)
+	{
+		// Any RTVs?
+		if (rtvs.length > 0)
+		{
+			// TODO: Multiple render targets
+			let rtvResource = rtvs[0].GetResource();
+			let viewDesc = rtvs[0].GetDesc();
+
+			// TODO: Handle texture vs. render buffer
+
+			// Get the existing color (target 0)
+			let fbTex = this.#gl.getFramebufferAttachmentParameter(
+				this.#gl.FRAMEBUFFER,
+				this.#gl.COLOR_ATTACHMENT0,
+				this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+
+			// Do we need to rebind the texture?
+			if (fbTex != rtvResource.GetGLResource())
+			{
+				this.#gl.framebufferTexture2D(
+					this.#gl.FRAMEBUFFER,
+					this.#gl.COLOR_ATTACHMENT0,
+					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+					rtvResource.GetGLResource(),
+					viewDesc.MipSlice); // TODO: Check existing mip slice binding, too!
+			}
+
+			// Done with ref
+			rtvResource.Release();
+		}
+	}
+
+	#BindDepthStencil(dsv)
+	{
+		// Any depth?
+		if (dsv != null)
+		{
+			let dsvResource = dsv.GetResource();
+			let viewDesc = dsv.GetDesc();
+
+			// Does this have a stencil buffer?
+			let hasStencil = (viewDesc.Format == DXGI_FORMAT_D24_UNORM_S8_UINT);
+			let attach = hasStencil ? this.#gl.DEPTH_STENCIL_ATTACHMENT : this.#gl.DEPTH_ATTACHMENT;
+
+			// Get the existing depth/stencil
+			let fbDepth = this.#gl.getFramebufferAttachmentParameter(
+				this.#gl.FRAMEBUFFER,
+				attach,
+				this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+
+			// Do we need to rebind?
+			// TODO: What if it's the same resource but different mip/array slice?
+			if (fbDepth != dsvResource.GetGLResource())
+			{
+				if (!hasStencil)
+				{
+					// Unbind the combined depth/stencil just in case
+					this.#gl.framebufferTexture2D(
+						this.#gl.FRAMEBUFFER,
+						this.#gl.DEPTH_STENCIL_ATTACHMENT,
+						this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+						null,
+						0);
+				}
+
+				// Bind the depth texture
+				this.#gl.framebufferTexture2D(
+					this.#gl.FRAMEBUFFER,
+					attach,
+					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+					dsvResource.GetGLResource(),
+					viewDesc.MipSlice); // TODO: Verify this actually works?  Docs say ZERO only!
+			}
+
+			// Done with ref
+			dsvResource.Release();
+		}
+	}
+
 	// TODO: Prepare rest of pipeline
 	Draw(vertexCount, startVertexLocation)
 	{
 		this.#PrepareInputAssembler();
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
+		this.#PrepareOutputMerger()
 
 		this.#gl.drawArrays(
 			this.#GetGLPrimitiveType(this.#primitiveTopology),
@@ -1298,6 +1556,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareInputAssembler();
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
+		this.#PrepareOutputMerger()
 
 		// Get proper format
 		let format = this.#gl.UNSIGNED_SHORT;
@@ -1396,27 +1655,80 @@ class IDXGISwapChain extends IUnknown
 {
 	#device;
 	#gl;
+	#backBuffer;
+	#finalCopyFramebuffer;
 
+	// TODO: Take in a description to customize back buffer!
 	constructor(device)
 	{
 		super();
 		this.#device = device;
 		this.#gl = device.GetAdapter();
+
+		// Create the "back buffer"
+		let bbDesc = new D3D11_TEXTURE2D_DESC(
+			this.#gl.canvas.width,		// TODO: parameterize?
+			this.#gl.canvas.height,		// TODO: parameterize?
+			1,
+			1,
+			DXGI_FORMAT_R8G8B8A8_UNORM,	// TODO: parameterize!
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_RENDER_TARGET,	// TODO: parameterize!
+			0, 0);
+
+		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, null);
+
+		// Create a frame buffer for the final blit on Present()
+		this.#finalCopyFramebuffer = this.#gl.createFramebuffer();
 	}
 
-	// TODO: Wrap this in an ID3D11Texture2D whose glResource is null,
-	// so we don't need a million null checks just for this
+	
 	GetBuffer()
 	{
-		// Note: null corresponds to the default back buffer in WebGL (I think?)
-		// Since we'll mostly be using this to create an RTV for the back buffer,
-		// this value will suffice (for now)
-		return null;
+		this.#backBuffer.AddRef();
+		return this.#backBuffer;
 	}
 
+	// Blit from the back buffer to the default frame buffer
 	Present()
 	{
+		// Bind the default frame buffer (null) to the DRAW buffer
+		// and the back buffer as the READ buffer
+		this.#gl.bindFramebuffer(this.#gl.DRAW_FRAMEBUFFER, null);
+		this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, this.#finalCopyFramebuffer);
+
+		// Attach the back buffer to the read frame buffer
+		this.#gl.framebufferTexture2D(
+			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.COLOR_ATTACHMENT0,
+			this.#gl.TEXTURE_2D,
+			this.#backBuffer.GetGLResource(),
+			0);
+
+		// Perform the blit
+		let w = this.#gl.canvas.width;
+		let h = this.#gl.canvas.height;
+		this.#gl.blitFramebuffer(
+			0, 0, w, h, // Source L,T,R,B
+			0, 0, w, h, // Dest L,T,R,B
+			this.#gl.COLOR_BUFFER_BIT, // Colors only
+			this.#gl.NEAREST); // No interpolation
+		// TODO: Determine if interpolation (LINEAR) makes sense here
+
+		// Flush (not strictly necessary)
 		this.#gl.flush();
+	}
+
+	Release()
+	{
+		super.Release();
+
+		if (this.GetRef() <= 0)
+		{
+			this.#backBuffer.Release();
+			this.#gl.deleteFramebuffer(this.#finalCopyFramebuffer);
+		}
 	}
 }
 
@@ -1670,6 +1982,32 @@ class ID3D11Buffer extends ID3D11Resource
 	}
 }
 
+// TODO: Actually implement 1D textures
+// - This exists currently so that I can start using the type elsewhere
+class ID3D11Texture1D extends ID3D11Resource
+{
+	constructor(device, desc, glBuffer)
+	{
+		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glBuffer);
+
+		throw new Error("Texture1D is not implemented yet!");
+	}
+
+	Release()
+	{
+		super.Release();
+
+		// Actually remove texture if necessary
+		// TODO: Handle distinction between texture & render buffer
+		if (this.GetRef() <= 0)
+		{
+			let dev = this.GetDevice();
+			dev.GetAdapter().deleteTexture(this.GetGLResource());
+			dev.Release();
+		}
+	}
+}
+
 class ID3D11Texture2D extends ID3D11Resource
 {
 	constructor(device, desc, glBuffer)
@@ -1682,10 +2020,11 @@ class ID3D11Texture2D extends ID3D11Resource
 		super.Release();
 
 		// Actually remove buffer if necessary
+		// TODO: Handle distinction between texture & render buffer
 		if (this.GetRef() <= 0)
 		{
 			let dev = this.GetDevice();
-			dev.GetAdapter().deleteBuffer(this.GetGLResource());
+			dev.GetAdapter().deleteTexture(this.GetGLResource());
 			dev.Release();
 		}
 	}
@@ -1706,6 +2045,12 @@ class ID3D11View extends ID3D11DeviceChild
 		super(device);
 		this.#resource = resource;
 		this.#desc = Object.assign({}, desc);
+
+		// Add a reference to the resource
+		// so the view keeps it alive
+		// NOTE: This might not exactly match D3D ref count, but the
+		//       overall effect should be the same!
+		this.#resource.AddRef();
 	}
 
 	GetDesc()
@@ -1715,25 +2060,16 @@ class ID3D11View extends ID3D11DeviceChild
 
 	GetResource()
 	{
-		// Need a check for a null resource, specifically
-		// for our back buffer RTV - in WebGL, the back
-		// buffer gl resource is just "null".
-		// NOTE: Can't just override this in the RTV class,
-		// as we don't have access to private resource!
-		if(this.#resource != null)
-			this.#resource.AddRef();
-
+		this.#resource.AddRef();
 		return this.#resource;
 	}
 
-	// TODO: Refactor swap chain to actually make an ID3D11Texture2D
-	// for the back buffer, so we don't need these null checks everywhere
 	Release()
 	{
 		super.Release();
 
 		// If we're done, release the resource ref, too
-		if (this.GetRef() <= 0 && this.#resource != null)
+		if (this.GetRef() <= 0)
 		{
 			this.#resource.Release();
 		}

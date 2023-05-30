@@ -446,6 +446,16 @@
 				0);
 			let depthBuffer = device.CreateTexture2D(depthDesc, null);
 
+			// Create a DSV of the depth buffer
+			let dsvDesc = new D3D11_DEPTH_STENCIL_VIEW_DESC(
+				depthDesc.Format,
+				D3D11_DSV_DIMENSION_TEXTURE2D,
+				0,
+				0);
+			let depthDSV = device.CreateDepthStencilView(depthBuffer, dsvDesc);
+
+			// Set the targets
+			context.OMSetRenderTargets([rtv], depthDSV);
 
 			// Common for all verts
 			let vbStride = float32Size * 8;
@@ -559,10 +569,10 @@
 
 			function frameloop(time)
 			{
-
-				// Clear the RTV
+				// Clear the frame
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
 				context.ClearRenderTargetView(rtv, cornflowerBlue);
+				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
 
 				// Sphere draws
 				{
@@ -615,6 +625,7 @@
 
 				// Flush the frame
 				swapChain.Present();
+				context.OMSetRenderTargets([rtv], depthDSV);
 				window.requestAnimationFrame(frameloop);
 			}
 
