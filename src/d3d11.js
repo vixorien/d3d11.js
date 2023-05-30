@@ -3073,17 +3073,20 @@ class HLSL
 	{
 		let glsl = "";
 
-		glsl += "mat4 mul(mat4 m1, mat4 m2){ return m1 * m2; }\n"
-		glsl += "vec4 mul(vec4 v, mat4 m){ return v * m; }\n"
-		glsl += "vec4 mul(mat4 m, vec4 v){ return m * v; }\n\n"
+		glsl += "mat4 mul(mat4 m1, mat4 m2){ return m1 * m2; }\n";
+		glsl += "vec4 mul(vec4 v, mat4 m){ return v * m; }\n";
+		glsl += "vec4 mul(mat4 m, vec4 v){ return m * v; }\n\n";
 
-		glsl += "mat3 mul(mat3 m1, mat3 m2){ return m1 * m2; }\n"
-		glsl += "vec3 mul(vec3 v, mat3 m){ return v * m; }\n"
-		glsl += "vec3 mul(mat3 m, vec3 v){ return m * v; }\n\n"
+		glsl += "mat3 mul(mat3 m1, mat3 m2){ return m1 * m2; }\n";
+		glsl += "vec3 mul(vec3 v, mat3 m){ return v * m; }\n";
+		glsl += "vec3 mul(mat3 m, vec3 v){ return m * v; }\n\n";
 
-		glsl += "mat2 mul(mat2 m1, mat2 m2){ return m1 * m2; }\n"
-		glsl += "vec2 mul(vec2 v, mat2 m){ return v * m; }\n"
-		glsl += "vec2 mul(mat2 m, vec2 v){ return m * v; }\n\n"
+		glsl += "mat2 mul(mat2 m1, mat2 m2){ return m1 * m2; }\n";
+		glsl += "vec2 mul(vec2 v, mat2 m){ return v * m; }\n";
+		glsl += "vec2 mul(mat2 m, vec2 v){ return m * v; }\n\n";
+
+		glsl += "float saturate(float x) { return clamp(x, 0.0, 1.0); }\n";
+		glsl += "int saturate(int x) { return clamp(x, 0, 1); }\n";
 
 		return glsl;
 	}

@@ -105,6 +105,33 @@
 				return mat;
 			}
 
+			static Multiply(a, b)
+			{
+				let mat = new Matrix4x4();
+
+				let a_00 = a[0], a_01 = a[1], a_02 = a[2], a_03 = a[3];
+				let a_10 = a[4], a_11 = a[5], a_12 = a[6], a_13 = a[7];
+				let a_20 = a[8], a_21 = a[9], a_22 = a[10], a_23 = a[11];
+				let a_30 = a[12], a_31 = a[13], a_32 = a[14], a_33 = a[15];
+
+				// NOTE: Should really just type this all out to make it faster
+				for (var row = 0; row < 4; row++)
+				{
+					let offset = row * 4;
+					let b_0 = b[0 + offset];
+					let b_1 = b[1 + offset];
+					let b_2 = b[2 + offset];
+					let b_3 = b[3 + offset];
+
+					mat[0 + offset] = b_0 * a_00 + b_1 * a_10 + b_2 * a_20 + b_3 * a_30;
+					mat[1 + offset] = b_0 * a_01 + b_1 * a_11 + b_2 * a_21 + b_3 * a_31;
+					mat[2 + offset] = b_0 * a_02 + b_1 * a_12 + b_2 * a_22 + b_3 * a_32;
+					mat[3 + offset] = b_0 * a_03 + b_1 * a_13 + b_2 * a_23 + b_3 * a_33;
+				}
+
+				return mat;
+			}
+
 			static PerspectiveFovLH(fovAngleY, aspectRatio, nearZ, farZ)
 			{
 				const sinFov = Math.sin(0.5 * fovAngleY);
@@ -370,6 +397,19 @@
 					Light lights[8];
 				}
 
+				// Range-based attenuation function
+				float attenuate(Light light, float3 worldPos)
+				{
+					// Calculate the distance between the surface and the light
+					float dist = distance(light.position, worldPos);
+
+					// Ranged-based attenuation
+					float att = saturate(1.0f - (dist * dist / (light.range * light.range)));
+
+					// Soft falloff
+					return att * att;
+				}
+
 				float4 main(VertexToPixel input) : SV_TARGET
 				{
 					input.normal = normalize(input.normal);
@@ -390,7 +430,7 @@
 						float3 refl = reflect(-toLight, input.normal);
 						float spec = pow(max(0.0, dot(refl, toCam)), 64.0);
 
-						float3 lightColor = l.color * l.intensity;
+						float3 lightColor = l.color * l.intensity * attenuate(l, input.worldPos);
 						color += (metal == 0.0) ? diffuse * lightColor : float3(0,0,0);
 						color += spec * lightColor * (metal == 1.0 ? tint : float3(1,1,1));
 					}
@@ -524,7 +564,7 @@
 					[
 						1, // type - 0:dir, 1:point
 						1, // intensity
-						25, // range
+						6, // range
 						0, // Pad
 						Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5, 0, // pos + pad
 						0, 0, 0, 0, // direction + pad
@@ -608,11 +648,14 @@
 
 				// Helix draw
 				{
-					// Update data
-					wMat = Matrix4x4.RotationY(time * -0.00025);
+					// Update vertex data
+					let rot = Matrix4x4.RotationY(time * -0.00025);
+					let sc = Matrix4x4.Scale(2, 2, 2);
+					wMat = Matrix4x4.Multiply(sc, rot);
 					vsData.set(wMat, 0);
 					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
+					// Update pixel data (set above while lights are moving)
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 					// Draw
