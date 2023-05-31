@@ -419,6 +419,7 @@
 				}
 
 				Texture2D albedo : register(t0);
+				SamplerState samp : register(s0);
 
 				// Range-based attenuation function
 				float attenuate(Light light, float3 worldPos)
@@ -458,7 +459,8 @@
 						color += spec * lightColor * (metal == 1.0 ? tint : float3(1,1,1));
 					}
 
-					//albedo.Sample();
+					albedo.Sample(samp, float2(0.0, 0.1));
+					albedo.Sample(samp, albedo.Sample(samp, float2(1,2)).xy);
 
 					return float4(color, 1);
 				}

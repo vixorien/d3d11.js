@@ -2208,6 +2208,21 @@ class TokenIterator
 		return this.#position < this.#tokens.length - 1;
 	}
 
+	Position()
+	{
+		return this.#position;
+	}
+
+	GetRange(startInclusive, endExclusive)
+	{
+		if (startInclusive < 0 ||
+			endExclusive >= this.#tokens.length + 1 ||
+			endExclusive <= startInclusive)
+			throw new Error("Invalid range for token iterator");
+
+		return this.#tokens.slice(startInclusive, endExclusive);
+	}
+
 	PeekNext() { return this.#Peek(1); }
 	PeekPrev() { return this.#Peek(-1); }
 
@@ -2219,6 +2234,8 @@ class TokenIterator
 
 		return this.#tokens[peekPos];
 	}
+
+
 }
 
 
@@ -2236,6 +2253,7 @@ class HLSL
 	#cbuffers;
 	#textures;
 	#samplers;
+	#textureSamplerCombinations;
 	#functions;
 	#main;
 
@@ -2500,6 +2518,7 @@ class HLSL
 		this.#cbuffers = [];
 		this.#textures = [];
 		this.#samplers = [];
+		this.#textureSamplerCombinations = [];
 		this.#functions = [];
 		this.#main = null;
 
@@ -2574,9 +2593,6 @@ class HLSL
 			this.#cbuffers.push(globalCB);
 		}
 
-		// Any textures?
-		console.log(this.#textures);
-
 		// Resolve any implicit register indices
 		// TODO: Actually find and use maximums for each register type!
 		this.#ResolveImplicitRegisters(this.#cbuffers, 999);
@@ -2635,7 +2651,6 @@ class HLSL
 
 	#IsTexture(type)
 	{
-		// Check each name
 		for (let t = 0; t < this.#textures.length; t++)
 			if (this.#textures[t].Name == type)
 				return true;
@@ -2643,14 +2658,31 @@ class HLSL
 		return false;
 	}
 
+	#GetTexture(name)
+	{
+		for (let t = 0; t < this.#textures.length; t++)
+			if (this.#textures[t].Name == name)
+				return this.#textures[t];
+
+		return null;
+	}
+
 	#IsSampler(type)
 	{
-		// Check each name
 		for (let s = 0; s < this.#samplers.length; s++)
 			if (this.#samplers[s].Name == type)
 				return true;
 
 		return false;
+	}
+
+	#GetSampler(name)
+	{
+		for (let s = 0; s < this.#samplers.length; s++)
+			if (this.#samplers[s].Name == name)
+				return this.#samplers[s];
+
+		return null;
 	}
 
 	#IsDataType(text)
@@ -2916,7 +2948,8 @@ class HLSL
 				Name: name,
 				Semantic: null,
 				Parameters: [],
-				BodyTokens: []
+				BodyTokens: [],
+				TextureFunctions: []
 			};
 
 			// It's a function, so it may have parameters
@@ -2941,24 +2974,17 @@ class HLSL
 				f.Semantic = it.PeekPrev().Text;
 			}
 
-			// Add this to the token body
-			f.BodyTokens.push(it.Current());
+			// Where are we in the iterator?
+			let funcStartPos = it.Position();
 
 			// Next should be open scope
 			let scopeLevel = 1;
 			this.#Require(it, TokenScopeLeft);
 			do
 			{
-				// Add everything to the list of body tokens
-				let token = it.Current();
-				let text = token.Text;
-				f.BodyTokens.push(token);
-
-				// Is this a texture sample?
-				if (this.#IsTexture(text) && it.PeekNext().Type == TokenPeriod)
-				{
-					//this.#ParseTextureSampleInFunction(it, f);
-				}
+				// Check for texture object function call, which occurs
+				// when a texture identifier is followed immediately by a period
+				this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
 
 				// Check for scope change and skip everything else
 				if (this.#Allow(it, TokenScopeLeft))
@@ -2969,6 +2995,11 @@ class HLSL
 					it.MoveNext();
 			}
 			while (scopeLevel >= 1);
+
+			// Function is over, where did we end up?
+			// Add all of the tokens to the function body
+			let funcEndPos = it.Position();
+			f.BodyTokens = it.GetRange(funcStartPos, funcEndPos);
 
 			// Is this main?
 			if (f.Name == "main")
@@ -2999,50 +3030,121 @@ class HLSL
 		}
 	}
 
-	// Parse the texture sample and add each token to the function body
-	#ParseTextureSampleInFunction(it, func)
+	// Check the current token to see if we're at the beginning of a texture
+	// object function call, and if so, store that info
+	#CheckAndParseTextureObjectFunction(it, baseFunc, relativePosOffset)
 	{
-		let texture = null;
-		let sampleFunc = null;
-		let sampler = null;
+		// Record start position in the event this is a texture object function
+		// Note that all positions here are relative to the function body
+		let overallStartPos = it.Position() - relativePosOffset;
 
-		// Identifier for the texture sample
+		// Need to start with an identifier
+		if (!this.#Allow(it, TokenIdentifier))
+			return;
+
+		// We've got an identifier; see if it's a texture
+		let textureName = it.PeekPrev().Text;
+		if (!this.#IsTexture(textureName))
+			return;
+
+		// It's a texture, so we need a period next
+		if (!this.#Allow(it, TokenPeriod))
+			return;
+
+		// We have the pattern [textureName][.], so next must be an identifier
 		this.#Require(it, TokenIdentifier);
-		texture = it.PeekPrev().Text;
-		func.BodyTokens.push(it.PeekPrev());
+		let textureFuncName = it.PeekPrev().Text;
 
-		// Period
-		this.#Require(it, TokenPeriod);
-		func.BodyTokens.push(it.PeekPrev());
+		// Which kind of function?
+		// TODO: Handle all the permutations (SO MANY)
+		//       See list of objects & functions here: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/d3d11-graphics-reference-sm5-objects
+		switch (textureFuncName)
+		{
+			case "Sample":
+				// Pixel shader only!!!
+				if (this.#shaderType != ShaderTypePixel)
+					throw new Error("'Sample' function only valid in pixel shaders");
 
-		// Sample function
-		this.#Require(it, TokenIdentifier);
-		sampleFunc = it.PeekPrev().Text;
-		func.BodyTokens.push(it.PeekPrev());
+				// TODO: Maybe a helper to handle all of the permutations?
+				break;
 
-		// Left parens
+			default:
+				throw new Error("Texture function '" + textureFuncName + "' not yet implemented!");
+		}
+
+		// Need left parens, then sampler
+		// TODO: Handle expression that evaluations to a sampler, like a function call?
+		// NOTE: Just checked - HLSL requires sampler param to come from a literal expression!
+		//       Could be a function call that returns a literal, but we'll just disallow for now.
 		this.#Require(it, TokenParenLeft);
-		func.BodyTokens.push(it.PeekPrev());
-
-		// TODO: Handle a function that returns a sampler?
+		this.#Require(it, TokenIdentifier)
+		let samplerName = it.PeekPrev().Text;
 
 		// Verify sampler
-		if (!this.#IsSampler(it.Current().Text))
-			throw new Error("Invalid sampler in sample function");
+		if (!this.#IsSampler(samplerName))
+			throw new Error("Invalid sampler state '" + samplerName + "' in texture function");
 
-		// Grab sampler
-		this.#Require(it, TokenIdentifier);
-		sampler = it.PeekPrev().Text;
-		func.BodyTokens.push(it.PeekPrev());
-
-		// Comma
+		// Next is comma
 		this.#Require(it, TokenComma);
-		func.BodyTokens.push(it.PeekPrev());
 
-		// Handle an entire expression until we hit the end parens
-		// TODO: This means recursion...
+		// An entire expression that (theoretically) evaluates to texture
+		// coords, including another texture sample!
+		let uvExpressionStartPos = it.Position() - relativePosOffset;
+		let parenDepth = 1;
 
+		do
+		{
+			// Check for a sub-texture function
+			this.#CheckAndParseTextureObjectFunction(it, baseFunc, relativePosOffset);
 
+			// Check for paren depth changes
+			if (this.#Allow(it, TokenParenLeft))
+				parenDepth++;
+			else if (this.#Allow(it, TokenParenRight))
+				parenDepth--;
+			else
+				it.MoveNext();
+
+		} while (parenDepth >= 1);
+
+		// We've ended the overall function with a right paren
+		// so store the end location and finalize this data
+		let uvExpressionEndPos = it.Position() - relativePosOffset - 1; // Stop one early (before last parens)
+		let overallEndPos = it.Position() - relativePosOffset; // Should include the end parens
+
+		// Set up the texture/sampler combination
+		let combination = this.#GetOrCreateTextureSamplerCombination(textureName, samplerName);
+
+		// Set up the overall texture function details and add to the base function
+		let texFunc = {
+			TextureSamplerCombination: combination,
+			FunctionName: textureFuncName,
+			StartPosition: overallStartPos,
+			EndPosition: overallEndPos,
+			UVExpressionStartPosition: uvExpressionStartPos,
+			UVExpressionEndPosition: uvExpressionEndPos
+		};
+		baseFunc.TextureFunctions.push(texFunc);
+	}
+
+	#GetOrCreateTextureSamplerCombination(textureName, samplerName)
+	{
+		// Check for this combination first
+		let combinedName = "combined_" + textureName + "_" + samplerName;
+		for (let i = 0; i < this.#textureSamplerCombinations.length; i++)
+			if (this.#textureSamplerCombinations[i].CombinedName == combinedName)
+				return this.#textureSamplerCombinations[i];
+
+		// Not present yet, so create and save
+		let combination = {
+			TextureName: textureName,
+			SamplerName: samplerName,
+			CombinedName: combinedName,
+			Texture: this.#GetTexture(textureName),
+			Sampler: this.#GetSampler(samplerName)
+		};
+		this.#textureSamplerCombinations.push(combination);
+		return combination;
 	}
 
 
@@ -3180,6 +3282,7 @@ class HLSL
 		glsl += "float saturate(float x) { return clamp(x, 0.0, 1.0); }\n";
 		glsl += "int saturate(int x) { return clamp(x, 0, 1); }\n";
 
+		glsl += "\n";
 		return glsl;
 	}
 
@@ -3194,6 +3297,7 @@ class HLSL
 		glsl += this.#GetStructsString();
 		glsl += this.#GetCBuffersString();
 		glsl += this.#GetHLSLOnlyFunctions();
+		glsl += this.#GetTextureSamplerString();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildVertexShaderMain(vsInputs);
@@ -3348,6 +3452,39 @@ class HLSL
 		return cbStr;
 	}
 
+	// TODO: Handle all different types of samplers
+	#GetTextureSamplerString()
+	{
+		if (this.#textureSamplerCombinations.length == 0)
+			return "";
+
+		let glsl = "";
+
+		// Loop through all combinations of textures & samplers
+		for (let i = 0; i < this.#textureSamplerCombinations.length; i++)
+		{
+			let comb = this.#textureSamplerCombinations[i];
+
+			// TODO: Handle more types
+			let samplerType;
+			switch (comb.Texture.Type)
+			{
+				case "Texture2D":
+					samplerType = "sampler2D";
+					break;
+
+				default:
+					throw new Error("Texture type '" + comb.Texture.Type + "' not implemented yet!");
+			}
+
+			// Set up the uniform
+			glsl += "uniform " + samplerType + " " + comb.CombinedName + ";\n";
+		}
+
+		glsl += "\n";
+		return glsl;
+	}
+
 
 	#GetFunctionString(func, prependName = "")
 	{
@@ -3378,14 +3515,8 @@ class HLSL
 		let parenDepth = 0;
 		while (it.MoveNext())
 		{
+			// Get current
 			let t = it.Current();
-
-			// Track parens (due to for loops)
-			switch (t.Type)
-			{
-				case TokenParenLeft: parenDepth++; break;
-				case TokenParenRight: parenDepth--; break;
-			}
 
 			// End scope needs to "unindent" BEFORE
 			if (t.Type == TokenScopeRight)
@@ -3400,6 +3531,19 @@ class HLSL
 			// Start scope adds indentation AFTER
 			if (t.Type == TokenScopeLeft)
 				indent++;
+			
+			// Determine if the current token is a texture function
+			// TODO: Optimize this so we're not doing linear searches on every token
+			funcStr += this.#GetTextureFunctionString(it, func);
+			t = it.Current(); // Update current in the event we've moved! (this feels dirty)
+
+			// Track parens (due to for loops)
+			// NOTE: Moved this below texture function - really just need it before newline check below
+			switch (t.Type)
+			{
+				case TokenParenLeft: parenDepth++; break;
+				case TokenParenRight: parenDepth--; break;
+			}
 
 			// Add the token
 			funcStr += this.#TranslateToken(t);
@@ -3409,7 +3553,7 @@ class HLSL
 				funcStr += " ";
 
 			// New line?
-			if ((t.Type == TokenSemicolon && parenDepth == 0) ||	// End of line, but not for loops
+			if ((t.Type == TokenSemicolon && parenDepth == 0) ||	// End of line, but not within "for loops"
 				t.Type == TokenScopeLeft ||
 				t.Type == TokenScopeRight)
 				funcStr += "\n";
@@ -3418,6 +3562,55 @@ class HLSL
 		// End body
 		funcStr += "\n";
 		return funcStr;
+	}
+
+	#GetTextureFunctionString(it, baseFunc)
+	{
+		// Any functions, and is this an identifier?
+		if (baseFunc.TextureFunctions.length == 0 ||
+			it.Current().Type != TokenIdentifier)
+			return "";
+		
+		// Do any of the texture functions start here?
+		let currentPos = it.Position();
+		let whichTexFunc = null;
+		for (let i = 0; i < baseFunc.TextureFunctions.length; i++)
+		{
+			if (baseFunc.TextureFunctions[i].StartPosition == currentPos)
+			{
+				whichTexFunc = baseFunc.TextureFunctions[i];
+				break;
+			}
+		}
+
+		// Anything?
+		if (whichTexFunc == null)
+			return "";
+
+		// We have at least one function and we're at the right position
+		let texFuncStr = "texture(" + whichTexFunc.TextureSamplerCombination.CombinedName + ", ";
+
+		// Skip ahead to the expression
+		while (it.Position() < whichTexFunc.UVExpressionStartPosition)
+			it.MoveNext();
+
+		// Handle the expression, which may require a recursive call
+		while (it.Position() < whichTexFunc.UVExpressionEndPosition)
+		{
+			// Determine if we've got a sub-texture-function
+			texFuncStr += this.#GetTextureFunctionString(it, baseFunc);
+
+			// Handle the remaining tokens
+			texFuncStr += this.#TranslateToken(it.Current());
+
+			// Skip ahead
+			it.MoveNext();
+		}
+
+		// End the function by moving past the end parens and adding it
+		it.MoveNext();
+		texFuncStr += ")";
+		return texFuncStr;
 	}
 
 	#GetHelperFunctionsString()
@@ -3721,10 +3914,11 @@ class HLSL
 		glsl += this.#GetStructsString();
 		glsl += this.#GetCBuffersString();
 		glsl += this.#GetHLSLOnlyFunctions();
+		glsl += this.#GetTextureSamplerString();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
-
+		console.log(glsl);
 		return glsl;
 	}
 }
