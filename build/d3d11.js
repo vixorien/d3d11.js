@@ -862,7 +862,6 @@ class ID3D11Device extends IUnknown
 		let success = this.#gl.getShaderParameter(shader, this.#gl.COMPILE_STATUS);
 		if (!success)
 		{
-			console.log(glslCode);
 			throw new Error("Error compiling shader: " + this.#gl.getShaderInfoLog(shader));
 		}
 
@@ -2157,15 +2156,16 @@ const TokenCommentSingle = 3;
 const TokenOperator = 4;
 const TokenIdentifier = 5;
 const TokenNumericLiteral = 6;
-const TokenComma = 7;
-const TokenColon = 8;
-const TokenSemicolon = 9;
-const TokenScopeLeft = 10;
-const TokenScopeRight = 11;
-const TokenParenLeft = 12;
-const TokenParenRight = 13;
-const TokenBracketLeft = 14;
-const TokenBracketRight = 15;
+const TokenPeriod = 7;
+const TokenComma = 8;
+const TokenColon = 9;
+const TokenSemicolon = 10;
+const TokenScopeLeft = 11;
+const TokenScopeRight = 12;
+const TokenParenLeft = 13;
+const TokenParenRight = 14;
+const TokenBracketLeft = 15;
+const TokenBracketRight = 16;
 
 const ShaderTypeVertex = 0;
 const ShaderTypePixel = 1;
@@ -2263,7 +2263,7 @@ class HLSL
 		},
 		{
 			Type: TokenOperator, // Singles
-			Pattern: /^[\+\-\*\/\%\=\~\&\|\^\?\<\>\.\!]/
+			Pattern: /^[\+\-\*\/\%\=\~\&\|\^\?\<\>\!]/
 		},
 		{
 			Type: TokenIdentifier,
@@ -2309,6 +2309,10 @@ class HLSL
 		{
 			Type: TokenComma,
 			Pattern: /^[,]/
+		},
+		{
+			Type: TokenPeriod,
+			Pattern: /^[\.]/
 		},
 		{
 			Type: TokenUnknown,
@@ -2430,20 +2434,6 @@ class HLSL
 		return this.#cbuffers.slice();
 	}
 
-	#DataTypeIsStruct(type)
-	{
-		// Check each struct's name
-		for (let s = 0; s < this.#structs.length; s++)
-		{
-			if (this.#structs[s].Name == type)
-			{
-				return true;
-			}
-		}
-
-		return false;
-	}
-
 	// Read the code and tokenize
 	#Tokenize()
 	{
@@ -2533,6 +2523,8 @@ class HLSL
 			// Farm out processing of each type
 			switch (current.Text)
 			{
+				// TODO: Handle global constants here
+
 				case "struct":
 					this.#structs.push(this.#ParseStruct(it));
 					break;
@@ -2565,7 +2557,7 @@ class HLSL
 						break;
 
 					// Check for global variable or function
-					this.#GlobalVarOrFunction(it, globalCB);
+					this.#ParseGlobalVarOrFunction(it, globalCB);
 					break;
 			}
 		}
@@ -2581,6 +2573,9 @@ class HLSL
 		{
 			this.#cbuffers.push(globalCB);
 		}
+
+		// Any textures?
+		console.log(this.#textures);
 
 		// Resolve any implicit register indices
 		// TODO: Actually find and use maximums for each register type!
@@ -2628,9 +2623,39 @@ class HLSL
 		throw new Error("Error parsing HLSL on line " + it.Current().Line);
 	}
 
+	#IsStruct(type)
+	{
+		// Check each struct's name
+		for (let s = 0; s < this.#structs.length; s++)
+			if (this.#structs[s].Name == type)
+				return true;
+
+		return false;
+	}
+
+	#IsTexture(type)
+	{
+		// Check each name
+		for (let t = 0; t < this.#textures.length; t++)
+			if (this.#textures[t].Name == type)
+				return true;
+
+		return false;
+	}
+
+	#IsSampler(type)
+	{
+		// Check each name
+		for (let s = 0; s < this.#samplers.length; s++)
+			if (this.#samplers[s].Name == type)
+				return true;
+
+		return false;
+	}
+
 	#IsDataType(text)
 	{
-		let isStructType = this.#DataTypeIsStruct(text);
+		let isStructType = this.#IsStruct(text);
 		let isDataType = this.DataTypes.indexOf(text) >= 0;
 		return isStructType || isDataType;
 	}
@@ -2829,7 +2854,7 @@ class HLSL
 
 		// Identifier
 		this.#Require(it, TokenIdentifier);
-		t.name = it.PeekPrev().Text;
+		t.Name = it.PeekPrev().Text;
 
 		// Scan for register
 		t.RegisterIndex = this.#ParseRegisterIndex(it, "t");
@@ -2868,12 +2893,12 @@ class HLSL
 		return s;
 	}
 
-	// TODO: Skip const globals in the global CB
+	// TODO: Skip const globals in the global CB - will now handle in main parse loop
 	// TODO: Handle casting differences between hlsl and glsl
 	//       (float3x3)thing --> float3x3(thing)
 	// TODO: Handle swizzling of non-vector types (variable.xxx)
 	// TODO: auto "casting" ints to floats - maybe just make "int" versions of all functions?  UGH
-	#GlobalVarOrFunction(it, globalCB)
+	#ParseGlobalVarOrFunction(it, globalCB)
 	{
 		// Data type
 		this.#Require(it, TokenIdentifier);
@@ -2925,7 +2950,15 @@ class HLSL
 			do
 			{
 				// Add everything to the list of body tokens
-				f.BodyTokens.push(it.Current());
+				let token = it.Current();
+				let text = token.Text;
+				f.BodyTokens.push(token);
+
+				// Is this a texture sample?
+				if (this.#IsTexture(text) && it.PeekNext().Type == TokenPeriod)
+				{
+					//this.#ParseTextureSampleInFunction(it, f);
+				}
 
 				// Check for scope change and skip everything else
 				if (this.#Allow(it, TokenScopeLeft))
@@ -2965,6 +2998,53 @@ class HLSL
 			globalCB.Variables.push(v); // Note: main loop will do MoveNext
 		}
 	}
+
+	// Parse the texture sample and add each token to the function body
+	#ParseTextureSampleInFunction(it, func)
+	{
+		let texture = null;
+		let sampleFunc = null;
+		let sampler = null;
+
+		// Identifier for the texture sample
+		this.#Require(it, TokenIdentifier);
+		texture = it.PeekPrev().Text;
+		func.BodyTokens.push(it.PeekPrev());
+
+		// Period
+		this.#Require(it, TokenPeriod);
+		func.BodyTokens.push(it.PeekPrev());
+
+		// Sample function
+		this.#Require(it, TokenIdentifier);
+		sampleFunc = it.PeekPrev().Text;
+		func.BodyTokens.push(it.PeekPrev());
+
+		// Left parens
+		this.#Require(it, TokenParenLeft);
+		func.BodyTokens.push(it.PeekPrev());
+
+		// TODO: Handle a function that returns a sampler?
+
+		// Verify sampler
+		if (!this.#IsSampler(it.Current().Text))
+			throw new Error("Invalid sampler in sample function");
+
+		// Grab sampler
+		this.#Require(it, TokenIdentifier);
+		sampler = it.PeekPrev().Text;
+		func.BodyTokens.push(it.PeekPrev());
+
+		// Comma
+		this.#Require(it, TokenComma);
+		func.BodyTokens.push(it.PeekPrev());
+
+		// Handle an entire expression until we hit the end parens
+		// TODO: This means recursion...
+
+
+	}
+
 
 	#RegisterExists(elements, registerIndex)
 	{
@@ -3054,7 +3134,7 @@ class HLSL
 
 	#Translate(identifier)
 	{
-		if (this.#IsDataType(identifier) && !this.#DataTypeIsStruct(identifier))
+		if (this.#IsDataType(identifier) && !this.#IsStruct(identifier))
 			return this.DataTypeConversion[identifier];
 		else if (this.#IsReservedWord(identifier))
 			return this.ReservedWordConversion[identifier];
@@ -3134,7 +3214,7 @@ class HLSL
 			let param = this.#main.Parameters[p];
 
 			// If this is a data type, we have to scan the whole thing
-			if (this.#DataTypeIsStruct(param.DataType))
+			if (this.#IsStruct(param.DataType))
 			{
 				let struct = this.#GetStructByName(param.DataType);
 				if (struct == null)
@@ -3176,7 +3256,7 @@ class HLSL
 	#GetVSVaryings()
 	{
 		// Does main actually return a struct?
-		if (!this.#DataTypeIsStruct(this.#main.ReturnType))
+		if (!this.#IsStruct(this.#main.ReturnType))
 			return "";
 
 		// Grab the struct and put together varyings
@@ -3366,7 +3446,7 @@ class HLSL
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
 			let param = this.#main.Parameters[p];
-			if (this.#DataTypeIsStruct(param.DataType))
+			if (this.#IsStruct(param.DataType))
 			{
 				// Yes, so build a struct object and "hook up" vsInputs
 				let newParamName = this.#Translate(param.Name);
@@ -3450,7 +3530,7 @@ class HLSL
 			let param = this.#main.Parameters[p];
 
 			// If this is a data type, we have to scan the whole thing
-			if (this.#DataTypeIsStruct(param.DataType))
+			if (this.#IsStruct(param.DataType))
 			{
 				let struct = this.#GetStructByName(param.DataType);
 				if (struct == null)
@@ -3484,7 +3564,7 @@ class HLSL
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
 			let param = this.#main.Parameters[p];
-			if (this.#DataTypeIsStruct(param.DataType))
+			if (this.#IsStruct(param.DataType))
 			{
 				// This param is an entire struct, so make a varying for each member
 				// Note: Using semantic as varying identifiers!
@@ -3555,7 +3635,7 @@ class HLSL
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
 			let param = this.#main.Parameters[p];
-			if (this.#DataTypeIsStruct(param.DataType))
+			if (this.#IsStruct(param.DataType))
 			{
 				// Yes, so build a struct object and "hook up" psInputs
 				let newParamName = this.#Translate(param.Name);

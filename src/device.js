@@ -277,7 +277,6 @@ class ID3D11Device extends IUnknown
 		let success = this.#gl.getShaderParameter(shader, this.#gl.COMPILE_STATUS);
 		if (!success)
 		{
-			console.log(glslCode);
 			throw new Error("Error compiling shader: " + this.#gl.getShaderInfoLog(shader));
 		}
 
