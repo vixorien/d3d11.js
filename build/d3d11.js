@@ -262,6 +262,7 @@ const DXGI_FORMAT_P208 = 130;
 const DXGI_FORMAT_V208 = 131;
 const DXGI_FORMAT_V408 = 132;
 
+
 // -----------------------------------------------------
 // ------------------- Descriptions --------------------
 // -----------------------------------------------------
@@ -450,6 +451,7 @@ class DXGI_SAMPLE_DESC
 	}
 }
 
+
 // -----------------------------------------------------
 // ------------------ Other Structures -----------------
 // -----------------------------------------------------
@@ -502,7 +504,7 @@ class IUnknown
 		this.#refCount++;
 		return this.#refCount;
 	}
-	
+
 	Release()
 	{
 		this.#CheckRef();
@@ -566,7 +568,8 @@ function D3D11CreateDevice(canvas) // Canvas acts as the adapter here
 			depth: false,
 			preserveDrawingBuffer: true
 		});
-	if (gl === null) {
+	if (gl === null)
+	{
 		return false; // TODO: Throw exception?
 	}
 
@@ -580,8 +583,9 @@ function DXGICreateSwapChain(device)
 }
 
 
+
 // -----------------------------------------------------
-// ----------------- Main API Objects ------------------
+// ---------------------- Device -----------------------
 // -----------------------------------------------------
 
 class ID3D11Device extends IUnknown
@@ -668,7 +672,7 @@ class ID3D11Device extends IUnknown
 
 		// Set this new buffer
 		this.#gl.bindBuffer(bufferType, glBuffer);
-		
+
 		// Any initial data?
 		if (initialData == null)
 			this.#gl.bufferData(bufferType, bufferDesc.ByteWidth, usage);
@@ -920,6 +924,10 @@ class ID3D11Device extends IUnknown
 }
 
 
+// -----------------------------------------------------
+// ------------------ Device Context -------------------
+// -----------------------------------------------------
+
 class ID3D11DeviceContext extends ID3D11DeviceChild
 {
 	#gl;
@@ -1109,7 +1117,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#indexBuffer = indexBuffer;
 		this.#indexBufferFormat = format;
 		this.#indexBufferOffset = offset;
-		
+
 		// Determine if we're binding or unbinding
 		if (indexBuffer == null)
 			this.#gl.bindBuffer(this.#gl.ELEMENT_ARRAY_BUFFER, null);
@@ -1235,11 +1243,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	{
 		if (!this.#inputAssemblerDirty)
 			return;
-		
+
 		// Handle each input element
 		let inputElementDescs = this.#inputLayout.GetInputElementDescs();
 		let currentBufferIndex = -1;
-		
+
 		for (let i = 0; i < inputElementDescs.length; i++)
 		{
 			// Grab this element and associated data
@@ -1247,7 +1255,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			let ie = inputElementDescs[i];
 			let dataType = this.#GetDXGIFormatDataType(ie.Format);
 			let compCount = this.#GetDXGIFormatComponentCount(ie.Format);
-			
+
 			// Bind the correct buffer for this element
 			let bufferIndex = ie.InputSlot;
 			if (bufferIndex != currentBufferIndex) // TODO: Performance worry?  Or skip
@@ -1255,7 +1263,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, this.#vertexBuffers[bufferIndex].GetGLResource());
 				currentBufferIndex = bufferIndex;
 			}
-			
+
 			// Enable this attribute and then set up the details
 			this.#gl.enableVertexAttribArray(i);
 			this.#gl.vertexAttribPointer(
@@ -1453,7 +1461,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Bind the render target and depth buffer as necessary
 		this.#BindRenderTargets(this.#renderTargetViews);
 		this.#BindDepthStencil(this.#depthStencilView);
-		
+
 		// All done
 		this.#outputMergerDirty = false;
 	}
@@ -1606,7 +1614,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 			// Safe to update!  Save any previously bound buffer
 			let prevBuffer = this.#gl.getParameter(this.#gl.UNIFORM_BUFFER_BINDING);
-			
+
 			// Bind and update
 			this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, dstResource.GetGLResource());
 			this.#gl.bufferSubData(
@@ -1654,12 +1662,16 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			case D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP: return this.#gl.TRIANGLE_STRIP;
 
 			// Default to triangles
-			case D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED: 
+			case D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED:
 			default: return this.#gl.TRIANGLES;
 		}
 	}
 }
 
+
+// -----------------------------------------------------
+// -------------------- Swap Chain ---------------------
+// -----------------------------------------------------
 
 class IDXGISwapChain extends IUnknown
 {
@@ -1693,7 +1705,7 @@ class IDXGISwapChain extends IUnknown
 		this.#finalCopyFramebuffer = this.#gl.createFramebuffer();
 	}
 
-	
+
 	GetBuffer()
 	{
 		this.#backBuffer.AddRef();
@@ -1744,7 +1756,7 @@ class IDXGISwapChain extends IUnknown
 
 
 // -----------------------------------------------------
-// -------------------- API Objects --------------------
+// ---------------- Misc API Interfaces ----------------
 // -----------------------------------------------------
 
 class ID3D11InputLayout extends ID3D11DeviceChild
@@ -1935,6 +1947,7 @@ class ID3D11VertexShader extends ID3D11DeviceChild
 		}
 	}
 }
+
 
 // -----------------------------------------------------
 // --------------------- Resources ---------------------
@@ -2133,19 +2146,9 @@ class ID3D11RenderTargetView extends ID3D11View
 }
 
 
-
-
-
-
-
-// -----------------------------------------------------
-// -----------------------------------------------------
 // -----------------------------------------------------
 // ----------------------- HLSL ------------------------
 // -----------------------------------------------------
-// -----------------------------------------------------
-// -----------------------------------------------------
-
 
 const TokenUnknown = 0;
 const TokenWhiteSpace = 1;
@@ -2685,7 +2688,7 @@ class HLSL
 			this.#Require(it, TokenIdentifier);
 			variable.Semantic = it.PeekPrev().Text;
 		}
-		
+
 		// Check for array
 		if (this.#Allow(it, TokenBracketLeft))
 		{
@@ -3249,7 +3252,7 @@ class HLSL
 				let variable = cb.Variables[v];
 				cbStr += "\t" + this.#Translate(variable.DataType); // Datatype
 				cbStr += " " + this.#Translate(variable.Name); // Identifier
-				
+
 				// Array?
 				if (variable.ArraySize != null)
 				{
@@ -3617,7 +3620,7 @@ class HLSL
 				}
 			}
 
-			main += "\t" + PSOutputVariable+ " = " + PrefixPSOutput + "." + targetName + ";\n";
+			main += "\t" + PSOutputVariable + " = " + PrefixPSOutput + "." + targetName + ";\n";
 		}
 
 
@@ -3645,3 +3648,4 @@ class HLSL
 		return glsl;
 	}
 }
+
