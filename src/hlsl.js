@@ -62,6 +62,21 @@ class TokenIterator
 		return this.#position < this.#tokens.length - 1;
 	}
 
+	Position()
+	{
+		return this.#position;
+	}
+
+	GetRange(startInclusive, endExclusive)
+	{
+		if (startInclusive < 0 ||
+			endExclusive >= this.#tokens.length + 1 ||
+			endExclusive <= startInclusive)
+			throw new Error("Invalid range for token iterator");
+
+		return this.#tokens.slice(startInclusive, endExclusive);
+	}
+
 	PeekNext() { return this.#Peek(1); }
 	PeekPrev() { return this.#Peek(-1); }
 
@@ -73,6 +88,8 @@ class TokenIterator
 
 		return this.#tokens[peekPos];
 	}
+
+
 }
 
 
