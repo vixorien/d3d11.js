@@ -6,6 +6,8 @@
 
 // WebGL2 reference: https://www.khronos.org/files/webgl20-reference-guide.pdf
 
+// WebGL2 Report: https://webglreport.com/?v=2
+
 // Random webgl notes:
 //
 // Drawing
@@ -617,6 +619,10 @@ class ID3D11Device extends IUnknown
 	// TODO: Add description
 	CreateRenderTargetView(resource)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		return new ID3D11RenderTargetView(this, resource);
 	}
 
@@ -627,6 +633,10 @@ class ID3D11Device extends IUnknown
 	// TODO: Full validation of description
 	CreateBuffer(bufferDesc, initialData)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Create the gl buffer and final D3D buffer
 		let glBuffer = this.#gl.createBuffer();
 		let d3dBuffer = new ID3D11Buffer(this, bufferDesc, glBuffer);
@@ -694,6 +704,10 @@ class ID3D11Device extends IUnknown
 		if (resource == null)
 			throw new Error("Must provide a non-null resource to create a depth stencil view");
 
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Null descriptions are valid here!  Create a default one
 		if (desc == null)
 		{
@@ -734,6 +748,10 @@ class ID3D11Device extends IUnknown
 	// NOTE: gl.MAX_VERTEX_ATTRIBS - maybe max descs?
 	CreateInputLayout(inputElementDescs)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		return new ID3D11InputLayout(this, inputElementDescs);
 	}
 
@@ -741,11 +759,15 @@ class ID3D11Device extends IUnknown
 	// Note: Not using bytecode, just a big string, so only one parameter
 	CreatePixelShader(hlslCode)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Take the shader code, convert it and pass to GL functions
 		let ps = new HLSL(hlslCode, ShaderTypePixel);
 		let glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
 
-		return new ID3D11PixelShader(this, glShader, ps.GetCBuffers());
+		return new ID3D11PixelShader(this, glShader, ps);
 	}
 
 	// TODO: Decide if we want to handle description verification here instead
@@ -754,6 +776,10 @@ class ID3D11Device extends IUnknown
 		// Description is not optional
 		if (samplerDesc == null)
 			throw new Error("Sampler description cannot be null");
+
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
 
 		// Object will verify the description
 		return new ID3D11SamplerState(this, samplerDesc);
@@ -768,6 +794,10 @@ class ID3D11Device extends IUnknown
 	//  - Its DATA can still change!
 	CreateTexture2D(desc, initialData)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Create the gl texture and final D3D texture object
 		let glTexture = this.#gl.createTexture();
 		let d3dTexture = new ID3D11Texture2D(this, desc, glTexture);
@@ -844,11 +874,15 @@ class ID3D11Device extends IUnknown
 	// Note: Not using bytecode, just a big string, so only one parameter
 	CreateVertexShader(hlslCode)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Take the shader code, convert it and pass to GL functions
 		let vs = new HLSL(hlslCode, ShaderTypeVertex);
 		let glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
 
-		return new ID3D11VertexShader(this, glShader, vs.GetCBuffers());
+		return new ID3D11VertexShader(this, glShader, vs);
 	}
 
 	#CompileGLShader(glslCode, glShaderType)
@@ -937,9 +971,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#samplerState;
 
 	// General shaders ---
+	#maxCombinedTextures;
 	#shaderProgramMap;
 	#currentShaderProgram;
 	#currentCBufferMap;
+	#currentTextureSamplerMap;
 	#shadersDirty;
 
 	// Input Assembler ---
@@ -957,6 +993,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// Vertex Shader ---
 	#vertexShader;
+	#maxVSTextures;
 	#maxVSConstantBuffers;
 	#vsConstantBuffers;
 	#vsConstantBuffersDirty;
@@ -966,9 +1003,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// Pixel Shader ---
 	#pixelShader;
+	#maxPSTextures;
 	#maxPSConstantBuffers;
 	#psConstantBuffers;
 	#psConstantBuffersDirty;
+	#psShaderResources;
+	#psShaderResourcesDirty;
+	#psSamplers;
+	#psSamplersDirty;
 
 	// Output Merger ---
 	#renderTargetViews;
@@ -992,6 +1034,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 		// General shaders
 		this.#shaderProgramMap = new Map();
+		this.#maxCombinedTextures = this.#gl.getParameter(this.#gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS);
 		this.#currentShaderProgram = null;
 		this.#currentCBufferMap = null;
 		this.#shadersDirty = true;
@@ -1015,8 +1058,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Vertex Shader
 		{
 			this.#vertexShader = null;
+			this.#maxVSTextures = this.#gl.getParameter(this.#gl.MAX_VERTEX_TEXTURE_IMAGE_UNITS);
 			this.#maxVSConstantBuffers = this.#gl.getParameter(this.#gl.MAX_VERTEX_UNIFORM_BLOCKS);
+
 			this.#vsConstantBuffers = Array(this.#maxVSConstantBuffers).fill(null);
+
 			this.#vsConstantBuffersDirty = true;
 		}
 
@@ -1028,9 +1074,16 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Pixel Shader
 		{
 			this.#pixelShader = null;
+			this.#maxPSTextures = this.#gl.getParameter(this.#gl.MAX_TEXTURE_IMAGE_UNITS);
 			this.#maxPSConstantBuffers = this.#gl.getParameter(this.#gl.MAX_FRAGMENT_UNIFORM_BLOCKS);
+
 			this.#psConstantBuffers = Array(this.#maxPSConstantBuffers).fill(null);
+			this.#psShaderResources = Array(this.#maxPSTextures).fill(null);
+			this.#psSamplers = Array(this.#maxPSTextures).fill(null);
+
 			this.#psConstantBuffersDirty = true;
+			this.#psShaderResourcesDirty = true;
+			this.#psSamplersDirty = true;
 		}
 
 		// Output Merger
@@ -1039,6 +1092,19 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#depthStencilView = null;
 			this.#outputMergerDirty = true;
 		}
+	}
+
+	// Not to spec, but used by the device to dirty the entire pipeline when
+	// the device has altered the GL state in some way
+	DirtyPipeline()
+	{
+		this.#inputAssemblerDirty = true;
+		this.#shadersDirty = true;
+		this.#vsConstantBuffersDirty = true;
+		this.#psConstantBuffersDirty = true;
+		this.#psShaderResourcesDirty = true;
+		this.#psSamplersDirty = true;
+		this.#outputMergerDirty = true;
 	}
 
 	// TODO: Handle texture vs. renderbuffer once
@@ -1205,7 +1271,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	PSSetConstantBuffers(startSlot, constantBuffers)
 	{
 		// Validate overall slots
-		if (startSlot + constantBuffers.length < 0 ||
+		if (startSlot < 0 ||
 			startSlot + constantBuffers.length >= this.#maxPSConstantBuffers)
 			throw new Error("Attempting to set PS constant buffers outside valid range");
 
@@ -1216,6 +1282,40 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		this.#psConstantBuffersDirty = true;
+	}
+
+	// TODO: Handle null samplers simply holding the default sampler
+	PSSetSamplers(startSlot, samplers)
+	{
+		// Validate overall slots
+		if (startSlot < 0 ||
+			startSlot + samplers.length >= this.#maxPSTextures)
+			throw new Error("Attempting to set PS samplers outside valid range");
+
+		// Place samplers in contiguos slots, offset by starting index
+		for (let i = 0; i < samplers.length; i++)
+		{
+			this.#psSamplers[i + startSlot] = samplers[i];
+		}
+
+		this.#psSamplersDirty = true;
+	}
+
+	// TODO: Handle resources already bound as output?
+	PSSetShaderResources(startSlot, shaderResourceViews)
+	{
+		// Validate overall slots
+		if (startSlot < 0 ||
+			startSlot + shaderResourceViews.length >= this.#maxPSTextures)
+			throw new Error("Attempting to set PS shader resources outside valid range");
+
+		// Place resource views in contiguos slots, offset by starting index
+		for (let i = 0; i < shaderResourceViews.length; i++)
+		{
+			this.#psShaderResources[i + startSlot] = shaderResourceViews[i];
+		}
+
+		this.#psShaderResourcesDirty = true;
 	}
 
 	// TODO: Handle multiple render targets
@@ -1282,7 +1382,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Any work to do?
 		if (!this.#shadersDirty)
 			return;
-
+		
 		// Do we have proper shaders?
 		// NOTE: WebGL appears to require both a vertex and pixel shader!
 		// TODO: Determine if we can simply provide an "empty"/"basic" PS when PS is null?
@@ -1302,7 +1402,24 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			// We now have a combined VS+PS set
 			vsMap.set(this.#pixelShader, {
 				GLProgram: null,
-				CBufferMap: Array(this.#maxVSConstantBuffers + this.#maxPSConstantBuffers).fill(-1)
+
+				// This maps a D3D register index to a GL uniform block index
+				// Note that the CB indices are laid out [vsCBs][psCBs+maxVSCBs]
+				CBufferMap: Array(this.#maxVSConstantBuffers + this.#maxPSConstantBuffers).fill(-1),
+
+				// Mapping D3D register indices to uniform locations
+				// Note that a single texture or register may map to multiple locations
+				// due to the texture/sampler combinations (t0 + s0 != t0 + s1)
+				// TODO: Determine if these array sizes make sense - any register could
+				//       really map to any uniform block.  Might be able to align with D3D
+				//       register limits instead, though is that necessary?
+				TextureSamplerMap:
+				{
+					VSTextures: Array(this.#maxVSTextures).fill([]),
+					VSSamplers: Array(this.#maxVSTextures).fill([]),
+					PSTextures: Array(this.#maxPSTextures).fill([]),
+					PSSamplers: Array(this.#maxPSTextures).fill([])
+				}
 			}); // Note: May want to store more stuff?
 		}
 
@@ -1354,25 +1471,89 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				let offsetPSIndex = cb.RegisterIndex + this.#maxVSConstantBuffers;
 				vspsMap.CBufferMap[offsetPSIndex] = ubIndex;
 			}
+
+			// Next, cache texture/sampler combinations
+			let currentTextureUnit = 0;
+
+			// Start with vertex shader t/s combos
+			let vsTexSampCombos = this.#vertexShader.GetTextureSamplerCombinations();
+			for (let i = 0; i < vsTexSampCombos.length; i++)
+			{
+				let tsc = vsTexSampCombos[i];
+
+				// Have we run out of VS texture units?
+				if (currentTextureUnit >= this.#maxVSTextures)
+					throw new Error("Too many vertex shader texture/sampler combinations in use!");
+
+				// Which D3D registers?
+				let tReg = tsc.Texture.RegisterIndex;
+				let sReg = tsc.Sampler.RegisterIndex;
+
+				// Which GL uniform location for the combined name?
+				let uniformLoc = this.#gl.getUniformLocation(prog, tsc.CombinedName);
+
+				// Add this data to maps at the proper indices (registers)
+				vspsMap.TextureSamplerMap.VSTextures[tReg].push({ TextureUnit: currentTextureUnit, UniformLocation: uniformLoc });
+				vspsMap.TextureSamplerMap.VSSamplers[sReg].push(currentTextureUnit);
+
+				// Move on to the next unit
+				currentTextureUnit++;
+			}
+
+			// Then the PS combos
+			let psTexSampCombos = this.#pixelShader.GetTextureSamplerCombinations();
+			for (let i = 0; i < psTexSampCombos.length; i++)
+			{
+				let tsc = psTexSampCombos[i];
+
+				// Have we run out of PS texture units?
+				if (currentTextureUnit >= this.#maxPSTextures)
+					throw new Error("Too many pixel shader texture/sampler combinations in use!");
+
+				// Have we run out of TOTAL texture units?
+				if (currentTextureUnit >= this.#maxCombinedTextures)
+					throw new Error("Too many total texture/sampler combinations in use!");
+
+				// Which D3D registers?
+				let tReg = tsc.Texture.RegisterIndex;
+				let sReg = tsc.Sampler.RegisterIndex;
+
+				// Which GL uniform location for the combined name?
+				let uniformLoc = this.#gl.getUniformLocation(prog, tsc.CombinedName);
+
+				// Add this data to maps at the proper indices (registers)
+				vspsMap.TextureSamplerMap.PSTextures[tReg].push({ TextureUnit: currentTextureUnit, UniformLocation: uniformLoc });
+				vspsMap.TextureSamplerMap.PSSamplers[sReg].push(currentTextureUnit);
+
+				// Move on to the next unit
+				currentTextureUnit++;
+			}
 		}
 
 		// Activate this program and we're clean
 		this.#gl.useProgram(prog);
 		this.#currentShaderProgram = prog;
 		this.#currentCBufferMap = vspsMap.CBufferMap;
+		this.#currentTextureSamplerMap = vspsMap.TextureSamplerMap;
 		this.#shadersDirty = false;
+
+		// TODO: See if we can cut down on the following for performance reasons...
 
 		// After shader program swap, we need to double check cbuffers
 		this.#vsConstantBuffersDirty = true;
 		this.#psConstantBuffersDirty = true;
+
+		// Also check textures/samplers
+		this.#psSamplersDirty = true;
+		this.#psShaderResourcesDirty = true;
 	}
 
 	#CreateShaderProgram(vs, ps)
 	{
 		// Create the new program and attach shaders
 		let program = this.#gl.createProgram();
-		this.#gl.attachShader(program, vs.GetShader());
-		this.#gl.attachShader(program, ps.GetShader());
+		this.#gl.attachShader(program, vs.GetGLShader());
+		this.#gl.attachShader(program, ps.GetGLShader());
 
 		// Link and check status
 		this.#gl.linkProgram(program);
@@ -1396,57 +1577,110 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#PrepareConstantBuffers()
 	{
 		// Bind all VS cbuffers to the proper registers, then map them to uniform block indices
-		for (let v = 0; this.#vsConstantBuffersDirty && v < this.#vsConstantBuffers.length; v++)
+		if (this.#vsConstantBuffersDirty)
 		{
-			let cb = this.#vsConstantBuffers[v];
-			if (cb == null)
-				continue;
-
-			// Check to see if the shader program expects a buffer
-			let ubIndex = this.#currentCBufferMap[v];
-			if (ubIndex == -1)
+			for (let v = 0; v < this.#vsConstantBuffers.length; v++)
 			{
-				// Doesn't want this buffer, so unbind
-				this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, v, null);
-			}
-			else
-			{
-				// Bind to correct "register slot"
-				this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, v, cb.GetGLResource());
+				let cb = this.#vsConstantBuffers[v];
+	
+				// Check to see if the shader program expects a buffer
+				let ubIndex = this.#currentCBufferMap[v];
+				if (ubIndex == -1 || cb == null)
+				{
+					// Doesn't want this buffer, so unbind
+					this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, v, null);
+				}
+				else
+				{
+					// Bind to correct "register slot"
+					this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, v, cb.GetGLResource());
 
-				// Map the "register slot" to the uniform block index in the program
-				this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, v);
+					// Map the "register slot" to the uniform block index in the program
+					this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, v);
+				}
 			}
 		}
 
 		// Bind all PS cbuffers, too - taking into account an offset to put them after all VS cbuffers
-		for (let p = 0; this.#psConstantBuffersDirty && p < this.#psConstantBuffers.length; p++)
+		if (this.#psConstantBuffersDirty)
 		{
-			let cb = this.#psConstantBuffers[p];
-			if (cb == null)
-				continue;
-
-			// Expecting a buffer? (Use PS offset index)
-			let psIndex = p + this.#maxVSConstantBuffers;
-			let ubIndex = this.#currentCBufferMap[psIndex];
-			if (ubIndex == -1)
+			for (let p = 0; p < this.#psConstantBuffers.length; p++)
 			{
-				// Doesn't want this buffer, so unbind
-				this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, psIndex, null);
-			}
-			else
-			{
-				// Bind to correct "register slot", taking into account VS register offset
-				this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, psIndex, cb.GetGLResource());
+				let cb = this.#psConstantBuffers[p];
 
-				// Map the "register slot" to the uniform block index in the program
-				this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, psIndex);
+				// Expecting a buffer? (Use PS offset index)
+				let psIndex = p + this.#maxVSConstantBuffers;
+				let ubIndex = this.#currentCBufferMap[psIndex];
+				if (ubIndex == -1 || cb == null)
+				{
+					// Doesn't want this buffer, so unbind
+					this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, psIndex, null);
+				}
+				else
+				{
+					// Bind to correct "register slot", taking into account VS register offset
+					this.#gl.bindBufferBase(this.#gl.UNIFORM_BUFFER, psIndex, cb.GetGLResource());
+
+					// Map the "register slot" to the uniform block index in the program
+					this.#gl.uniformBlockBinding(this.#currentShaderProgram, ubIndex, psIndex);
+				}
 			}
 		}
 
 		// All clean
 		this.#vsConstantBuffersDirty = false;
 		this.#psConstantBuffersDirty = false;
+	}
+
+	#PrepareTexturesAndSamplers()
+	{
+		// TODO: Handle vertex textures
+
+
+		if (this.#psShaderResourcesDirty)
+		{
+			// Go through each resource slot
+			for (let i = 0; i < this.#psShaderResources.length; i++)
+			{
+				let res = this.#psShaderResources[i];
+				if (res == null) // TODO: Null resources should UNBIND as necessary!
+					continue;
+
+				// Grab the associated data from the map and loop through all possible gl binds
+				let texMap = this.#currentTextureSamplerMap.PSTextures[i];
+				for (let t = 0; t < texMap.length; t++)
+				{
+					// TODO: Handle ref counting!
+					let glRes = res.GetResource().GetGLResource();
+					
+					// Activate the proper texture unit, bind this resource and set the uniform location
+					this.#gl.activeTexture(this.#GetGLTextureUnit(texMap[t].TextureUnit));
+					this.#gl.bindTexture(this.#gl.TEXTURE_2D, glRes);
+					this.#gl.uniform1i(texMap[t].UniformLocation, texMap[t].TextureUnit);
+
+					this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_S, this.#gl.CLAMP_TO_EDGE);
+					this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_T, this.#gl.CLAMP_TO_EDGE);
+					this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_FILTER, this.#gl.LINEAR);
+					this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
+				}
+				
+			}
+		}
+
+		if (this.#psSamplersDirty)
+		{
+
+		}
+
+
+		// All clean
+		this.#psSamplersDirty = false;
+		this.#psShaderResourcesDirty = false;
+	}
+
+	#GetGLTextureUnit(index)
+	{
+		return this.#gl.TEXTURE0 + index;
 	}
 
 	#PrepareOutputMerger()
@@ -1560,6 +1794,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareInputAssembler();
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
+		this.#PrepareTexturesAndSamplers();
 		this.#PrepareOutputMerger()
 
 		this.#gl.drawArrays(
@@ -1573,6 +1808,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareInputAssembler();
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
+		this.#PrepareTexturesAndSamplers();
 		this.#PrepareOutputMerger()
 
 		// Get proper format
@@ -1788,27 +2024,32 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 
 class ID3D11PixelShader extends ID3D11DeviceChild
 {
-	#shader;
-	#cbuffers;
+	#glShader;
+	#hlsl;
 
-	constructor(device, glShader, cbuffers)
+	constructor(device, glShader, hlsl)
 	{
 		super(device);
 
-		this.#shader = glShader;
-		this.#cbuffers = cbuffers;
+		this.#glShader = glShader;
+		this.#hlsl = hlsl;
 	}
 
-	GetShader()
+	GetGLShader()
 	{
-		return this.#shader;
+		return this.#glShader;
 	}
 
 	// Not to spec but necessary for program creation
 	// and mapping HLSL cbuffers -> GLSL uniform blocks
 	GetCBuffers()
 	{
-		return this.#cbuffers;
+		return this.#hlsl.GetCBuffers();
+	}
+
+	GetTextureSamplerCombinations()
+	{
+		return this.#hlsl.GetTextureSamplerCombinations();
 	}
 
 	// TODO: Do we need to scan the context for any
@@ -1821,7 +2062,7 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 		if (this.GetRef() <= 0)
 		{
 			let dev = this.GetDevice();
-			dev.GetAdapter().deleteShader(this.#shader);
+			dev.GetAdapter().deleteShader(this.#glShader);
 			dev.Release();
 		}
 	}
@@ -1841,6 +2082,7 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 		this.#ValidateDesc();
 	}
 
+	// TODO: Move this up to the device itself
 	#ValidateDesc()
 	{
 		// Release our ref to the device just in case we throw an exception
@@ -1908,27 +2150,32 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 
 class ID3D11VertexShader extends ID3D11DeviceChild
 {
-	#shader;
-	#cbuffers;
+	#glShader;
+	#hlsl
 
-	constructor(device, glShader, cbuffers)
+	constructor(device, glShader, hlsl)
 	{
 		super(device);
 
-		this.#shader = glShader;
-		this.#cbuffers = cbuffers;
+		this.#glShader = glShader;
+		this.#hlsl = hlsl;
 	}
 
-	GetShader()
+	GetGLShader()
 	{
-		return this.#shader;
+		return this.#glShader;
 	}
 
 	// Not to spec but necessary for program creation
 	// and mapping HLSL cbuffers -> GLSL uniform blocks
 	GetCBuffers()
 	{
-		return this.#cbuffers;
+		return this.#hlsl.GetCBuffers();
+	}
+
+	GetTextureSamplerCombinations()
+	{
+		return this.#hlsl.GetTextureSamplerCombinations();
 	}
 
 	// TODO: Do we need to scan the context for any
@@ -1941,7 +2188,7 @@ class ID3D11VertexShader extends ID3D11DeviceChild
 		if (this.GetRef() <= 0)
 		{
 			let dev = this.GetDevice();
-			dev.GetAdapter().deleteShader(this.#shader);
+			dev.GetAdapter().deleteShader(this.#glShader);
 			dev.Release();
 		}
 	}
@@ -2137,6 +2384,15 @@ class ID3D11DepthStencilView extends ID3D11View
 
 // still a work in progress until we get actual textures
 class ID3D11RenderTargetView extends ID3D11View
+{
+	constructor(device, resource, desc)
+	{
+		super(device, resource, desc);
+	}
+}
+
+// Work in progress!
+class ID3D11ShaderResourceView extends ID3D11View
 {
 	constructor(device, resource, desc)
 	{
@@ -2450,6 +2706,12 @@ class HLSL
 	{
 		// Return a copy so we don't have any refs
 		return this.#cbuffers.slice();
+	}
+
+	GetTextureSamplerCombinations()
+	{
+		// Copy!
+		return this.#textureSamplerCombinations.slice();
 	}
 
 	// Read the code and tokenize
@@ -2870,6 +3132,7 @@ class HLSL
 		return cb;
 	}
 
+	
 	#ParseTexture(it)
 	{
 		let t = {
@@ -2891,13 +3154,21 @@ class HLSL
 		// Scan for register
 		t.RegisterIndex = this.#ParseRegisterIndex(it, "t");
 		if (t.RegisterIndex >= 0)
+		{
+			// Have we found this register already?
+			for (let i = 0; i < this.#textures.length; i++)
+				if (this.#textures[i].RegisterIndex == t.RegisterIndex)
+					throw new Error("Duplicate texture register: t" + t.RegisterIndex);
+
 			t.ExplicitRegister = true;
+		}
 
 		// Semicolon to end
 		this.#Require(it, TokenSemicolon);
 		return t;
 	}
 
+	
 	#ParseSampler(it)
 	{
 		let s = {
@@ -2918,7 +3189,14 @@ class HLSL
 		// Scan for register
 		s.RegisterIndex = this.#ParseRegisterIndex(it, "s");
 		if (s.RegisterIndex >= 0)
+		{
+			// Have we found this register already?
+			for (let i = 0; i < this.#samplers.length; i++)
+				if (this.#samplers[i].RegisterIndex == s.RegisterIndex)
+					throw new Error("Duplicate sampler register: s" + s.RegisterIndex);
+
 			s.ExplicitRegister = true;
+		}
 
 		// Semicolon to end
 		this.#Require(it, TokenSemicolon);
@@ -3918,7 +4196,7 @@ class HLSL
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
-		console.log(glsl);
+
 		return glsl;
 	}
 }

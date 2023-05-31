@@ -459,9 +459,8 @@
 						color += spec * lightColor * (metal == 1.0 ? tint : float3(1,1,1));
 					}
 
-					albedo.Sample(samp, float2(0.0, 0.1));
-					albedo.Sample(samp, albedo.Sample(samp, float2(1,2)).xy);
-
+					float4 result = albedo.Sample(samp, input.uv);
+					return result;
 					return float4(color, 1);
 				}
 			`;
@@ -497,7 +496,19 @@
 			let gl = device.GetAdapter();
 
 			// Attempt to load an image
-			await loadTexture2D(device, "../assets/textures/crate.png");
+			let texture = await loadTexture2D(device, "../assets/textures/crate.png");
+
+			gl.bindTexture(gl.TEXTURE_2D, texture.GetGLResource());
+
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.REPEAT);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.REPEAT);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+			gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+
+			// Make shader resource view
+			// TODO: Desc and such
+			let srv = new ID3D11ShaderResourceView(device, texture, null);
+			context.PSSetShaderResources(0, [srv]);
 
 			// Make an RTV of the back buffer
 			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer());

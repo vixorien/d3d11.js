@@ -89,3 +89,12 @@ class ID3D11RenderTargetView extends ID3D11View
 		super(device, resource, desc);
 	}
 }
+
+// Work in progress!
+class ID3D11ShaderResourceView extends ID3D11View
+{
+	constructor(device, resource, desc)
+	{
+		super(device, resource, desc);
+	}
+}

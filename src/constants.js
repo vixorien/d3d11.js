@@ -6,6 +6,8 @@
 
 // WebGL2 reference: https://www.khronos.org/files/webgl20-reference-guide.pdf
 
+// WebGL2 Report: https://webglreport.com/?v=2
+
 // Random webgl notes:
 //
 // Drawing

@@ -33,27 +33,32 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 
 class ID3D11PixelShader extends ID3D11DeviceChild
 {
-	#shader;
-	#cbuffers;
+	#glShader;
+	#hlsl;
 
-	constructor(device, glShader, cbuffers)
+	constructor(device, glShader, hlsl)
 	{
 		super(device);
 
-		this.#shader = glShader;
-		this.#cbuffers = cbuffers;
+		this.#glShader = glShader;
+		this.#hlsl = hlsl;
 	}
 
-	GetShader()
+	GetGLShader()
 	{
-		return this.#shader;
+		return this.#glShader;
 	}
 
 	// Not to spec but necessary for program creation
 	// and mapping HLSL cbuffers -> GLSL uniform blocks
 	GetCBuffers()
 	{
-		return this.#cbuffers;
+		return this.#hlsl.GetCBuffers();
+	}
+
+	GetTextureSamplerCombinations()
+	{
+		return this.#hlsl.GetTextureSamplerCombinations();
 	}
 
 	// TODO: Do we need to scan the context for any
@@ -66,7 +71,7 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 		if (this.GetRef() <= 0)
 		{
 			let dev = this.GetDevice();
-			dev.GetAdapter().deleteShader(this.#shader);
+			dev.GetAdapter().deleteShader(this.#glShader);
 			dev.Release();
 		}
 	}
@@ -86,6 +91,7 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 		this.#ValidateDesc();
 	}
 
+	// TODO: Move this up to the device itself
 	#ValidateDesc()
 	{
 		// Release our ref to the device just in case we throw an exception
@@ -153,27 +159,32 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 
 class ID3D11VertexShader extends ID3D11DeviceChild
 {
-	#shader;
-	#cbuffers;
+	#glShader;
+	#hlsl
 
-	constructor(device, glShader, cbuffers)
+	constructor(device, glShader, hlsl)
 	{
 		super(device);
 
-		this.#shader = glShader;
-		this.#cbuffers = cbuffers;
+		this.#glShader = glShader;
+		this.#hlsl = hlsl;
 	}
 
-	GetShader()
+	GetGLShader()
 	{
-		return this.#shader;
+		return this.#glShader;
 	}
 
 	// Not to spec but necessary for program creation
 	// and mapping HLSL cbuffers -> GLSL uniform blocks
 	GetCBuffers()
 	{
-		return this.#cbuffers;
+		return this.#hlsl.GetCBuffers();
+	}
+
+	GetTextureSamplerCombinations()
+	{
+		return this.#hlsl.GetTextureSamplerCombinations();
 	}
 
 	// TODO: Do we need to scan the context for any
@@ -186,7 +197,7 @@ class ID3D11VertexShader extends ID3D11DeviceChild
 		if (this.GetRef() <= 0)
 		{
 			let dev = this.GetDevice();
-			dev.GetAdapter().deleteShader(this.#shader);
+			dev.GetAdapter().deleteShader(this.#glShader);
 			dev.Release();
 		}
 	}

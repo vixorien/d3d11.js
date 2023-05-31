@@ -306,6 +306,12 @@ class HLSL
 		return this.#cbuffers.slice();
 	}
 
+	GetTextureSamplerCombinations()
+	{
+		// Copy!
+		return this.#textureSamplerCombinations.slice();
+	}
+
 	// Read the code and tokenize
 	#Tokenize()
 	{
@@ -724,6 +730,7 @@ class HLSL
 		return cb;
 	}
 
+	
 	#ParseTexture(it)
 	{
 		let t = {
@@ -745,13 +752,21 @@ class HLSL
 		// Scan for register
 		t.RegisterIndex = this.#ParseRegisterIndex(it, "t");
 		if (t.RegisterIndex >= 0)
+		{
+			// Have we found this register already?
+			for (let i = 0; i < this.#textures.length; i++)
+				if (this.#textures[i].RegisterIndex == t.RegisterIndex)
+					throw new Error("Duplicate texture register: t" + t.RegisterIndex);
+
 			t.ExplicitRegister = true;
+		}
 
 		// Semicolon to end
 		this.#Require(it, TokenSemicolon);
 		return t;
 	}
 
+	
 	#ParseSampler(it)
 	{
 		let s = {
@@ -772,7 +787,14 @@ class HLSL
 		// Scan for register
 		s.RegisterIndex = this.#ParseRegisterIndex(it, "s");
 		if (s.RegisterIndex >= 0)
+		{
+			// Have we found this register already?
+			for (let i = 0; i < this.#samplers.length; i++)
+				if (this.#samplers[i].RegisterIndex == s.RegisterIndex)
+					throw new Error("Duplicate sampler register: s" + s.RegisterIndex);
+
 			s.ExplicitRegister = true;
+		}
 
 		// Semicolon to end
 		this.#Require(it, TokenSemicolon);
@@ -1772,7 +1794,7 @@ class HLSL
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
-		console.log(glsl);
+
 		return glsl;
 	}
 }

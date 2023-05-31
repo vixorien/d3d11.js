@@ -32,6 +32,10 @@ class ID3D11Device extends IUnknown
 	// TODO: Add description
 	CreateRenderTargetView(resource)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		return new ID3D11RenderTargetView(this, resource);
 	}
 
@@ -42,6 +46,10 @@ class ID3D11Device extends IUnknown
 	// TODO: Full validation of description
 	CreateBuffer(bufferDesc, initialData)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Create the gl buffer and final D3D buffer
 		let glBuffer = this.#gl.createBuffer();
 		let d3dBuffer = new ID3D11Buffer(this, bufferDesc, glBuffer);
@@ -109,6 +117,10 @@ class ID3D11Device extends IUnknown
 		if (resource == null)
 			throw new Error("Must provide a non-null resource to create a depth stencil view");
 
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Null descriptions are valid here!  Create a default one
 		if (desc == null)
 		{
@@ -149,6 +161,10 @@ class ID3D11Device extends IUnknown
 	// NOTE: gl.MAX_VERTEX_ATTRIBS - maybe max descs?
 	CreateInputLayout(inputElementDescs)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		return new ID3D11InputLayout(this, inputElementDescs);
 	}
 
@@ -156,11 +172,15 @@ class ID3D11Device extends IUnknown
 	// Note: Not using bytecode, just a big string, so only one parameter
 	CreatePixelShader(hlslCode)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Take the shader code, convert it and pass to GL functions
 		let ps = new HLSL(hlslCode, ShaderTypePixel);
 		let glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
 
-		return new ID3D11PixelShader(this, glShader, ps.GetCBuffers());
+		return new ID3D11PixelShader(this, glShader, ps);
 	}
 
 	// TODO: Decide if we want to handle description verification here instead
@@ -169,6 +189,10 @@ class ID3D11Device extends IUnknown
 		// Description is not optional
 		if (samplerDesc == null)
 			throw new Error("Sampler description cannot be null");
+
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
 
 		// Object will verify the description
 		return new ID3D11SamplerState(this, samplerDesc);
@@ -183,6 +207,10 @@ class ID3D11Device extends IUnknown
 	//  - Its DATA can still change!
 	CreateTexture2D(desc, initialData)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Create the gl texture and final D3D texture object
 		let glTexture = this.#gl.createTexture();
 		let d3dTexture = new ID3D11Texture2D(this, desc, glTexture);
@@ -259,11 +287,15 @@ class ID3D11Device extends IUnknown
 	// Note: Not using bytecode, just a big string, so only one parameter
 	CreateVertexShader(hlslCode)
 	{
+		// May have changed GL state!
+		if (this.#immediateContext != null)
+			this.#immediateContext.DirtyPipeline();
+
 		// Take the shader code, convert it and pass to GL functions
 		let vs = new HLSL(hlslCode, ShaderTypeVertex);
 		let glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
 
-		return new ID3D11VertexShader(this, glShader, vs.GetCBuffers());
+		return new ID3D11VertexShader(this, glShader, vs);
 	}
 
 	#CompileGLShader(glslCode, glShaderType)
