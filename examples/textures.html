@@ -459,8 +459,7 @@
 						color += spec * lightColor * (metal == 1.0 ? tint : float3(1,1,1));
 					}
 
-					float4 result = albedo.Sample(samp, input.uv);
-					return result;
+					color *= albedo.Sample(samp, input.uv).rgb;
 					return float4(color, 1);
 				}
 			`;
@@ -652,7 +651,7 @@
 			{
 				// Clear the frame
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
-				context.ClearRenderTargetView(rtv, cornflowerBlue);
+				context.ClearRenderTargetView(rtv, [0,0,0,1]);
 				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
 
 				// Sphere draws
