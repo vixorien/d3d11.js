@@ -1,17 +1,25 @@
 {
-	"Inputs": [
-		"./src/constants.js",
-		"./src/descriptions.js",
-		"./src/structs.js",
-		"./src/base.js",
-		"./src/init.js",
-		"./src/device.js",
-		"./src/context.js",
-		"./src/swapchain.js",
-		"./src/interfaces.js",
-		"./src/resources.js",
-		"./src/views.js",
-		"./src/hlsl.js"
-	],
-	"Output": "./build/d3d11.js"
+	"fuse": [
+		{
+			"input": [
+				"./src/constants.js",
+				"./src/descriptions.js",
+				"./src/structs.js",
+				"./src/base.js",
+				"./src/init.js",
+				"./src/device.js",
+				"./src/context.js",
+				"./src/swapchain.js",
+				"./src/interfaces.js",
+				"./src/resources.js",
+				"./src/views.js",
+				"./src/hlsl.js"
+			],
+			"output": "./build/d3d11.js"
+		},
+		{
+			"input": ["./src/d3dmath.js"],
+			"output": "./build/d3dmath.js"
+		}
+	]
 }

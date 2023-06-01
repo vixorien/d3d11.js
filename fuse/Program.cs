@@ -1,33 +1,63 @@
 ﻿using System.Text.Json;
+using System.Text.Json.Nodes;
 
 namespace Fuse
 {
+	/// <summary>
+	/// A single fuse task that takes one or more input files
+	/// and combines them into a single output file
+	/// </summary>
+	internal class FuseTask
+	{
+		public string[] Input { get; set; }
+		public string Output { get; set; }
+	}
+
 	/// <summary>
 	/// Information from a fuse configuration file
 	/// </summary>
 	internal class FuseConfig
 	{
-		/// <summary>
-		/// Gets or sets an array of input files
-		/// </summary>
-		public string[] Inputs { get; set; }
-
-		/// <summary>
-		/// Gets or sets the output file
-		/// </summary>
-		public string Output { get; set; }
+		public FuseTask[] Fuse { get; set; }
 	}
+
+	// Config file syntax
+	//
+	// {
+	//   fuse: [                         <-- Array of fuse objects
+	//       {
+	//          input: [                 <-- Array of strings
+	//             "./src/fuseMe1.js",
+	//             "./src/fuseMe2.js",
+	//             "./src/fuseMe3.js",
+	//             "./src/fuseMe4.js",
+	//          ],
+	//          output: "./build/out.js"  <-- Single string
+	//       },
+	//       {
+	//          input: [                  <-- Array of one string (effectively a rename)
+	//              "./src/rename.js"
+	//          ],
+	//          output: "./build/done.js" <-- Single string
+	//       }
+	//   ]
+	// }
+
 
 	internal class Program
 	{
-		static void Main(string[] args)
+		static void Log(string message)
 		{
 			string now = DateTime.Now.ToString();
+			Console.WriteLine($"{now}: {message}");
+		}
 
+		static void Main(string[] args)
+		{
 			// Need a single argument: the config file
 			if (args.Length == 0)
 			{
-				Console.WriteLine($"{now}: No configuration file specified; exiting");
+				Log("No configuration file specified; exiting");
 				return;
 			}
 
@@ -35,7 +65,7 @@ namespace Fuse
 			string file = args[0];
 			if (!File.Exists(file))
 			{
-				Console.WriteLine($"{now}: Specified configuration file '{file}' not found; exiting");
+				Log($"Specified configuration file '{file}' not found; exiting");
 				return;
 			}
 
@@ -46,49 +76,80 @@ namespace Fuse
 			// Read and deserialize the JSON
 			string configText = File.ReadAllText(filePath);
 			FuseConfig config = null;
-
 			try
 			{
 				config = JsonSerializer.Deserialize<FuseConfig>(
 					configText,
-					new JsonSerializerOptions{ PropertyNameCaseInsensitive = true });
+					new JsonSerializerOptions { PropertyNameCaseInsensitive = true });
 			}
 			catch (Exception e)
 			{
-				Console.WriteLine($"{now}: Error deserializing json config file: {e.Message}");
+				Log($"Error deserializing json config file: {e.Message}");
 				return;
 			}
 
-			// Check the results
-			if (config.Inputs == null || config.Inputs.Length == 0)
+			// Did we get anything useful?
+			if (config.Fuse == null || config.Fuse.Length == 0)
 			{
-				Console.WriteLine($"{now}: No input files specified; exiting");
+				Log("Config file contains no fuse tasks; exiting");
 				return;
 			}
 
-			if (config.Output == null || config.Output.Length == 0)
+			// Handle each fuse, one at a time
+			int errorCount = 0;
+			foreach (FuseTask f in config.Fuse)
 			{
-				Console.WriteLine($"{now}: No output file specified; exiting");
-				return;
-			}
-
-			try
-			{
-				// Read all of the text of each input file and concatenate
-				string combined = "";
-				foreach (string input in config.Inputs)
+				if (f.Input == null || f.Input.Length == 0)
 				{
-					combined += File.ReadAllText(path + "/" + input);
-					combined += Environment.NewLine;
-					combined += Environment.NewLine;
+					Log("No input files specified; skipping fuse");
+					errorCount++;
+					continue;
 				}
 
-				File.WriteAllText(path + "/" + config.Output, combined);
+				if (f.Output == null || f.Output.Length == 0)
+				{
+					Log("No output file specified; skipping fuse");
+					errorCount++;
+					continue;
+				}
+
+				// We have what we need, attempt the fuse
+				try
+				{
+					// Read all of the text of each input file and concatenate
+					string combined = "";
+					foreach (string input in f.Input)
+					{
+						combined += File.ReadAllText(path + "/" + input);
+						combined += Environment.NewLine;
+						combined += Environment.NewLine;
+					}
+
+					File.WriteAllText(path + "/" + f.Output, combined);
+				}
+				catch (Exception e)
+				{
+					Log($"Error fusing input files into output file: {e.Message}; skipping fuse");
+					errorCount++;
+					continue;
+				}
+
+				Log("Fuse completed");
 			}
-			catch (Exception e)
+
+			// Log results starting with a blank line
+			Log("");
+			if (errorCount == 0)
 			{
-				Console.WriteLine($"{now}: Error combining input files into output file: {e.Message}");
-				return;
+				Log("All fuses completed successfully");
+			}
+			else if (errorCount < config.Fuse.Length)
+			{
+				Log("Some fuses completed successfully; see above");
+			}
+			else
+			{
+				Log("All fuses failed; see above");
 			}
 		}
 	}
