@@ -69,7 +69,16 @@ const D3D11_DSV_DIMENSION_TEXTURE2DARRAY = 4;
 //const D3D11_DSV_DIMENSION_TEXTURE2DMS = 5;
 //const D3D11_DSV_DIMENSION_TEXTURE2DMSARRAY = 6;
 
-// Filtering options during texture sampling							// Hex -> Binary
+// Filtering options during texture sampling
+// Notes on filter bits:
+//   1 bit: Mip filter --> 0 = point, 1 = linear
+//   2 bit: unused
+//   4 bit: Mag filter --> 0 = point, 1 = linear
+//   8 bit: unused
+//   16 bit: Min filter --> 0 = point, 1 = linear
+//   32 bit: unused
+//   64 bit: Anisotropic --> 0 = no, 1 = yes
+//   128 bit: Comparison --> 0 = no, 1 = yes							// Hex -> Binary
 const D3D11_FILTER_MIN_MAG_MIP_POINT = 0;								// 00000000
 const D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR = 0x1;						// 00000001
 const D3D11_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT = 0x4;				// 00000100
@@ -88,15 +97,6 @@ const D3D11_FILTER_COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR = 0x91;	// 1001000
 const D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT = 0x94;			// 10010100
 const D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR = 0x95;				// 10010101
 const D3D11_FILTER_COMPARISON_ANISOTROPIC = 0xd5;						// 11010101
-// Notes on filter bits:
-// 1 bit: Mip filter --> 0 = point, 1 = linear
-// 2 bit: unused
-// 4 bit: Mag filter --> 0 = point, 1 = linear
-// 8 bit: unused
-// 16 bit: Min filter --> 0 = point, 1 = linear
-// 32 bit: unused
-// 64 bit: Anisotropic --> 0 = no, 1 = yes
-// 128 bit: Comparison --> 0 = no, 1 = yes
 
 // Maximum float32 value
 const D3D11_FLOAT32_MAX = 3.402823466e+38;
@@ -133,8 +133,8 @@ const D3D11_RESOURCE_MISC_TEXTURECUBE = 0x4;
 const D3D11_TEXTURE_ADDRESS_WRAP = 1;
 const D3D11_TEXTURE_ADDRESS_MIRROR = 2;
 const D3D11_TEXTURE_ADDRESS_CLAMP = 3;
-const D3D11_TEXTURE_ADDRESS_BORDER = 4;
-const D3D11_TEXTURE_ADDRESS_MIRROR_ONCE = 5;
+const D3D11_TEXTURE_ADDRESS_BORDER = 4;			// Unsupported in WebGL!
+const D3D11_TEXTURE_ADDRESS_MIRROR_ONCE = 5;	// Unsupported in WebGL!
 
 // Identifies expected resource use during rendering
 const D3D11_USAGE_DEFAULT = 0;
@@ -263,3 +263,4 @@ const DXGI_FORMAT_B4G4R4A4_UNORM = 115;
 const DXGI_FORMAT_P208 = 130;
 const DXGI_FORMAT_V208 = 131;
 const DXGI_FORMAT_V408 = 132;
+

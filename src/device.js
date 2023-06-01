@@ -7,6 +7,7 @@ class ID3D11Device extends IUnknown
 {
 	#gl;
 	#immediateContext;
+	#anisoExt;
 
 	constructor(gl)
 	{
@@ -14,11 +15,23 @@ class ID3D11Device extends IUnknown
 
 		this.#gl = gl;
 		this.#immediateContext = null;
+
+		// Attempt to load the anisotropic extension
+		this.#anisoExt =
+			this.#gl.getExtension("EXT_texture_filter_anisotropic") ||
+			this.#gl.getExtension("MOZ_EXT_texture_filter_anisotropic") ||
+			this.#gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
 	}
 
 	GetAdapter()
 	{
 		return this.#gl;
+	}
+
+	// Not to spec, but I want the device to "own" thing kind of stuff
+	GetAnisoExt()
+	{
+		return this.#anisoExt;
 	}
 
 	GetImmediateContext()
@@ -183,19 +196,22 @@ class ID3D11Device extends IUnknown
 		return new ID3D11PixelShader(this, glShader, ps);
 	}
 
-	// TODO: Decide if we want to handle description verification here instead
+
 	CreateSamplerState(samplerDesc)
 	{
 		// Description is not optional
 		if (samplerDesc == null)
 			throw new Error("Sampler description cannot be null");
 
-		// May have changed GL state!
-		if (this.#immediateContext != null)
-			this.#immediateContext.DirtyPipeline();
+		// Validate description, which will throw
+		// an exception if the description is invalid
+		this.#ValidateSamplerDesc(samplerDesc);
 
-		// Object will verify the description
-		return new ID3D11SamplerState(this, samplerDesc);
+		// Note: This just creates an object with a description, so
+		// the pipeline shouldn't be dirty after this
+
+		// Create a parent class around the interface
+		return new class extends ID3D11SamplerState { } (this, samplerDesc);
 	}
 
 
@@ -239,47 +255,70 @@ class ID3D11Device extends IUnknown
 		let type = glFormatDetails.Type;
 		let isDepth = glFormatDetails.IsDepth;
 		let hasStencil = glFormatDetails.HasStencil;
-
-		// Store the previous texture
-		//TODO: Handle different types of textures (array, cube)
-		let prevTexture = this.#gl.getParameter(this.#gl.TEXTURE_BINDING_2D);
+		let hasMipmaps = false; // TODO: Check and update
 
 		// Set new texture
 		// TODO: Handle types
 		this.#gl.bindTexture(this.#gl.TEXTURE_2D, glTexture);
 
-		// Any initial data?
-		if (initialData == null)
+		// Determine how many mip levels we'll need
+		let mipLevels = desc.MipLevels;
+		if (mipLevels == -1)
+			mipLevels = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
+
+		// Create the actual resource
+		// Use texStorage2D() to initialize the entire
+		// texture and all subresources at once
+		// See here for details on formats/types/etc: https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexStorage2D.xhtml
+		// TODO: Use texStorage3D() for 3D textures and 2D Texture Arrays!
+		this.#gl.texStorage2D(
+			this.#gl.TEXTURE_2D,
+			mipLevels,
+			internalFormat,
+			desc.Width,
+			desc.Height);
+
+		// Do we have any initial data?
+		if (initialData != null)
 		{
-			// Use texStorage2D() to initialize the entire
-			// texture and all subresources at once
-			// See here for details on formats/types/etc: https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexStorage2D.xhtml
-			// Note: Doesn't seem to work for texture arrays!
-			this.#gl.texStorage2D(
+			// Now that it exists, copy the initial data to the first mip level
+			// TODO: Somehow handle taking in multiple levels worth of data?  Array of images?
+			// TODO: Handle other types with texSubImage3D()
+			this.#gl.texSubImage2D(
 				this.#gl.TEXTURE_2D,
-				desc.MipLevels,
-				internalFormat,
-				desc.Width,
-				desc.Height);
-		}
-		else
-		{
-			// Use texImage2D() to set initial data
-			// TODO: Handle multiple mips/array elements/etc?
-			this.#gl.texImage2D(
-				this.#gl.TEXTURE_2D,
-				0, // TODO: Handle specific mip levels?
-				internalFormat,
+				0, // Mip
+				0, // X
+				0, // Y
 				desc.Width,
 				desc.Height,
-				0,
 				format,
 				type,
 				initialData);
 		}
 
-		//TODO: Handle different types of textures (array, cube)
-		this.#gl.bindTexture(this.#gl.TEXTURE_2D, prevTexture);
+		// Set default sampler info
+		// NOTE: Base level and max level will be handled by the view
+		// NOTE: WebGL does not support border colors
+		// TODO: MipLODBias?  Is that a thing in WebGL?  Maybe adjust min/max mip levels by this as a work around?  Not ideal
+		// TODO: Handle types
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_FILTER, hasMipmaps ? this.#gl.LINEAR_MIPMAP_LINEAR : this.#gl.LINEAR); // Can't use the mipmap one if no mipmaps!  Results in black texture sample
+
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_S, this.#gl.CLAMP_TO_EDGE);
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_T, this.#gl.CLAMP_TO_EDGE);
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_R, this.#gl.CLAMP_TO_EDGE);
+
+		this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_LOD, -D3D11_FLOAT32_MAX);
+		this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAX_LOD, D3D11_FLOAT32_MAX);
+
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_COMPARE_MODE, this.#gl.NONE);
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_COMPARE_FUNC, this.#gl.NEVER);
+
+		if (this.#anisoExt != null)
+		{
+			this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, 1);
+		}
+
 		return d3dTexture;
 	}
 
@@ -297,6 +336,8 @@ class ID3D11Device extends IUnknown
 
 		return new ID3D11VertexShader(this, glShader, vs);
 	}
+
+
 
 	#CompileGLShader(glslCode, glShaderType)
 	{
@@ -366,5 +407,72 @@ class ID3D11Device extends IUnknown
 		}
 
 		return glFormatDetails;
+	}
+
+	#ValidateSamplerDesc(desc)
+	{
+		// Check filter mode
+		const filter = desc.Filter;
+		if (filter < 0 || filter > D3D11_FILTER_COMPARISON_ANISOTROPIC ||
+			(filter & 2) == 2 || // The 2 bit should be unused
+			(filter & 8) == 8 || // The 8 bit should be unused
+			(filter & 32) == 32) // The 32 bit should be unused
+		{
+			// Invalid range, or an invalid bit is set
+			throw new Error("Invalid filter mode for sampler state");
+		}
+
+		// Check address modes
+		const u = desc.AddressU;
+		const v = desc.AddressV;
+		const w = desc.AddressW;
+		if (u < D3D11_TEXTURE_ADDRESS_WRAP || u > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
+			throw new Error("Invalid address U mode for sampler state");
+		if (v < D3D11_TEXTURE_ADDRESS_WRAP || v > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
+			throw new Error("Invalid address V mode for sampler state");
+		if (w < D3D11_TEXTURE_ADDRESS_WRAP || w > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
+			throw new Error("Invalid address W mode for sampler state");
+
+		// Check for unsupported address modes
+		const bord = D3D11_TEXTURE_ADDRESS_BORDER;
+		const mo = D3D11_TEXTURE_ADDRESS_MIRROR_ONCE;
+		if (u == bord || v == bord || w == bord) // Vhere is my bord?!
+			throw new Error("Border address mode unsupported in WebGL");
+		if (u == mo || v == mo || w == mo)
+			throw new Error("MirrorOnce address mode unsupported in WebGL");
+
+		// Max anisotropy should be between 1 and 16
+		const anisoOn = ((filter & 64) == 64); // 64's bit is aniso on/off
+		if (this.#anisoExt)
+		{
+			// Is available, so validate maxAniso range
+			const maxAni = this.#gl.getParameter(this.#anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+			if (desc.MaxAnisotropy < 1 || desc.MaxAnisotropy > maxAni)
+				throw new Error(`Invalid MaxAnisotropy value for sampler state - range is [${1}, ${maxAni}]`);
+		}
+		else if(anisoOn)
+		{
+			// No anisotropic at all, so that filter mode is invalid
+			throw new Error("Anisotropic filtering not available on this device");
+		}
+
+		// Check comparison, but only if filter requires it
+		const comp = desc.ComparisonFunc;
+		if ((filter & 128) == 128 &&
+			(comp < D3D11_COMPARISON_NEVER || comp > D3D11_COMPARISON_ALWAYS))
+			throw new Error("Invalid comparison function for sampler state");
+
+		// Verify border color elements, but only if address mode requires it
+		const border = desc.BorderColor;
+		if ((u == D3D11_TEXTURE_ADDRESS_BORDER ||
+			v == D3D11_TEXTURE_ADDRESS_BORDER ||
+			w == D3D11_TEXTURE_ADDRESS_BORDER) &&
+			border[0] < 0 || border[0] > 1 ||
+			border[1] < 0 || border[1] > 1 ||
+			border[2] < 0 || border[2] > 1 ||
+			border[3] < 0 || border[3] > 1)
+		{
+			throw new Error("Invalid border color for sampler state");
+		}
 	}
 }

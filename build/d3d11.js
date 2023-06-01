@@ -69,7 +69,16 @@ const D3D11_DSV_DIMENSION_TEXTURE2DARRAY = 4;
 //const D3D11_DSV_DIMENSION_TEXTURE2DMS = 5;
 //const D3D11_DSV_DIMENSION_TEXTURE2DMSARRAY = 6;
 
-// Filtering options during texture sampling							// Hex -> Binary
+// Filtering options during texture sampling
+// Notes on filter bits:
+//   1 bit: Mip filter --> 0 = point, 1 = linear
+//   2 bit: unused
+//   4 bit: Mag filter --> 0 = point, 1 = linear
+//   8 bit: unused
+//   16 bit: Min filter --> 0 = point, 1 = linear
+//   32 bit: unused
+//   64 bit: Anisotropic --> 0 = no, 1 = yes
+//   128 bit: Comparison --> 0 = no, 1 = yes							// Hex -> Binary
 const D3D11_FILTER_MIN_MAG_MIP_POINT = 0;								// 00000000
 const D3D11_FILTER_MIN_MAG_POINT_MIP_LINEAR = 0x1;						// 00000001
 const D3D11_FILTER_MIN_POINT_MAG_LINEAR_MIP_POINT = 0x4;				// 00000100
@@ -88,15 +97,6 @@ const D3D11_FILTER_COMPARISON_MIN_LINEAR_MAG_POINT_MIP_LINEAR = 0x91;	// 1001000
 const D3D11_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT = 0x94;			// 10010100
 const D3D11_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR = 0x95;				// 10010101
 const D3D11_FILTER_COMPARISON_ANISOTROPIC = 0xd5;						// 11010101
-// Notes on filter bits:
-// 1 bit: Mip filter --> 0 = point, 1 = linear
-// 2 bit: unused
-// 4 bit: Mag filter --> 0 = point, 1 = linear
-// 8 bit: unused
-// 16 bit: Min filter --> 0 = point, 1 = linear
-// 32 bit: unused
-// 64 bit: Anisotropic --> 0 = no, 1 = yes
-// 128 bit: Comparison --> 0 = no, 1 = yes
 
 // Maximum float32 value
 const D3D11_FLOAT32_MAX = 3.402823466e+38;
@@ -133,8 +133,8 @@ const D3D11_RESOURCE_MISC_TEXTURECUBE = 0x4;
 const D3D11_TEXTURE_ADDRESS_WRAP = 1;
 const D3D11_TEXTURE_ADDRESS_MIRROR = 2;
 const D3D11_TEXTURE_ADDRESS_CLAMP = 3;
-const D3D11_TEXTURE_ADDRESS_BORDER = 4;
-const D3D11_TEXTURE_ADDRESS_MIRROR_ONCE = 5;
+const D3D11_TEXTURE_ADDRESS_BORDER = 4;			// Unsupported in WebGL!
+const D3D11_TEXTURE_ADDRESS_MIRROR_ONCE = 5;	// Unsupported in WebGL!
 
 // Identifies expected resource use during rendering
 const D3D11_USAGE_DEFAULT = 0;
@@ -263,6 +263,8 @@ const DXGI_FORMAT_B4G4R4A4_UNORM = 115;
 const DXGI_FORMAT_P208 = 130;
 const DXGI_FORMAT_V208 = 131;
 const DXGI_FORMAT_V408 = 132;
+
+
 
 
 // -----------------------------------------------------
@@ -594,6 +596,7 @@ class ID3D11Device extends IUnknown
 {
 	#gl;
 	#immediateContext;
+	#anisoExt;
 
 	constructor(gl)
 	{
@@ -601,11 +604,23 @@ class ID3D11Device extends IUnknown
 
 		this.#gl = gl;
 		this.#immediateContext = null;
+
+		// Attempt to load the anisotropic extension
+		this.#anisoExt =
+			this.#gl.getExtension("EXT_texture_filter_anisotropic") ||
+			this.#gl.getExtension("MOZ_EXT_texture_filter_anisotropic") ||
+			this.#gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
 	}
 
 	GetAdapter()
 	{
 		return this.#gl;
+	}
+
+	// Not to spec, but I want the device to "own" thing kind of stuff
+	GetAnisoExt()
+	{
+		return this.#anisoExt;
 	}
 
 	GetImmediateContext()
@@ -770,19 +785,22 @@ class ID3D11Device extends IUnknown
 		return new ID3D11PixelShader(this, glShader, ps);
 	}
 
-	// TODO: Decide if we want to handle description verification here instead
+
 	CreateSamplerState(samplerDesc)
 	{
 		// Description is not optional
 		if (samplerDesc == null)
 			throw new Error("Sampler description cannot be null");
 
-		// May have changed GL state!
-		if (this.#immediateContext != null)
-			this.#immediateContext.DirtyPipeline();
+		// Validate description, which will throw
+		// an exception if the description is invalid
+		this.#ValidateSamplerDesc(samplerDesc);
 
-		// Object will verify the description
-		return new ID3D11SamplerState(this, samplerDesc);
+		// Note: This just creates an object with a description, so
+		// the pipeline shouldn't be dirty after this
+
+		// Create a parent class around the interface
+		return new class extends ID3D11SamplerState { } (this, samplerDesc);
 	}
 
 
@@ -826,47 +844,124 @@ class ID3D11Device extends IUnknown
 		let type = glFormatDetails.Type;
 		let isDepth = glFormatDetails.IsDepth;
 		let hasStencil = glFormatDetails.HasStencil;
-
-		// Store the previous texture
-		//TODO: Handle different types of textures (array, cube)
-		let prevTexture = this.#gl.getParameter(this.#gl.TEXTURE_BINDING_2D);
+		let hasMipmaps = false; // TODO: Check and update
 
 		// Set new texture
 		// TODO: Handle types
 		this.#gl.bindTexture(this.#gl.TEXTURE_2D, glTexture);
 
-		// Any initial data?
-		if (initialData == null)
+		// Determine how many mip levels we'll need
+		let mipLevels = desc.MipLevels;
+		if (mipLevels == -1)
+			mipLevels = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
+
+		// Create the actual resource
+		// Use texStorage2D() to initialize the entire
+		// texture and all subresources at once
+		// See here for details on formats/types/etc: https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexStorage2D.xhtml
+		// TODO: Use texStorage3D() for 3D textures and 2D Texture Arrays!
+		this.#gl.texStorage2D(
+			this.#gl.TEXTURE_2D,
+			mipLevels,
+			internalFormat,
+			desc.Width,
+			desc.Height);
+
+		// Do we have any initial data?
+		if (initialData != null)
 		{
-			// Use texStorage2D() to initialize the entire
-			// texture and all subresources at once
-			// See here for details on formats/types/etc: https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexStorage2D.xhtml
-			// Note: Doesn't seem to work for texture arrays!
-			this.#gl.texStorage2D(
+			// Now that it exists, copy the initial data to the first mip level
+			// TODO: Somehow handle taking in multiple levels worth of data?  Array of images?
+			// TODO: Handle other types with texSubImage3D()
+			this.#gl.texSubImage2D(
 				this.#gl.TEXTURE_2D,
-				desc.MipLevels,
-				internalFormat,
-				desc.Width,
-				desc.Height);
-		}
-		else
-		{
-			// Use texImage2D() to set initial data
-			// TODO: Handle multiple mips/array elements/etc?
-			this.#gl.texImage2D(
-				this.#gl.TEXTURE_2D,
-				0, // TODO: Handle specific mip levels?
-				internalFormat,
+				0, // Mip
+				0, // X
+				0, // Y
 				desc.Width,
 				desc.Height,
-				0,
 				format,
 				type,
 				initialData);
 		}
 
-		//TODO: Handle different types of textures (array, cube)
-		this.#gl.bindTexture(this.#gl.TEXTURE_2D, prevTexture);
+		// Any initial data?
+		//if (initialData == null)
+		//{
+		//	// How many mip levels will we actually need?
+		//	let mipLevels = desc.MipLevels;
+		//	if (mipLevels == -1)
+		//	{
+		//		mipLevels = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
+		//	}
+
+		//	// TODO: Constrain the description's levels between 0 and maxPossible?
+
+		
+
+		//	// TODO: Use texStorage3D() for either a 3D texture
+		//	//       OR a 2D_Array!
+		//}
+		//else
+		//{
+		//	let mipLevels = desc.MipLevels;
+		//	if (mipLevels == -1)
+		//		mipLevels = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
+			
+		//	this.#gl.texStorage2D(
+		//		this.#gl.TEXTURE_2D,
+		//		mipLevels,
+		//		internalFormat,
+		//		desc.Width,
+		//		desc.Height);
+
+		//	// Use texImage2D() to set initial data
+		//	// TODO: Handle multiple mips/array elements/etc?
+		//	this.#gl.texImage2D(
+		//		this.#gl.TEXTURE_2D,
+		//		0, // TODO: Handle specific mip levels?
+		//		internalFormat,
+		//		desc.Width,
+		//		desc.Height,
+		//		0,
+		//		format,
+		//		type,
+		//		initialData);
+
+		//	// Generate full mips if the description asks
+		//	// TODO: Move this elsewhere, but we're using it to
+		//	//       set up the mip chain
+		//	if (desc.MipLevels == -1)
+		//	{
+		//		//this.#gl.generateMipmap(this.#gl.TEXTURE_2D);
+		//	}
+		//}
+
+		
+
+		// Set default sampler info
+		// NOTE: Base level and max level will be handled by the view
+		// NOTE: WebGL does not support border colors
+		// TODO: MipLODBias?  Is that a thing in WebGL?  Maybe adjust min/max mip levels by this as a work around?  Not ideal
+		// TODO: Handle types
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_FILTER, hasMipmaps ? this.#gl.LINEAR_MIPMAP_LINEAR : this.#gl.LINEAR); // Can't use the mipmap one if no mipmaps!  Results in black texture sample
+
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_S, this.#gl.CLAMP_TO_EDGE);
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_T, this.#gl.CLAMP_TO_EDGE);
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_R, this.#gl.CLAMP_TO_EDGE);
+
+		this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_LOD, -D3D11_FLOAT32_MAX);
+		this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAX_LOD, D3D11_FLOAT32_MAX);
+
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_COMPARE_MODE, this.#gl.NONE);
+		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_COMPARE_FUNC, this.#gl.NEVER);
+
+		if (this.#anisoExt != null)
+		{
+			this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, 1);
+		}
+
 		return d3dTexture;
 	}
 
@@ -884,6 +979,8 @@ class ID3D11Device extends IUnknown
 
 		return new ID3D11VertexShader(this, glShader, vs);
 	}
+
+
 
 	#CompileGLShader(glslCode, glShaderType)
 	{
@@ -954,6 +1051,73 @@ class ID3D11Device extends IUnknown
 
 		return glFormatDetails;
 	}
+
+	#ValidateSamplerDesc(desc)
+	{
+		// Check filter mode
+		const filter = desc.Filter;
+		if (filter < 0 || filter > D3D11_FILTER_COMPARISON_ANISOTROPIC ||
+			(filter & 2) == 2 || // The 2 bit should be unused
+			(filter & 8) == 8 || // The 8 bit should be unused
+			(filter & 32) == 32) // The 32 bit should be unused
+		{
+			// Invalid range, or an invalid bit is set
+			throw new Error("Invalid filter mode for sampler state");
+		}
+
+		// Check address modes
+		const u = desc.AddressU;
+		const v = desc.AddressV;
+		const w = desc.AddressW;
+		if (u < D3D11_TEXTURE_ADDRESS_WRAP || u > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
+			throw new Error("Invalid address U mode for sampler state");
+		if (v < D3D11_TEXTURE_ADDRESS_WRAP || v > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
+			throw new Error("Invalid address V mode for sampler state");
+		if (w < D3D11_TEXTURE_ADDRESS_WRAP || w > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
+			throw new Error("Invalid address W mode for sampler state");
+
+		// Check for unsupported address modes
+		const bord = D3D11_TEXTURE_ADDRESS_BORDER;
+		const mo = D3D11_TEXTURE_ADDRESS_MIRROR_ONCE;
+		if (u == bord || v == bord || w == bord) // Vhere is my bord?!
+			throw new Error("Border address mode unsupported in WebGL");
+		if (u == mo || v == mo || w == mo)
+			throw new Error("MirrorOnce address mode unsupported in WebGL");
+
+		// Max anisotropy should be between 1 and 16
+		const anisoOn = ((filter & 64) == 64); // 64's bit is aniso on/off
+		if (this.#anisoExt)
+		{
+			// Is available, so validate maxAniso range
+			const maxAni = this.#gl.getParameter(this.#anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
+			if (desc.MaxAnisotropy < 1 || desc.MaxAnisotropy > maxAni)
+				throw new Error(`Invalid MaxAnisotropy value for sampler state - range is [${1}, ${maxAni}]`);
+		}
+		else if(anisoOn)
+		{
+			// No anisotropic at all, so that filter mode is invalid
+			throw new Error("Anisotropic filtering not available on this device");
+		}
+
+		// Check comparison, but only if filter requires it
+		const comp = desc.ComparisonFunc;
+		if ((filter & 128) == 128 &&
+			(comp < D3D11_COMPARISON_NEVER || comp > D3D11_COMPARISON_ALWAYS))
+			throw new Error("Invalid comparison function for sampler state");
+
+		// Verify border color elements, but only if address mode requires it
+		const border = desc.BorderColor;
+		if ((u == D3D11_TEXTURE_ADDRESS_BORDER ||
+			v == D3D11_TEXTURE_ADDRESS_BORDER ||
+			w == D3D11_TEXTURE_ADDRESS_BORDER) &&
+			border[0] < 0 || border[0] > 1 ||
+			border[1] < 0 || border[1] > 1 ||
+			border[2] < 0 || border[2] > 1 ||
+			border[3] < 0 || border[3] > 1)
+		{
+			throw new Error("Invalid border color for sampler state");
+		}
+	}
 }
 
 
@@ -967,8 +1131,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// General pipeline ---
 	#fakeBackBufferFrameBuffer;
-	#defaultSamplerState;
-	#samplerState;
+	#defaultSamplerDesc;
 
 	// General shaders ---
 	#maxCombinedTextures;
@@ -976,6 +1139,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#currentShaderProgram;
 	#currentCBufferMap;
 	#currentTextureSamplerMap;
+	#textureMipStatus;
 	#shadersDirty;
 
 	// Input Assembler ---
@@ -1025,7 +1189,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Set some defaults
 		// TODO: Extrapolate this into proper states
 		this.#gl.enable(this.#gl.CULL_FACE); // Turns on culling (default is backs)
-		this.#gl.frontFace(this.#gl.CW);	// Clockwise fronts to match D3D
+		this.#gl.frontFace(this.#gl.CW);	 // Clockwise fronts to match D3D
 		this.#gl.enable(this.#gl.DEPTH_TEST);
 
 		// General
@@ -1035,9 +1199,21 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// General shaders
 		this.#shaderProgramMap = new Map();
 		this.#maxCombinedTextures = this.#gl.getParameter(this.#gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS);
+		this.#textureMipStatus = Array(this.#maxCombinedTextures).fill(false);
 		this.#currentShaderProgram = null;
 		this.#currentCBufferMap = null;
 		this.#shadersDirty = true;
+		this.#defaultSamplerDesc = new D3D11_SAMPLER_DESC(
+			D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+			D3D11_TEXTURE_ADDRESS_CLAMP,
+			D3D11_TEXTURE_ADDRESS_CLAMP,
+			D3D11_TEXTURE_ADDRESS_CLAMP,
+			0,
+			1,
+			D3D11_COMPARISON_NEVER,
+			[1, 1, 1, 1],
+			-D3D11_FLOAT32_MAX,
+			D3D11_FLOAT32_MAX);
 
 		// Input Assembler
 		{
@@ -1052,7 +1228,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#indexBuffer = null;
 			this.#indexBufferFormat = DXGI_FORMAT_R16_FLOAT;
 			this.#indexBufferOffset = 0;
-
 		}
 
 		// Vertex Shader
@@ -1166,6 +1341,33 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 		// Actual clear
 		this.#gl.clear(mask);
+	}
+
+	GenerateMips(shaderResourceView)
+	{
+		// Get the base resource of the view to check bind flags
+		let res = shaderResourceView.GetResource();
+		let desc = res.GetDesc();
+
+		// If the resource isn't set up for generating mip maps,
+		// this method has no effect (according to the spec).
+		// TODO: Also check for SRV and RTV, as per spec?
+		if ((desc.MiscFlags & D3D11_RESOURCE_MISC_GENERATE_MIPS) == 0)
+		{
+			res.Release();
+			return;
+		}
+		
+		// Perform the generation
+		// TODO: Handle different types
+		this.#gl.bindTexture(this.#gl.TEXTURE_2D, res.GetGLResource());
+		this.#gl.generateMipmap(this.#gl.TEXTURE_2D);
+
+		// Pipeline might be dirty
+		this.DirtyPipeline();
+
+		// Done with resource
+		res.Release();
 	}
 
 
@@ -1634,38 +1836,62 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	#PrepareTexturesAndSamplers()
 	{
-		// TODO: Handle vertex textures
+		// Reset mip status
+		this.#textureMipStatus.fill(false);
 
+		// TODO: Handle vertex textures
 
 		if (this.#psShaderResourcesDirty)
 		{
 			// Go through each resource slot
 			for (let i = 0; i < this.#psShaderResources.length; i++)
 			{
-				let res = this.#psShaderResources[i];
-				if (res == null) // TODO: Null resources should UNBIND as necessary!
+				let srv = this.#psShaderResources[i];
+				if (srv == null)
 					continue;
 
 				// Grab the associated data from the map and loop through all possible gl binds
 				let texMap = this.#currentTextureSamplerMap.PSTextures[i];
 				for (let t = 0; t < texMap.length; t++)
 				{
-					// TODO: Handle ref counting!
-					let glRes = res.GetResource().GetGLResource();
-					
+					// TODO: Handle different texture types
+
+					// Grab this resource and first check its mip status
+					let res = srv.GetResource();
+					this.#textureMipStatus[texMap[t].TextureUnit] = (res.GetDesc().MipLevels != 1);
+
 					// Activate the proper texture unit, bind this resource and set the uniform location
 					this.#gl.activeTexture(this.#GetGLTextureUnit(texMap[t].TextureUnit));
-					this.#gl.bindTexture(this.#gl.TEXTURE_2D, glRes);
+					this.#gl.bindTexture(this.#gl.TEXTURE_2D, res.GetGLResource());
 					this.#gl.uniform1i(texMap[t].UniformLocation, texMap[t].TextureUnit);
 
+					// Release the resource ref
+					res.Release();
 				}
-				
 			}
+
+			// TODO: Unbind leftover slots?  How do we know which ones aren't in use?
+
 		}
 
 		if (this.#psSamplersDirty)
 		{
+			// Go through each resource slot
+			for (let i = 0; i < this.#psSamplers.length; i++)
+			{
+				let sampState = this.#psSamplers[i];
+				if (sampState == null)
+					continue;
 
+				// Grab the data from this spot in the map
+				let sampMap = this.#currentTextureSamplerMap.PSSamplers[i];
+				for (let s = 0; s < sampMap.length; s++)
+				{
+					// Get the proper sampler version (with or without mips)
+					const mips = this.#textureMipStatus[sampMap[s]];
+					this.#gl.bindSampler(sampMap[s], sampState.GetGLSampler(mips));
+				}
+			}
 		}
 
 
@@ -2068,78 +2294,152 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 class ID3D11SamplerState extends ID3D11DeviceChild
 {
 	#desc;
+	#glSamplerNoMips;
+	#glSamplerWithMips;
 
-	constructor(device, description)
+	constructor(device, desc)
 	{
 		super(device);
-		this.#desc = Object.assign({}, description); // Copy
 
-		// Validate
-		this.#ValidateDesc();
-	}
-
-	// TODO: Move this up to the device itself
-	#ValidateDesc()
-	{
-		// Release our ref to the device just in case we throw an exception
-		this.GetDevice().Release();
-
-		// Check filter mode
-		const filter = this.#desc.Filter;
-		if (filter < 0 || filter > D3D11_FILTER_COMPARISON_ANISOTROPIC ||
-			(filter & 2) == 2 || // The 2 bit should be unused
-			(filter & 8) == 8 || // The 8 bit should be unused
-			(filter & 32) == 32) // The 32 bit should be unused
+		// Abstract check
+		if (new.target === ID3D11SamplerState)
 		{
-			// Invalid range, or an invalid bit is set
-			throw new Error("Invalid filter mode for sampler state");
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11SamplerState objects - use device.CreateSamplerState() instead");
 		}
 
-		// Check address modes
-		const u = this.#desc.AddressU;
-		const v = this.#desc.AddressV;
-		const w = this.#desc.AddressW;
-		if (u < D3D11_TEXTURE_ADDRESS_WRAP || u > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
-			throw new Error("Invalid address U mode for sampler state");
-		if (v < D3D11_TEXTURE_ADDRESS_WRAP || v > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
-			throw new Error("Invalid address V mode for sampler state");
-		if (w < D3D11_TEXTURE_ADDRESS_WRAP || w > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
-			throw new Error("Invalid address W mode for sampler state");
+		this.#desc = Object.assign({}, desc); // Copy
 
-		// Max anisotropy should be between 1 and 16
-		// TODO: Determine if we need to check device capabilities here
-		const ani = this.#desc.MaxAnisotropy;
-		if (ani < 1 || ani > 16)
-			throw new Error("Invalid max anisotropy for sampler state");
+		// Create two GL samplers - with and without mips
+		let gl = device.GetAdapter();
+		this.#glSamplerNoMips = gl.createSampler();
+		this.#glSamplerWithMips = gl.createSampler();
 
-		// Check comparison, but only if filter requires it
-		const comp = this.#desc.ComparisonFunc;
-		if ((filter & 128) == 128 &&
-			(comp < D3D11_COMPARISON_NEVER || comp > D3D11_COMPARISON_ALWAYS))
-			throw new Error("Invalid comparison function for sampler state");
-
-		// Verify border color elements, but only if address mode requires it
-		const border = this.#desc.BorderColor;
-		if ((u == D3D11_TEXTURE_ADDRESS_BORDER ||
-			v == D3D11_TEXTURE_ADDRESS_BORDER ||
-			w == D3D11_TEXTURE_ADDRESS_BORDER) &&
-			border[0] < 0 || border[0] > 1 ||
-			border[1] < 0 || border[1] > 1 ||
-			border[2] < 0 || border[2] > 1 ||
-			border[3] < 0 || border[3] > 1)
-		{
-			throw new Error("Invalid border color for sampler state");
-		}
-
-		// We're fine, so add the ref back
-		this.GetDevice().AddRef();
-		return true;
+		// Initialize both samplers
+		this.#InitializeGLSampler(device, this.#glSamplerNoMips, desc, false);
+		this.#InitializeGLSampler(device, this.#glSamplerWithMips, desc, true);
 	}
 
 	GetDesc()
 	{
 		// Returns a copy so that we can't alter the original
 		return Object.assign({}, this.#desc);
+	}
+
+	GetGLSampler(withMips)
+	{
+		return withMips ? this.#glSamplerWithMips : this.#glSamplerNoMips;
+	}
+
+	Release()
+	{
+		super.Release();
+
+		// Actually remove sampler
+		if (this.GetRef() <= 0)
+		{
+			let dev = this.GetDevice();
+			dev.GetAdapter().deleteSampler(this.#glSamplerNoMips);
+			dev.GetAdapter().deleteSampler(this.#glSamplerWithMips);
+			dev.Release();
+		}
+	}
+
+	// Populate with description options
+	// TODO: Decide how to handle MipLODBias, if at all
+	#InitializeGLSampler(device, glSampler, desc, withMips)
+	{
+		const gl = device.GetAdapter();
+
+		// Filtering
+		gl.samplerParameteri(glSampler, gl.TEXTURE_MAG_FILTER, this.#GetGLMagFilter(gl, desc.Filter));
+		gl.samplerParameteri(glSampler, gl.TEXTURE_MIN_FILTER, this.#GetGLMinFilter(gl, desc.Filter, withMips));
+
+		// Address mode
+		gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_S, this.#GetGLAddressMode(gl, desc.AddressU));
+		gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_T, this.#GetGLAddressMode(gl, desc.AddressV));
+		gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_R, this.#GetGLAddressMode(gl, desc.AddressW));
+
+		// LOD control
+		gl.samplerParameterf(glSampler, gl.TEXTURE_MIN_LOD, desc.MinLOD);
+		gl.samplerParameterf(glSampler, gl.TEXTURE_MAX_LOD, desc.MaxLOD);
+
+		// Comparison
+		if (this.#IsCompareFilter(desc.Filter))
+		{
+			gl.samplerParameteri(glSampler, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+			gl.samplerParameteri(glSampler, gl.TEXTURE_COMPARE_FUNC,
+				this.#GetGLComparisonFunc(gl, desc.ComparisonFunc));
+		}
+
+		// Anisotropy
+		const anisoExt = device.GetAnisoExt();
+		if (this.#IsAnisoFilter(desc.Filter) && anisoExt != null)
+		{
+			gl.samplerParameteri(glSampler, anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, desc.MaxAnisotropy);
+		}
+	}
+
+	#GetGLMagFilter(gl, filter)
+	{
+		// 4's bit controls mag filter: 1 = linear, 0 = point
+		return ((filter & 4) == 4) ? gl.LINEAR : gl.NEAREST;
+	}
+
+	#GetGLMinFilter(gl, filter, withMips)
+	{
+		const min = ((filter & 16) == 16) ? gl.LINEAR : gl.NEAREST;	// 1 = linear, 0 = point
+		const mip = ((filter & 1) == 1) ? gl.LINEAR : gl.NEAREST;	// 1 = linear, 0 = point
+
+		// If no mips, just use the basic min filter
+		if (!withMips) return min;
+
+		// We have mips
+		if (min == gl.LINEAR && mip == gl.LINEAR) return gl.LINEAR_MIPMAP_LINEAR;
+		if (min == gl.LINEAR && mip == gl.NEAREST) return gl.LINEAR_MIPMAP_NEAREST;
+		if (min == gl.NEAREST && mip == gl.LINEAR) return gl.NEAREST_MIPMAP_LINEAR;
+		if (min == gl.NEAREST && mip == gl.NEAREST) return gl.NEAREST_MIPMAP_NEAREST;
+
+		throw new Error("Invalid filter");
+	}
+
+	#IsAnisoFilter(filter)
+	{
+		return ((filter & 64) == 64); // 64's bit is aniso on/off
+	}
+
+	#IsCompareFilter(filter)
+	{
+		return ((filter & 128) == 128); // 128's bit is comparison on/off
+	}
+
+
+	#GetGLAddressMode(gl, addr)
+	{
+		switch (addr)
+		{
+			case D3D11_TEXTURE_ADDRESS_WRAP: return gl.REPEAT;
+			case D3D11_TEXTURE_ADDRESS_MIRROR: return gl.MIRRORED_REPEAT;
+			case D3D11_TEXTURE_ADDRESS_CLAMP: return gl.CLAMP_TO_EDGE;
+			default: throw new Error("Invalid address mode");
+		}
+	}
+
+	#GetGLComparisonFunc(gl, func)
+	{
+		console.log(func);
+		switch (func)
+		{
+			case D3D11_COMPARISON_NEVER: return gl.NEVER;
+			case D3D11_COMPARISON_LESS: return gl.LESS;
+			case D3D11_COMPARISON_EQUAL: return gl.EQUAL;
+			case D3D11_COMPARISON_LESS_EQUAL: return gl.LEQUAL;
+			case D3D11_COMPARISON_GREATER: return gl.GREATER;
+			case D3D11_COMPARISON_NOT_EQUAL: return gl.NOTEQUAL;
+			case D3D11_COMPARISON_GREATER_EQUAL: return gl.GEQUAL;
+			case D3D11_COMPARISON_ALWAYS: return gl.ALWAYS;
+			default: throw new Error("Invalid comparison function");
+		}
 	}
 }
 

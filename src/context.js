@@ -9,8 +9,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// General pipeline ---
 	#fakeBackBufferFrameBuffer;
-	#defaultSamplerState;
-	#samplerState;
+	#defaultSamplerDesc;
 
 	// General shaders ---
 	#maxCombinedTextures;
@@ -18,6 +17,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#currentShaderProgram;
 	#currentCBufferMap;
 	#currentTextureSamplerMap;
+	#textureMipStatus;
 	#shadersDirty;
 
 	// Input Assembler ---
@@ -67,7 +67,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Set some defaults
 		// TODO: Extrapolate this into proper states
 		this.#gl.enable(this.#gl.CULL_FACE); // Turns on culling (default is backs)
-		this.#gl.frontFace(this.#gl.CW);	// Clockwise fronts to match D3D
+		this.#gl.frontFace(this.#gl.CW);	 // Clockwise fronts to match D3D
 		this.#gl.enable(this.#gl.DEPTH_TEST);
 
 		// General
@@ -77,9 +77,21 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// General shaders
 		this.#shaderProgramMap = new Map();
 		this.#maxCombinedTextures = this.#gl.getParameter(this.#gl.MAX_COMBINED_TEXTURE_IMAGE_UNITS);
+		this.#textureMipStatus = Array(this.#maxCombinedTextures).fill(false);
 		this.#currentShaderProgram = null;
 		this.#currentCBufferMap = null;
 		this.#shadersDirty = true;
+		this.#defaultSamplerDesc = new D3D11_SAMPLER_DESC(
+			D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+			D3D11_TEXTURE_ADDRESS_CLAMP,
+			D3D11_TEXTURE_ADDRESS_CLAMP,
+			D3D11_TEXTURE_ADDRESS_CLAMP,
+			0,
+			1,
+			D3D11_COMPARISON_NEVER,
+			[1, 1, 1, 1],
+			-D3D11_FLOAT32_MAX,
+			D3D11_FLOAT32_MAX);
 
 		// Input Assembler
 		{
@@ -94,7 +106,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#indexBuffer = null;
 			this.#indexBufferFormat = DXGI_FORMAT_R16_FLOAT;
 			this.#indexBufferOffset = 0;
-
 		}
 
 		// Vertex Shader
@@ -208,6 +219,33 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 		// Actual clear
 		this.#gl.clear(mask);
+	}
+
+	GenerateMips(shaderResourceView)
+	{
+		// Get the base resource of the view to check bind flags
+		let res = shaderResourceView.GetResource();
+		let desc = res.GetDesc();
+
+		// If the resource isn't set up for generating mip maps,
+		// this method has no effect (according to the spec).
+		// TODO: Also check for SRV and RTV, as per spec?
+		if ((desc.MiscFlags & D3D11_RESOURCE_MISC_GENERATE_MIPS) == 0)
+		{
+			res.Release();
+			return;
+		}
+		
+		// Perform the generation
+		// TODO: Handle different types
+		this.#gl.bindTexture(this.#gl.TEXTURE_2D, res.GetGLResource());
+		this.#gl.generateMipmap(this.#gl.TEXTURE_2D);
+
+		// Pipeline might be dirty
+		this.DirtyPipeline();
+
+		// Done with resource
+		res.Release();
 	}
 
 
@@ -676,38 +714,62 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	#PrepareTexturesAndSamplers()
 	{
-		// TODO: Handle vertex textures
+		// Reset mip status
+		this.#textureMipStatus.fill(false);
 
+		// TODO: Handle vertex textures
 
 		if (this.#psShaderResourcesDirty)
 		{
 			// Go through each resource slot
 			for (let i = 0; i < this.#psShaderResources.length; i++)
 			{
-				let res = this.#psShaderResources[i];
-				if (res == null) // TODO: Null resources should UNBIND as necessary!
+				let srv = this.#psShaderResources[i];
+				if (srv == null)
 					continue;
 
 				// Grab the associated data from the map and loop through all possible gl binds
 				let texMap = this.#currentTextureSamplerMap.PSTextures[i];
 				for (let t = 0; t < texMap.length; t++)
 				{
-					// TODO: Handle ref counting!
-					let glRes = res.GetResource().GetGLResource();
-					
+					// TODO: Handle different texture types
+
+					// Grab this resource and first check its mip status
+					let res = srv.GetResource();
+					this.#textureMipStatus[texMap[t].TextureUnit] = (res.GetDesc().MipLevels != 1);
+
 					// Activate the proper texture unit, bind this resource and set the uniform location
 					this.#gl.activeTexture(this.#GetGLTextureUnit(texMap[t].TextureUnit));
-					this.#gl.bindTexture(this.#gl.TEXTURE_2D, glRes);
+					this.#gl.bindTexture(this.#gl.TEXTURE_2D, res.GetGLResource());
 					this.#gl.uniform1i(texMap[t].UniformLocation, texMap[t].TextureUnit);
 
+					// Release the resource ref
+					res.Release();
 				}
-				
 			}
+
+			// TODO: Unbind leftover slots?  How do we know which ones aren't in use?
+
 		}
 
 		if (this.#psSamplersDirty)
 		{
+			// Go through each resource slot
+			for (let i = 0; i < this.#psSamplers.length; i++)
+			{
+				let sampState = this.#psSamplers[i];
+				if (sampState == null)
+					continue;
 
+				// Grab the data from this spot in the map
+				let sampMap = this.#currentTextureSamplerMap.PSSamplers[i];
+				for (let s = 0; s < sampMap.length; s++)
+				{
+					// Get the proper sampler version (with or without mips)
+					const mips = this.#textureMipStatus[sampMap[s]];
+					this.#gl.bindSampler(sampMap[s], sampState.GetGLSampler(mips));
+				}
+			}
 		}
 
 

@@ -81,78 +81,152 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 class ID3D11SamplerState extends ID3D11DeviceChild
 {
 	#desc;
+	#glSamplerNoMips;
+	#glSamplerWithMips;
 
-	constructor(device, description)
+	constructor(device, desc)
 	{
 		super(device);
-		this.#desc = Object.assign({}, description); // Copy
 
-		// Validate
-		this.#ValidateDesc();
-	}
-
-	// TODO: Move this up to the device itself
-	#ValidateDesc()
-	{
-		// Release our ref to the device just in case we throw an exception
-		this.GetDevice().Release();
-
-		// Check filter mode
-		const filter = this.#desc.Filter;
-		if (filter < 0 || filter > D3D11_FILTER_COMPARISON_ANISOTROPIC ||
-			(filter & 2) == 2 || // The 2 bit should be unused
-			(filter & 8) == 8 || // The 8 bit should be unused
-			(filter & 32) == 32) // The 32 bit should be unused
+		// Abstract check
+		if (new.target === ID3D11SamplerState)
 		{
-			// Invalid range, or an invalid bit is set
-			throw new Error("Invalid filter mode for sampler state");
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11SamplerState objects - use device.CreateSamplerState() instead");
 		}
 
-		// Check address modes
-		const u = this.#desc.AddressU;
-		const v = this.#desc.AddressV;
-		const w = this.#desc.AddressW;
-		if (u < D3D11_TEXTURE_ADDRESS_WRAP || u > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
-			throw new Error("Invalid address U mode for sampler state");
-		if (v < D3D11_TEXTURE_ADDRESS_WRAP || v > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
-			throw new Error("Invalid address V mode for sampler state");
-		if (w < D3D11_TEXTURE_ADDRESS_WRAP || w > D3D11_TEXTURE_ADDRESS_MIRROR_ONCE)
-			throw new Error("Invalid address W mode for sampler state");
+		this.#desc = Object.assign({}, desc); // Copy
 
-		// Max anisotropy should be between 1 and 16
-		// TODO: Determine if we need to check device capabilities here
-		const ani = this.#desc.MaxAnisotropy;
-		if (ani < 1 || ani > 16)
-			throw new Error("Invalid max anisotropy for sampler state");
+		// Create two GL samplers - with and without mips
+		let gl = device.GetAdapter();
+		this.#glSamplerNoMips = gl.createSampler();
+		this.#glSamplerWithMips = gl.createSampler();
 
-		// Check comparison, but only if filter requires it
-		const comp = this.#desc.ComparisonFunc;
-		if ((filter & 128) == 128 &&
-			(comp < D3D11_COMPARISON_NEVER || comp > D3D11_COMPARISON_ALWAYS))
-			throw new Error("Invalid comparison function for sampler state");
-
-		// Verify border color elements, but only if address mode requires it
-		const border = this.#desc.BorderColor;
-		if ((u == D3D11_TEXTURE_ADDRESS_BORDER ||
-			v == D3D11_TEXTURE_ADDRESS_BORDER ||
-			w == D3D11_TEXTURE_ADDRESS_BORDER) &&
-			border[0] < 0 || border[0] > 1 ||
-			border[1] < 0 || border[1] > 1 ||
-			border[2] < 0 || border[2] > 1 ||
-			border[3] < 0 || border[3] > 1)
-		{
-			throw new Error("Invalid border color for sampler state");
-		}
-
-		// We're fine, so add the ref back
-		this.GetDevice().AddRef();
-		return true;
+		// Initialize both samplers
+		this.#InitializeGLSampler(device, this.#glSamplerNoMips, desc, false);
+		this.#InitializeGLSampler(device, this.#glSamplerWithMips, desc, true);
 	}
 
 	GetDesc()
 	{
 		// Returns a copy so that we can't alter the original
 		return Object.assign({}, this.#desc);
+	}
+
+	GetGLSampler(withMips)
+	{
+		return withMips ? this.#glSamplerWithMips : this.#glSamplerNoMips;
+	}
+
+	Release()
+	{
+		super.Release();
+
+		// Actually remove sampler
+		if (this.GetRef() <= 0)
+		{
+			let dev = this.GetDevice();
+			dev.GetAdapter().deleteSampler(this.#glSamplerNoMips);
+			dev.GetAdapter().deleteSampler(this.#glSamplerWithMips);
+			dev.Release();
+		}
+	}
+
+	// Populate with description options
+	// TODO: Decide how to handle MipLODBias, if at all
+	#InitializeGLSampler(device, glSampler, desc, withMips)
+	{
+		const gl = device.GetAdapter();
+
+		// Filtering
+		gl.samplerParameteri(glSampler, gl.TEXTURE_MAG_FILTER, this.#GetGLMagFilter(gl, desc.Filter));
+		gl.samplerParameteri(glSampler, gl.TEXTURE_MIN_FILTER, this.#GetGLMinFilter(gl, desc.Filter, withMips));
+
+		// Address mode
+		gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_S, this.#GetGLAddressMode(gl, desc.AddressU));
+		gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_T, this.#GetGLAddressMode(gl, desc.AddressV));
+		gl.samplerParameteri(glSampler, gl.TEXTURE_WRAP_R, this.#GetGLAddressMode(gl, desc.AddressW));
+
+		// LOD control
+		gl.samplerParameterf(glSampler, gl.TEXTURE_MIN_LOD, desc.MinLOD);
+		gl.samplerParameterf(glSampler, gl.TEXTURE_MAX_LOD, desc.MaxLOD);
+
+		// Comparison
+		if (this.#IsCompareFilter(desc.Filter))
+		{
+			gl.samplerParameteri(glSampler, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE);
+			gl.samplerParameteri(glSampler, gl.TEXTURE_COMPARE_FUNC,
+				this.#GetGLComparisonFunc(gl, desc.ComparisonFunc));
+		}
+
+		// Anisotropy
+		const anisoExt = device.GetAnisoExt();
+		if (this.#IsAnisoFilter(desc.Filter) && anisoExt != null)
+		{
+			gl.samplerParameteri(glSampler, anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, desc.MaxAnisotropy);
+		}
+	}
+
+	#GetGLMagFilter(gl, filter)
+	{
+		// 4's bit controls mag filter: 1 = linear, 0 = point
+		return ((filter & 4) == 4) ? gl.LINEAR : gl.NEAREST;
+	}
+
+	#GetGLMinFilter(gl, filter, withMips)
+	{
+		const min = ((filter & 16) == 16) ? gl.LINEAR : gl.NEAREST;	// 1 = linear, 0 = point
+		const mip = ((filter & 1) == 1) ? gl.LINEAR : gl.NEAREST;	// 1 = linear, 0 = point
+
+		// If no mips, just use the basic min filter
+		if (!withMips) return min;
+
+		// We have mips
+		if (min == gl.LINEAR && mip == gl.LINEAR) return gl.LINEAR_MIPMAP_LINEAR;
+		if (min == gl.LINEAR && mip == gl.NEAREST) return gl.LINEAR_MIPMAP_NEAREST;
+		if (min == gl.NEAREST && mip == gl.LINEAR) return gl.NEAREST_MIPMAP_LINEAR;
+		if (min == gl.NEAREST && mip == gl.NEAREST) return gl.NEAREST_MIPMAP_NEAREST;
+
+		throw new Error("Invalid filter");
+	}
+
+	#IsAnisoFilter(filter)
+	{
+		return ((filter & 64) == 64); // 64's bit is aniso on/off
+	}
+
+	#IsCompareFilter(filter)
+	{
+		return ((filter & 128) == 128); // 128's bit is comparison on/off
+	}
+
+
+	#GetGLAddressMode(gl, addr)
+	{
+		switch (addr)
+		{
+			case D3D11_TEXTURE_ADDRESS_WRAP: return gl.REPEAT;
+			case D3D11_TEXTURE_ADDRESS_MIRROR: return gl.MIRRORED_REPEAT;
+			case D3D11_TEXTURE_ADDRESS_CLAMP: return gl.CLAMP_TO_EDGE;
+			default: throw new Error("Invalid address mode");
+		}
+	}
+
+	#GetGLComparisonFunc(gl, func)
+	{
+		console.log(func);
+		switch (func)
+		{
+			case D3D11_COMPARISON_NEVER: return gl.NEVER;
+			case D3D11_COMPARISON_LESS: return gl.LESS;
+			case D3D11_COMPARISON_EQUAL: return gl.EQUAL;
+			case D3D11_COMPARISON_LESS_EQUAL: return gl.LEQUAL;
+			case D3D11_COMPARISON_GREATER: return gl.GREATER;
+			case D3D11_COMPARISON_NOT_EQUAL: return gl.NOTEQUAL;
+			case D3D11_COMPARISON_GREATER_EQUAL: return gl.GEQUAL;
+			case D3D11_COMPARISON_ALWAYS: return gl.ALWAYS;
+			default: throw new Error("Invalid comparison function");
+		}
 	}
 }
 
