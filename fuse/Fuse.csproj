@@ -9,7 +9,7 @@
   </PropertyGroup>
 
   <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="&quot;$(OutDir)$(TargetName).exe&quot; &quot;$(SolutionDir)fuse.config.json&quot; &gt; &quot;$(OutDir)log.txt&quot;" />
+    <Exec Command="&quot;$(OutDir)$(TargetName).exe&quot; &quot;$(SolutionDir)fuse.config.json&quot; &gt; &quot;$(OutDir)log.txt&quot;&#xD;&#xA;type &quot;$(OutDir)log.txt&quot;" />
   </Target>
 
 </Project>
