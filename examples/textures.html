@@ -364,21 +364,21 @@
 					float3 B = cross(T, N);
 
 					// Create the 3x3 matrix to convert from TANGENT-SPACE normals to WORLD-SPACE normals
-					float3x3 TBN = float3x3(T, B, N); // What's the order here?!
+					float3x3 TBN = float3x3(T, B, N);
 
 					// Adjust the normal from the map and simply use the results
-					input.normal = mul(TBN, normalFromMap); // Had to reverse due to matrix row vs. column
+					input.normal = mul(normalFromMap, TBN);
 
 					float metal = 0.0;
 					//if(input.worldPos.y > 0.0) metal = 1.0;
 
 					float3 color = float3(0,0,0);
+					float3 toCam = normalize(cameraPos - input.worldPos);
 					for(int i = 0; i < 8; i++)
 					{
 						Light l = lights[i];
 
 						float3 toLight = normalize(l.position - input.worldPos);
-						float3 toCam = normalize(cameraPos - input.worldPos);
 
 						float3 diffuse = max(0.0, dot(input.normal, toLight)) * tint;
 					
@@ -390,7 +390,14 @@
 						color += spec * lightColor * (metal == 1.0 ? tint : float3(1,1,1));
 					}
 
-					//color *= albedo.Sample(samp, input.uv).rgb;
+					// Dir light
+					float3 dlDir = normalize(float3(1, -1, 1));
+					float dlDiff = dot(input.normal, -dlDir);
+					float3 dlRefl = reflect(dlDir, input.normal);
+					float dlSpec = pow(max(0.0, dot(dlRefl, toCam)), 64.0);
+					color += dlDiff + dlSpec;
+
+					color *= albedo.Sample(samp, input.uv).rgb;
 					return float4(color, 1);
 				}
 			`;
@@ -643,15 +650,15 @@
 					// Update pixel data (set above while lights are moving)
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
-					//let vb = helixVB;
-					//let ib = helixIB;
-					//let count = helixIndexCount;
+					let vb = helixVB;
+					let ib = helixIB;
+					let count = helixIndexCount;
 					//let vb = sphereVB;
 					//let ib = sphereIB;
 					//let count = sphereIndexCount;
-					let vb = cubeVB;
-					let ib = cubeIB;
-					let count = cubeIndexCount;
+					//let vb = cubeVB;
+					//let ib = cubeIB;
+					//let count = cubeIndexCount;
 
 					// Draw
 					context.PSSetShader(ps);

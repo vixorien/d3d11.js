@@ -801,6 +801,7 @@ class HLSL
 		return s;
 	}
 
+
 	// TODO: Skip const globals in the global CB - will now handle in main parse loop
 	// TODO: Handle casting differences between hlsl and glsl
 	//       (float3x3)thing --> float3x3(thing)
@@ -862,6 +863,9 @@ class HLSL
 				// when a texture identifier is followed immediately by a period
 				this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
 
+				// Look for matrix functions
+
+
 				// Check for scope change and skip everything else
 				if (this.#Allow(it, TokenScopeLeft))
 					scopeLevel++;
@@ -905,6 +909,7 @@ class HLSL
 			globalCB.Variables.push(v); // Note: main loop will do MoveNext
 		}
 	}
+
 
 	// Check the current token to see if we're at the beginning of a texture
 	// object function call, and if so, store that info
@@ -1162,6 +1167,34 @@ class HLSL
 		return glsl;
 	}
 
+	#GetMatrixConstructors()
+	{
+		let glsl = "";
+
+		// Simple casting 2x2
+		glsl += "mat2 float2x2_tr(mat2 m) { return mat2(m); }\n";
+		glsl += "mat2 float2x2_tr(mat3 m) { return mat2(m); }\n";
+		glsl += "mat2 float2x2_tr(mat4 m) { return mat2(m); }\n";
+
+		// Simple casting 3x3
+		glsl += "mat3 float3x3_tr(mat2 m) { return mat3(m); }\n";
+		glsl += "mat3 float3x3_tr(mat3 m) { return mat3(m); }\n";
+		glsl += "mat3 float3x3_tr(mat4 m) { return mat3(m); }\n";
+
+		// Simple casting 3x3
+		glsl += "mat4 float4x4_tr(mat2 m) { return mat4(m); }\n";
+		glsl += "mat4 float4x4_tr(mat3 m) { return mat4(m); }\n";
+		glsl += "mat4 float4x4_tr(mat4 m) { return mat4(m); }\n";
+
+		// Transpose vector-stacking versions
+		glsl += "mat2 float2x2_tr(vec2 a, vec2 b) { return transpose(mat2(a,b)); }\n";
+		glsl += "mat3 float3x3_tr(vec3 a, vec3 b, vec3 c) { return transpose(mat3(a,b,c)); }\n";
+		glsl += "mat4 float4x4_tr(vec4 a, vec4 b, vec4 c, vec4 d) { return transpose(mat4(a,b,c,d)); }\n\n";
+
+		glsl += "\n";
+		return glsl;
+	}
+
 	#ConvertVertexShader()
 	{
 		let glsl = "#version 300 es\n\n";
@@ -1173,6 +1206,7 @@ class HLSL
 		glsl += this.#GetStructsString();
 		glsl += this.#GetCBuffersString();
 		glsl += this.#GetHLSLOnlyFunctions();
+		glsl += this.#GetMatrixConstructors();
 		glsl += this.#GetTextureSamplerString();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
@@ -1407,6 +1441,9 @@ class HLSL
 			// Start scope adds indentation AFTER
 			if (t.Type == TokenScopeLeft)
 				indent++;
+
+			// Look for matrix constructors
+			funcStr += this.#GetMatrixConstructorString(it);
 			
 			// Determine if the current token is a texture function
 			// TODO: Optimize this so we're not doing linear searches on every token
@@ -1438,6 +1475,34 @@ class HLSL
 		// End body
 		funcStr += "\n";
 		return funcStr;
+	}
+
+	// TODO: Make constants/arrays for these translations
+	#GetMatrixConstructorString(it)
+	{
+		// Is this an identifier with a left paren?  If not, skip
+		if (it.Current().Type != TokenIdentifier ||
+			it.PeekNext().Type != TokenParenLeft)
+			return "";
+
+		// We have the "ident(" pattern, check for matrix constructors
+		let ident = it.Current().Text;
+		let replace = "";
+		switch (ident)
+		{
+			case "float2x2": replace = "float2x2_tr"; break;
+			case "float3x3": replace = "float3x3_tr"; break;
+			case "float4x4": 
+			case "matrix": replace = "float4x4_tr"; break;
+			default: return "";
+		}
+
+		// We definitely have the proper pattern, skip these tokens
+		it.MoveNext();
+		it.MoveNext();
+		
+		// Give back the replacement
+		return replace + "(";
 	}
 
 	#GetTextureFunctionString(it, baseFunc)
@@ -1790,6 +1855,7 @@ class HLSL
 		glsl += this.#GetStructsString();
 		glsl += this.#GetCBuffersString();
 		glsl += this.#GetHLSLOnlyFunctions();
+		glsl += this.#GetMatrixConstructors();
 		glsl += this.#GetTextureSamplerString();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
