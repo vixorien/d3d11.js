@@ -19,12 +19,17 @@
 			Normal;
 			Tangent;
 
-			constructor(pos, uv, norm, tang = [0,0,0])
+			constructor(pos, uv, norm, tang = new Vector3(0,0,0))
 			{
 				this.Position = pos.slice();
 				this.UV = uv.slice();
 				this.Normal = norm.slice();
 				this.Tangent = tang.slice();
+			}
+
+			static GetStride()
+			{
+				return Float32Array.BYTES_PER_ELEMENT * (3 + 2 + 3 + 3);
 			}
 		}
 
@@ -185,7 +190,7 @@
 				v3.Tangent.Y += ty;
 				v3.Tangent.Z += tz;
 			}
-
+			
 			// Orthonormalize
 			for (let i = 0; i < vertices.length; i++)
 			{
@@ -196,7 +201,7 @@
 					Vector3.Subtract(t, Vector3.Multiply(n, Vector3.Dot(n, t)))
 				);
 			}
-
+			
 			
 			// Copy data to float array
 			let floatsPerVert = 3 + 2 + 3 + 3;
@@ -211,7 +216,7 @@
 			
 			// Create vertex buffer
 			let vbDesc = new D3D11_BUFFER_DESC(
-				Float32Array.BYTES_PER_ELEMENT * floatsPerVert * vertices.length,
+				Vertex.GetStride() * vertices.length,
 				D3D11_USAGE_IMMUTABLE,
 				D3D11_BIND_VERTEX_BUFFER,
 				0, 0, 0);
@@ -272,6 +277,7 @@
 					float4 position : SV_POSITION;
 					float2 uv		: TEXCOORD;
 					float3 normal	: NORMAL;
+					float3 tangent	: TANGENT;
 					float3 worldPos	: POSITION;
 				};
 
@@ -291,6 +297,7 @@
 
 					output.worldPos = mul(world, float4(input.position, 1)).xyz;
 					output.normal = mul(float3x3(world), input.normal);
+					output.tangent = mul(float3x3(world), input.tangent);
 					output.uv = input.uv;
 					return output;
 				}
@@ -302,6 +309,7 @@
 					float4 position : SV_POSITION;
 					float2 uv		: TEXCOORD;
 					float3 normal	: NORMAL;
+					float3 tangent	: TANGENT;
 					float3 worldPos	: POSITION;
 				};
 
@@ -324,8 +332,10 @@
 					Light lights[8];
 				}
 
-				Texture2D albedo : register(t0);
-				SamplerState samp : register(s0);
+				Texture2D albedo		: register(t0);
+				Texture2D normalMap		: register(t1);
+
+				SamplerState samp		: register(s0);
 
 				// Range-based attenuation function
 				float attenuate(Light light, float3 worldPos)
@@ -343,6 +353,21 @@
 				float4 main(VertexToPixel input) : SV_TARGET
 				{
 					input.normal = normalize(input.normal);
+					input.tangent = normalize(input.tangent);
+
+					float3 normalFromMap = normalMap.Sample(samp, input.uv).rgb;
+					normalFromMap = normalize(normalFromMap * 2.0 - 1.0);
+
+					// Gather the required vectors for converting the normal
+					float3 N = input.normal;
+					float3 T = normalize(input.tangent - N * dot(input.tangent, N));
+					float3 B = cross(T, N);
+
+					// Create the 3x3 matrix to convert from TANGENT-SPACE normals to WORLD-SPACE normals
+					float3x3 TBN = float3x3(T, B, N);
+
+					// Adjust the normal from the map and simply use the results
+					input.normal = mul(normalFromMap, TBN);
 
 					float metal = 0.0;
 					//if(input.worldPos.y > 0.0) metal = 1.0;
@@ -365,7 +390,7 @@
 						color += spec * lightColor * (metal == 1.0 ? tint : float3(1,1,1));
 					}
 
-					color *= albedo.Sample(samp, input.uv).rgb;
+					//color *= albedo.Sample(samp, input.uv).rgb;
 					return float4(color, 1);
 				}
 			`;
@@ -400,45 +425,6 @@
 			
 			let gl = device.GetAdapter();
 
-			// Attempt to load an image
-			let texture = await loadTexture2D(device, "../assets/textures/crate.png");
-
-			// Make shader resource view
-			// TODO: Desc and such
-			let srv = new ID3D11ShaderResourceView(device, texture, null);
-			context.PSSetShaderResources(0, [srv]);
-
-			// Generate mip maps
-			context.GenerateMips(srv);
-
-			// Create a sampler
-			let sampDesc = new D3D11_SAMPLER_DESC(
-				D3D11_FILTER_MIN_MAG_MIP_LINEAR,
-				D3D11_TEXTURE_ADDRESS_WRAP,
-				D3D11_TEXTURE_ADDRESS_WRAP,
-				D3D11_TEXTURE_ADDRESS_WRAP,
-				0,
-				16,
-				0,
-				0,
-				0,
-				D3D11_FLOAT32_MAX);
-			let sampler = device.CreateSamplerState(sampDesc);
-			context.PSSetSamplers(0, [sampler]);
-
-			// Test texture
-			let tdesc = new D3D11_TEXTURE2D_DESC(
-				92,
-				63,
-				-1,
-				1,
-				DXGI_FORMAT_R8G8B8A8_UNORM,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE,
-				0, 0);
-			device.CreateTexture2D(tdesc, null);
-
 			// Make an RTV of the back buffer
 			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
 
@@ -468,10 +454,10 @@
 			context.OMSetRenderTargets([rtv], depthDSV);
 
 			// Attempt to load an image
-			let srv = await loadTexture2D(device, context, "../assets/textures/crate.png");
-
-			// Set the SRV
-			context.PSSetShaderResources(0, [srv]);
+			let crateSRV = await loadTexture2D(device, context, "../assets/textures/crate.png");
+			let albedoSRV = await loadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png");
+			let normalSRV = await loadTexture2D(device, context, "../assets/textures/cobblestone_normals.png");
+			context.PSSetShaderResources(0, [albedoSRV, normalSRV]);
 
 			// Create a sampler
 			let sampDesc = new D3D11_SAMPLER_DESC(
@@ -490,7 +476,7 @@
 
 
 			// Common for all verts
-			let vbStride = float32Size * 8;
+			let vbStride = Vertex.GetStride();
 			let vbOffset = 0;
 
 			// Load an .obj file and set buffers
@@ -503,6 +489,11 @@
 			let sphereVB = sphereBuffs[0];
 			let sphereIB = sphereBuffs[1];
 			let sphereIndexCount = sphereBuffs[2];
+
+			let cubeBuffs = await loadOBJFile(device, "../assets/meshes/cube.obj");
+			let cubeVB = cubeBuffs[0];
+			let cubeIB = cubeBuffs[1];
+			let cubeIndexCount = cubeBuffs[2];
 
 			// Create constant buffer
 			let elementCount = 16 * 3; // 3 matrices
@@ -604,7 +595,7 @@
 			{
 				// Clear the frame
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
-				context.ClearRenderTargetView(rtv, [0,0,0,1]);
+				context.ClearRenderTargetView(rtv, cornflowerBlue);
 				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
 
 				// Sphere draws
@@ -642,8 +633,9 @@
 				// Helix draw
 				{
 					// Update vertex data
+
 					let rot = Matrix4x4.RotationY(time * -0.00025);
-					let sc = Matrix4x4.Scale(2, 2, 2);
+					let sc = Matrix4x4.Scale(5);
 					wMat = Matrix4x4.Multiply(sc, rot);
 					vsData.set(wMat, 0);
 					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
@@ -651,12 +643,22 @@
 					// Update pixel data (set above while lights are moving)
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
+					//let vb = helixVB;
+					//let ib = helixIB;
+					//let count = helixIndexCount;
+					//let vb = sphereVB;
+					//let ib = sphereIB;
+					//let count = sphereIndexCount;
+					let vb = cubeVB;
+					let ib = cubeIB;
+					let count = cubeIndexCount;
+
 					// Draw
 					context.PSSetShader(ps);
 					context.PSSetConstantBuffers(0, [psCB]);
-					context.IASetVertexBuffers(0, [helixVB], [vbStride], [vbOffset]);
-					context.IASetIndexBuffer(helixIB, DXGI_FORMAT_R16_UINT, 0);
-					context.DrawIndexed(helixIndexCount, 0, 0);
+					context.IASetVertexBuffers(0, [vb], [vbStride], [vbOffset]);
+					context.IASetIndexBuffer(ib, DXGI_FORMAT_R16_UINT, 0);
+					context.DrawIndexed(count, 0, 0);
 				}
 
 				// Flush the frame

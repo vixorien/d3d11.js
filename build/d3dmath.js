@@ -112,8 +112,8 @@ class Matrix4x4 extends Float32Array
 	{
 		let mat = Matrix4x4.Identity();
 		mat[0] = x;
-		mat[5] = y;
-		mat[10] = z;
+		mat[5] = arguments.length == 1 ? x : y;
+		mat[10] = arguments.length == 1 ? x : z;
 		return mat;
 	}
 

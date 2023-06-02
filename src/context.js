@@ -394,7 +394,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			this.#psShaderResources[i + startSlot] = shaderResourceViews[i];
 		}
-
+		
 		this.#psShaderResourcesDirty = true;
 	}
 
@@ -479,6 +479,22 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		let vsMap = this.#shaderProgramMap.get(this.#vertexShader);
 		if (!vsMap.has(this.#pixelShader))
 		{
+			// Create texture/sampler arrays
+			let vsTextureArray = Array(this.#maxVSTextures);
+			let vsSamplerArray = Array(this.#maxVSTextures);
+			let psTextureArray = Array(this.#maxPSTextures);
+			let psSamplerArray = Array(this.#maxPSTextures);
+			for (let i = 0; i < this.#maxVSTextures; i++)
+			{
+				vsTextureArray[i] = [];
+				vsSamplerArray[i] = [];
+			}
+			for (let i = 0; i < this.#maxPSTextures; i++)
+			{
+				psTextureArray[i] = [];
+				psSamplerArray[i] = [];
+			}
+
 			// We now have a combined VS+PS set
 			vsMap.set(this.#pixelShader, {
 				GLProgram: null,
@@ -495,10 +511,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				//       register limits instead, though is that necessary?
 				TextureSamplerMap:
 				{
-					VSTextures: Array(this.#maxVSTextures).fill([]),
-					VSSamplers: Array(this.#maxVSTextures).fill([]),
-					PSTextures: Array(this.#maxPSTextures).fill([]),
-					PSSamplers: Array(this.#maxPSTextures).fill([])
+					VSTextures: vsTextureArray,
+					VSSamplers: vsSamplerArray,
+					PSTextures: psTextureArray,
+					PSSamplers: psSamplerArray
 				}
 			}); // Note: May want to store more stuff?
 		}
@@ -585,7 +601,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			for (let i = 0; i < psTexSampCombos.length; i++)
 			{
 				let tsc = psTexSampCombos[i];
-
+				
 				// Have we run out of PS texture units?
 				if (currentTextureUnit >= this.#maxPSTextures)
 					throw new Error("Too many pixel shader texture/sampler combinations in use!");

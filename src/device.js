@@ -192,7 +192,6 @@ class ID3D11Device extends IUnknown
 		// Take the shader code, convert it and pass to GL functions
 		let ps = new HLSL(hlslCode, ShaderTypePixel);
 		let glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
-
 		return new ID3D11PixelShader(this, glShader, ps);
 	}
 

@@ -914,14 +914,14 @@ class HLSL
 		// Note that all positions here are relative to the function body
 		let overallStartPos = it.Position() - relativePosOffset;
 
-		// Need to start with an identifier
-		if (!this.#Allow(it, TokenIdentifier))
+		// Must start with a texture identifier
+		if (it.Current().Type != TokenIdentifier ||
+			!this.#IsTexture(it.Current().Text))
 			return;
 
-		// We've got an identifier; see if it's a texture
-		let textureName = it.PeekPrev().Text;
-		if (!this.#IsTexture(textureName))
-			return;
+		// This is a valid texture, cache and move past
+		let textureName = it.Current().Text;
+		it.MoveNext();
 
 		// It's a texture, so we need a period next
 		if (!this.#Allow(it, TokenPeriod))

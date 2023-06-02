@@ -781,7 +781,6 @@ class ID3D11Device extends IUnknown
 		// Take the shader code, convert it and pass to GL functions
 		let ps = new HLSL(hlslCode, ShaderTypePixel);
 		let glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
-
 		return new ID3D11PixelShader(this, glShader, ps);
 	}
 
@@ -1465,7 +1464,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			this.#psShaderResources[i + startSlot] = shaderResourceViews[i];
 		}
-
+		
 		this.#psShaderResourcesDirty = true;
 	}
 
@@ -1550,6 +1549,22 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		let vsMap = this.#shaderProgramMap.get(this.#vertexShader);
 		if (!vsMap.has(this.#pixelShader))
 		{
+			// Create texture/sampler arrays
+			let vsTextureArray = Array(this.#maxVSTextures);
+			let vsSamplerArray = Array(this.#maxVSTextures);
+			let psTextureArray = Array(this.#maxPSTextures);
+			let psSamplerArray = Array(this.#maxPSTextures);
+			for (let i = 0; i < this.#maxVSTextures; i++)
+			{
+				vsTextureArray[i] = [];
+				vsSamplerArray[i] = [];
+			}
+			for (let i = 0; i < this.#maxPSTextures; i++)
+			{
+				psTextureArray[i] = [];
+				psSamplerArray[i] = [];
+			}
+
 			// We now have a combined VS+PS set
 			vsMap.set(this.#pixelShader, {
 				GLProgram: null,
@@ -1566,10 +1581,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				//       register limits instead, though is that necessary?
 				TextureSamplerMap:
 				{
-					VSTextures: Array(this.#maxVSTextures).fill([]),
-					VSSamplers: Array(this.#maxVSTextures).fill([]),
-					PSTextures: Array(this.#maxPSTextures).fill([]),
-					PSSamplers: Array(this.#maxPSTextures).fill([])
+					VSTextures: vsTextureArray,
+					VSSamplers: vsSamplerArray,
+					PSTextures: psTextureArray,
+					PSSamplers: psSamplerArray
 				}
 			}); // Note: May want to store more stuff?
 		}
@@ -1651,12 +1666,15 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				currentTextureUnit++;
 			}
 
+			console.log("BEFORE");
+			console.log(vspsMap.TextureSamplerMap);
+
 			// Then the PS combos
 			let psTexSampCombos = this.#pixelShader.GetTextureSamplerCombinations();
 			for (let i = 0; i < psTexSampCombos.length; i++)
 			{
 				let tsc = psTexSampCombos[i];
-
+				
 				// Have we run out of PS texture units?
 				if (currentTextureUnit >= this.#maxPSTextures)
 					throw new Error("Too many pixel shader texture/sampler combinations in use!");
@@ -1679,6 +1697,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				// Move on to the next unit
 				currentTextureUnit++;
 			}
+			console.log("AFTER");
+			console.log(vspsMap.TextureSamplerMap);
 		}
 
 		// Activate this program and we're clean
@@ -3561,14 +3581,14 @@ class HLSL
 		// Note that all positions here are relative to the function body
 		let overallStartPos = it.Position() - relativePosOffset;
 
-		// Need to start with an identifier
-		if (!this.#Allow(it, TokenIdentifier))
+		// Must start with a texture identifier
+		if (it.Current().Type != TokenIdentifier ||
+			!this.#IsTexture(it.Current().Text))
 			return;
 
-		// We've got an identifier; see if it's a texture
-		let textureName = it.PeekPrev().Text;
-		if (!this.#IsTexture(textureName))
-			return;
+		// This is a valid texture, cache and move past
+		let textureName = it.Current().Text;
+		it.MoveNext();
 
 		// It's a texture, so we need a period next
 		if (!this.#Allow(it, TokenPeriod))
