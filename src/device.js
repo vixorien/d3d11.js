@@ -227,6 +227,19 @@ class ID3D11Device extends IUnknown
 		if (this.#immediateContext != null)
 			this.#immediateContext.DirtyPipeline();
 
+		// TODO: Check description for texture array or cube, as they have different constants
+		if (desc.ArraySize < 1) throw new Error("Invalid array size specified");
+		if (desc.ArraySize > 1) throw new Error("Texture arrays not implemented yet!");
+		if (desc.MiscFlags == D3D11_RESOURCE_MISC_TEXTURECUBE) throw new Error("Texture cubes not implemented yet!");
+
+		// Determine how many mip levels we'll need (0 in the desc means 'full mip chain')
+		let maxMips = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
+		if (desc.MipLevels == 0)
+			desc.MipLevels = maxMips; // Update description!
+
+		if (desc.MipLevels <= 0 || desc.MipLevels > maxMips)
+			throw new Error("Invalid mip levels");
+
 		// Create the gl texture and final D3D texture object
 		let glTexture = this.#gl.createTexture();
 		let d3dTexture = new ID3D11Texture2D(this, desc, glTexture);
@@ -235,11 +248,6 @@ class ID3D11Device extends IUnknown
 		// - Seems like webgl just uses texImage2D() to basically "rebuild" the texture?
 		// - Note: Look into "pixel buffer objects" and "pixel unpack buffers" for staging resources!
 		// Skipping usage for now (see above)
-
-		// TODO: Check description for texture array or cube, as they have different constants
-		if (desc.ArraySize < 1) throw new Error("Invalid array size specified");
-		if (desc.ArraySize > 1) throw new Error("Texture arrays not implemented yet!");
-		if (desc.MiscFlags == D3D11_RESOURCE_MISC_TEXTURECUBE) throw new Error("Texture cubes not implemented yet!");
 
 		// TODO: Use the usage and/or bind flags to determine if this should
 		//       be a texture or renderbuffer
@@ -255,16 +263,11 @@ class ID3D11Device extends IUnknown
 		let type = glFormatDetails.Type;
 		let isDepth = glFormatDetails.IsDepth;
 		let hasStencil = glFormatDetails.HasStencil;
-		let hasMipmaps = false; // TODO: Check and update
+		let hasMipmaps = desc.MipLevels > 1; // TODO: Check and update
 
 		// Set new texture
 		// TODO: Handle types
 		this.#gl.bindTexture(this.#gl.TEXTURE_2D, glTexture);
-
-		// Determine how many mip levels we'll need
-		let mipLevels = desc.MipLevels;
-		if (mipLevels == -1)
-			mipLevels = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
 
 		// Create the actual resource
 		// Use texStorage2D() to initialize the entire
@@ -273,7 +276,7 @@ class ID3D11Device extends IUnknown
 		// TODO: Use texStorage3D() for 3D textures and 2D Texture Arrays!
 		this.#gl.texStorage2D(
 			this.#gl.TEXTURE_2D,
-			mipLevels,
+			desc.MipLevels,
 			internalFormat,
 			desc.Width,
 			desc.Height);
