@@ -17,12 +17,14 @@
 			Position;
 			UV;
 			Normal;
+			Tangent;
 
-			constructor(pos, uv, norm)
+			constructor(pos, uv, norm, tang = [0,0,0])
 			{
 				this.Position = pos.slice();
 				this.UV = uv.slice();
 				this.Normal = norm.slice();
+				this.Tangent = tang.slice();
 			}
 		}
 
@@ -135,20 +137,81 @@
 					}
 				}
 			}
+
+			// Calculate tangents
+			for (let i = 0; i < indices.length;)
+			{
+				// Grab indices and vertices of first triangle
+				let i1 = indices[i++];
+				let i2 = indices[i++];
+				let i3 = indices[i++];
+				let v1 = vertices[i1];
+				let v2 = vertices[i2];
+				let v3 = vertices[i3];
+
+				// Calculate vectors relative to triangle positions
+				let x1 = v2.Position.X - v1.Position.X;
+				let y1 = v2.Position.Y - v1.Position.Y;
+				let z1 = v2.Position.Z - v1.Position.Z;
+
+				let x2 = v3.Position.X - v1.Position.X;
+				let y2 = v3.Position.Y - v1.Position.Y;
+				let z2 = v3.Position.Z - v1.Position.Z;
+
+				// Do the same for vectors relative to triangle uv's
+				let s1 = v2.UV.X - v1.UV.X;
+				let t1 = v2.UV.Y - v1.UV.Y;
+
+				let s2 = v3.UV.X - v1.UV.X;
+				let t2 = v3.UV.Y - v1.UV.Y;
+
+				// Create vectors for tangent calculation
+				let r = 1.0 / (s1 * t2 - s2 * t1);
+
+				let tx = (t2 * x1 - t1 * x2) * r;
+				let ty = (t2 * y1 - t1 * y2) * r;
+				let tz = (t2 * z1 - t1 * z2) * r;
+
+				// Adjust tangents of each vert of the triangle
+				v1.Tangent.X += tx;
+				v1.Tangent.Y += ty;
+				v1.Tangent.Z += tz;
+
+				v2.Tangent.X += tx;
+				v2.Tangent.Y += ty;
+				v2.Tangent.Z += tz;
+
+				v3.Tangent.X += tx;
+				v3.Tangent.Y += ty;
+				v3.Tangent.Z += tz;
+			}
+
+			// Orthonormalize
+			for (let i = 0; i < vertices.length; i++)
+			{
+				let n = vertices[i].Normal;
+				let t = vertices[i].Tangent;
+
+				vertices[i].Tangent = Vector3.Normalize(
+					Vector3.Subtract(t, Vector3.Multiply(n, Vector3.Dot(n, t)))
+				);
+			}
+
 			
 			// Copy data to float array
-			let floatsPerVert = 3 + 2 + 3;
+			let floatsPerVert = 3 + 2 + 3 + 3;
 			let vbData = new Float32Array(vertices.length * floatsPerVert);
 			for (let v = 0; v < vertices.length; v++)
 			{
 				vbData.set(vertices[v].Position, v * floatsPerVert + 0);
 				vbData.set(vertices[v].UV, v * floatsPerVert + 3);
 				vbData.set(vertices[v].Normal, v * floatsPerVert + 5);
+				vbData.set(vertices[v].Tangent, v * floatsPerVert + 8);
 			}
 			
 			// Create vertex buffer
 			let vbDesc = new D3D11_BUFFER_DESC(
-				Float32Array.BYTES_PER_ELEMENT * 7 * vertices.length,
+				Float32Array.BYTES_PER_ELEMENT * floatsPerVert * vertices.length,
 				D3D11_USAGE_IMMUTABLE,
 				D3D11_BIND_VERTEX_BUFFER,
 				0, 0, 0);
@@ -166,7 +229,7 @@
 			return [vb, ib, indices.length];
 		}
 
-		async function loadTexture2D(device, url)
+		async function loadTexture2D(device, context, url)
 		{
 			// Fetch and grab the binary data, then turn into an image
 			const resp = await fetch(url);
@@ -185,7 +248,10 @@
 				D3D11_BIND_SHADER_RESOURCE,
 				0,
 				D3D11_RESOURCE_MISC_GENERATE_MIPS);
-			return device.CreateTexture2D(desc, bitmap);
+			let texture = device.CreateTexture2D(desc, bitmap);
+			let srv = new ID3D11ShaderResourceView(device, texture, null);
+			context.GenerateMips(srv);
+			return srv;
 		}
 
 		async function main()
@@ -198,6 +264,7 @@
 					float3 position;
 					float2 uv;
 					float3 normal;
+					float3 tangent;
 				};
 
 				struct VertexToPixel
@@ -333,45 +400,6 @@
 			
 			let gl = device.GetAdapter();
 
-			// Attempt to load an image
-			let texture = await loadTexture2D(device, "../assets/textures/crate.png");
-
-			// Make shader resource view
-			// TODO: Desc and such
-			let srv = new ID3D11ShaderResourceView(device, texture, null);
-			context.PSSetShaderResources(0, [srv]);
-
-			// Generate mip maps
-			context.GenerateMips(srv);
-
-			// Create a sampler
-			let sampDesc = new D3D11_SAMPLER_DESC(
-				D3D11_FILTER_MIN_MAG_MIP_LINEAR,
-				D3D11_TEXTURE_ADDRESS_WRAP,
-				D3D11_TEXTURE_ADDRESS_WRAP,
-				D3D11_TEXTURE_ADDRESS_WRAP,
-				0,
-				16,
-				0,
-				0,
-				0,
-				D3D11_FLOAT32_MAX);
-			let sampler = device.CreateSamplerState(sampDesc);
-			context.PSSetSamplers(0, [sampler]);
-
-			// Test texture
-			let tdesc = new D3D11_TEXTURE2D_DESC(
-				92,
-				63,
-				-1,
-				1,
-				DXGI_FORMAT_R8G8B8A8_UNORM,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE,
-				0, 0);
-			device.CreateTexture2D(tdesc, null);
-
 			// Make an RTV of the back buffer
 			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
 
@@ -399,6 +427,28 @@
 
 			// Set the targets
 			context.OMSetRenderTargets([rtv], depthDSV);
+
+			// Attempt to load an image
+			let srv = await loadTexture2D(device, context, "../assets/textures/crate.png");
+
+			// Set the SRV
+			context.PSSetShaderResources(0, [srv]);
+
+			// Create a sampler
+			let sampDesc = new D3D11_SAMPLER_DESC(
+				D3D11_FILTER_MIN_MAG_MIP_LINEAR,
+				D3D11_TEXTURE_ADDRESS_WRAP,
+				D3D11_TEXTURE_ADDRESS_WRAP,
+				D3D11_TEXTURE_ADDRESS_WRAP,
+				0,
+				16,
+				0,
+				0,
+				0,
+				D3D11_FLOAT32_MAX);
+			let sampler = device.CreateSamplerState(sampDesc);
+			context.PSSetSamplers(0, [sampler]);
+
 
 			// Common for all verts
 			let vbStride = float32Size * 8;
@@ -497,6 +547,7 @@
 			inputElements[0] = new D3D11_INPUT_ELEMENT_DESC("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0);
 			inputElements[1] = new D3D11_INPUT_ELEMENT_DESC("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 3 * float32Size, D3D11_INPUT_PER_VERTEX_DATA, 0);
 			inputElements[2] = new D3D11_INPUT_ELEMENT_DESC("NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 5 * float32Size, D3D11_INPUT_PER_VERTEX_DATA, 0);
+			inputElements[3] = new D3D11_INPUT_ELEMENT_DESC("TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 8 * float32Size, D3D11_INPUT_PER_VERTEX_DATA, 0);
 			let inputLayout = device.CreateInputLayout(inputElements);
 			context.IASetInputLayout(inputLayout);
 

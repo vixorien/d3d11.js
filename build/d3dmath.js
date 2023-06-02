@@ -35,6 +35,42 @@ class Vector3 extends Float32Array
 		this[1] = y;
 		this[2] = z;
 	}
+
+	static Length(v)
+	{
+		return Math.sqrt(v.X * v.X + v.Y * v.Y + v.Z * v.Z);
+	}
+
+	static Normalize(v)
+	{
+		let length = Vector3.Length(v);
+		return new Vector3(v.X / length, v.Y / length, v.Z / length);
+	}
+
+	static Dot(v1, v2)
+	{
+		return v1.X * v2.X + v1.Y * v2.Y + v1.Z * v2.Z;
+	}
+
+	static Add(v1, v2)
+	{
+		return new Vector3(v1.X + v2.X, v1.Y + v2.Y, v1.Z + v2.Z);
+	}
+
+	static Subtract(v1, v2)
+	{
+		return new Vector3(v1.X - v2.X, v1.Y - v2.Y, v1.Z - v2.Z);
+	}
+
+	static Multiply(v, scalar)
+	{
+		return new Vector3(v.X * scalar, v.Y * scalar, v.Z * scalar);
+	}
+
+	static Divide(v, scalar)
+	{
+		return new Vector3(v.X / scalar, v.Y / scalar, v.Z / scalar);
+	}
 }
 
 

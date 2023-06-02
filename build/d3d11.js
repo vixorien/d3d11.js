@@ -885,60 +885,6 @@ class ID3D11Device extends IUnknown
 				initialData);
 		}
 
-		// Any initial data?
-		//if (initialData == null)
-		//{
-		//	// How many mip levels will we actually need?
-		//	let mipLevels = desc.MipLevels;
-		//	if (mipLevels == -1)
-		//	{
-		//		mipLevels = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
-		//	}
-
-		//	// TODO: Constrain the description's levels between 0 and maxPossible?
-
-		
-
-		//	// TODO: Use texStorage3D() for either a 3D texture
-		//	//       OR a 2D_Array!
-		//}
-		//else
-		//{
-		//	let mipLevels = desc.MipLevels;
-		//	if (mipLevels == -1)
-		//		mipLevels = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
-			
-		//	this.#gl.texStorage2D(
-		//		this.#gl.TEXTURE_2D,
-		//		mipLevels,
-		//		internalFormat,
-		//		desc.Width,
-		//		desc.Height);
-
-		//	// Use texImage2D() to set initial data
-		//	// TODO: Handle multiple mips/array elements/etc?
-		//	this.#gl.texImage2D(
-		//		this.#gl.TEXTURE_2D,
-		//		0, // TODO: Handle specific mip levels?
-		//		internalFormat,
-		//		desc.Width,
-		//		desc.Height,
-		//		0,
-		//		format,
-		//		type,
-		//		initialData);
-
-		//	// Generate full mips if the description asks
-		//	// TODO: Move this elsewhere, but we're using it to
-		//	//       set up the mip chain
-		//	if (desc.MipLevels == -1)
-		//	{
-		//		//this.#gl.generateMipmap(this.#gl.TEXTURE_2D);
-		//	}
-		//}
-
-		
-
 		// Set default sampler info
 		// NOTE: Base level and max level will be handled by the view
 		// NOTE: WebGL does not support border colors
