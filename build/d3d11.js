@@ -1666,9 +1666,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				currentTextureUnit++;
 			}
 
-			console.log("BEFORE");
-			console.log(vspsMap.TextureSamplerMap);
-
 			// Then the PS combos
 			let psTexSampCombos = this.#pixelShader.GetTextureSamplerCombinations();
 			for (let i = 0; i < psTexSampCombos.length; i++)
@@ -1697,8 +1694,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				// Move on to the next unit
 				currentTextureUnit++;
 			}
-			console.log("AFTER");
-			console.log(vspsMap.TextureSamplerMap);
 		}
 
 		// Activate this program and we're clean

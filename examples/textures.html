@@ -364,10 +364,10 @@
 					float3 B = cross(T, N);
 
 					// Create the 3x3 matrix to convert from TANGENT-SPACE normals to WORLD-SPACE normals
-					float3x3 TBN = float3x3(T, B, N);
+					float3x3 TBN = float3x3(T, B, N); // What's the order here?!
 
 					// Adjust the normal from the map and simply use the results
-					input.normal = mul(normalFromMap, TBN);
+					input.normal = mul(TBN, normalFromMap); // Had to reverse due to matrix row vs. column
 
 					float metal = 0.0;
 					//if(input.worldPos.y > 0.0) metal = 1.0;
