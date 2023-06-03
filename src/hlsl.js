@@ -558,14 +558,15 @@ class HLSL
 	}
 
 
-	#ParseVariable(it, interpModAllowed, semanticAllowed)
+	#ParseVariable(it, interpModAllowed, semanticAllowed, inoutAllowed)
 	{
 		let variable = {
 			InterpMod: null,
 			DataType: null,
 			ArraySize: null,
 			Name: null,
-			Semantic: null
+			Semantic: null,
+			InOut: null
 		};
 
 		// Check for interpolation modifiers
@@ -578,6 +579,19 @@ class HLSL
 			// This is an interpolation modifier
 			this.#Require(it, TokenIdentifier);
 			variable.InterpMod = it.PeekPrev().Text;
+		}
+
+		// Check for in/out status
+		if (it.Current().Text == "in" ||
+			it.Current().Text == "out" ||
+			it.Current().Text == "inout")
+		{
+			if (!inoutAllowed)
+				throw new Error("Error parsing HLSL on line " + it.Current().Line + ": in/out/inout modifier not allowed here.");
+			
+			// This is an in/out modifier
+			this.#Require(it, TokenIdentifier);
+			variable.InOut = it.PeekPrev().Text;
 		}
 
 		// If this isn't actually a variable, we should exit early
@@ -644,7 +658,7 @@ class HLSL
 		// Some number of variables
 		do
 		{
-			let v = this.#ParseVariable(it, true, true);
+			let v = this.#ParseVariable(it, true, true, false);
 			if (v != null)
 			{
 				s.Variables.push(v);
@@ -717,7 +731,7 @@ class HLSL
 		// Process any variables
 		do
 		{
-			let v = this.#ParseVariable(it, false, false);
+			let v = this.#ParseVariable(it, false, false, false);
 			if (v != null)
 			{
 				cb.Variables.push(v);
@@ -832,7 +846,7 @@ class HLSL
 			// It's a function, so it may have parameters
 			do
 			{
-				let v = this.#ParseVariable(it, true, true);
+				let v = this.#ParseVariable(it, true, true, true);
 				if (v != null)
 				{
 					f.Parameters.push(v);
@@ -1161,7 +1175,13 @@ class HLSL
 		glsl += "vec2 mul(mat2 m, vec2 v){ return m * v; }\n\n";
 
 		glsl += "float saturate(float x) { return clamp(x, 0.0, 1.0); }\n";
-		glsl += "int saturate(int x) { return clamp(x, 0, 1); }\n";
+		glsl += "vec2 saturate(vec2 x) { return clamp(x, 0.0, 1.0); }\n";
+		glsl += "vec3 saturate(vec3 x) { return clamp(x, 0.0, 1.0); }\n";
+		glsl += "int saturate(int x) { return clamp(x, 0, 1); }\n\n";
+
+		glsl += "float lerp(float a, float b, float t) { return mix(a, b, t); }\n";
+		glsl += "vec2 lerp(vec2 a, vec2 b, float t) { return mix(a, b, t); }\n";
+		glsl += "vec3 lerp(vec3 a, vec3 b, float t) { return mix(a, b, t); }\n";
 
 		glsl += "\n";
 		return glsl;
@@ -1409,6 +1429,10 @@ class HLSL
 		for (let p = 0; p < func.Parameters.length; p++)
 		{
 			let param = func.Parameters[p];
+			// Any in/out?
+			if (param.InOut != null)
+				funcStr += param.InOut + " ";
+
 			funcStr += this.#Translate(param.DataType); // Data type
 			funcStr += " " + this.#Translate(param.Name); // Identifier
 
@@ -1461,9 +1485,14 @@ class HLSL
 			// Add the token
 			funcStr += this.#TranslateToken(t);
 
-			// Is a space necessary?  Yes for 2 idents in a row
-			if (t.Type == TokenIdentifier && it.PeekNext().Type == TokenIdentifier)
-				funcStr += " ";
+			// Extra spaces?
+			if (t.Type == TokenIdentifier)
+			{
+				if (t.Text == "return" ||
+					t.Text == "case" ||
+					it.PeekNext().Type == TokenIdentifier) // Always put a space between double identifier
+					funcStr += " "; 
+			}
 
 			// New line?
 			if ((t.Type == TokenSemicolon && parenDepth == 0) ||	// End of line, but not within "for loops"
@@ -1497,12 +1526,9 @@ class HLSL
 			default: return "";
 		}
 
-		// We definitely have the proper pattern, skip these tokens
-		it.MoveNext();
-		it.MoveNext();
-		
-		// Give back the replacement
-		return replace + "(";
+		// We definitely have the proper pattern, skip the identifier
+		this.#Require(it, TokenIdentifier);
+		return replace;
 	}
 
 	#GetTextureFunctionString(it, baseFunc)
@@ -1860,7 +1886,7 @@ class HLSL
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
-
+		
 		return glsl;
 	}
 }
