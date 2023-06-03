@@ -3,6 +3,7 @@
 <head>
 	<script src="../build/d3d11.js"></script>
 	<script src="../build/d3dmath.js"></script>
+	<script src="../build/input.js"></script>
 </head>
 <body style="background-color:#000;">
 	<h1 style="color:#fff;">D3D11.js - Texture Test</h1>
@@ -590,6 +591,8 @@
 					return float4(color, 1);
 				}
 			`;
+
+			let input = new Input(document);
 
 			// Some quick vars
 			let float32Size = Float32Array.BYTES_PER_ELEMENT;

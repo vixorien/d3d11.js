@@ -18,8 +18,12 @@
 			"output": "./build/d3d11.js"
 		},
 		{
-			"input": ["./src/d3dmath.js"],
+			"input": [ "./src/d3dmath.js" ],
 			"output": "./build/d3dmath.js"
+		},
+		{
+			"input": [ "./src/input.js" ],
+			"output": "./build/input.js"
 		}
 	]
 }
