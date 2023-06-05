@@ -691,6 +691,7 @@
 			// Camera
 			let cameraPosition = new Vector3(0, 0, -10);
 			let cameraRotation = new Vector2(0, 0);
+			let camDir = new Vector3(0, 0, 1);
 
 			// Set up the initial VS CB data
 			let wMat = Matrix4x4.RotationY(0);
@@ -803,29 +804,36 @@
 
 			function frameloop(time)
 			{
+
 				// Update
 				let speed = 0.2;
 				if (input.IsKeyDown(Keys.Shift)) speed *= 5;
 				if (input.IsKeyDown(Keys.Ctrl)) speed *= 0.25;
 
-				if (input.IsKeyDown(Keys.A)) cameraPosition.x -= speed;
-				if (input.IsKeyDown(Keys.D)) cameraPosition.x += speed;
-				if (input.IsKeyDown(Keys.W)) cameraPosition.z += speed;
-				if (input.IsKeyDown(Keys.S)) cameraPosition.z -= speed;
-				if (input.IsKeyDown(Keys.Space)) cameraPosition.y += speed;
-				if (input.IsKeyDown(Keys.X)) cameraPosition.y -= speed;
+				let camMove = new Vector3();
+				if (input.IsKeyDown(Keys.A)) cameraMove.x -= speed;
+				if (input.IsKeyDown(Keys.D)) cameraMove.x += speed;
+				if (input.IsKeyDown(Keys.W)) cameraMove.z += speed;
+				if (input.IsKeyDown(Keys.S)) cameraMove.z -= speed;
+				if (input.IsKeyDown(Keys.Space)) cameraMove.y += speed;
+				if (input.IsKeyDown(Keys.X)) cameraMove.y -= speed;
 
-				//if (input.IsMouseDown(MouseButtons.Left))
-				//{
-				//	cameraRotation.x += input.GetMouseDeltaY() * 0.001;
-				//	cameraRotation.y += input.GetMouseDeltaX() * 0.001;
-				//console.log(cameraRotation);
-				//}
+
+				if (input.IsMouseDown(MouseButtons.Left))
+				{
+					cameraRotation.x -= input.GetMouseDeltaY() * 0.001;
+					cameraRotation.y += input.GetMouseDeltaX() * 0.001;
+
+					camDir.x = Math.sin(cameraRotation.y);
+					camDir.z = Math.cos(cameraRotation.y);
+
+					camDir.y = Math.sin(cameraRotation.x);
+				}
 
 				//vMat = Matrix4x4.TestView(cameraPosition.x, cameraPosition.y, cameraPosition.z);
 				vMat = Matrix4x4.ViewDirectionLH(
 					cameraPosition,
-					new Vector3(0, 0, 1),
+					camDir, //new Vector3(0, 0, 1),
 					Vector3.UnitY);
 
 				vsData.set(vMat, 16);
@@ -910,7 +918,10 @@
 				// Flush the frame
 				swapChain.Present();
 				context.OMSetRenderTargets([rtv], depthDSV);
+
+				// End of frame work
 				window.requestAnimationFrame(frameloop);
+				input.EndOfFrame();
 			}
 
 			window.requestAnimationFrame(frameloop);

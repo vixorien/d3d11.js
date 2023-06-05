@@ -60,6 +60,13 @@ class Input
 		return false; // Necessary?
 	}
 
+	EndOfFrame()
+	{
+		// Zero out the delta
+		this.#deltaMouseX = 0;
+		this.#deltaMouseY = 0;
+	}
+
 	// ------------------------------
 	// ------------ Keys ------------
 	// ------------------------------
@@ -99,22 +106,20 @@ class Input
 	#MouseDownHandler(e)
 	{
 		this.#mouseButtons[e.button] = true;
-		console.log("Mouse down: " + e.button + ": (buttons=" + e.buttons + ")" );
 	}
 
 	#MouseUpHandler(e)
 	{
 		this.#mouseButtons[e.button] = false;
-		console.log("Mouse up: " + e.button + ": (buttons=" + e.buttons + ")");
 	}
 
 	#MouseMoveHandler(e)
 	{
-		this.#deltaMouseX = e.clientX - this.#prevMouseX;
-		this.#deltaMouseY = e.clientY - this.#prevMouseY;
+		// Add to the overall delta
+		this.#deltaMouseX += e.clientX - this.#mouseX;
+		this.#deltaMouseY += e.clientY - this.#mouseY;
 
-		this.#prevMouseX = this.#mouseX;
-		this.#prevMouseY = this.#mouseY;
+		// Save new mouse data
 		this.#mouseX = e.clientX;
 		this.#mouseY = e.clientY;
 	}
