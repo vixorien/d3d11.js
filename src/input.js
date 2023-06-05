@@ -2,26 +2,67 @@
 class Input
 {
 	#keyStates;
+	#mouseButtons;
+	#mouseX;
+	#mouseY;
+	#prevMouseX;
+	#prevMouseY;
+	#deltaMouseX;
+	#deltaMouseY;
 
 	// For removal
+	#boundFocusOutHandler;
+	#boundContextMenuHandler;
+
 	#boundKeyDownHandler;
 	#boundKeyUpHandler;
-	#boundFocusOutHandler;
+
+	#boundMouseDownHandler;
+	#boundMouseUpHandler;
+	#boundMouseMoveHandler;
 
 	constructor(element)
 	{
 		this.#keyStates = new Array(256).fill(false);
+		this.#mouseButtons = new Array(5).fill(false);
+
+		element.addEventListener("focusout", this.#boundFocusOutHandler = this.#FocusOutHandler.bind(this));
+		element.addEventListener("contextmenu", this.#boundContextMenuHandler = this.#ContextMenuHandler.bind(this));
 
 		element.addEventListener("keydown", this.#boundKeyDownHandler = this.#KeyDownHandler.bind(this));
 		element.addEventListener("keyup", this.#boundKeyUpHandler = this.#KeyUpHandler.bind(this));
-		element.addEventListener("focusout", this.#boundFocusOutHandler = this.#FocusOutHandler.bind(this));
+
+		element.addEventListener("mousedown", this.#boundMouseDownHandler = this.#MouseDownHandler.bind(this));
+		element.addEventListener("mouseup", this.#boundMouseUpHandler = this.#MouseUpHandler.bind(this));
+		element.addEventListener("mousemove", this.#boundMouseMoveHandler = this.#MouseMoveHandler.bind(this));
+
+	}
+
+	#ClearState()
+	{
+		this.#keyStates.fill(false);
+		this.#mouseButtons.fill(false);
+		this.#deltaMouseX = 0;
+		this.#deltaMouseY = 0;
+		this.#prevMouseX = this.#mouseX;
+		this.#prevMouseY = this.#mouseY;
 	}
 
 	#FocusOutHandler(e)
 	{
-		this.#keyStates.fill(false);
-		
+		this.#ClearState();
+		console.log("focus out");
 	}
+
+	#ContextMenuHandler(e)
+	{
+		e.preventDefault();
+		return false; // Necessary?
+	}
+
+	// ------------------------------
+	// ------------ Keys ------------
+	// ------------------------------
 
 	#KeyDownHandler(e)
 	{
@@ -41,7 +82,7 @@ class Input
 
 		// If we've lost focus, clear the whole input
 		if (!document.hasFocus())
-			this.#keyStates.fill(false);
+			this.#ClearState();
 
 		return this.#keyStates[key.KeyCode];
 	}
@@ -50,6 +91,56 @@ class Input
 	{
 		return !this.IsKeyDown(key);
 	}
+
+	// ------------------------------
+	// ------------ Mouse -----------
+	// ------------------------------
+
+	#MouseDownHandler(e)
+	{
+		this.#mouseButtons[e.button] = true;
+		console.log("Mouse down: " + e.button + ": (buttons=" + e.buttons + ")" );
+	}
+
+	#MouseUpHandler(e)
+	{
+		this.#mouseButtons[e.button] = false;
+		console.log("Mouse up: " + e.button + ": (buttons=" + e.buttons + ")");
+	}
+
+	#MouseMoveHandler(e)
+	{
+		this.#deltaMouseX = e.clientX - this.#prevMouseX;
+		this.#deltaMouseY = e.clientY - this.#prevMouseY;
+
+		this.#prevMouseX = this.#mouseX;
+		this.#prevMouseY = this.#mouseY;
+		this.#mouseX = e.clientX;
+		this.#mouseY = e.clientY;
+	}
+
+	IsMouseDown(button)
+	{
+		// Validate key
+		if (!(button instanceof MouseButtons))
+			console.log("Invalid button type - Use MouseButton class static members");
+
+		// If we've lost focus, clear the whole input
+		if (!document.hasFocus())
+			this.#ClearState();
+
+		return this.#mouseButtons[button.ButtonCode];
+	}
+
+	IsMouseUp(button)
+	{
+		return !this.IsMouseDown(button);
+	}
+
+	GetMouseX() { return this.#mouseX; }
+	GetMouseY() { return this.#mouseY; }
+	GetMouseDeltaX() { return this.#deltaMouseX; }
+	GetMouseDeltaY() { return this.#deltaMouseY; }
 }
 
 class Keys
@@ -162,5 +253,22 @@ class Keys
 	constructor(keyCode)
 	{
 		this.#keyCode = keyCode;
+	}
+}
+
+class MouseButtons
+{
+	static Left = new MouseButtons(0);
+	static Middle = new MouseButtons(1);
+	static Right = new MouseButtons(2);
+	static Button4 = new MouseButtons(3);
+	static Button5 = new MouseButtons(4);
+
+	get ButtonCode() { return this.#buttonCode }
+
+	#buttonCode;
+	constructor(buttonCode)
+	{
+		this.#buttonCode = buttonCode;
 	}
 }

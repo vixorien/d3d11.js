@@ -101,9 +101,9 @@
 							normals[n - 1]);
 
 						// Convert to left handed
-						vert.Position.Z *= -1.0; // Invert Z pos
-						vert.Normal.Z *= -1.0; // Invert Z normal
-						vert.UV.Y = 1.0 - vert.UV.Y; // Flip UV
+						vert.Position.z *= -1.0; // Invert Z pos
+						vert.Normal.z *= -1.0; // Invert Z normal
+						vert.UV.y = 1.0 - vert.UV.y; // Flip UV
 
 						// Add to array
 						vertices.push(vert);
@@ -129,9 +129,9 @@
 							normals[n - 1]);
 
 						// Convert to left handed
-						vert.Position.Z *= -1.0; // Invert Z pos
-						vert.Normal.Z *= -1.0; // Invert Z normal
-						vert.UV.Y = 1.0 - vert.UV.Y; // Flip UV
+						vert.Position.z *= -1.0; // Invert Z pos
+						vert.Normal.z *= -1.0; // Invert Z normal
+						vert.UV.y = 1.0 - vert.UV.y; // Flip UV
 
 						// Add to array
 						vertices.push(vert);
@@ -156,20 +156,20 @@
 				let v3 = vertices[i3];
 
 				// Calculate vectors relative to triangle positions
-				let x1 = v2.Position.X - v1.Position.X;
-				let y1 = v2.Position.Y - v1.Position.Y;
-				let z1 = v2.Position.Z - v1.Position.Z;
+				let x1 = v2.Position.x - v1.Position.x;
+				let y1 = v2.Position.y - v1.Position.y;
+				let z1 = v2.Position.z - v1.Position.z;
 
-				let x2 = v3.Position.X - v1.Position.X;
-				let y2 = v3.Position.Y - v1.Position.Y;
-				let z2 = v3.Position.Z - v1.Position.Z;
+				let x2 = v3.Position.x - v1.Position.x;
+				let y2 = v3.Position.y - v1.Position.y;
+				let z2 = v3.Position.z - v1.Position.z;
 
 				// Do the same for vectors relative to triangle uv's
-				let s1 = v2.UV.X - v1.UV.X;
-				let t1 = v2.UV.Y - v1.UV.Y;
+				let s1 = v2.UV.x - v1.UV.x;
+				let t1 = v2.UV.y - v1.UV.y;
 
-				let s2 = v3.UV.X - v1.UV.X;
-				let t2 = v3.UV.Y - v1.UV.Y;
+				let s2 = v3.UV.x - v1.UV.x;
+				let t2 = v3.UV.y - v1.UV.y;
 
 				// Create vectors for tangent calculation
 				let r = 1.0 / (s1 * t2 - s2 * t1);
@@ -179,17 +179,17 @@
 				let tz = (t2 * z1 - t1 * z2) * r;
 
 				// Adjust tangents of each vert of the triangle
-				v1.Tangent.X += tx;
-				v1.Tangent.Y += ty;
-				v1.Tangent.Z += tz;
+				v1.Tangent.x += tx;
+				v1.Tangent.y += ty;
+				v1.Tangent.z += tz;
 
-				v2.Tangent.X += tx;
-				v2.Tangent.Y += ty;
-				v2.Tangent.Z += tz;
+				v2.Tangent.x += tx;
+				v2.Tangent.y += ty;
+				v2.Tangent.z += tz;
 
-				v3.Tangent.X += tx;
-				v3.Tangent.Y += ty;
-				v3.Tangent.Z += tz;
+				v3.Tangent.x += tx;
+				v3.Tangent.y += ty;
+				v3.Tangent.z += tz;
 			}
 			
 			// Orthonormalize
@@ -690,6 +690,7 @@
 
 			// Camera
 			let cameraPosition = new Vector3(0, 0, -10);
+			let cameraRotation = new Vector2(0, 0);
 
 			// Set up the initial VS CB data
 			let wMat = Matrix4x4.RotationY(0);
@@ -807,14 +808,26 @@
 				if (input.IsKeyDown(Keys.Shift)) speed *= 5;
 				if (input.IsKeyDown(Keys.Ctrl)) speed *= 0.25;
 
-				if (input.IsKeyDown(Keys.A)) cameraPosition.X -= speed;
-				if (input.IsKeyDown(Keys.D)) cameraPosition.X += speed;
-				if (input.IsKeyDown(Keys.W)) cameraPosition.Z += speed;
-				if (input.IsKeyDown(Keys.S)) cameraPosition.Z -= speed;
-				if (input.IsKeyDown(Keys.Space)) cameraPosition.Y += speed;
-				if (input.IsKeyDown(Keys.X)) cameraPosition.Y -= speed;
+				if (input.IsKeyDown(Keys.A)) cameraPosition.x -= speed;
+				if (input.IsKeyDown(Keys.D)) cameraPosition.x += speed;
+				if (input.IsKeyDown(Keys.W)) cameraPosition.z += speed;
+				if (input.IsKeyDown(Keys.S)) cameraPosition.z -= speed;
+				if (input.IsKeyDown(Keys.Space)) cameraPosition.y += speed;
+				if (input.IsKeyDown(Keys.X)) cameraPosition.y -= speed;
 
-				vMat = Matrix4x4.TestView(cameraPosition.X, cameraPosition.Y, cameraPosition.Z);
+				//if (input.IsMouseDown(MouseButtons.Left))
+				//{
+				//	cameraRotation.x += input.GetMouseDeltaY() * 0.001;
+				//	cameraRotation.y += input.GetMouseDeltaX() * 0.001;
+				//console.log(cameraRotation);
+				//}
+
+				//vMat = Matrix4x4.TestView(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+				vMat = Matrix4x4.ViewDirectionLH(
+					cameraPosition,
+					new Vector3(0, 0, 1),
+					Vector3.UnitY);
+
 				vsData.set(vMat, 16);
 
 				// Clear the frame
@@ -873,8 +886,10 @@
 					//let count = cubeIndexCount;
 
 					// Update vertex data
-					let rot = Matrix4x4.RotationY(time * -0.00025);
-					let sc = Matrix4x4.Scale(scale);
+					let rot = new Matrix4x4();
+					Matrix4x4.FillIdentity(rot);//Matrix4x4.RotationY(time * -0.00025);
+					
+					let sc = Matrix4x4.ScaleUniform(scale);
 					wMat = Matrix4x4.Multiply(sc, rot);
 					vsData.set(wMat, 0);
 					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
