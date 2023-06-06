@@ -41,9 +41,9 @@ const D3D11_BIND_SHADER_RESOURCE = 0x8;
 const D3D11_BIND_STREAM_OUTPUT = 0x10;
 const D3D11_BIND_RENDER_TARGET = 0x20;
 const D3D11_BIND_DEPTH_STENCIL = 0x40;
-const D3D11_BIND_UNORDERED_ACCESS = 0x80;
-const D3D11_BIND_DECODER = 0x200;
-const D3D11_BIND_VIDEO_ENCODER = 0x400;
+//const D3D11_BIND_UNORDERED_ACCESS = 0x80;
+//const D3D11_BIND_DECODER = 0x200;
+//const D3D11_BIND_VIDEO_ENCODER = 0x400;
 
 // Comparison options
 const D3D11_COMPARISON_NEVER = 1;
@@ -541,7 +541,7 @@ class ID3D11DeviceChild extends IUnknown
 	Release()
 	{
 		super.Release();
-
+		
 		// If we're done, release the device
 		if (this.GetRef() <= 0)
 			this.#device.Release();
@@ -648,6 +648,9 @@ class ID3D11Device extends IUnknown
 	// TODO: Full validation of description
 	CreateBuffer(bufferDesc, initialData)
 	{
+		// Validate description
+
+
 		// May have changed GL state!
 		if (this.#immediateContext != null)
 			this.#immediateContext.DirtyPipeline();
@@ -659,15 +662,15 @@ class ID3D11Device extends IUnknown
 		// Determine usage flag
 		// TODO: Analyze CPUAccessFlag to further refine these options
 		// See "usage" at: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/bufferData
-		let usage = this.#gl.STATIC_DRAW;
+		let glUsage = this.#gl.STATIC_DRAW;
 		switch (bufferDesc.Usage)
 		{
-			case D3D11_USAGE_IMMUTABLE: usage = this.#gl.STATIC_DRAW; break;
-			case D3D11_USAGE_DYNAMIC: usage = this.#gl.DYNAMIC_DRAW; break;
-			case D3D11_USAGE_STAGING: usage = this.#gl.DYNAMIC_COPY; break; // ???
+			case D3D11_USAGE_IMMUTABLE: glUsage = this.#gl.STATIC_DRAW; break;
+			case D3D11_USAGE_DYNAMIC: glUsage = this.#gl.DYNAMIC_DRAW; break;
+			case D3D11_USAGE_STAGING: glUsage = this.#gl.DYNAMIC_COPY; break; // ???
 			case D3D11_USAGE_DEFAULT:
 			default:
-				usage = this.#gl.STATIC_DRAW; // ???
+				glUsage = this.#gl.STATIC_DRAW; // ???
 				// NOTE: Constant buffers with default usage should probably still be dyanmic draw
 				// TODO: Test this and handle here
 				break;
@@ -700,9 +703,9 @@ class ID3D11Device extends IUnknown
 
 		// Any initial data?
 		if (initialData == null)
-			this.#gl.bufferData(bufferType, bufferDesc.ByteWidth, usage);
+			this.#gl.bufferData(bufferType, bufferDesc.ByteWidth, glUsage);
 		else
-			this.#gl.bufferData(bufferType, initialData, usage); // TODO: Verify size vs. description?
+			this.#gl.bufferData(bufferType, initialData, glUsage); // TODO: Verify size vs. description?
 
 		// Restore previous buffer and return new one
 		this.#gl.bindBuffer(bufferType, prevBuffer);
@@ -998,6 +1001,33 @@ class ID3D11Device extends IUnknown
 		}
 
 		return glFormatDetails;
+	}
+
+	#ValidateBufferDesc(desc)
+	{
+		// Byte width
+		// D3D note: For constant buffers, must be multiples of 16
+		// TODO: Check requirement for WebGL size
+		// TODO: Do we throw if size is zero?  Is that allowed?
+
+		// Usage
+		// - Must also check combinations with CPU Access
+
+		// CPU Access
+		// - Also compare with usage
+
+		// Bind
+		// - D3D & WebGL: Constant buffer must be only flag!
+		// - WebGL: Index buffer must be only flag!
+
+		// Misc Flag
+		// - Probably none of these are relevant?
+		// TODO: 
+
+		// Structure byte size
+		// TODO: Does this do anything in WebGL?
+		//  - No structured buffers in WebGL, so maybe just cut?
+		// - Probably leave in but require it to be zero (or ignore?)
 	}
 
 	#ValidateSamplerDesc(desc)
@@ -1887,11 +1917,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	#BindFakeFramebuffer()
 	{
-		// Determine if we need to rebind framebuffer
-		let fb = this.#gl.getParameter(this.#gl.FRAMEBUFFER_BINDING);
-		if (fb != this.#fakeBackBufferFrameBuffer)
-			this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
-
+		// NOTE: Removed getParam() check due to "best practices" advice
+		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
 	}
 
 	#BindRenderTargets(rtvs)
@@ -2033,18 +2060,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			if (dstBox != null)
 				throw new Error("Cannot update a box within a buffer resource");
 
-			// Safe to update!  Save any previously bound buffer
-			let prevBuffer = this.#gl.getParameter(this.#gl.UNIFORM_BUFFER_BINDING);
-
 			// Bind and update
 			this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, dstResource.GetGLResource());
 			this.#gl.bufferSubData(
 				this.#gl.UNIFORM_BUFFER,
 				0,
 				srcData);
-
-			// Restore the previous buffer
-			this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, prevBuffer);
 		}
 		else
 		{
@@ -2177,7 +2198,7 @@ class IDXGISwapChain extends IUnknown
 
 
 // -----------------------------------------------------
-// ---------------- Misc API Interfaces ----------------
+// ---------------- Pipeline Interfaces ----------------
 // -----------------------------------------------------
 
 class ID3D11InputLayout extends ID3D11DeviceChild
@@ -2515,9 +2536,9 @@ class ID3D11Buffer extends ID3D11Resource
 // - This exists currently so that I can start using the type elsewhere
 class ID3D11Texture1D extends ID3D11Resource
 {
-	constructor(device, desc, glBuffer)
+	constructor(device, desc, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glBuffer);
+		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
 
 		throw new Error("Texture1D is not implemented yet!");
 	}
@@ -2539,9 +2560,9 @@ class ID3D11Texture1D extends ID3D11Resource
 
 class ID3D11Texture2D extends ID3D11Resource
 {
-	constructor(device, desc, glBuffer)
+	constructor(device, desc, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glBuffer);
+		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
 	}
 
 	Release()

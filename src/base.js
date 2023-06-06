@@ -59,7 +59,7 @@ class ID3D11DeviceChild extends IUnknown
 	Release()
 	{
 		super.Release();
-
+		
 		// If we're done, release the device
 		if (this.GetRef() <= 0)
 			this.#device.Release();

@@ -109,7 +109,7 @@ class Vector3 extends Float32Array
 		let rMat = Matrix4x4.RotationZ(roll);
 
 		// Combine in roll/pitch/yaw order
-		let rotMat = Matrix4x4.Multiply(yMat, Matrix4x4.Multiply(pMat, rMat));
+		let rotMat = Matrix4x4.Multiply(rMat, Matrix4x4.Multiply(pMat, yMat));
 		return Vector3.Transform(v, rotMat);
 	}
 }

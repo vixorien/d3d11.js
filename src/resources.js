@@ -59,9 +59,9 @@ class ID3D11Buffer extends ID3D11Resource
 // - This exists currently so that I can start using the type elsewhere
 class ID3D11Texture1D extends ID3D11Resource
 {
-	constructor(device, desc, glBuffer)
+	constructor(device, desc, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glBuffer);
+		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
 
 		throw new Error("Texture1D is not implemented yet!");
 	}
@@ -83,9 +83,9 @@ class ID3D11Texture1D extends ID3D11Resource
 
 class ID3D11Texture2D extends ID3D11Resource
 {
-	constructor(device, desc, glBuffer)
+	constructor(device, desc, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glBuffer);
+		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
 	}
 
 	Release()

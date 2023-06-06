@@ -59,6 +59,9 @@ class ID3D11Device extends IUnknown
 	// TODO: Full validation of description
 	CreateBuffer(bufferDesc, initialData)
 	{
+		// Validate description
+
+
 		// May have changed GL state!
 		if (this.#immediateContext != null)
 			this.#immediateContext.DirtyPipeline();
@@ -70,15 +73,15 @@ class ID3D11Device extends IUnknown
 		// Determine usage flag
 		// TODO: Analyze CPUAccessFlag to further refine these options
 		// See "usage" at: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/bufferData
-		let usage = this.#gl.STATIC_DRAW;
+		let glUsage = this.#gl.STATIC_DRAW;
 		switch (bufferDesc.Usage)
 		{
-			case D3D11_USAGE_IMMUTABLE: usage = this.#gl.STATIC_DRAW; break;
-			case D3D11_USAGE_DYNAMIC: usage = this.#gl.DYNAMIC_DRAW; break;
-			case D3D11_USAGE_STAGING: usage = this.#gl.DYNAMIC_COPY; break; // ???
+			case D3D11_USAGE_IMMUTABLE: glUsage = this.#gl.STATIC_DRAW; break;
+			case D3D11_USAGE_DYNAMIC: glUsage = this.#gl.DYNAMIC_DRAW; break;
+			case D3D11_USAGE_STAGING: glUsage = this.#gl.DYNAMIC_COPY; break; // ???
 			case D3D11_USAGE_DEFAULT:
 			default:
-				usage = this.#gl.STATIC_DRAW; // ???
+				glUsage = this.#gl.STATIC_DRAW; // ???
 				// NOTE: Constant buffers with default usage should probably still be dyanmic draw
 				// TODO: Test this and handle here
 				break;
@@ -111,9 +114,9 @@ class ID3D11Device extends IUnknown
 
 		// Any initial data?
 		if (initialData == null)
-			this.#gl.bufferData(bufferType, bufferDesc.ByteWidth, usage);
+			this.#gl.bufferData(bufferType, bufferDesc.ByteWidth, glUsage);
 		else
-			this.#gl.bufferData(bufferType, initialData, usage); // TODO: Verify size vs. description?
+			this.#gl.bufferData(bufferType, initialData, glUsage); // TODO: Verify size vs. description?
 
 		// Restore previous buffer and return new one
 		this.#gl.bindBuffer(bufferType, prevBuffer);
@@ -409,6 +412,33 @@ class ID3D11Device extends IUnknown
 		}
 
 		return glFormatDetails;
+	}
+
+	#ValidateBufferDesc(desc)
+	{
+		// Byte width
+		// D3D note: For constant buffers, must be multiples of 16
+		// TODO: Check requirement for WebGL size
+		// TODO: Do we throw if size is zero?  Is that allowed?
+
+		// Usage
+		// - Must also check combinations with CPU Access
+
+		// CPU Access
+		// - Also compare with usage
+
+		// Bind
+		// - D3D & WebGL: Constant buffer must be only flag!
+		// - WebGL: Index buffer must be only flag!
+
+		// Misc Flag
+		// - Probably none of these are relevant?
+		// TODO: 
+
+		// Structure byte size
+		// TODO: Does this do anything in WebGL?
+		//  - No structured buffers in WebGL, so maybe just cut?
+		// - Probably leave in but require it to be zero (or ignore?)
 	}
 
 	#ValidateSamplerDesc(desc)

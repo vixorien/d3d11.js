@@ -817,11 +817,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	#BindFakeFramebuffer()
 	{
-		// Determine if we need to rebind framebuffer
-		let fb = this.#gl.getParameter(this.#gl.FRAMEBUFFER_BINDING);
-		if (fb != this.#fakeBackBufferFrameBuffer)
-			this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
-
+		// NOTE: Removed getParam() check due to "best practices" advice
+		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
 	}
 
 	#BindRenderTargets(rtvs)
@@ -963,18 +960,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			if (dstBox != null)
 				throw new Error("Cannot update a box within a buffer resource");
 
-			// Safe to update!  Save any previously bound buffer
-			let prevBuffer = this.#gl.getParameter(this.#gl.UNIFORM_BUFFER_BINDING);
-
 			// Bind and update
 			this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, dstResource.GetGLResource());
 			this.#gl.bufferSubData(
 				this.#gl.UNIFORM_BUFFER,
 				0,
 				srcData);
-
-			// Restore the previous buffer
-			this.#gl.bindBuffer(this.#gl.UNIFORM_BUFFER, prevBuffer);
 		}
 		else
 		{

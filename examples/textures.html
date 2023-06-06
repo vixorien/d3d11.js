@@ -257,6 +257,9 @@
 			let texture = device.CreateTexture2D(desc, bitmap);
 			let srv = new ID3D11ShaderResourceView(device, texture, null);
 			context.GenerateMips(srv);
+
+			// Release the texture resource since the view has it
+			texture.Release();
 			return srv;
 		}
 
@@ -633,12 +636,17 @@
 			context.OMSetRenderTargets([rtv], depthDSV);
 
 			// Attempt to load an image
-			let crateSRV = await loadTexture2D(device, context, "../assets/textures/crate.png");
 			let albedoSRV = await loadTexture2D(device, context, "../assets/textures/floor_albedo.png");
 			let normalSRV = await loadTexture2D(device, context, "../assets/textures/floor_normals.png");
 			let metalSRV =  await loadTexture2D(device, context, "../assets/textures/floor_metal.png");
 			let roughSRV =  await loadTexture2D(device, context, "../assets/textures/floor_roughness.png");
 			context.PSSetShaderResources(0, [albedoSRV, normalSRV, metalSRV, roughSRV]);
+
+
+			// Create/release test
+			let crateSRV = await loadTexture2D(device, context, "../assets/textures/crate.png");
+			crateSRV.Release();
+			
 
 			// Create a sampler
 			let sampDesc = new D3D11_SAMPLER_DESC(
@@ -804,7 +812,6 @@
 
 			function frameloop(time)
 			{
-
 				// Update
 				let speed = 0.2;
 				if (input.IsKeyDown(Keys.Shift)) speed *= 5;
