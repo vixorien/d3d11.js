@@ -91,6 +91,27 @@ class Vector3 extends Float32Array
 	{
 		return new Vector3(-v.x, -v.y, -v.z);
 	}
+
+	static Transform(v, mat)
+	{
+		return new Vector3(
+			mat[0] * v.x + mat[4] * v.y + mat[8] * v.z + mat[12],
+			mat[1] * v.x + mat[5] * v.y + mat[9] * v.z + mat[13],
+			mat[2] * v.x + mat[6] * v.y + mat[10] * v.z + mat[14]);
+	}
+
+	static Rotate(v, pitch, yaw, roll)
+	{
+		// Create three matrices
+		// Note: This could be combined manually to be WAY faster
+		let pMat = Matrix4x4.RotationX(pitch);
+		let yMat = Matrix4x4.RotationY(yaw);
+		let rMat = Matrix4x4.RotationZ(roll);
+
+		// Combine in roll/pitch/yaw order
+		let rotMat = Matrix4x4.Multiply(yMat, Matrix4x4.Multiply(pMat, rMat));
+		return Vector3.Transform(v, rotMat);
+	}
 }
 
 
@@ -222,21 +243,36 @@ class Matrix4x4 extends Float32Array
 		return mat;
 	}
 
-	static TestView(x, y, z)
+
+	static Multiply(a, b)
 	{
-		let mat = Matrix4x4.Identity();
+		let mat = new Matrix4x4();
 
-		// [1, 0, 0, 0]
-		// [0, 1, 0, 0]
-		// [0, 0, 1, 0]
-		// [-x, -y, -z, 1]
+		let a_00 = a[0], a_01 = a[1], a_02 = a[2], a_03 = a[3];
+		let a_10 = a[4], a_11 = a[5], a_12 = a[6], a_13 = a[7];
+		let a_20 = a[8], a_21 = a[9], a_22 = a[10], a_23 = a[11];
+		let a_30 = a[12], a_31 = a[13], a_32 = a[14], a_33 = a[15];
 
-		mat[12] = -x;
-		mat[13] = -y;
-		mat[14] = -z;
+		// NOTE: Should really just type this all out to make it faster
+		let offset;
+		let b_0, b_1, b_2, b_3;
+		for (let row = 0; row < 4; row++)
+		{
+			offset = row * 4;
+			b_0 = b[0 + offset];
+			b_1 = b[1 + offset];
+			b_2 = b[2 + offset];
+			b_3 = b[3 + offset];
+
+			mat[0 + offset] = b_0 * a_00 + b_1 * a_10 + b_2 * a_20 + b_3 * a_30;
+			mat[1 + offset] = b_0 * a_01 + b_1 * a_11 + b_2 * a_21 + b_3 * a_31;
+			mat[2 + offset] = b_0 * a_02 + b_1 * a_12 + b_2 * a_22 + b_3 * a_32;
+			mat[3 + offset] = b_0 * a_03 + b_1 * a_13 + b_2 * a_23 + b_3 * a_33;
+		}
 
 		return mat;
 	}
+
 
 	static ViewDirectionLH(eyePos, viewDir, up)
 	{
@@ -607,32 +643,7 @@ class Matrix4x4 extends Float32Array
 
 
 
-	static Multiply(a, b)
-	{
-		let mat = new Matrix4x4();
-
-		let a_00 = a[0], a_01 = a[1], a_02 = a[2], a_03 = a[3];
-		let a_10 = a[4], a_11 = a[5], a_12 = a[6], a_13 = a[7];
-		let a_20 = a[8], a_21 = a[9], a_22 = a[10], a_23 = a[11];
-		let a_30 = a[12], a_31 = a[13], a_32 = a[14], a_33 = a[15];
-
-		// NOTE: Should really just type this all out to make it faster
-		for (let row = 0; row < 4; row++)
-		{
-			let offset = row * 4;
-			let b_0 = b[0 + offset];
-			let b_1 = b[1 + offset];
-			let b_2 = b[2 + offset];
-			let b_3 = b[3 + offset];
-
-			mat[0 + offset] = b_0 * a_00 + b_1 * a_10 + b_2 * a_20 + b_3 * a_30;
-			mat[1 + offset] = b_0 * a_01 + b_1 * a_11 + b_2 * a_21 + b_3 * a_31;
-			mat[2 + offset] = b_0 * a_02 + b_1 * a_12 + b_2 * a_22 + b_3 * a_32;
-			mat[3 + offset] = b_0 * a_03 + b_1 * a_13 + b_2 * a_23 + b_3 * a_33;
-		}
-
-		return mat;
-	}
+	
 
 
 

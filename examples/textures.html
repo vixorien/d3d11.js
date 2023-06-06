@@ -695,7 +695,7 @@
 
 			// Set up the initial VS CB data
 			let wMat = Matrix4x4.RotationY(0);
-			let vMat = Matrix4x4.TestView(cameraPosition.X, cameraPosition.Y, cameraPosition.Z);
+			let vMat = Matrix4x4.ViewDirectionLH(cameraPosition, camDir, Vector3.UnitY);
 			let pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, aspectRatio, 0.01, 100);
 
 			let vsData = new Float32Array(elementCount);
@@ -810,27 +810,30 @@
 				if (input.IsKeyDown(Keys.Shift)) speed *= 5;
 				if (input.IsKeyDown(Keys.Ctrl)) speed *= 0.25;
 
-				let camMove = new Vector3();
-				if (input.IsKeyDown(Keys.A)) cameraMove.x -= speed;
-				if (input.IsKeyDown(Keys.D)) cameraMove.x += speed;
-				if (input.IsKeyDown(Keys.W)) cameraMove.z += speed;
-				if (input.IsKeyDown(Keys.S)) cameraMove.z -= speed;
-				if (input.IsKeyDown(Keys.Space)) cameraMove.y += speed;
-				if (input.IsKeyDown(Keys.X)) cameraMove.y -= speed;
-
+				let cameraMove = new Vector3();
+				let anyMove = false;
+				if (input.IsKeyDown(Keys.A)) { anyMove = true; cameraMove.x -= speed; }
+				if (input.IsKeyDown(Keys.D)) { anyMove = true; cameraMove.x += speed; }
+				if (input.IsKeyDown(Keys.W)) { anyMove = true; cameraMove.z += speed; }
+				if (input.IsKeyDown(Keys.S)) { anyMove = true; cameraMove.z -= speed; }
+				if (input.IsKeyDown(Keys.Space)) { anyMove = true; cameraMove.y += speed; }
+				if (input.IsKeyDown(Keys.X)) { anyMove = true; cameraMove.y -= speed; }
 
 				if (input.IsMouseDown(MouseButtons.Left))
 				{
-					cameraRotation.x -= input.GetMouseDeltaY() * 0.001;
+					cameraRotation.x += input.GetMouseDeltaY() * 0.001;
 					cameraRotation.y += input.GetMouseDeltaX() * 0.001;
 
 					camDir.x = Math.sin(cameraRotation.y);
 					camDir.z = Math.cos(cameraRotation.y);
 
-					camDir.y = Math.sin(cameraRotation.x);
+					camDir.y = -Math.sin(cameraRotation.x);
 				}
 
-				//vMat = Matrix4x4.TestView(cameraPosition.x, cameraPosition.y, cameraPosition.z);
+				if(anyMove)
+					cameraPosition = Vector3.Add(cameraPosition, Vector3.Rotate(cameraMove, cameraRotation.x, cameraRotation.y, 0));
+				
+				
 				vMat = Matrix4x4.ViewDirectionLH(
 					cameraPosition,
 					camDir, //new Vector3(0, 0, 1),

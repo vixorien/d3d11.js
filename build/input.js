@@ -106,13 +106,11 @@ class Input
 	#MouseDownHandler(e)
 	{
 		this.#mouseButtons[e.button] = true;
-		console.log("Mouse down: " + e.button + ": (buttons=" + e.buttons + ")" );
 	}
 
 	#MouseUpHandler(e)
 	{
 		this.#mouseButtons[e.button] = false;
-		console.log("Mouse up: " + e.button + ": (buttons=" + e.buttons + ")");
 	}
 
 	#MouseMoveHandler(e)
@@ -124,8 +122,6 @@ class Input
 		// Save new mouse data
 		this.#mouseX = e.clientX;
 		this.#mouseY = e.clientY;
-
-		console.log("mouse move");
 	}
 
 	IsMouseDown(button)
