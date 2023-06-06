@@ -727,7 +727,7 @@
 				lightColors.push([r, g, b]);
 			}
 			let psData = new Float32Array(psElementCount);
-			psData.set([0, 0, -10], 0); // Camera pos
+			psData.set(cameraPosition, 0); // Camera pos
 			psData.set([1, 1, 1], 4); // Tint
 			for (let i = 0; i < 8; i++)
 			{
@@ -906,6 +906,7 @@
 					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 					// Update pixel data (set above while lights are moving)
+					psData.set(cameraPosition, 0);
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 				
