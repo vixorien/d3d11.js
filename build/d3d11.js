@@ -649,7 +649,7 @@ class ID3D11Device extends IUnknown
 	CreateBuffer(bufferDesc, initialData)
 	{
 		// Validate description
-
+		this.#ValidateBufferDesc(bufferDesc);
 
 		// May have changed GL state!
 		if (this.#immediateContext != null)
@@ -667,10 +667,10 @@ class ID3D11Device extends IUnknown
 		{
 			case D3D11_USAGE_IMMUTABLE: glUsage = this.#gl.STATIC_DRAW; break;
 			case D3D11_USAGE_DYNAMIC: glUsage = this.#gl.DYNAMIC_DRAW; break;
-			case D3D11_USAGE_STAGING: glUsage = this.#gl.DYNAMIC_COPY; break; // ???
+			case D3D11_USAGE_STAGING: glUsage = this.#gl.DYNAMIC_READ; break; // ???
 			case D3D11_USAGE_DEFAULT:
 			default:
-				glUsage = this.#gl.STATIC_DRAW; // ???
+				glUsage = this.#gl.DYNAMIC_DRAW; // ???
 				// NOTE: Constant buffers with default usage should probably still be dyanmic draw
 				// TODO: Test this and handle here
 				break;
@@ -1005,29 +1005,60 @@ class ID3D11Device extends IUnknown
 
 	#ValidateBufferDesc(desc)
 	{
+		let isVB = ((desc.BindFlags & D3D11_BIND_VERTEX_BUFFER) == D3D11_BIND_VERTEX_BUFFER);
+		let isIB = ((desc.BindFlags & D3D11_BIND_INDEX_BUFFER) == D3D11_BIND_INDEX_BUFFER);
+		let isCB = ((desc.BindFlags & D3D11_BIND_CONSTANT_BUFFER) == D3D11_BIND_CONSTANT_BUFFER);
+		let isSR = ((desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == D3D11_BIND_SHADER_RESOURCE);
+		let isSO = ((desc.BindFlags & D3D11_BIND_STREAM_OUTPUT) == D3D11_BIND_STREAM_OUTPUT);
+		let isRT = ((desc.BindFlags & D3D11_BIND_RENDER_TARGET) == D3D11_BIND_RENDER_TARGET);
+		let isDS = ((desc.BindFlags & D3D11_BIND_DEPTH_STENCIL) == D3D11_BIND_DEPTH_STENCIL);
+		
 		// Byte width
-		// D3D note: For constant buffers, must be multiples of 16
-		// TODO: Check requirement for WebGL size
-		// TODO: Do we throw if size is zero?  Is that allowed?
+		if (desc.ByteWidth <= 0)
+			throw new Error("Invalid byte width for buffer description.  Must be greater than zero.");
+		else if (isCB && desc.ByteWidth % 16 != 0)
+			throw new Error("Invalid byte width for buffer description.  Constant buffer byte width must be a multiple of 16");
 
-		// Usage
-		// - Must also check combinations with CPU Access
+		// Validate usage
+		if (desc.Usage < D3D11_USAGE_DEFAULT ||
+			desc.Usage > D3D11_USAGE_STAGING)
+			throw new Error("Invalid usage for buffer description.");
+
+		// Bind flags
+		// Note: D3D spec says constant buffer cannot be combined with other flags
+		// Note: WebGL needs to treat index buffers differently, so we've got to isolate that flag, too
+		if (!isVB && !isIB && !isCB && !isSR && !isSO && !isRT && !isDS)
+			throw new Error("Invalid bind flag for buffer description.");
+		else if (isCB && (desc.BindFlags != D3D11_BIND_CONSTANT_BUFFER))
+			throw new Error("Constant Buffer bind flag cannot be combined with any other flags.");
+		else if (isIB && (desc.BindFlags != D3D11_BIND_INDEX_BUFFER))
+			throw new Error("Index Buffer bind flag cannot be combined with any other flags.");
 
 		// CPU Access
-		// - Also compare with usage
+		if (desc.CPUAccessFlags != 0 &&
+			desc.CPUAccessFlags != D3D11_CPU_ACCESS_READ &&
+			desc.CPUAccessFlags != D3D11_CPU_ACCESS_WRITE)
+			throw new Error("Invalid CPU Access Flags for buffer description.");
 
-		// Bind
-		// - D3D & WebGL: Constant buffer must be only flag!
-		// - WebGL: Index buffer must be only flag!
+		// Read access is with staging usage only
+		if (desc.CPUAccessFlags == D3D11_CPU_ACCESS_READ &&
+			desc.Usage != D3D11_USAGE_STAGING)
+			throw new Error("Invalid CPU Access in buffer description.  CPU Access Read can only be used with Staging usage.");
 
-		// Misc Flag
-		// - Probably none of these are relevant?
-		// TODO: 
+		// Write access only works with dynamic and staging
+		if (desc.CPUAccessFlags == D3D11_CPU_ACCESS_WRITE &&
+			(desc.Usage == D3D11_USAGE_DEFAULT || desc.Usage == D3D11_USAGE_IMMUTABLE))
+			throw new Error("Invalid CPU Access in buffer description.  CPU Access Write can only be used with Dynamic or Staging usage.");
 
-		// Structure byte size
-		// TODO: Does this do anything in WebGL?
-		//  - No structured buffers in WebGL, so maybe just cut?
-		// - Probably leave in but require it to be zero (or ignore?)
+		// Misc Flags
+		// NOTE: None of these are relevant here
+		if (desc.MiscFlags != 0)
+			throw new Error("Invalid Misc Flags for buffer description.");
+
+		// Structure byte stride
+		// NOTE: No structured buffers in WebGL :(
+		if (desc.StructureByteStride != 0)
+			throw new Error("Invalid Structured Byte Stride for buffer description.");
 	}
 
 	#ValidateSamplerDesc(desc)
