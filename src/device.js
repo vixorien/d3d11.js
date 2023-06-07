@@ -554,6 +554,9 @@ class ID3D11Device extends IUnknown
 		// - Cannot be typeless
 		// - CAN view a typeless resource, as long as types are compatible
 		//   - MUST have D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS flag on resource
+		// - Format details:
+		//   - https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/format-support-for-direct3d-11-0-feature-level-hardware
+		//   - https://learn.microsoft.com/en-us/previous-versions//ff471325(v=vs.85)?redirectedfrom=MSDN
 		// - TODO: Determine other compatibility requirements
 
 		// View dimension

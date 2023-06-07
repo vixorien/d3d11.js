@@ -144,6 +144,9 @@ const D3D11_USAGE_STAGING = 3;
 
 // Resource data formats
 // NOTE: This is a direct copy/paste from docs; most are probably unnecessary
+// Format details in depth:
+// - https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/format-support-for-direct3d-11-0-feature-level-hardware
+// - https://learn.microsoft.com/en-us/previous-versions//ff471325(v=vs.85)?redirectedfrom=MSDN
 const DXGI_FORMAT_UNKNOWN = 0;
 const DXGI_FORMAT_R32G32B32A32_TYPELESS = 1;
 const DXGI_FORMAT_R32G32B32A32_FLOAT = 2;
