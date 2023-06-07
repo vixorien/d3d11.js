@@ -628,7 +628,6 @@
 			let dsvDesc = new D3D11_DEPTH_STENCIL_VIEW_DESC(
 				depthDesc.Format,
 				D3D11_DSV_DIMENSION_TEXTURE2D,
-				0,
 				0);
 			let depthDSV = device.CreateDepthStencilView(depthBuffer, dsvDesc);
 

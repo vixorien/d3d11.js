@@ -322,7 +322,7 @@ class D3D11_DEPTH_STENCIL_VIEW_DESC
 		format,
 		viewDimension,
 		flags,
-		mipSlice,
+		mipSlice = 0,
 		firstArraySlice = 0,
 		arraySize = 1)
 	{
@@ -404,6 +404,40 @@ class D3D11_SAMPLER_DESC
 	}
 }
 
+
+class D3D11_SHADER_RESOURCE_VIEW_DESC 
+{
+	Format;
+	ViewDimension;
+
+	// The actual description has these union'd
+	// together, but I've opted to simply include
+	// their common members above
+	// NOTE: Skipping structured buffer stuff (D3D11_BUFFER_SRV)
+
+	MostDetailedMip;
+	MipLevels;
+	FirstArraySlice;	// Or First2DArrayFace for tex cube arrays
+	ArraySize;			// Or NumCubes for tex cube arrays
+
+	constructor(
+		format,
+		viewDimension,
+		mostDetailedMip = 0,
+		mipLevels = 1,
+		firstArraySlice = 0,
+		arraySize = 1)
+	{
+		this.Format = format;
+		this.ViewDimension = viewDimension;
+		this.MostDetailedMip = mostDetailedMip;
+		this.MipLevels = mipLevels;
+		this.FirstArraySlice = firstArraySlice;
+		this.ArraySize = arraySize;
+	}
+}
+
+
 class D3D11_TEXTURE2D_DESC
 {
 	Width;
@@ -442,6 +476,7 @@ class D3D11_TEXTURE2D_DESC
 		this.MiscFlags = miscFlags;
 	}
 }
+
 
 class DXGI_SAMPLE_DESC
 {
