@@ -538,4 +538,40 @@ class ID3D11Device extends IUnknown
 			throw new Error("Invalid border color for sampler state");
 		}
 	}
+
+	/**
+	 * Validates an SRV description and ensures it matches
+	 * with the specified resource.
+	 * 
+	 * @param {D3D11_SHADER_RESOURCE_VIEW_DESC} srvDesc - Description of the SRV
+	 * @param {ID3D11Resource} resource - The resource for the SRV
+	 * 
+	 * @throws {Error} If any part of the SRV is invalid
+	 */
+	#ValidateSRVDesc(srvDesc, resource)
+	{
+		// Format
+		// - Cannot be typeless
+		// - CAN view a typeless resource, as long as types are compatible
+		//   - MUST have D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS flag on resource
+		// - TODO: Determine other compatibility requirements
+
+		// View dimension
+		// - Must match that of the resource type
+		// - TODO: Check array vs. non-array (SRV to a single element of an array, etc.)
+
+		// Most detailed mip
+		// - Must actually exist in resource
+
+		// Mip levels
+		// - MostDetailed + Levels < total in resource
+		// - TODO: Verify this check matters!
+
+		// First array slice (or first 2d array face for tex cube arrays)
+		// - Must actually exist in resource
+
+		// Array size (or num cubes for tex cube arrays)
+		// - FirstSlice + ArraySize < total array elements
+		// - TODO: Verify this check matters
+	}
 }
