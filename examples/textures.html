@@ -255,7 +255,8 @@
 				0,
 				D3D11_RESOURCE_MISC_GENERATE_MIPS);
 			let texture = device.CreateTexture2D(desc, bitmap);
-			let srv = new ID3D11ShaderResourceView(device, texture, null);
+			//let srv = new ID3D11ShaderResourceView(device, texture, null);
+			let srv = device.CreateShaderResourceView(texture, null);
 			context.GenerateMips(srv);
 
 			// Release the texture resource since the view has it
@@ -628,7 +629,6 @@
 			let dsvDesc = new D3D11_DEPTH_STENCIL_VIEW_DESC(
 				depthDesc.Format,
 				D3D11_DSV_DIMENSION_TEXTURE2D,
-				0,
 				0);
 			let depthDSV = device.CreateDepthStencilView(depthBuffer, dsvDesc);
 
