@@ -216,6 +216,53 @@ class ID3D11Device extends IUnknown
 		return new class extends ID3D11SamplerState { } (this, samplerDesc);
 	}
 
+	/**
+	 * Creates a shader resource view for the specified resource.  Pass in a null description
+	 * to create a default SRV for this specific resource, which allows the entire resource
+	 * to be viewed from a shader.
+	 * 
+	 * @param {ID3D11Resource} resource A resource derived from ID3D11Resource, such as a texture
+	 * @param {D3D11_SHADER_RESOURCE_VIEW_DESC} desc The description of the SRV to create.  Pass in null to create a default SRV for this resource.
+	 * 
+	 * @returns {ID3D11ShaderResourceView} A new SRV for this resource
+	 * 
+	 * @throws {Error} If the SRV description is invalid, or the resource cannot be bound as an SRV
+	 */
+	CreateShaderResourceView(resource, desc)
+	{
+		// Resource is not optional
+		if (resource == null)
+			throw new Error("Resource cannot be null when creating an SRV");
+
+		// Grab the resource description to check for proper bind flag
+		let resDesc = resource.GetDesc();
+		if ((resDesc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0)
+			throw new Error("Resource not allowed to bind as a shader resource");
+
+		// Is the description null?  If so, build a default!
+		if (desc == null)
+		{
+			// What's the resource type for the view dimension?
+			let viewDim = null;
+			if (resource instanceof ID3D11Texture2D)
+				viewDim = D3D11_SRV_DIMENSION_TEXTURE2D;
+			else
+				throw new Error("Invalid resource type for SRV");
+
+			desc = new D3D11_SHADER_RESOURCE_VIEW_DESC(
+				resDesc.Format,
+				viewDim,
+				0,
+				resDesc.MipLevels,
+				0,
+				resDesc.ArraySize);
+		}
+
+		this.#ValidateSRVDesc(resource, desc);
+
+		return new class extends ID3D11ShaderResourceView { }(this, resource, desc);
+	}
+
 
 	// TODO: Validate full description
 	// NOTE: Immutable textures are possible:
@@ -543,38 +590,82 @@ class ID3D11Device extends IUnknown
 	 * Validates an SRV description and ensures it matches
 	 * with the specified resource.
 	 * 
-	 * @param {D3D11_SHADER_RESOURCE_VIEW_DESC} srvDesc - Description of the SRV
 	 * @param {ID3D11Resource} resource - The resource for the SRV
+	 * @param {D3D11_SHADER_RESOURCE_VIEW_DESC} srvDesc - Description of the SRV
 	 * 
 	 * @throws {Error} If any part of the SRV is invalid
 	 */
-	#ValidateSRVDesc(srvDesc, resource)
+	#ValidateSRVDesc(resource, srvDesc)
 	{
+		// Grab the resource's description
+		let resDesc = resource.GetDesc();
+
 		// Format
-		// - Cannot be typeless
+		// - Cannot be typeless (which we're not supporting anyway)
 		// - CAN view a typeless resource, as long as types are compatible
 		//   - MUST have D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS flag on resource
-		// - Format details:
-		//   - https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/format-support-for-direct3d-11-0-feature-level-hardware
-		//   - https://learn.microsoft.com/en-us/previous-versions//ff471325(v=vs.85)?redirectedfrom=MSDN
-		// - TODO: Determine other compatibility requirements
+		switch (srvDesc.Format)
+		{
+			case DXGI_FORMAT_R8G8B8A8_UNORM: break;
+
+			default:
+				throw new Error("Specified SRV Format is invalid or not yet implemented!");
+		}
+
+		// Format must match resource (or be "compatible")
+		// TODO: Determine "compatibility" - mostly for typeless, right?  And we're not using those?
+		if (srvDesc.Format != resDesc.Format)
+			throw new Error("Specified SRV Format does not match resource");
 
 		// View dimension
 		// - Must match that of the resource type
-		// - TODO: Check array vs. non-array (SRV to a single element of an array, etc.)
+		// - TODO: Check array vs. non-array? (SRV to a single element of an array, etc.)
+		switch (srvDesc.ViewDimension)
+		{
+			case D3D11_SRV_DIMENSION_TEXTURE2D:
+				if (!(resource instanceof ID3D11Texture2D))
+					throw new Error("Specified SRV View Dimension does not match resource");
+				break;
+
+			case D3D11_SRV_DIMENSION_TEXTURE1D:
+			case D3D11_SRV_DIMENSION_TEXTURE1DARRAY:
+			case D3D11_SRV_DIMENSION_TEXTURE2DARRAY:
+			case D3D11_SRV_DIMENSION_TEXTURE3D:
+			case D3D11_SRV_DIMENSION_TEXTURECUBE:
+				throw new Error("Specified SRV View Dimension is not yet implemented!");
+
+			default:
+				throw new Error("Specified SRV View Dimension is invalid");
+		}
 
 		// Most detailed mip
 		// - Must actually exist in resource
+		if (srvDesc.MostDetailedMip < 0 ||
+			srvDesc.MostDetailedMip >= resDesc.MipLevels)
+			throw new Error("Specified SRV Most Detailed Mip is invalid");
 
 		// Mip levels
 		// - MostDetailed + Levels < total in resource
 		// - TODO: Verify this check matters!
+		let leastDetailedMip = srvDesc.MostDetailedMip + srvDesc.MipLevels - 1;
+		if (srvDesc.MipLevels == 0 ||
+			leastDetailedMip < 0 ||
+			leastDetailedMip >= resDesc.MipLevels)
+			throw new Error("Specified SRV Mip Levels value is invalid");
 
 		// First array slice (or first 2d array face for tex cube arrays)
 		// - Must actually exist in resource
-
+		if (srvDesc.FirstArraySlice < 0 ||
+			srvDesc.FirstArraySlice >= resDesc.ArraySize)
+			throw new Error("Specified SRV First Array Slice is invalid");
+		
 		// Array size (or num cubes for tex cube arrays)
 		// - FirstSlice + ArraySize < total array elements
 		// - TODO: Verify this check matters
+		let lastSlice = srvDesc.FirstArraySlice + srvDesc.ArraySize - 1;
+		if (srvDesc.ArraySize == 0 ||
+			lastSlice < 0 ||
+			lastSlice >= resDesc.ArraySize)
+			throw new Error("Specified SRV Array Size is invalid");
 	}
 }

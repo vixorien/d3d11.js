@@ -96,5 +96,12 @@ class ID3D11ShaderResourceView extends ID3D11View
 	constructor(device, resource, desc)
 	{
 		super(device, resource, desc);
+
+		// Abstract check
+		if (new.target === ID3D11ShaderResourceView)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11ShaderResourceView objects - use device.CreateShaderResourceView() instead");
+		}
 	}
 }

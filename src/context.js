@@ -9,7 +9,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// General pipeline ---
 	#fakeBackBufferFrameBuffer;
-	#defaultSamplerDesc;
 
 	// General shaders ---
 	#maxCombinedTextures;
@@ -81,17 +80,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#currentShaderProgram = null;
 		this.#currentCBufferMap = null;
 		this.#shadersDirty = true;
-		this.#defaultSamplerDesc = new D3D11_SAMPLER_DESC(
-			D3D11_FILTER_MIN_MAG_MIP_LINEAR,
-			D3D11_TEXTURE_ADDRESS_CLAMP,
-			D3D11_TEXTURE_ADDRESS_CLAMP,
-			D3D11_TEXTURE_ADDRESS_CLAMP,
-			0,
-			1,
-			D3D11_COMPARISON_NEVER,
-			[1, 1, 1, 1],
-			-D3D11_FLOAT32_MAX,
-			D3D11_FLOAT32_MAX);
 
 		// Input Assembler
 		{
@@ -104,7 +92,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#vertexBufferOffsets = [];
 
 			this.#indexBuffer = null;
-			this.#indexBufferFormat = DXGI_FORMAT_R16_FLOAT;
+			this.#indexBufferFormat = DXGI_FORMAT_R16_UINT;
 			this.#indexBufferOffset = 0;
 		}
 

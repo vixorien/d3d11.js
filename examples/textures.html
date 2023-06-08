@@ -255,7 +255,8 @@
 				0,
 				D3D11_RESOURCE_MISC_GENERATE_MIPS);
 			let texture = device.CreateTexture2D(desc, bitmap);
-			let srv = new ID3D11ShaderResourceView(device, texture, null);
+			//let srv = new ID3D11ShaderResourceView(device, texture, null);
+			let srv = device.CreateShaderResourceView(texture, null);
 			context.GenerateMips(srv);
 
 			// Release the texture resource since the view has it
