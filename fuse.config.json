@@ -3,6 +3,7 @@
 		{
 			"input": [
 				"./src/constants.js",
+				"./src/errors.js",
 				"./src/descriptions.js",
 				"./src/structs.js",
 				"./src/base.js",
