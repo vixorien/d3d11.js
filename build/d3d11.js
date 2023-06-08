@@ -2126,6 +2126,15 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 					this.#gl.bindTexture(this.#gl.TEXTURE_2D, res.GetGLResource());
 					this.#gl.uniform1i(texMap[t].UniformLocation, texMap[t].TextureUnit);
 
+					// Set SRV-specific texture properties
+					let srvDesc = srv.GetDesc();
+					let baseMip = srvDesc.MostDetailedMip;
+					let maxMip = srvDesc.MostDetailedMip + srvDesc.MipLevels - 1;
+					this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_BASE_LEVEL, baseMip);
+					this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAX_LEVEL, maxMip);
+
+					// TODO: Set sampler-specific texture properties (aniso level)
+
 					// Release the resource ref
 					res.Release();
 				}
