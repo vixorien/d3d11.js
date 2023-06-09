@@ -53,7 +53,7 @@ class D3D11_DEPTH_STENCIL_VIEW_DESC
 	constructor(
 		format,
 		viewDimension,
-		flags,
+		flags = 0,
 		mipSlice = 0,
 		firstArraySlice = 0,
 		arraySize = 1)
@@ -94,6 +94,31 @@ class D3D11_INPUT_ELEMENT_DESC
 		this.AlignedByteOffset = alignedByteOffset;
 		this.InputSlotClass = inputSlotClass;
 		this.InstanceDataStepRate = instanceDataStepRate;
+	}
+}
+
+class D3D11_RENDER_TARGET_VIEW_DESC
+{
+	Format; // NO typeless, if DXGI_FORMAT_UNKNOWN then resource type is used
+	ViewDimension;
+
+	// NOTE: Skipping structured buffer stuff (D3D11_BUFFER_RTV)
+	MipSlice;
+	FirstArraySlice;	// Or FirstWSlice for 3D textures
+	ArraySize;			// Or WSize for 3D textures
+
+	constructor(
+		format,
+		viewDimension,
+		mipSlice = 0,
+		firstArraySlice = 0,
+		arraySize = 1)
+	{
+		this.Format = format;
+		this.ViewDimension = viewDimension;
+		this.MipSlice = mipSlice;
+		this.FirstArraySlice = firstArraySlice;
+		this.ArraySize = arraySize;
 	}
 }
 
@@ -151,6 +176,8 @@ class D3D11_SHADER_RESOURCE_VIEW_DESC
 	MipLevels;
 	FirstArraySlice;	// Or First2DArrayFace for tex cube arrays
 	ArraySize;			// Or NumCubes for tex cube arrays
+	// TODO: Remove array slice/size stuff?  WebGL doesn't seem to handle it
+	//       Or just keep but rRequire to match resource?
 
 	constructor(
 		format,

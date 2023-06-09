@@ -69,6 +69,12 @@ const D3D11_DSV_DIMENSION_TEXTURE2DARRAY = 4;
 //const D3D11_DSV_DIMENSION_TEXTURE2DMS = 5;
 //const D3D11_DSV_DIMENSION_TEXTURE2DMSARRAY = 6;
 
+// Depth stenvil view options related to the DSV being read only
+const D3D11_DSV_READ_ONLY_DEPTH = 0x1;
+const D3D11_DSV_READ_ONLY_STENCIL = 0x2;
+
+
+
 // Filtering options during texture sampling
 // Notes on filter bits:
 //   1 bit: Mip filter --> 0 = point, 1 = linear
@@ -142,6 +148,18 @@ const D3D11_SRV_DIMENSION_TEXTURE3D = 8;
 const D3D11_SRV_DIMENSION_TEXTURECUBE = 9;
 //const D3D11_SRV_DIMENSION_TEXTURECUBEARRAY = 10;
 //const D3D11_SRV_DIMENSION_BUFFEREX = 11;
+
+// Identify the type of resource that will be viewed as a render target.
+//const D3D11_RTV_DIMENSION_UNKNOWN = 0;
+//const D3D11_RTV_DIMENSION_BUFFER = 1;
+const D3D11_RTV_DIMENSION_TEXTURE1D = 2;
+const D3D11_RTV_DIMENSION_TEXTURE1DARRAY = 3;
+const D3D11_RTV_DIMENSION_TEXTURE2D = 4;
+const D3D11_RTV_DIMENSION_TEXTURE2DARRAY = 5;
+//const D3D11_RTV_DIMENSION_TEXTURE2DMS = 6;
+//const D3D11_RTV_DIMENSION_TEXTURE2DMSARRAY = 7;
+const D3D11_RTV_DIMENSION_TEXTURE3D = 8;
+
 
 // Identify a technique for resolving texture coordinates that are outside of the boundaries of a texture.
 const D3D11_TEXTURE_ADDRESS_WRAP = 1;
@@ -285,6 +303,23 @@ const DXGI_FORMAT_R16_UINT = 57;			// 16-bit index buffers
 
 
 // -----------------------------------------------------
+// -------------- D3D11 & d3d11.js Errors --------------
+// -----------------------------------------------------
+
+// --- Example Errors ---
+//
+// 1. Invalid array size on texture2d creation:
+//
+// D3D11 ERROR: ID3D11Device::CreateTexture2D: The Dimensions are invalid. For feature level D3D_FEATURE_LEVEL_11_0, the Width (value = 256) must be between 1 and 16384, inclusively. The Height (value = 256) must be between 1 and 16384, inclusively. And, the ArraySize (value = 0) must be between 1 and 2048, inclusively. [ STATE_CREATION ERROR #101: CREATETEXTURE2D_INVALIDDIMENSIONS]
+//
+// 2. Invalid mip levels on tex2d creation:
+//
+// D3D11 ERROR: ID3D11Device::CreateTexture2D: MipLevels invalid. With the dimensions of Width = 256, Height = 256, and ArraySize = 1, MipLevels (value = 999) must be between 1 and 9, inclusively. [ STATE_CREATION ERROR #102: CREATETEXTURE2D_INVALIDMIPLEVELS]
+//
+
+
+
+// -----------------------------------------------------
 // ------------------- Descriptions --------------------
 // -----------------------------------------------------
 
@@ -338,7 +373,7 @@ class D3D11_DEPTH_STENCIL_VIEW_DESC
 	constructor(
 		format,
 		viewDimension,
-		flags,
+		flags = 0,
 		mipSlice = 0,
 		firstArraySlice = 0,
 		arraySize = 1)
@@ -379,6 +414,31 @@ class D3D11_INPUT_ELEMENT_DESC
 		this.AlignedByteOffset = alignedByteOffset;
 		this.InputSlotClass = inputSlotClass;
 		this.InstanceDataStepRate = instanceDataStepRate;
+	}
+}
+
+class D3D11_RENDER_TARGET_VIEW_DESC
+{
+	Format; // NO typeless, if DXGI_FORMAT_UNKNOWN then resource type is used
+	ViewDimension;
+
+	// NOTE: Skipping structured buffer stuff (D3D11_BUFFER_RTV)
+	MipSlice;
+	FirstArraySlice;	// Or FirstWSlice for 3D textures
+	ArraySize;			// Or WSize for 3D textures
+
+	constructor(
+		format,
+		viewDimension,
+		mipSlice = 0,
+		firstArraySlice = 0,
+		arraySize = 1)
+	{
+		this.Format = format;
+		this.ViewDimension = viewDimension;
+		this.MipSlice = mipSlice;
+		this.FirstArraySlice = firstArraySlice;
+		this.ArraySize = arraySize;
 	}
 }
 
@@ -436,6 +496,8 @@ class D3D11_SHADER_RESOURCE_VIEW_DESC
 	MipLevels;
 	FirstArraySlice;	// Or First2DArrayFace for tex cube arrays
 	ArraySize;			// Or NumCubes for tex cube arrays
+	// TODO: Remove array slice/size stuff?  WebGL doesn't seem to handle it
+	//       Or just keep but rRequire to match resource?
 
 	constructor(
 		format,
@@ -830,52 +892,43 @@ class ID3D11Device extends IUnknown
 		return d3dBuffer;
 	}
 
-	// TODO: Determine if we should do ALL verification at this level
-	//       and let the view constructor just be super simple.  Ideally,
-	//       no one else is creating views, though we may want to formalize
-	//       that somehow?  (anonymous classes?)
+
+	/**
+	 * Creates a depth stencil view for the specified resource.  Pass in a null description
+	 * to create a default DSV for this specific resource, which allows mip 0 access for
+	 * the entire resource.
+	 * 
+	 * @param {ID3D11Resource} resource A resource derived from ID3D11Resource, such as a texture
+	 * @param {D3D11_RENDER_TARGET_VIEW_DESC} desc The description of the DSV to create.  Pass in null to create a default DSV for this resource.
+	 * 
+	 * @returns {ID3D11DepthStencilView} A new DSV for this resource
+	 * 
+	 * @throws {Error} If the DSV description is invalid, or the resource cannot be bound as an DSV
+	 */
 	CreateDepthStencilView(resource, desc)
 	{
-		// Have to have a valid resource
-		if (resource == null)
-			throw new Error("Must provide a non-null resource to create a depth stencil view");
-
-		// May have changed GL state!
-		if (this.#immediateContext != null)
-			this.#immediateContext.DirtyPipeline();
-
-		// Null descriptions are valid here!  Create a default one
+		// Is the description null?  If so, build a default!
 		if (desc == null)
 		{
-			let resDesc = resource.GetDesc();
-			let viewDim;
-
-			// Determine the view dimension by analyzing the resource
-			// TODO: Texture 1D
-			if (resource instanceof ID3D11Texture1D)
-			{
-				viewDim = D3D11_DSV_DIMENSION_TEXTURE1D;
-			}
-			else if (resource instanceof ID3D11Texture2D)
-			{
+			// What's the resource type for the view dimension?
+			let viewDim = null;
+			if (resource instanceof ID3D11Texture2D)
 				viewDim = D3D11_DSV_DIMENSION_TEXTURE2D;
-			}
 			else
-			{
-				// Invalid resource type
-				throw new Error("Invalid resource for depth stencil view creation");
-			}
+				throw new Error("Invalid resource type for DSV");
 
-			// Basic, 0-mip, first-array-slice description
+			let resDesc = resource.GetDesc();
 			desc = new D3D11_DEPTH_STENCIL_VIEW_DESC(
 				resDesc.Format,
 				viewDim,
 				0,
-				0);
+				0,
+				0,
+				resDesc.ArraySize);
 		}
-
-		// Create the view (which will verify the description elements like bind flag)
-		return new ID3D11DepthStencilView(this, resource, desc);
+		// Validate the DSV and resource combo
+		this.#ValidateDSVDesc(resource, desc);
+		return new class extends ID3D11DepthStencilView { }(this, resource, desc);
 	}
 
 
@@ -903,6 +956,44 @@ class ID3D11Device extends IUnknown
 		let ps = new HLSL(hlslCode, ShaderTypePixel);
 		let glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
 		return new ID3D11PixelShader(this, glShader, ps);
+	}
+
+	/**
+	 * Creates a render target view for the specified resource.  Pass in a null description
+	 * to create a default RTV for this resource, which accesses all subresources at mip 0.
+	 * 
+	 * @param {ID3D11Resource} resource A resource derived from ID3D11Resource, such as a texture
+	 * @param {D3D11_RENDER_TARGET_VIEW_DESC} desc The description of the RTV to create.  Pass in null to create a default RTV for this resource.
+	 * 
+	 * @returns {ID3D11RenderTargetView} A new RTV for this resource
+	 * 
+	 * @throws {Error} If the RTV description is invalid, or the resource cannot be bound as an RTV
+	 */
+	CreateRenderTargetView(resource, desc)
+	{
+		// Is the description null?  If so, build a default!
+		if (desc == null)
+		{
+			// What's the resource type for the view dimension?
+			let viewDim = null;
+			if (resource instanceof ID3D11Texture2D)
+				viewDim = D3D11_RTV_DIMENSION_TEXTURE2D;
+			else
+				throw new Error("Invalid resource type for RTV");
+
+			let resDesc = resource.GetDesc();
+			desc = new D3D11_RENDER_TARGET_VIEW_DESC(
+				resDesc.Format,
+				viewDim,
+				0,
+				0,
+				resDesc.ArraySize);
+		}
+
+		// Validate the RTV and resource combo
+		this.#ValidateRTVDesc(resource, desc);
+
+		return new class extends ID3D11RenderTargetView { }(this, resource, desc);
 	}
 
 
@@ -937,15 +1028,6 @@ class ID3D11Device extends IUnknown
 	 */
 	CreateShaderResourceView(resource, desc)
 	{
-		// Resource is not optional
-		if (resource == null)
-			throw new Error("Resource cannot be null when creating an SRV");
-
-		// Grab the resource description to check for proper bind flag
-		let resDesc = resource.GetDesc();
-		if ((resDesc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0)
-			throw new Error("Resource not allowed to bind as a shader resource");
-
 		// Is the description null?  If so, build a default!
 		if (desc == null)
 		{
@@ -956,6 +1038,7 @@ class ID3D11Device extends IUnknown
 			else
 				throw new Error("Invalid resource type for SRV");
 
+			let resDesc = resource.GetDesc();
 			desc = new D3D11_SHADER_RESOURCE_VIEW_DESC(
 				resDesc.Format,
 				viewDim,
@@ -965,6 +1048,7 @@ class ID3D11Device extends IUnknown
 				resDesc.ArraySize);
 		}
 
+		// Validate the SRV and resource combo
 		this.#ValidateSRVDesc(resource, desc);
 
 		return new class extends ID3D11ShaderResourceView { }(this, resource, desc);
@@ -1226,6 +1310,96 @@ class ID3D11Device extends IUnknown
 			throw new Error("Invalid Structured Byte Stride for buffer description.");
 	}
 
+	#ValidateDSVDesc(resource, dsvDesc)
+	{
+		// Resource is not optional
+		if (resource == null)
+			throw new Error("Resource cannot be null when creating a DSV");
+
+		// Resource must have proper bind flag
+		let resDesc = resource.GetDesc();
+		if ((resDesc.BindFlags & D3D11_BIND_DEPTH_STENCIL) == 0)
+			throw new Error("Cannot create DSV: resource is not marked for depth/stencil binding");
+
+		// Check for unknown format first, which means we match the resource's format
+		// Otherwise verify they match exactly
+		// TODO: Are there any "compatible" formats here?
+		if (dsvDesc.Format == DXGI_FORMAT_UNKNOWN)
+			dsvDesc.Format = resDesc.Format;
+		else if (dsvDesc.Format != resDesc.Format)
+			throw new Error("Specified DSV Format does not match resource");
+
+		// Format
+		// - DSV w/ unknown format uses the format of the resource (handled above)
+		// - Must be one of D16_UNORM, D24_UNORM_S8_UINT, D32_FLOAT or D32_FLOAT_S8X24_UINT (not available in WebGL, I think)
+		switch (dsvDesc.Format)
+		{
+			// Check for valid formats
+			case DXGI_FORMAT_D16_UNORM:
+			case DXGI_FORMAT_D32_FLOAT:
+			case DXGI_FORMAT_D24_UNORM_S8_UINT:
+				break;
+
+			default:
+				throw new Error("Specified DSV Format is invalid or not yet implemented!");
+		}
+
+		// View dimension
+		// - Must match that of the resource type
+		// - TODO: Check how to handle arrays vs. single elements
+		switch (dsvDesc.ViewDimension)
+		{
+			case D3D11_DSV_DIMENSION_TEXTURE2D:
+				if (!(resource instanceof ID3D11Texture2D))
+					throw new Error("Specified DSV View Dimension does not match resource");
+				break;
+
+			case D3D11_DSV_DIMENSION_TEXTURE1D:
+			case D3D11_DSV_DIMENSION_TEXTURE1DARRAY:
+			case D3D11_DSV_DIMENSION_TEXTURE2DARRAY:
+				throw new Error("Specified DSV View Dimension is not yet implemented!");
+
+			default:
+				throw new Error("Specified DSV View Dimension is invalid");
+		}
+
+		// Flags
+		switch (dsvDesc.Flags)
+		{
+			case 0: // Probably the only one we'll end up supporting
+				break;
+
+			case D3D11_DSV_READ_ONLY_DEPTH:
+			case D3D11_DSV_READ_ONLY_STENCIL:
+				throw new Error("Specified DSV Flags not yet implemented!");
+				break;
+
+			default:
+				throw new Error("Specified DSV Flags are invalid");
+		}
+
+		// Mip slice
+		// - Must actually exist in resource
+		if (dsvDesc.MipSlice < 0 ||
+			dsvDesc.MipSlice >= resDesc.MipLevels)
+			throw new Error("Specified DSV Mip Slice is invalid");
+
+		// First array slice (or first 2d array face for tex cube arrays)
+		// - Must actually exist in resource
+		if (dsvDesc.FirstArraySlice < 0 ||
+			dsvDesc.FirstArraySlice >= resDesc.ArraySize)
+			throw new Error("Specified DSV First Array Slice is invalid");
+
+		// Array size (or num cubes for tex cube arrays)
+		// - FirstSlice + ArraySize < total array elements
+		// - TODO: Verify this check matters
+		let lastSlice = dsvDesc.FirstArraySlice + dsvDesc.ArraySize - 1;
+		if (dsvDesc.ArraySize == 0 ||
+			lastSlice < 0 ||
+			lastSlice >= resDesc.ArraySize)
+			throw new Error("Specified DSV Array Size is invalid");
+	}
+
 	#ValidateSamplerDesc(desc)
 	{
 		// Check filter mode
@@ -1294,18 +1468,108 @@ class ID3D11Device extends IUnknown
 	}
 
 	/**
+	 * Validates an RTV description and ensures it matches
+	 * with the specified resource.
+	 * 
+	 * @param {ID3D11Resource} resource - The resource for the RTV
+	 * @param {D3D11_RENDER_TARGET_VIEW_DESC} rtvDesc - Description of the RTV
+	 * 
+	 * @throws {Error} If any part of the RTV is invalid
+	 */
+	#ValidateRTVDesc(resource, rtvDesc)
+	{
+		// Resource is not optional
+		if (resource == null)
+			throw new Error("Resource cannot be null when creating an RTV");
+
+		// Resource must have proper bind flag
+		let resDesc = resource.GetDesc();
+		if ((resDesc.BindFlags & D3D11_BIND_RENDER_TARGET) == 0)
+			throw new Error("Cannot create RTV: resource is not marked for render target binding");
+
+		// Check for unknown format first, which means we match the resource's format
+		// Otherwise verify they match exactly
+		// TODO: Are there any "compatible" formats here?
+		if (rtvDesc.Format == DXGI_FORMAT_UNKNOWN)
+			rtvDesc.Format = resDesc.Format;
+		else if (rtvDesc.Format != resDesc.Format)
+			throw new Error("Specified RTV Format does not match resource");
+
+		// Format
+		// - RTV w/ unknown format uses the format of the resource (handled above)
+		// - Cannot be typeless (which we're not supporting anyway)
+		// - Cannot be R32G32B32 if the view is bindable as vertex, index, constant or stream-out
+		switch (rtvDesc.Format)
+		{
+			// Basic color format is fine
+			case DXGI_FORMAT_R8G8B8A8_UNORM: break;
+
+			default:
+				throw new Error("Specified RTV Format is invalid or not yet implemented!");
+		}
+
+		// View dimension
+		// - Must match that of the resource type
+		// - TODO: Check how to handle arrays vs. single elements
+		switch (rtvDesc.ViewDimension)
+		{
+			case D3D11_RTV_DIMENSION_TEXTURE2D:
+				if (!(resource instanceof ID3D11Texture2D))
+					throw new Error("Specified RTV View Dimension does not match resource");
+				break;
+
+			case D3D11_RTV_DIMENSION_TEXTURE1D:
+			case D3D11_RTV_DIMENSION_TEXTURE1DARRAY:
+			case D3D11_RTV_DIMENSION_TEXTURE2DARRAY:
+			case D3D11_RTV_DIMENSION_TEXTURE3D:
+			case D3D11_RTV_DIMENSION_TEXTURECUBE:
+				throw new Error("Specified RTV View Dimension is not yet implemented!");
+
+			default:
+				throw new Error("Specified RTV View Dimension is invalid");
+		}
+
+		// Mip slice
+		// - Must actually exist in resource
+		if (rtvDesc.MipSlice < 0 ||
+			rtvDesc.MipSlice >= resDesc.MipLevels)
+			throw new Error("Specified RTV Mip Slice is invalid");
+
+		// First array slice (or first 2d array face for tex cube arrays)
+		// - Must actually exist in resource
+		if (rtvDesc.FirstArraySlice < 0 ||
+			rtvDesc.FirstArraySlice >= resDesc.ArraySize)
+			throw new Error("Specified RTV First Array Slice is invalid");
+
+		// Array size (or num cubes for tex cube arrays)
+		// - FirstSlice + ArraySize < total array elements
+		// - TODO: Verify this check matters
+		let lastSlice = rtvDesc.FirstArraySlice + rtvDesc.ArraySize - 1;
+		if (rtvDesc.ArraySize == 0 ||
+			lastSlice < 0 ||
+			lastSlice >= resDesc.ArraySize)
+			throw new Error("Specified RTV Array Size is invalid");
+	}
+
+	/**
 	 * Validates an SRV description and ensures it matches
 	 * with the specified resource.
 	 * 
 	 * @param {ID3D11Resource} resource - The resource for the SRV
 	 * @param {D3D11_SHADER_RESOURCE_VIEW_DESC} srvDesc - Description of the SRV
 	 * 
-	 * @throws {Error} If any part of the SRV is invalid
+	 * @throws {Error} If any part of the SRV is invalid, or the resource is not marked for SRV binding
 	 */
 	#ValidateSRVDesc(resource, srvDesc)
 	{
-		// Grab the resource's description
+		// Resource is not optional
+		if (resource == null)
+			throw new Error("Resource cannot be null when creating an SRV");
+
+		// Resource must have proper bind flag
 		let resDesc = resource.GetDesc();
+		if ((resDesc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0)
+			throw new Error("Cannot create SRV: resource is not marked for shader resource binding");
 
 		// Format
 		// - Cannot be typeless (which we're not supporting anyway)
@@ -2945,6 +3209,13 @@ class ID3D11RenderTargetView extends ID3D11View
 	constructor(device, resource, desc)
 	{
 		super(device, resource, desc);
+
+		// Abstract check
+		if (new.target === ID3D11RenderTargetView)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11RenderTargetView objects - use device.CreateRenderTargetView() instead");
+		}
 	}
 }
 

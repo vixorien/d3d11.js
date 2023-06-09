@@ -87,6 +87,13 @@ class ID3D11RenderTargetView extends ID3D11View
 	constructor(device, resource, desc)
 	{
 		super(device, resource, desc);
+
+		// Abstract check
+		if (new.target === ID3D11RenderTargetView)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11RenderTargetView objects - use device.CreateRenderTargetView() instead");
+		}
 	}
 }
 

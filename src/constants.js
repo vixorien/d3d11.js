@@ -69,6 +69,12 @@ const D3D11_DSV_DIMENSION_TEXTURE2DARRAY = 4;
 //const D3D11_DSV_DIMENSION_TEXTURE2DMS = 5;
 //const D3D11_DSV_DIMENSION_TEXTURE2DMSARRAY = 6;
 
+// Depth stenvil view options related to the DSV being read only
+const D3D11_DSV_READ_ONLY_DEPTH = 0x1;
+const D3D11_DSV_READ_ONLY_STENCIL = 0x2;
+
+
+
 // Filtering options during texture sampling
 // Notes on filter bits:
 //   1 bit: Mip filter --> 0 = point, 1 = linear
@@ -142,6 +148,18 @@ const D3D11_SRV_DIMENSION_TEXTURE3D = 8;
 const D3D11_SRV_DIMENSION_TEXTURECUBE = 9;
 //const D3D11_SRV_DIMENSION_TEXTURECUBEARRAY = 10;
 //const D3D11_SRV_DIMENSION_BUFFEREX = 11;
+
+// Identify the type of resource that will be viewed as a render target.
+//const D3D11_RTV_DIMENSION_UNKNOWN = 0;
+//const D3D11_RTV_DIMENSION_BUFFER = 1;
+const D3D11_RTV_DIMENSION_TEXTURE1D = 2;
+const D3D11_RTV_DIMENSION_TEXTURE1DARRAY = 3;
+const D3D11_RTV_DIMENSION_TEXTURE2D = 4;
+const D3D11_RTV_DIMENSION_TEXTURE2DARRAY = 5;
+//const D3D11_RTV_DIMENSION_TEXTURE2DMS = 6;
+//const D3D11_RTV_DIMENSION_TEXTURE2DMSARRAY = 7;
+const D3D11_RTV_DIMENSION_TEXTURE3D = 8;
+
 
 // Identify a technique for resolving texture coordinates that are outside of the boundaries of a texture.
 const D3D11_TEXTURE_ADDRESS_WRAP = 1;
