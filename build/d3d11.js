@@ -1075,10 +1075,8 @@ class ID3D11Device extends IUnknown
 		// Validate the description/initial data combo
 		this.#ValidateTexture2DDesc(desc, initialData);
 
-
 		// Create the gl texture and final D3D texture object
 		let glTexture = this.#gl.createTexture();
-		let d3dTexture = new ID3D11Texture2D(this, desc, glTexture);
 
 		// TODO: Determine usage and how this will affect the texture (if at all)
 		// - Seems like webgl just uses texImage2D() to basically "rebuild" the texture?
@@ -1135,30 +1133,11 @@ class ID3D11Device extends IUnknown
 				initialData);
 		}
 
-		// Set default sampler info
-		// NOTE: Base level and max level will be handled by the view
-		// NOTE: WebGL does not support border colors
-		// TODO: MipLODBias?  Is that a thing in WebGL?  Maybe adjust min/max mip levels by this as a work around?  Not ideal
 		// TODO: Handle types
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_FILTER, hasMipmaps ? this.#gl.LINEAR_MIPMAP_LINEAR : this.#gl.LINEAR); // Can't use the mipmap one if no mipmaps!  Results in black texture sample
+		this.#SetDefaultSamplerStateForTexture(this.#gl.TEXTURE_2D, hasMipmaps);
 
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_S, this.#gl.CLAMP_TO_EDGE);
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_T, this.#gl.CLAMP_TO_EDGE);
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_R, this.#gl.CLAMP_TO_EDGE);
-
-		this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_LOD, -D3D11_FLOAT32_MAX);
-		this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAX_LOD, D3D11_FLOAT32_MAX);
-
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_COMPARE_MODE, this.#gl.NONE);
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_COMPARE_FUNC, this.#gl.NEVER);
-
-		if (this.#anisoExt != null)
-		{
-			this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, 1);
-		}
-
-		return d3dTexture;
+		// Create and return the new object
+		return new class extends ID3D11Texture2D { } (this, desc, glTexture);
 	}
 
 
@@ -1248,6 +1227,37 @@ class ID3D11Device extends IUnknown
 		return glFormatDetails;
 	}
 
+	/**
+	 * Sets the default sampler state for texture bound at the specified texture type.
+	 * State details related to mip levels will be handled by the view.
+	 * Note: WebGL does not support border colors
+	 * TODO: MipLODBias?  Is that a thing in WebGL?  Maybe adjust min/max mip levels by this as a work around?  Not ideal
+	 * 
+	 * @param {GLenum} textureType Type of GL texture for sampler defaults
+	 * @param {bool} hasMipmaps Whether or not the texture has mip maps (which changes the min filter mode)
+	 */
+	#SetDefaultSamplerStateForTexture(textureType, hasMipmaps)
+	{
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_MIN_FILTER, hasMipmaps ? this.#gl.LINEAR_MIPMAP_LINEAR : this.#gl.LINEAR); // Can't use the mipmap one if no mipmaps!  Results in black texture sample
+							   
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_WRAP_S, this.#gl.CLAMP_TO_EDGE);
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_WRAP_T, this.#gl.CLAMP_TO_EDGE);
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_WRAP_R, this.#gl.CLAMP_TO_EDGE);
+							   
+		this.#gl.texParameterf(textureType, this.#gl.TEXTURE_MIN_LOD, -D3D11_FLOAT32_MAX);
+		this.#gl.texParameterf(textureType, this.#gl.TEXTURE_MAX_LOD, D3D11_FLOAT32_MAX);
+							   
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_COMPARE_MODE, this.#gl.NONE);
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_COMPARE_FUNC, this.#gl.NEVER);
+
+		if (this.#anisoExt != null)
+		{
+			this.#gl.texParameterf(textureType, this.#anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, 1);
+		}
+	}
+
+
 	#ValidateBufferDesc(desc)
 	{
 		let isVB = ((desc.BindFlags & D3D11_BIND_VERTEX_BUFFER) == D3D11_BIND_VERTEX_BUFFER);
@@ -1305,6 +1315,7 @@ class ID3D11Device extends IUnknown
 		if (desc.StructureByteStride != 0)
 			throw new Error("Invalid Structured Byte Stride for buffer description.");
 	}
+
 
 	#ValidateDSVDesc(resource, dsvDesc)
 	{
@@ -1396,6 +1407,7 @@ class ID3D11Device extends IUnknown
 			throw new Error("Specified DSV Array Size is invalid");
 	}
 
+
 	#ValidateSamplerDesc(desc)
 	{
 		// Check filter mode
@@ -1462,6 +1474,7 @@ class ID3D11Device extends IUnknown
 			throw new Error("Invalid border color for sampler state");
 		}
 	}
+
 
 	/**
 	 * Validates an RTV description and ensures it matches
@@ -1546,6 +1559,7 @@ class ID3D11Device extends IUnknown
 			lastSlice >= resDesc.ArraySize)
 			throw new Error("Specified RTV Array Size is invalid");
 	}
+
 
 	/**
 	 * Validates an SRV description and ensures it matches
@@ -3173,6 +3187,13 @@ class ID3D11Texture2D extends ID3D11Resource
 	constructor(device, desc, glTexture)
 	{
 		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
+
+		// Abstract check
+		if (new.target === ID3D11Texture2D)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Texture2D objects - use device.CreateTexture2D() instead");
+		}
 	}
 
 	Release()

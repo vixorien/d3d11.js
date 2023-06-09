@@ -65,20 +65,6 @@ class ID3D11Texture1D extends ID3D11Resource
 
 		throw new Error("Texture1D is not implemented yet!");
 	}
-
-	Release()
-	{
-		super.Release();
-
-		// Actually remove texture if necessary
-		// TODO: Handle distinction between texture & render buffer
-		if (this.GetRef() <= 0)
-		{
-			let dev = this.GetDevice();
-			dev.GetAdapter().deleteTexture(this.GetGLResource());
-			dev.Release();
-		}
-	}
 }
 
 class ID3D11Texture2D extends ID3D11Resource
@@ -86,6 +72,13 @@ class ID3D11Texture2D extends ID3D11Resource
 	constructor(device, desc, glTexture)
 	{
 		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
+
+		// Abstract check
+		if (new.target === ID3D11Texture2D)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Texture2D objects - use device.CreateTexture2D() instead");
+		}
 	}
 
 	Release()
@@ -100,5 +93,17 @@ class ID3D11Texture2D extends ID3D11Resource
 			dev.GetAdapter().deleteTexture(this.GetGLResource());
 			dev.Release();
 		}
+	}
+}
+
+// TODO: Actually implement 3D textures
+// - This exists currently so that I can start using the type elsewhere
+class ID3D11Texture3D extends ID3D11Resource
+{
+	constructor(device, desc, glTexture)
+	{
+		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE3D, glTexture);
+
+		throw new Error("Texture1D is not implemented yet!");
 	}
 }

@@ -196,6 +196,9 @@ class D3D11_SHADER_RESOURCE_VIEW_DESC
 	}
 }
 
+// TODO: Implement this!
+// Current exists so the type can be used elsewhere
+class D3D11_TEXTURE1D_DESC { }
 
 class D3D11_TEXTURE2D_DESC
 {
@@ -235,6 +238,10 @@ class D3D11_TEXTURE2D_DESC
 		this.MiscFlags = miscFlags;
 	}
 }
+
+// TODO: Implement this!
+// Current exists so the type can be used elsewhere
+class D3D11_TEXTURE3D_DESC { }
 
 
 class DXGI_SAMPLE_DESC

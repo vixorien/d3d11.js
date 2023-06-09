@@ -302,10 +302,10 @@ class ID3D11Device extends IUnknown
 		// Validate the description/initial data combo
 		this.#ValidateTexture2DDesc(desc, initialData);
 
-
-		// Create the gl texture and final D3D texture object
-		let glTexture = this.#gl.createTexture();
-		let d3dTexture = new ID3D11Texture2D(this, desc, glTexture);
+		// Create the gl texture and bind it so we can work on it
+		const glTexture = this.#gl.createTexture();
+		const glTextureType = this.#GetGLTextureType(desc);
+		this.#gl.bindTexture(glTextureType, glTexture);
 
 		// TODO: Determine usage and how this will affect the texture (if at all)
 		// - Seems like webgl just uses texImage2D() to basically "rebuild" the texture?
@@ -320,17 +320,13 @@ class ID3D11Device extends IUnknown
 		//        - BIND_RENDER_TARGET, BIND_DEPTH_STENCIL
 
 		// Grab GL details
-		let glFormatDetails = this.#GetFormatDetails(desc.Format);
-		let internalFormat = glFormatDetails.InternalFormat;
-		let format = glFormatDetails.Format;
-		let type = glFormatDetails.Type;
-		let isDepth = glFormatDetails.IsDepth;
-		let hasStencil = glFormatDetails.HasStencil;
-		let hasMipmaps = desc.MipLevels > 1; // TODO: Check and update
-
-		// Set new texture
-		// TODO: Handle types
-		this.#gl.bindTexture(this.#gl.TEXTURE_2D, glTexture);
+		const glFormatDetails = this.#GetFormatDetails(desc.Format);
+		const internalFormat = glFormatDetails.InternalFormat;
+		const format = glFormatDetails.Format;
+		const type = glFormatDetails.Type;
+		const isDepth = glFormatDetails.IsDepth;
+		const hasStencil = glFormatDetails.HasStencil;
+		const hasMipmaps = desc.MipLevels > 1; // TODO: Check and update
 
 		// Create the actual resource
 		// Use texStorage2D() to initialize the entire
@@ -338,7 +334,7 @@ class ID3D11Device extends IUnknown
 		// See here for details on formats/types/etc: https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexStorage2D.xhtml
 		// TODO: Use texStorage3D() for 3D textures and 2D Texture Arrays!
 		this.#gl.texStorage2D(
-			this.#gl.TEXTURE_2D,
+			glTextureType,
 			desc.MipLevels,
 			internalFormat,
 			desc.Width,
@@ -351,7 +347,7 @@ class ID3D11Device extends IUnknown
 			// TODO: Somehow handle taking in multiple levels worth of data?  Array of images?
 			// TODO: Handle other types with texSubImage3D()
 			this.#gl.texSubImage2D(
-				this.#gl.TEXTURE_2D,
+				glTextureType,
 				0, // Mip
 				0, // X
 				0, // Y
@@ -362,30 +358,12 @@ class ID3D11Device extends IUnknown
 				initialData);
 		}
 
-		// Set default sampler info
-		// NOTE: Base level and max level will be handled by the view
-		// NOTE: WebGL does not support border colors
-		// TODO: MipLODBias?  Is that a thing in WebGL?  Maybe adjust min/max mip levels by this as a work around?  Not ideal
-		// TODO: Handle types
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_FILTER, hasMipmaps ? this.#gl.LINEAR_MIPMAP_LINEAR : this.#gl.LINEAR); // Can't use the mipmap one if no mipmaps!  Results in black texture sample
+		// Set the default sampler state in the event
+		// we don't bind a sampler when drawing
+		this.#SetDefaultSamplerStateForBoundTexture(glTextureType, hasMipmaps);
 
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_S, this.#gl.CLAMP_TO_EDGE);
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_T, this.#gl.CLAMP_TO_EDGE);
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_WRAP_R, this.#gl.CLAMP_TO_EDGE);
-
-		this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MIN_LOD, -D3D11_FLOAT32_MAX);
-		this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAX_LOD, D3D11_FLOAT32_MAX);
-
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_COMPARE_MODE, this.#gl.NONE);
-		this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_COMPARE_FUNC, this.#gl.NEVER);
-
-		if (this.#anisoExt != null)
-		{
-			this.#gl.texParameterf(this.#gl.TEXTURE_2D, this.#anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, 1);
-		}
-
-		return d3dTexture;
+		// Create and return the new object
+		return new class extends ID3D11Texture2D { } (this, desc, glTexture);
 	}
 
 
@@ -420,6 +398,35 @@ class ID3D11Device extends IUnknown
 		}
 
 		return shader;
+	}
+
+	/**
+	 * Returns a GL Texture type enum value for the given description
+	 * 
+	 * @param {any} desc A texture description
+	 */
+	#GetGLTextureType(desc)
+	{
+		let glType;
+
+		// Grab necessary data
+		const is1D = desc instanceof D3D11_TEXTURE1D_DESC;
+		const is2D = desc instanceof D3D11_TEXTURE2D_DESC;
+		const is3D = desc instanceof D3D11_TEXTURE3D_DESC;
+		const isArray = desc.ArraySize > 1;
+		const isCube = (desc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+		// Easy ones
+		if (is3D) return this.#gl.TEXTURE_3D;
+		if (isCube) return this.#gl.TEXTURE_CUBE_MAP;
+
+		// Both 1D and 2D are just 2D textures under the hood
+		if (is1D || is2D)
+		{
+			return isArray ? this.#gl.TEXTURE_2D_ARRAY : this.#gl.TEXTURE_2D;
+		}
+
+		throw new Error("Description does not many any known WebGL texture types");
 	}
 
 	// Gets the GL format details based on a DXGI Format
@@ -473,6 +480,36 @@ class ID3D11Device extends IUnknown
 		}
 
 		return glFormatDetails;
+	}
+
+	/**
+	 * Sets the default sampler state for texture bound at the specified texture type.
+	 * State details related to mip levels will be handled by the view.
+	 * Note: WebGL does not support border colors
+	 * TODO: MipLODBias?  Is that a thing in WebGL?  Maybe adjust min/max mip levels by this as a work around?  Not ideal
+	 * 
+	 * @param {GLenum} textureType Type of GL texture for sampler defaults
+	 * @param {bool} hasMipmaps Whether or not the texture has mip maps (which changes the min filter mode)
+	 */
+	#SetDefaultSamplerStateForBoundTexture(textureType, hasMipmaps)
+	{
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_MIN_FILTER, hasMipmaps ? this.#gl.LINEAR_MIPMAP_LINEAR : this.#gl.LINEAR); // Can't use the mipmap one if no mipmaps!  Results in black texture sample
+							   
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_WRAP_S, this.#gl.CLAMP_TO_EDGE);
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_WRAP_T, this.#gl.CLAMP_TO_EDGE);
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_WRAP_R, this.#gl.CLAMP_TO_EDGE);
+							   
+		this.#gl.texParameterf(textureType, this.#gl.TEXTURE_MIN_LOD, -D3D11_FLOAT32_MAX);
+		this.#gl.texParameterf(textureType, this.#gl.TEXTURE_MAX_LOD, D3D11_FLOAT32_MAX);
+							   
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_COMPARE_MODE, this.#gl.NONE);
+		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_COMPARE_FUNC, this.#gl.NEVER);
+
+		if (this.#anisoExt != null)
+		{
+			this.#gl.texParameterf(textureType, this.#anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, 1);
+		}
 	}
 
 
