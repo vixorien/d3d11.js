@@ -24,6 +24,10 @@
 //   - Could we even prevent instantiation of higher level
 //     interfaces by using anonymous classes when instantiating?
 //     Probably a javascript no-no, but might test it.
+// - On the topic of arrays vs. single element params:
+//   - In C++, sometimes you want to send in an array and sometimes a single element (one-element array, essentially)
+//   - Might be nice to just support both here, rather than requiring an array wrapper for single elements
+//   - Could check using Array.isArray() pretty easily!
 
 
 // -----------------------------------------------------
@@ -38,7 +42,7 @@ const D3D11_BIND_VERTEX_BUFFER = 0x1;
 const D3D11_BIND_INDEX_BUFFER = 0x2;
 const D3D11_BIND_CONSTANT_BUFFER = 0x4;
 const D3D11_BIND_SHADER_RESOURCE = 0x8;
-const D3D11_BIND_STREAM_OUTPUT = 0x10;
+//const D3D11_BIND_STREAM_OUTPUT = 0x10;
 const D3D11_BIND_RENDER_TARGET = 0x20;
 const D3D11_BIND_DEPTH_STENCIL = 0x40;
 //const D3D11_BIND_UNORDERED_ACCESS = 0x80;

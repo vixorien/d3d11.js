@@ -24,6 +24,10 @@
 //   - Could we even prevent instantiation of higher level
 //     interfaces by using anonymous classes when instantiating?
 //     Probably a javascript no-no, but might test it.
+// - On the topic of arrays vs. single element params:
+//   - In C++, sometimes you want to send in an array and sometimes a single element (one-element array, essentially)
+//   - Might be nice to just support both here, rather than requiring an array wrapper for single elements
+//   - Could check using Array.isArray() pretty easily!
 
 
 // -----------------------------------------------------
@@ -38,7 +42,7 @@ const D3D11_BIND_VERTEX_BUFFER = 0x1;
 const D3D11_BIND_INDEX_BUFFER = 0x2;
 const D3D11_BIND_CONSTANT_BUFFER = 0x4;
 const D3D11_BIND_SHADER_RESOURCE = 0x8;
-const D3D11_BIND_STREAM_OUTPUT = 0x10;
+//const D3D11_BIND_STREAM_OUTPUT = 0x10;
 const D3D11_BIND_RENDER_TARGET = 0x20;
 const D3D11_BIND_DEPTH_STENCIL = 0x40;
 //const D3D11_BIND_UNORDERED_ACCESS = 0x80;
@@ -1061,24 +1065,16 @@ class ID3D11Device extends IUnknown
 	//  - Using texStorage2D() makes the resource immutable
 	//  - Immutable here means it cannot be resized or mip levels be changed
 	//  - Its DATA can still change!
+
 	CreateTexture2D(desc, initialData)
 	{
-		// May have changed GL state!
+		// This may change pipeline state!
 		if (this.#immediateContext != null)
 			this.#immediateContext.DirtyPipeline();
 
-		// TODO: Check description for texture array or cube, as they have different constants
-		if (desc.ArraySize < 1) throw new Error("Invalid array size specified");
-		if (desc.ArraySize > 1) throw new Error("Texture arrays not implemented yet!");
-		if (desc.MiscFlags == D3D11_RESOURCE_MISC_TEXTURECUBE) throw new Error("Texture cubes not implemented yet!");
+		// Validate the description/initial data combo
+		this.#ValidateTexture2DDesc(desc, initialData);
 
-		// Determine how many mip levels we'll need (0 in the desc means 'full mip chain')
-		let maxMips = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
-		if (desc.MipLevels == 0)
-			desc.MipLevels = maxMips; // Update description!
-
-		if (desc.MipLevels <= 0 || desc.MipLevels > maxMips)
-			throw new Error("Invalid mip levels");
 
 		// Create the gl texture and final D3D texture object
 		let glTexture = this.#gl.createTexture();
@@ -1258,7 +1254,7 @@ class ID3D11Device extends IUnknown
 		let isIB = ((desc.BindFlags & D3D11_BIND_INDEX_BUFFER) == D3D11_BIND_INDEX_BUFFER);
 		let isCB = ((desc.BindFlags & D3D11_BIND_CONSTANT_BUFFER) == D3D11_BIND_CONSTANT_BUFFER);
 		let isSR = ((desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == D3D11_BIND_SHADER_RESOURCE);
-		let isSO = ((desc.BindFlags & D3D11_BIND_STREAM_OUTPUT) == D3D11_BIND_STREAM_OUTPUT);
+		//let isSO = ((desc.BindFlags & D3D11_BIND_STREAM_OUTPUT) == D3D11_BIND_STREAM_OUTPUT);
 		let isRT = ((desc.BindFlags & D3D11_BIND_RENDER_TARGET) == D3D11_BIND_RENDER_TARGET);
 		let isDS = ((desc.BindFlags & D3D11_BIND_DEPTH_STENCIL) == D3D11_BIND_DEPTH_STENCIL);
 		
@@ -1276,7 +1272,7 @@ class ID3D11Device extends IUnknown
 		// Bind flags
 		// Note: D3D spec says constant buffer cannot be combined with other flags
 		// Note: WebGL needs to treat index buffers differently, so we've got to isolate that flag, too
-		if (!isVB && !isIB && !isCB && !isSR && !isSO && !isRT && !isDS)
+		if (!isVB && !isIB && !isCB && !isSR && !isRT && !isDS) // !isSO 
 			throw new Error("Invalid bind flag for buffer description.");
 		else if (isCB && (desc.BindFlags != D3D11_BIND_CONSTANT_BUFFER))
 			throw new Error("Constant Buffer bind flag cannot be combined with any other flags.");
@@ -1638,6 +1634,80 @@ class ID3D11Device extends IUnknown
 			lastSlice < 0 ||
 			lastSlice >= resDesc.ArraySize)
 			throw new Error("Specified SRV Array Size is invalid");
+	}
+
+	#ValidateTexture2DDesc(desc, initialData)
+	{
+		// Description cannot be null
+		if (desc == null)
+			throw new Error("Description cannot be null when creating a texture");
+
+		// Get system maximums
+		/// TODO: Need to cache this?  Probably not?
+		const maxSize = this.#gl.getParameter(this.#gl.MAX_TEXTURE_SIZE);
+		const maxCubeSize = this.#gl.getParameter(this.#gl.MAX_CUBE_MAP_TEXTURE_SIZE);
+		const maxArraySize = this.#gl.getParameter(this.#gl.MAX_ARRAY_TEXTURE_LAYERS);
+
+		// Is this a texture cube?
+		const isCube = ((desc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE);
+		const genMips = ((desc.MiscFlags & D3D11_RESOURCE_MISC_GENERATE_MIPS) == D3D11_RESOURCE_MISC_GENERATE_MIPS);
+
+		// Validate size, for both cubes and non-cubes
+		if (isCube && (desc.Width > maxCubeSize || desc.Height > maxCubeSize))
+			throw new Error(`Texture Cube dimensions must be less than or equal to ${maxCubeSize}`);
+		else if
+			(desc.Width <= 0 || desc.Width > maxSize ||
+			desc.Height <= 0 || desc.Height > maxSize)
+			throw new Error(`Texture dimensions must be between 1 and ${maxSize}, inclusive`);
+
+		// Validate array size
+		if (desc.ArraySize <= 0 || desc.ArraySize > maxArraySize)
+			throw new Error(`Array size must be greater than zero and less than or equal to ${maxArraySize}`);
+
+		// Determine how many mip levels we'll need (0 in the desc means 'full mip chain')
+		const maxMips = Math.log2(Math.max(desc.Width, desc.Height)) + 1;
+		if (desc.MipLevels == 0)
+			desc.MipLevels = maxMips; // Update description!
+
+		// Validate overall mip levels
+		if (desc.MipLevels <= 0 || desc.MipLevels > maxMips)
+			throw new Error("Invalid mip levels specified for texture");
+
+		// TODO: Validate format
+
+
+		// Validate usage
+		// Initial data can be null, unless the resource is immutable
+		switch (desc.Usage)
+		{
+			case D3D11_USAGE_DEFAULT:
+			case D3D11_USAGE_DYNAMIC:
+			case D3D11_USAGE_STAGING:
+				// Should all be fine as-is?
+				break;
+
+			case D3D11_USAGE_IMMUTABLE:
+				if ((initialData == null || initialData.length == 0))
+					throw new Error("Immutable textures must have initial data");
+				break;
+
+			default:
+				throw new Error("Invalid usage for texture 2d");
+		}
+
+		// TODO: Validate bind flags
+
+		// TODO: Validate CPU Access flags
+
+		// Validate misc flags
+		if (isCube && desc.ArraySize != 6)
+			throw new Error("Invalid array size for texture cube - must be exactly 6");
+		
+		// Note: this matches spec but is not strictly necessary for WebGL
+		if (genMips && (
+			(desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0 ||
+			(desc.BindFlags & D3D11_BIND_RENDER_TARGET) == 0))
+			throw new Error("Resource must have SHADER_RESOURCE and RENDER_TARGET bind flags to generate mip maps");
 	}
 }
 
