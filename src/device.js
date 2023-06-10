@@ -263,13 +263,31 @@ class ID3D11Device extends IUnknown
 		if (desc == null)
 		{
 			// What's the resource type for the view dimension?
+			let resDesc = resource.GetDesc();
 			let viewDim = null;
 			if (resource instanceof ID3D11Texture2D)
-				viewDim = D3D11_SRV_DIMENSION_TEXTURE2D;
+			{
+				// What kind of resource?
+				// TODO: Test these in real D3D11 to see what we get back
+				if (resDesc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE != 0 &&
+					resDesc.ArraySize == 6)
+				{
+					viewDim = D3D11_SRV_DIMENSION_TEXTURECUBE;
+				}
+				else if (resDesc.ArraySize > 1)
+				{
+					viewDim = D3D11_SRV_DIMENSION_TEXTURE2DARRAY;
+				}
+				else
+				{
+					viewDim = D3D11_SRV_DIMENSION_TEXTURE2D;
+				}
+			}
 			else
+			{
 				throw new Error("Invalid resource type for SRV");
+			}
 
-			let resDesc = resource.GetDesc();
 			desc = new D3D11_SHADER_RESOURCE_VIEW_DESC(
 				resDesc.Format,
 				viewDim,
@@ -329,7 +347,7 @@ class ID3D11Device extends IUnknown
 		// Grab the texture type and bind so we can reserve the resource
 		const glTextureType = this.#GetGLTextureType(desc);
 		this.#gl.bindTexture(glTextureType, glTexture);
-
+		
 		// Which kind of texture are we creating?
 		//  - Using texStorage2D/3D as it initializes the entire texture
 		//    and all subresources at once.
@@ -392,7 +410,7 @@ class ID3D11Device extends IUnknown
 					break;
 
 				case this.#gl.TEXTURE_CUBE_MAP:
-
+					
 					const cubeFaces = [
 						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X,
 						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
@@ -425,11 +443,12 @@ class ID3D11Device extends IUnknown
 								initialData[mip * 6 + face]);
 						}
 					}
+					break;
 
 				case this.#gl.TEXTURE_2D_ARRAY:
 
 					// TODO: Array -> MipLevel?  MipLevel -> Array?
-					for (let mip = 0; mip < desc.MipLevels && mip < initialDAta.length / desc.ArraySize; mip++)
+					for (let mip = 0; mip < desc.MipLevels && mip < initialData.length / desc.ArraySize; mip++)
 					{
 						for (let index = 0; index < desc.ArraySize; index++)
 						{
@@ -451,9 +470,10 @@ class ID3D11Device extends IUnknown
 								1,			// Z size (or a single slice here)
 								format,
 								type,
-								initialData[mip * 6 + face]);
+								initialData[mip * desc.ArraySize + index]);
 						}
 					}
+					break;
 			}
 		}
 
@@ -518,7 +538,7 @@ class ID3D11Device extends IUnknown
 		const is3D = desc instanceof D3D11_TEXTURE3D_DESC;
 		const isArray = desc.ArraySize > 1;
 		const isCube = (desc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE;
-
+		
 		// Easy ones
 		if (is3D) return this.#gl.TEXTURE_3D;
 		if (isCube) return this.#gl.TEXTURE_CUBE_MAP;
@@ -962,15 +982,15 @@ class ID3D11Device extends IUnknown
 		switch (srvDesc.ViewDimension)
 		{
 			case D3D11_SRV_DIMENSION_TEXTURE2D:
+			case D3D11_SRV_DIMENSION_TEXTURE2DARRAY:
+			case D3D11_SRV_DIMENSION_TEXTURECUBE:
 				if (!(resource instanceof ID3D11Texture2D))
 					throw new Error("Specified SRV View Dimension does not match resource");
 				break;
 
 			case D3D11_SRV_DIMENSION_TEXTURE1D:
 			case D3D11_SRV_DIMENSION_TEXTURE1DARRAY:
-			case D3D11_SRV_DIMENSION_TEXTURE2DARRAY:
 			case D3D11_SRV_DIMENSION_TEXTURE3D:
-			case D3D11_SRV_DIMENSION_TEXTURECUBE:
 				throw new Error("Specified SRV View Dimension is not yet implemented!");
 
 			default:
