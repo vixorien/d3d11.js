@@ -254,7 +254,7 @@
 				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
 				0,
 				D3D11_RESOURCE_MISC_GENERATE_MIPS);
-			let texture = device.CreateTexture2D(desc, bitmap);
+			let texture = device.CreateTexture2D(desc, [bitmap]);
 
 			let srv = device.CreateShaderResourceView(texture, null);
 			context.GenerateMips(srv);

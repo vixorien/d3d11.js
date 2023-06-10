@@ -520,6 +520,9 @@ class D3D11_SHADER_RESOURCE_VIEW_DESC
 	}
 }
 
+// TODO: Implement this!
+// Current exists so the type can be used elsewhere
+class D3D11_TEXTURE1D_DESC { }
 
 class D3D11_TEXTURE2D_DESC
 {
@@ -559,6 +562,10 @@ class D3D11_TEXTURE2D_DESC
 		this.MiscFlags = miscFlags;
 	}
 }
+
+// TODO: Implement this!
+// Current exists so the type can be used elsewhere
+class D3D11_TEXTURE3D_DESC { }
 
 
 class DXGI_SAMPLE_DESC
@@ -1075,8 +1082,8 @@ class ID3D11Device extends IUnknown
 		// Validate the description/initial data combo
 		this.#ValidateTexture2DDesc(desc, initialData);
 
-		// Create the gl texture and final D3D texture object
-		let glTexture = this.#gl.createTexture();
+		// Create the gl texture and bind it so we can work on it
+		const glTexture = this.#gl.createTexture();
 
 		// TODO: Determine usage and how this will affect the texture (if at all)
 		// - Seems like webgl just uses texImage2D() to basically "rebuild" the texture?
@@ -1091,50 +1098,148 @@ class ID3D11Device extends IUnknown
 		//        - BIND_RENDER_TARGET, BIND_DEPTH_STENCIL
 
 		// Grab GL details
-		let glFormatDetails = this.#GetFormatDetails(desc.Format);
-		let internalFormat = glFormatDetails.InternalFormat;
-		let format = glFormatDetails.Format;
-		let type = glFormatDetails.Type;
-		let isDepth = glFormatDetails.IsDepth;
-		let hasStencil = glFormatDetails.HasStencil;
-		let hasMipmaps = desc.MipLevels > 1; // TODO: Check and update
+		const glFormatDetails = this.#GetFormatDetails(desc.Format);
+		const internalFormat = glFormatDetails.InternalFormat;
+		const format = glFormatDetails.Format;
+		const type = glFormatDetails.Type;
+		const isDepth = glFormatDetails.IsDepth;
+		const hasStencil = glFormatDetails.HasStencil;
+		const hasMipmaps = desc.MipLevels > 1;
 
-		// Set new texture
-		// TODO: Handle types
-		this.#gl.bindTexture(this.#gl.TEXTURE_2D, glTexture);
+		// Grab the texture type and bind so we can reserve the resource
+		const glTextureType = this.#GetGLTextureType(desc);
+		this.#gl.bindTexture(glTextureType, glTexture);
 
-		// Create the actual resource
-		// Use texStorage2D() to initialize the entire
-		// texture and all subresources at once
-		// See here for details on formats/types/etc: https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexStorage2D.xhtml
-		// TODO: Use texStorage3D() for 3D textures and 2D Texture Arrays!
-		this.#gl.texStorage2D(
-			this.#gl.TEXTURE_2D,
-			desc.MipLevels,
-			internalFormat,
-			desc.Width,
-			desc.Height);
-
-		// Do we have any initial data?
-		if (initialData != null)
+		// Which kind of texture are we creating?
+		//  - Using texStorage2D/3D as it initializes the entire texture
+		//    and all subresources at once.
+		//  - See here for details on formats/types/etc: https://registry.khronos.org/OpenGL-Refpages/es3.0/html/glTexStorage2D.xhtml
+		switch (glTextureType)
 		{
-			// Now that it exists, copy the initial data to the first mip level
-			// TODO: Somehow handle taking in multiple levels worth of data?  Array of images?
-			// TODO: Handle other types with texSubImage3D()
-			this.#gl.texSubImage2D(
-				this.#gl.TEXTURE_2D,
-				0, // Mip
-				0, // X
-				0, // Y
-				desc.Width,
-				desc.Height,
-				format,
-				type,
-				initialData);
+			case this.#gl.TEXTURE_2D:
+			case this.#gl.TEXTURE_CUBE_MAP:
+
+				// TexStorage2D() is for 2D's and Cubes
+				this.#gl.texStorage2D(
+					glTextureType,
+					desc.MipLevels,
+					internalFormat,
+					desc.Width,
+					desc.Height);
+				break;
+
+			case this.#gl.TEXTURE_2D_ARRAY:
+
+				// For 2D arrays and 3D's
+				this.#gl.texStorage3D(
+					glTextureType,
+					desc.MipLevels,
+					internalFormat,
+					desc.Width,
+					desc.Height,
+					desc.ArraySize);
+				break;
 		}
 
-		// TODO: Handle types
-		this.#SetDefaultSamplerStateForTexture(this.#gl.TEXTURE_2D, hasMipmaps);
+		// Do we have any initial data?
+		if (initialData != null && initialData.length > 0)
+		{
+			// Which type of texture and how many elements?
+			switch (glTextureType)
+			{
+				case this.#gl.TEXTURE_2D:
+
+					// Copy the data one mip at a time
+					for (let mip = 0; mip < desc.MipLevels && mip < initialData.length; mip++)
+					{
+						// Calculate size of the mip
+						const div = Math.pow(2, mip);
+						const mipWidth = Math.max(1, Math.floor(desc.Width / div));
+						const mipHeight = Math.max(1, Math.floor(desc.Height / div));
+
+						// Save this data
+						this.#gl.texSubImage2D(
+							glTextureType,
+							mip,
+							0,
+							0,
+							mipWidth,
+							mipHeight,
+							format,
+							type,
+							initialData[mip]);
+					}
+					break;
+
+				case this.#gl.TEXTURE_CUBE_MAP:
+
+					const cubeFaces = [
+						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X,
+						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
+						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
+						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
+						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
+					];
+
+					// TODO: Faces -> MipLevel?  MipLevel -> Face?
+					for (let mip = 0; mip < desc.MipLevels && mip < initialData.length / 6; mip++)
+					{
+						for (let face = 0; face < 6; face++)
+						{
+							// Calculate size of the mip
+							const div = Math.pow(2, mip);
+							const mipWidth = Math.max(1, Math.floor(desc.Width / div));
+							const mipHeight = Math.max(1, Math.floor(desc.Height / div));
+
+							// Save this data
+							this.#gl.texSubImage2D(
+								cubeFaces[face],
+								mip,
+								0,
+								0,
+								mipWidth,
+								mipHeight,
+								format,
+								type,
+								initialData[mip * 6 + face]);
+						}
+					}
+
+				case this.#gl.TEXTURE_2D_ARRAY:
+
+					// TODO: Array -> MipLevel?  MipLevel -> Array?
+					for (let mip = 0; mip < desc.MipLevels && mip < initialDAta.length / desc.ArraySize; mip++)
+					{
+						for (let index = 0; index < desc.ArraySize; index++)
+						{
+							// Calculate size of the mip
+							const div = Math.pow(2, mip);
+							const mipWidth = Math.max(1, Math.floor(desc.Width / div));
+							const mipHeight = Math.max(1, Math.floor(desc.Height / div));
+
+							// Save this data
+							// TODO: Test this!
+							this.#gl.texSubImage3D(
+								glTextureType,
+								mip,
+								0,		// X offset
+								0,		// Y offset
+								index,	// Z offset (array index here)
+								mipWidth,	// X size
+								mipHeight,	// Y size
+								1,			// Z size (or a single slice here)
+								format,
+								type,
+								initialData[mip * 6 + face]);
+						}
+					}
+			}
+		}
+
+		// Set the default sampler state in the event
+		// we don't bind a sampler when drawing
+		this.#SetDefaultSamplerStateForBoundTexture(glTextureType, hasMipmaps);
 
 		// Create and return the new object
 		return new class extends ID3D11Texture2D { } (this, desc, glTexture);
@@ -1172,6 +1277,39 @@ class ID3D11Device extends IUnknown
 		}
 
 		return shader;
+	}
+
+	/**
+	 * Returns a GL Texture type enum value for the given description
+	 * 
+	 * @param {any} desc A texture description
+	 * 
+	 * @returns {GLenum} The WebGL texture type enum value
+	 * 
+	 * @throws {Error} If the given description does not match any texture types
+	 */
+	#GetGLTextureType(desc)
+	{
+		let glType;
+
+		// Grab necessary data
+		const is1D = desc instanceof D3D11_TEXTURE1D_DESC;
+		const is2D = desc instanceof D3D11_TEXTURE2D_DESC;
+		const is3D = desc instanceof D3D11_TEXTURE3D_DESC;
+		const isArray = desc.ArraySize > 1;
+		const isCube = (desc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+		// Easy ones
+		if (is3D) return this.#gl.TEXTURE_3D;
+		if (isCube) return this.#gl.TEXTURE_CUBE_MAP;
+
+		// Both 1D and 2D are just 2D textures under the hood
+		if (is1D || is2D)
+		{
+			return isArray ? this.#gl.TEXTURE_2D_ARRAY : this.#gl.TEXTURE_2D;
+		}
+
+		throw new Error("Description does not many any known WebGL texture types");
 	}
 
 	// Gets the GL format details based on a DXGI Format
@@ -1236,7 +1374,7 @@ class ID3D11Device extends IUnknown
 	 * @param {GLenum} textureType Type of GL texture for sampler defaults
 	 * @param {bool} hasMipmaps Whether or not the texture has mip maps (which changes the min filter mode)
 	 */
-	#SetDefaultSamplerStateForTexture(textureType, hasMipmaps)
+	#SetDefaultSamplerStateForBoundTexture(textureType, hasMipmaps)
 	{
 		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_MAG_FILTER, this.#gl.LINEAR);
 		this.#gl.texParameteri(textureType, this.#gl.TEXTURE_MIN_FILTER, hasMipmaps ? this.#gl.LINEAR_MIPMAP_LINEAR : this.#gl.LINEAR); // Can't use the mipmap one if no mipmaps!  Results in black texture sample
@@ -3166,20 +3304,6 @@ class ID3D11Texture1D extends ID3D11Resource
 
 		throw new Error("Texture1D is not implemented yet!");
 	}
-
-	Release()
-	{
-		super.Release();
-
-		// Actually remove texture if necessary
-		// TODO: Handle distinction between texture & render buffer
-		if (this.GetRef() <= 0)
-		{
-			let dev = this.GetDevice();
-			dev.GetAdapter().deleteTexture(this.GetGLResource());
-			dev.Release();
-		}
-	}
 }
 
 class ID3D11Texture2D extends ID3D11Resource
@@ -3208,6 +3332,18 @@ class ID3D11Texture2D extends ID3D11Resource
 			dev.GetAdapter().deleteTexture(this.GetGLResource());
 			dev.Release();
 		}
+	}
+}
+
+// TODO: Actually implement 3D textures
+// - This exists currently so that I can start using the type elsewhere
+class ID3D11Texture3D extends ID3D11Resource
+{
+	constructor(device, desc, glTexture)
+	{
+		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE3D, glTexture);
+
+		throw new Error("Texture1D is not implemented yet!");
 	}
 }
 
