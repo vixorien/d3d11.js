@@ -848,7 +848,6 @@ class ID3D11Device extends IUnknown
 
 		// Create the gl buffer and final D3D buffer
 		let glBuffer = this.#gl.createBuffer();
-		let d3dBuffer = new ID3D11Buffer(this, bufferDesc, glBuffer);
 
 		// Determine usage flag
 		// TODO: Analyze CPUAccessFlag to further refine these options
@@ -900,6 +899,7 @@ class ID3D11Device extends IUnknown
 
 		// Restore previous buffer and return new one
 		this.#gl.bindBuffer(bufferType, prevBuffer);
+		let d3dBuffer = new ID3D11Buffer(this, bufferDesc, bufferType, glBuffer);
 		return d3dBuffer;
 	}
 
@@ -1190,7 +1190,7 @@ class ID3D11Device extends IUnknown
 					break;
 
 				case this.#gl.TEXTURE_CUBE_MAP:
-					console.log("HERE CUBE");
+					
 					const cubeFaces = [
 						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X,
 						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
@@ -1262,7 +1262,7 @@ class ID3D11Device extends IUnknown
 		this.#SetDefaultSamplerStateForBoundTexture(glTextureType, hasMipmaps);
 
 		// Create and return the new object
-		return new class extends ID3D11Texture2D { } (this, desc, glTexture);
+		return new class extends ID3D11Texture2D { }(this, desc, glTextureType, glTexture);
 	}
 
 
@@ -2621,23 +2621,22 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				let texMap = this.#currentTextureSamplerMap.PSTextures[i];
 				for (let t = 0; t < texMap.length; t++)
 				{
-					// TODO: Handle different texture types
-
 					// Grab this resource and first check its mip status
 					let res = srv.GetResource();
+					let glTarget = res.GetGLTarget();
 					this.#textureMipStatus[texMap[t].TextureUnit] = (res.GetDesc().MipLevels != 1);
 
 					// Activate the proper texture unit, bind this resource and set the uniform location
 					this.#gl.activeTexture(this.#GetGLTextureUnit(texMap[t].TextureUnit));
-					this.#gl.bindTexture(this.#gl.TEXTURE_2D, res.GetGLResource());
+					this.#gl.bindTexture(glTarget, res.GetGLResource());
 					this.#gl.uniform1i(texMap[t].UniformLocation, texMap[t].TextureUnit);
 
 					// Set SRV-specific texture properties
 					let srvDesc = srv.GetDesc();
 					let baseMip = srvDesc.MostDetailedMip;
 					let maxMip = srvDesc.MostDetailedMip + srvDesc.MipLevels - 1;
-					this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_BASE_LEVEL, baseMip);
-					this.#gl.texParameteri(this.#gl.TEXTURE_2D, this.#gl.TEXTURE_MAX_LEVEL, maxMip);
+					this.#gl.texParameteri(glTarget, this.#gl.TEXTURE_BASE_LEVEL, baseMip);
+					this.#gl.texParameteri(glTarget, this.#gl.TEXTURE_MAX_LEVEL, maxMip);
 
 					// TODO: Set sampler-specific texture properties (aniso level)
 
@@ -3265,14 +3264,14 @@ class ID3D11VertexShader extends ID3D11DeviceChild
 class ID3D11Resource extends ID3D11DeviceChild
 {
 	#desc;
-	#dimension;
+	#glTarget;
 	#glResource;
 
-	constructor(device, desc, dimension, glResource)
+	constructor(device, desc, glTarget, glResource)
 	{
 		super(device);
 		this.#desc = Object.assign({}, desc); // Copy
-		this.#dimension = dimension;
+		this.#glTarget = glTarget;
 		this.#glResource = glResource;
 	}
 
@@ -3282,9 +3281,9 @@ class ID3D11Resource extends ID3D11DeviceChild
 		return Object.assign({}, this.#desc);
 	}
 
-	GetType()
+	GetGLTarget()
 	{
-		return this.#dimension;
+		return this.#glTarget;
 	}
 
 	GetGLResource()
@@ -3295,9 +3294,9 @@ class ID3D11Resource extends ID3D11DeviceChild
 
 class ID3D11Buffer extends ID3D11Resource
 {
-	constructor(device, desc, glBuffer)
+	constructor(device, desc, glTarget, glBuffer)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_BUFFER, glBuffer);
+		super(device, desc, glTarget, glBuffer);
 	}
 
 	Release()
@@ -3318,9 +3317,9 @@ class ID3D11Buffer extends ID3D11Resource
 // - This exists currently so that I can start using the type elsewhere
 class ID3D11Texture1D extends ID3D11Resource
 {
-	constructor(device, desc, glTexture)
+	constructor(device, desc, glTarget, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
+		super(device, desc, glTarget, glTexture);
 
 		throw new Error("Texture1D is not implemented yet!");
 	}
@@ -3328,9 +3327,9 @@ class ID3D11Texture1D extends ID3D11Resource
 
 class ID3D11Texture2D extends ID3D11Resource
 {
-	constructor(device, desc, glTexture)
+	constructor(device, desc, glTarget, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
+		super(device, desc, glTarget, glTexture);
 
 		// Abstract check
 		if (new.target === ID3D11Texture2D)
@@ -3359,9 +3358,9 @@ class ID3D11Texture2D extends ID3D11Resource
 // - This exists currently so that I can start using the type elsewhere
 class ID3D11Texture3D extends ID3D11Resource
 {
-	constructor(device, desc, glTexture)
+	constructor(device, desc, glTarget, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE3D, glTexture);
+		super(device, desc, glTarget, glTexture);
 
 		throw new Error("Texture1D is not implemented yet!");
 	}
@@ -4885,6 +4884,10 @@ class HLSL
 			{
 				case "Texture2D":
 					samplerType = "sampler2D";
+					break;
+
+				case "TextureCube":
+					samplerType = "samplerCube";
 					break;
 
 				default:

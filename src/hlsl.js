@@ -1403,6 +1403,10 @@ class HLSL
 					samplerType = "sampler2D";
 					break;
 
+				case "TextureCube":
+					samplerType = "samplerCube";
+					break;
+
 				default:
 					throw new Error("Texture type '" + comb.Texture.Type + "' not implemented yet!");
 			}

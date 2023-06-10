@@ -375,6 +375,7 @@
 				Texture2D normalMap		: register(t1);
 				Texture2D metalMap		: register(t2);
 				Texture2D roughnessMap	: register(t3);
+				TextureCube sky			: register(t4);
 
 				SamplerState samp		: register(s0);
 
@@ -552,6 +553,8 @@
 
 				float4 main(VertexToPixel input) : SV_TARGET
 				{
+					return sky.Sample(samp, input.normal);
+
 					input.normal = normalize(input.normal);
 					input.tangent = normalize(input.tangent);
 
@@ -630,6 +633,57 @@
 				}
 			`;
 
+			//let skyVS = `
+			//	struct VertexToPixel_Sky
+			//	{
+			//		float4 screenPosition	: SV_POSITION;
+			//		float3 sampleDir		: DIRECTION;
+			//	};
+
+			//	cbuffer ExternalData : register(b0)
+			//	{
+			//		matrix view;
+			//		matrix projection;
+			//	}
+
+			//	VertexToPixel_Sky main(VertexShaderInput input)
+			//	{
+			//		VertexToPixel_Sky output;
+
+			//		// Zero out the translation
+			//		matrix viewNoTranslation = view;
+			//		viewNoTranslation._14 = 0;
+			//		viewNoTranslation._24 = 0;
+			//		viewNoTranslation._34 = 0;
+
+			//		matrix vp = mul(projection, viewNoTranslation);
+			//		output.screenPosition = mul(vp, float4(input.localPosition, 1.0f));
+
+			//		// Z = W for a max depth of 1
+			//		output.screenPosition.z = output.screenPosition.w;
+
+			//		// Use local pos as sample direction since we're (presumably) a cube
+			//		output.sampleDir = input.localPosition;
+			//		return output;
+			//	}
+			//`;
+
+			//let skyPS = `
+			//	struct VertexToPixel_Sky
+			//	{
+			//		float4 screenPosition	: SV_POSITION;
+			//		float3 sampleDir		: DIRECTION;
+			//	};
+
+			//	TextureCube SkyTexture		: register(t0);
+			//	SamplerState BasicSampler	: register(s0);
+
+			//	float4 main(VertexToPixel_Sky input) : SV_TARGET
+			//	{
+			//		return SkyTexture.Sample(BasicSampler, input.sampleDir);
+			//	}
+			//`;
+
 			let input = new Input(document);
 
 			// Some quick vars
@@ -686,7 +740,7 @@
 					"../assets/skies/cloudsblue/back.png"
 				]
 			);
-
+			context.PSSetShaderResources(4, [skySRV]);
 
 			// Create/release test
 			let crateSRV = await loadTexture2D(device, context, "../assets/textures/crate.png");

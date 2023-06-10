@@ -6,14 +6,14 @@
 class ID3D11Resource extends ID3D11DeviceChild
 {
 	#desc;
-	#dimension;
+	#glTarget;
 	#glResource;
 
-	constructor(device, desc, dimension, glResource)
+	constructor(device, desc, glTarget, glResource)
 	{
 		super(device);
 		this.#desc = Object.assign({}, desc); // Copy
-		this.#dimension = dimension;
+		this.#glTarget = glTarget;
 		this.#glResource = glResource;
 	}
 
@@ -23,9 +23,9 @@ class ID3D11Resource extends ID3D11DeviceChild
 		return Object.assign({}, this.#desc);
 	}
 
-	GetType()
+	GetGLTarget()
 	{
-		return this.#dimension;
+		return this.#glTarget;
 	}
 
 	GetGLResource()
@@ -36,9 +36,9 @@ class ID3D11Resource extends ID3D11DeviceChild
 
 class ID3D11Buffer extends ID3D11Resource
 {
-	constructor(device, desc, glBuffer)
+	constructor(device, desc, glTarget, glBuffer)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_BUFFER, glBuffer);
+		super(device, desc, glTarget, glBuffer);
 	}
 
 	Release()
@@ -59,9 +59,9 @@ class ID3D11Buffer extends ID3D11Resource
 // - This exists currently so that I can start using the type elsewhere
 class ID3D11Texture1D extends ID3D11Resource
 {
-	constructor(device, desc, glTexture)
+	constructor(device, desc, glTarget, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
+		super(device, desc, glTarget, glTexture);
 
 		throw new Error("Texture1D is not implemented yet!");
 	}
@@ -69,9 +69,9 @@ class ID3D11Texture1D extends ID3D11Resource
 
 class ID3D11Texture2D extends ID3D11Resource
 {
-	constructor(device, desc, glTexture)
+	constructor(device, desc, glTarget, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE2D, glTexture);
+		super(device, desc, glTarget, glTexture);
 
 		// Abstract check
 		if (new.target === ID3D11Texture2D)
@@ -100,9 +100,9 @@ class ID3D11Texture2D extends ID3D11Resource
 // - This exists currently so that I can start using the type elsewhere
 class ID3D11Texture3D extends ID3D11Resource
 {
-	constructor(device, desc, glTexture)
+	constructor(device, desc, glTarget, glTexture)
 	{
-		super(device, desc, D3D11_RESOURCE_DIMENSION_TEXTURE3D, glTexture);
+		super(device, desc, glTarget, glTexture);
 
 		throw new Error("Texture1D is not implemented yet!");
 	}

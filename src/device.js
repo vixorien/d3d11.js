@@ -68,7 +68,6 @@ class ID3D11Device extends IUnknown
 
 		// Create the gl buffer and final D3D buffer
 		let glBuffer = this.#gl.createBuffer();
-		let d3dBuffer = new ID3D11Buffer(this, bufferDesc, glBuffer);
 
 		// Determine usage flag
 		// TODO: Analyze CPUAccessFlag to further refine these options
@@ -120,6 +119,7 @@ class ID3D11Device extends IUnknown
 
 		// Restore previous buffer and return new one
 		this.#gl.bindBuffer(bufferType, prevBuffer);
+		let d3dBuffer = new ID3D11Buffer(this, bufferDesc, bufferType, glBuffer);
 		return d3dBuffer;
 	}
 
@@ -482,7 +482,7 @@ class ID3D11Device extends IUnknown
 		this.#SetDefaultSamplerStateForBoundTexture(glTextureType, hasMipmaps);
 
 		// Create and return the new object
-		return new class extends ID3D11Texture2D { } (this, desc, glTexture);
+		return new class extends ID3D11Texture2D { }(this, desc, glTextureType, glTexture);
 	}
 
 
