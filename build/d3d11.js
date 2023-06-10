@@ -63,6 +63,11 @@ const D3D11_COMPARISON_ALWAYS = 8;
 const D3D11_CPU_ACCESS_WRITE = 0x10000;
 const D3D11_CPU_ACCESS_READ = 0x20000;
 
+// Indicates triangles facing a particular direction are not drawn.
+const D3D11_CULL_NONE = 1;
+const D3D11_CULL_FRONT = 2;
+const D3D11_CULL_BACK = 3;
+
 // Specifies how to access a resource used in a depth-stencil view
 // Note: The "unknown" dimension is not valid, as per documentation
 //const D3D11_DSV_DIMENSION_UNKNOWN = 0;
@@ -77,6 +82,9 @@ const D3D11_DSV_DIMENSION_TEXTURE2DARRAY = 4;
 const D3D11_DSV_READ_ONLY_DEPTH = 0x1;
 const D3D11_DSV_READ_ONLY_STENCIL = 0x2;
 
+// Determines the fill mode to use when rendering triangles
+const D3D11_FILL_WIREFRAME = 2; // TODO: Need to somehow emulate this?  Swap to line drawing?
+const D3D11_FILL_SOLID = 3;
 
 
 // Filtering options during texture sampling
@@ -420,6 +428,45 @@ class D3D11_INPUT_ELEMENT_DESC
 		this.InstanceDataStepRate = instanceDataStepRate;
 	}
 }
+
+class D3D11_RASTERIZER_DESC
+{
+	FillMode;
+	CullMode;
+	FrontCounterClockwise;
+	DepthBias;
+	DepthBiasClamp;
+	SlopeScaledDepthBias;
+	DepthClipEnable;
+	ScissorEnable;
+	MultisampleEnable;
+	AntiasliasedLineEnable;
+
+	constructor(
+		fillMode,
+		cullMode,
+		frontCounterClockwise = false,
+		depthBias = 0,
+		depthBiasClamp = 0,
+		slopeScaledDepthBias = 0,
+		depthClipEnable = true,
+		scissorEnable = false,
+		multisampleEnable = false,
+		antialiasedLineEnable = false)
+	{
+		this.FillMode = fillMode;
+		this.CullMode = cullMode;
+		this.FrontCounterClockwise = frontCounterClockwise;
+		this.DepthBias = depthBias;
+		this.DepthBiasClamp = depthBiasClamp;
+		this.SlopeScaledDepthBias = slopeScaledDepthBias;
+		this.DepthClipEnable = depthClipEnable;
+		this.ScissorEnable = scissorEnable;
+		this.MultisampleEnable = multisampleEnable;
+		this.AntiasliasedLineEnable = antialiasedLineEnable;
+	}
+}
+
 
 class D3D11_RENDER_TARGET_VIEW_DESC
 {
@@ -967,6 +1014,18 @@ class ID3D11Device extends IUnknown
 		let ps = new HLSL(hlslCode, ShaderTypePixel);
 		let glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
 		return new ID3D11PixelShader(this, glShader, ps);
+	}
+
+
+	CreateRasterizerState(rasterizerDesc)
+	{
+		// Description is not optional
+		if (rasterizerDesc == null)
+			throw new Error("Rasterizer description cannot be null");
+
+		// Validate the description and create the state
+		this.#ValidateRasterizerDesc(rasterizerDesc);
+		return new class extends ID3D11RasterizerState { }(this, rasterizerDesc);
 	}
 
 	/**
@@ -1565,6 +1624,30 @@ class ID3D11Device extends IUnknown
 			throw new Error("Specified DSV Array Size is invalid");
 	}
 
+	#ValidateRasterizerDesc(desc)
+	{
+		// Fill mode
+		switch (desc.FillMode)
+		{
+			case D3D11_FILL_SOLID: break; // Fine
+
+			case D3D11_FILL_WIREFRAME:
+				throw new Error("Wireframe fill mode not yet implemented!");
+
+			default:
+				throw new Error("Invalid Fill Mode for rasterizer description");
+		}
+
+		// Cull mode
+		if (desc.CullMode != D3D11_CULL_NONE &&
+			desc.CullMode != D3D11_CULL_FRONT &&
+			desc.CullMode != D3D11_CULL_BACK)
+			throw new Error("Invalid Cull Mode for rasterizer description");
+
+		// The rest are bools, ints and floats with no required ranges (I think).
+		// Going to assume they're fine for now.
+		// TODO: Verify these are fine as any values, or be more stringent with type checking
+	}
 
 	#ValidateSamplerDesc(desc)
 	{
@@ -2110,9 +2193,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 		
 		// Perform the generation
-		// TODO: Handle different types
-		this.#gl.bindTexture(this.#gl.TEXTURE_2D, res.GetGLResource());
-		this.#gl.generateMipmap(this.#gl.TEXTURE_2D);
+		let glTarget = res.GetGLTarget();
+		this.#gl.bindTexture(glTarget, res.GetGLResource());
+		this.#gl.generateMipmap(glTarget);
 
 		// Pipeline might be dirty
 		this.DirtyPipeline();
@@ -3053,6 +3136,47 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 			dev.GetAdapter().deleteShader(this.#glShader);
 			dev.Release();
 		}
+	}
+}
+
+/**
+ * Holds a description for rasterizer state that you can bind to the rasterizer stage.
+ */
+class ID3D11RasterizerState extends ID3D11DeviceChild
+{
+	#desc;
+
+	/**
+	 * Creates a new rasterizer state.  Note that this should not be invoked directly.
+	 * 
+	 * @param {ID3D11Device} device The device that created this state
+	 * @param {D3D11_RASTERIZER_DESC} desc The description of this state
+	 * 
+	 * @throws {Error} If this object is instantiated directly
+	 */
+	constructor(device, desc)
+	{
+		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11RasterizerState)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11RasterizerState objects - use device.CreateRasterizerState() instead");
+		}
+
+		this.#desc = Object.assign({}, desc); // Copy
+	}
+
+	/**
+	 * Gets the description of this rasterizer state
+	 * 
+	 * @returns {D3D11_RASTERIZER_DESC} The rasterizer description for this state
+	 */
+	GetDesc()
+	{
+		// Returns a copy so that we can't alter the original
+		return Object.assign({}, this.#desc);
 	}
 }
 

@@ -77,6 +77,47 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 	}
 }
 
+/**
+ * Holds a description for rasterizer state that you can bind to the rasterizer stage.
+ */
+class ID3D11RasterizerState extends ID3D11DeviceChild
+{
+	#desc;
+
+	/**
+	 * Creates a new rasterizer state.  Note that this should not be invoked directly.
+	 * 
+	 * @param {ID3D11Device} device The device that created this state
+	 * @param {D3D11_RASTERIZER_DESC} desc The description of this state
+	 * 
+	 * @throws {Error} If this object is instantiated directly
+	 */
+	constructor(device, desc)
+	{
+		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11RasterizerState)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11RasterizerState objects - use device.CreateRasterizerState() instead");
+		}
+
+		this.#desc = Object.assign({}, desc); // Copy
+	}
+
+	/**
+	 * Gets the description of this rasterizer state
+	 * 
+	 * @returns {D3D11_RASTERIZER_DESC} The rasterizer description for this state
+	 */
+	GetDesc()
+	{
+		// Returns a copy so that we can't alter the original
+		return Object.assign({}, this.#desc);
+	}
+}
+
 
 class ID3D11SamplerState extends ID3D11DeviceChild
 {

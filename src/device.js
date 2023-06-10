@@ -189,6 +189,18 @@ class ID3D11Device extends IUnknown
 		return new ID3D11PixelShader(this, glShader, ps);
 	}
 
+
+	CreateRasterizerState(rasterizerDesc)
+	{
+		// Description is not optional
+		if (rasterizerDesc == null)
+			throw new Error("Rasterizer description cannot be null");
+
+		// Validate the description and create the state
+		this.#ValidateRasterizerDesc(rasterizerDesc);
+		return new class extends ID3D11RasterizerState { }(this, rasterizerDesc);
+	}
+
 	/**
 	 * Creates a render target view for the specified resource.  Pass in a null description
 	 * to create a default RTV for this resource, which accesses all subresources at mip 0.
@@ -785,6 +797,30 @@ class ID3D11Device extends IUnknown
 			throw new Error("Specified DSV Array Size is invalid");
 	}
 
+	#ValidateRasterizerDesc(desc)
+	{
+		// Fill mode
+		switch (desc.FillMode)
+		{
+			case D3D11_FILL_SOLID: break; // Fine
+
+			case D3D11_FILL_WIREFRAME:
+				throw new Error("Wireframe fill mode not yet implemented!");
+
+			default:
+				throw new Error("Invalid Fill Mode for rasterizer description");
+		}
+
+		// Cull mode
+		if (desc.CullMode != D3D11_CULL_NONE &&
+			desc.CullMode != D3D11_CULL_FRONT &&
+			desc.CullMode != D3D11_CULL_BACK)
+			throw new Error("Invalid Cull Mode for rasterizer description");
+
+		// The rest are bools, ints and floats with no required ranges (I think).
+		// Going to assume they're fine for now.
+		// TODO: Verify these are fine as any values, or be more stringent with type checking
+	}
 
 	#ValidateSamplerDesc(desc)
 	{

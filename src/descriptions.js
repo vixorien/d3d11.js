@@ -97,6 +97,45 @@ class D3D11_INPUT_ELEMENT_DESC
 	}
 }
 
+class D3D11_RASTERIZER_DESC
+{
+	FillMode;
+	CullMode;
+	FrontCounterClockwise;
+	DepthBias;
+	DepthBiasClamp;
+	SlopeScaledDepthBias;
+	DepthClipEnable;
+	ScissorEnable;
+	MultisampleEnable;
+	AntiasliasedLineEnable;
+
+	constructor(
+		fillMode,
+		cullMode,
+		frontCounterClockwise = false,
+		depthBias = 0,
+		depthBiasClamp = 0,
+		slopeScaledDepthBias = 0,
+		depthClipEnable = true,
+		scissorEnable = false,
+		multisampleEnable = false,
+		antialiasedLineEnable = false)
+	{
+		this.FillMode = fillMode;
+		this.CullMode = cullMode;
+		this.FrontCounterClockwise = frontCounterClockwise;
+		this.DepthBias = depthBias;
+		this.DepthBiasClamp = depthBiasClamp;
+		this.SlopeScaledDepthBias = slopeScaledDepthBias;
+		this.DepthClipEnable = depthClipEnable;
+		this.ScissorEnable = scissorEnable;
+		this.MultisampleEnable = multisampleEnable;
+		this.AntiasliasedLineEnable = antialiasedLineEnable;
+	}
+}
+
+
 class D3D11_RENDER_TARGET_VIEW_DESC
 {
 	Format; // NO typeless, if DXGI_FORMAT_UNKNOWN then resource type is used

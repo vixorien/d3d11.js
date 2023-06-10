@@ -41,6 +41,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// Rasterizer ---
 	#viewport;
+	#rasterizerState;
+	#rasterizerDirty;
 
 	// Pixel Shader ---
 	#pixelShader;
@@ -110,6 +112,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Rasterizer
 		{
 			this.#viewport = null;
+			this.#rasterizerState = null;
+			this.#rasterizerDirty = true;
 		}
 
 		// Pixel Shader
@@ -142,6 +146,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#inputAssemblerDirty = true;
 		this.#shadersDirty = true;
 		this.#vsConstantBuffersDirty = true;
+		this.#rasterizerDirty = true;
 		this.#psConstantBuffersDirty = true;
 		this.#psShaderResourcesDirty = true;
 		this.#psSamplersDirty = true;
@@ -307,6 +312,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		this.#vsConstantBuffersDirty = true;
+	}
+
+
+	RSSetState(rasterizerState)
+	{
+		// TODO: Type check the state?
+		this.#rasterizerState = rasterizerState;
+		this.#rasterizerDirty = true;
 	}
 
 	// Note: Just taking a single viewport, though

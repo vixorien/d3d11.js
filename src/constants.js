@@ -63,6 +63,11 @@ const D3D11_COMPARISON_ALWAYS = 8;
 const D3D11_CPU_ACCESS_WRITE = 0x10000;
 const D3D11_CPU_ACCESS_READ = 0x20000;
 
+// Indicates triangles facing a particular direction are not drawn.
+const D3D11_CULL_NONE = 1;
+const D3D11_CULL_FRONT = 2;
+const D3D11_CULL_BACK = 3;
+
 // Specifies how to access a resource used in a depth-stencil view
 // Note: The "unknown" dimension is not valid, as per documentation
 //const D3D11_DSV_DIMENSION_UNKNOWN = 0;
@@ -77,6 +82,9 @@ const D3D11_DSV_DIMENSION_TEXTURE2DARRAY = 4;
 const D3D11_DSV_READ_ONLY_DEPTH = 0x1;
 const D3D11_DSV_READ_ONLY_STENCIL = 0x2;
 
+// Determines the fill mode to use when rendering triangles
+const D3D11_FILL_WIREFRAME = 2; // TODO: Need to somehow emulate this?  Swap to line drawing?
+const D3D11_FILL_SOLID = 3;
 
 
 // Filtering options during texture sampling

@@ -763,6 +763,13 @@
 			context.PSSetSamplers(0, [sampler]);
 
 
+			// Create a rasterizer state
+			let rsDesc = new D3D11_RASTERIZER_DESC(
+				D3D11_FILL_SOLID,
+				D3D11_CULL_BACK);
+			let rastState = device.CreateRasterizerState(rsDesc);
+
+
 			// Common for all verts
 			let vbStride = Vertex.GetStride();
 			let vbOffset = 0;
