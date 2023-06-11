@@ -4864,9 +4864,6 @@ class HLSL
 				// when a texture identifier is followed immediately by a period
 				this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
 
-				// Look for matrix functions
-
-
 				// Check for scope change and skip everything else
 				if (this.#Allow(it, TokenScopeLeft))
 					scopeLevel++;
@@ -5420,6 +5417,7 @@ class HLSL
 		for (let p = 0; p < func.Parameters.length; p++)
 		{
 			let param = func.Parameters[p];
+
 			// Any in/out?
 			if (param.InOut != null)
 				funcStr += param.InOut + " ";
@@ -5509,6 +5507,7 @@ class HLSL
 
 		// End body
 		funcStr += "\n";
+		console.log(funcStr);
 		return funcStr;
 	}
 
@@ -5621,8 +5620,20 @@ class HLSL
 		//       directly set to the variables/structs below
 		for (let v = 0; v < vsInputs.length; v++)
 		{
-			main += "\t" + this.#Translate(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
-			main += PrefixAttribute + vsInputs[v].Name + ";\n";
+			// Handle SV_VertexID separately
+			// Note that in OpenGL, this is an INT, not a UINT, so we need to cast
+			// TODO: Maybe keep as int and change other instances of the variable to int, too?
+			//       This would help with the "cannot use & w/ int and uint" issue
+			if (vsInputs[v].Semantic != null && vsInputs[v].Semantic.toUpperCase() == "SV_VERTEXID")
+			{
+				main += "\t" + "uint " + vsInputs[v].Name + " = ";
+				main += "uint(gl_VertexID);\n";
+			}
+			else
+			{
+				main += "\t" + this.#Translate(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
+				main += PrefixAttribute + vsInputs[v].Name + ";\n";
+			}
 		}
 
 		// Are any of the actual function inputs structs?
@@ -5692,10 +5703,10 @@ class HLSL
 
 			main += "\tgl_Position = " + PrefixVSOutput + "." + posName + ";\n";
 		}
-
+		
 		main += "\tgl_PointSize = 1.0;\n"; // Just in case we need to draw points!
 		main += "}\n";
-		return main;
+		console.log(main); return main;
 	}
 
 
