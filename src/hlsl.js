@@ -284,6 +284,57 @@ class HLSL
 		"$Global": "_global_cbuffer"
 	};
 
+	// Matrix element access
+	MatrixElements = [
+		"_m00", "_m01", "_m02", "_m03",
+		"_m10", "_m11", "_m12", "_m13",
+		"_m20", "_m21", "_m22", "_m23",
+		"_m30", "_m31", "_m32", "_m33",
+
+		"_11", "_12", "_13", "_14",
+		"_21", "_22", "_23", "_24",
+		"_31", "_32", "_33", "_34",
+		"_41", "_42", "_43", "_44"
+	];
+
+	// Conversions for matrix elements
+	// - Note that HLSL is row-col and GLSL is col-row
+	MatrixElementConversion = {
+		"_m00": "[0][0]",
+		"_m01": "[1][0]",
+		"_m02": "[2][0]",
+		"_m03": "[3][0]",
+		"_m10": "[0][1]",
+		"_m11": "[1][1]",
+		"_m12": "[2][1]",
+		"_m13": "[3][1]",
+		"_m20": "[0][2]",
+		"_m21": "[1][2]",
+		"_m22": "[2][2]",
+		"_m23": "[3][2]",
+		"_m30": "[0][3]",
+		"_m31": "[1][3]",
+		"_m32": "[2][3]",
+		"_m33": "[3][3]",
+
+		"_11": "[0][0]",
+		"_12": "[1][0]",
+		"_13": "[2][0]",
+		"_14": "[3][0]",
+		"_21": "[0][1]",
+		"_22": "[1][1]",
+		"_23": "[2][1]",
+		"_24": "[3][1]",
+		"_31": "[0][2]",
+		"_32": "[1][2]",
+		"_33": "[2][2]",
+		"_34": "[3][2]",
+		"_41": "[0][3]",
+		"_42": "[1][3]",
+		"_43": "[2][3]",
+		"_44": "[3][3]"
+	}
+
 	constructor(hlslCode, shaderType)
 	{
 		// Validate shader type
@@ -588,7 +639,7 @@ class HLSL
 		{
 			if (!inoutAllowed)
 				throw new Error("Error parsing HLSL on line " + it.Current().Line + ": in/out/inout modifier not allowed here.");
-			
+
 			// This is an in/out modifier
 			this.#Require(it, TokenIdentifier);
 			variable.InOut = it.PeekPrev().Text;
@@ -744,7 +795,7 @@ class HLSL
 		return cb;
 	}
 
-	
+
 	#ParseTexture(it)
 	{
 		let t = {
@@ -780,7 +831,7 @@ class HLSL
 		return t;
 	}
 
-	
+
 	#ParseSampler(it)
 	{
 		let s = {
@@ -1472,7 +1523,7 @@ class HLSL
 
 			// Look for matrix constructors
 			funcStr += this.#GetMatrixConstructorString(it);
-			
+
 			// Determine if the current token is a texture function
 			// TODO: Optimize this so we're not doing linear searches on every token
 			funcStr += this.#GetTextureFunctionString(it, func);
@@ -1486,8 +1537,23 @@ class HLSL
 				case TokenParenRight: parenDepth--; break;
 			}
 
-			// Add the token
-			funcStr += this.#TranslateToken(t);
+			// Is this a matrix element?
+			const matElementReplacement = this.#GetMatrixElementConversion(it);
+			if (matElementReplacement.length > 0)
+			{
+				// Replacing the period and matrix element (like "._m00")
+				// with the GLSL-style array access (like "[0][0]")
+				funcStr += matElementReplacement;
+
+				// Skip the period, but not the identifier part
+				// as that'll get skipped by the loop
+				it.MoveNext();
+			}
+			else
+			{
+				// Add the token
+				funcStr += this.#TranslateToken(t);
+			}
 
 			// Extra spaces?
 			if (t.Type == TokenIdentifier)
@@ -1495,7 +1561,7 @@ class HLSL
 				if (t.Text == "return" ||
 					t.Text == "case" ||
 					it.PeekNext().Type == TokenIdentifier) // Always put a space between double identifier
-					funcStr += " "; 
+					funcStr += " ";
 			}
 
 			// New line?
@@ -1525,7 +1591,7 @@ class HLSL
 		{
 			case "float2x2": replace = "float2x2_tr"; break;
 			case "float3x3": replace = "float3x3_tr"; break;
-			case "float4x4": 
+			case "float4x4":
 			case "matrix": replace = "float4x4_tr"; break;
 			default: return "";
 		}
@@ -1535,13 +1601,30 @@ class HLSL
 		return replace;
 	}
 
+	#GetMatrixElementConversion(it)
+	{
+		// If we're not a period followed by an identifier, skip
+		if (it.Current().Type != TokenPeriod ||
+			it.PeekNext().Type != TokenIdentifier)
+			return "";
+
+		// We have the ".ident" pattern, check for matrix elements
+		const elementText = it.PeekNext().Text;
+		const elementIndex = this.MatrixElements.indexOf(elementText);
+		if (elementIndex == -1)
+			return ""; // Not a matrix element
+
+		// It definitely is a matrix element, so return the replacement
+		return this.MatrixElementConversion[elementText];
+	}
+
 	#GetTextureFunctionString(it, baseFunc)
 	{
 		// Any functions, and is this an identifier?
 		if (baseFunc.TextureFunctions.length == 0 ||
 			it.Current().Type != TokenIdentifier)
 			return "";
-		
+
 		// Do any of the texture functions start here?
 		let currentPos = it.Position();
 		let whichTexFunc = null;
@@ -1890,7 +1973,7 @@ class HLSL
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
-		
+
 		return glsl;
 	}
 }

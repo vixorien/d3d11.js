@@ -633,56 +633,65 @@
 				}
 			`;
 
-			//let skyVS = `
-			//	struct VertexToPixel_Sky
-			//	{
-			//		float4 screenPosition	: SV_POSITION;
-			//		float3 sampleDir		: DIRECTION;
-			//	};
+			let skyHLSLVS = `
+				struct VSInput
+				{
+					float3 localPosition;
+					float2 uv;
+					float3 normal;
+					float3 tangent;
+				};
 
-			//	cbuffer ExternalData : register(b0)
-			//	{
-			//		matrix view;
-			//		matrix projection;
-			//	}
+				struct VertexToPixel_Sky
+				{
+					float4 screenPosition	: SV_POSITION;
+					float3 sampleDir		: DIRECTION;
+				};
 
-			//	VertexToPixel_Sky main(VertexShaderInput input)
-			//	{
-			//		VertexToPixel_Sky output;
+				cbuffer ExternalData : register(b0)
+				{
+					matrix world; // Unused, but keeping for offset
+					matrix view;
+					matrix projection;
+				}
 
-			//		// Zero out the translation
-			//		matrix viewNoTranslation = view;
-			//		viewNoTranslation._14 = 0;
-			//		viewNoTranslation._24 = 0;
-			//		viewNoTranslation._34 = 0;
+				VertexToPixel_Sky main(VSInput input)
+				{
+					VertexToPixel_Sky output;
 
-			//		matrix vp = mul(projection, viewNoTranslation);
-			//		output.screenPosition = mul(vp, float4(input.localPosition, 1.0f));
+					// Zero out the translation
+					matrix viewNoTranslation = view;
+					viewNoTranslation._14 = 0.0;
+					viewNoTranslation._24 = 0.0;
+					viewNoTranslation._34 = 0.0;
 
-			//		// Z = W for a max depth of 1
-			//		output.screenPosition.z = output.screenPosition.w;
+					matrix vp = mul(projection, viewNoTranslation);
+					output.screenPosition = mul(vp, float4(input.localPosition, 1.0f));
 
-			//		// Use local pos as sample direction since we're (presumably) a cube
-			//		output.sampleDir = input.localPosition;
-			//		return output;
-			//	}
-			//`;
+					// Z = W for a max depth of 1
+					output.screenPosition.z = output.screenPosition.w;
 
-			//let skyPS = `
-			//	struct VertexToPixel_Sky
-			//	{
-			//		float4 screenPosition	: SV_POSITION;
-			//		float3 sampleDir		: DIRECTION;
-			//	};
+					// Use local pos as sample direction since we're (presumably) a cube
+					output.sampleDir = input.localPosition;
+					return output;
+				}
+			`;
 
-			//	TextureCube SkyTexture		: register(t0);
-			//	SamplerState BasicSampler	: register(s0);
+			let skyHLSLPS = `
+				struct VertexToPixel_Sky
+				{
+					float4 screenPosition	: SV_POSITION;
+					float3 sampleDir		: DIRECTION;
+				};
 
-			//	float4 main(VertexToPixel_Sky input) : SV_TARGET
-			//	{
-			//		return SkyTexture.Sample(BasicSampler, input.sampleDir);
-			//	}
-			//`;
+				TextureCube SkyTexture		: register(t0);
+				SamplerState BasicSampler	: register(s0);
+
+				float4 main(VertexToPixel_Sky input) : SV_TARGET
+				{
+					return SkyTexture.Sample(BasicSampler, input.sampleDir);
+				}
+			`;
 
 			let input = new Input(document);
 
@@ -763,17 +772,18 @@
 			context.PSSetSamplers(0, [sampler]);
 
 
-			// Create a rasterizer state
-			let rsDesc = new D3D11_RASTERIZER_DESC(
+			// Create a rasterizer state for the sky
+			let skyRastDesc = new D3D11_RASTERIZER_DESC(
 				D3D11_FILL_SOLID,
-				D3D11_CULL_BACK);
-			let rastState = device.CreateRasterizerState(rsDesc);
-			context.RSSetState(rastState);
+				D3D11_CULL_FRONT);
+			let skyRastState = device.CreateRasterizerState(skyRastDesc);
 
-			// Create a depth/stencil state
-			let dsDesc = new D3D11_DEPTH_STENCIL_DESC();
-			let dsState = device.CreateDepthStencilState(dsDesc);
-			context.OMSetDepthStencilState(dsState, 0);
+			// Create a depth/stencil state for the sky
+			let skyDepthDesc = new D3D11_DEPTH_STENCIL_DESC(
+				true,
+				D3D11_DEPTH_WRITE_MASK_ALL,
+				D3D11_COMPARISON_LESS_EQUAL);
+			let skyDepthState = device.CreateDepthStencilState(skyDepthDesc);
 
 			// Common for all verts
 			let vbStride = Vertex.GetStride();
@@ -913,6 +923,9 @@
 			let vs = device.CreateVertexShader(hlslVS);
 			let ps = device.CreatePixelShader(hlslPS);
 			let solidPS = device.CreatePixelShader(solidHLSLPS);
+			let skyVS = device.CreateVertexShader(skyHLSLVS);
+			let skyPS = device.CreatePixelShader(skyHLSLPS);
+			
 			context.VSSetShader(vs);
 			context.PSSetShader(ps);
 
@@ -968,6 +981,7 @@
 				// Sphere draws
 				{
 					// Swap to sphere buffers
+					context.VSSetShader(vs);
 					context.PSSetShader(solidPS);
 					context.PSSetConstantBuffers(0, [solidCB]);
 					context.IASetVertexBuffers(0, [sphereVB], [vbStride], [vbOffset]);
@@ -997,7 +1011,7 @@
 					}
 				}
 
-				// Helix draw
+				// Main shape draw draw
 				{
 					//let scale = 3;
 					//let vb = helixVB;
@@ -1027,14 +1041,43 @@
 					psData.set(cameraPosition, 0);
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
-				
+					// Textures
+					context.PSSetShaderResources(0, [albedoSRV, normalSRV, metalSRV, roughSRV]);
 
 					// Draw
+					context.VSSetShader(vs);
 					context.PSSetShader(ps);
 					context.PSSetConstantBuffers(0, [psCB]);
 					context.IASetVertexBuffers(0, [vb], [vbStride], [vbOffset]);
 					context.IASetIndexBuffer(ib, DXGI_FORMAT_R16_UINT, 0);
 					context.DrawIndexed(count, 0, 0);
+				}
+
+				// Skybox
+				{
+					// Set up states
+					context.RSSetState(skyRastState);
+					context.OMSetDepthStencilState(skyDepthState);
+
+					// Set up shaders
+					context.VSSetShader(skyVS);
+					context.PSSetShader(skyPS);
+
+					// NOTE: Current cbuffers should be fine?
+					// VS -> Using same w/v/p
+					// PS -> Nothing necessary
+
+					// Set up texture
+					context.PSSetShaderResources(0, [skySRV]);
+
+					// Draw cube
+					context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);
+					context.IASetIndexBuffer(cubeIB, DXGI_FORMAT_R16_UINT, 0);
+					context.DrawIndexed(cubeIndexCount, 0, 0);
+
+					// Revert states
+					context.RSSetState(null);
+					context.OMSetDepthStencilState(null);
 				}
 
 				// Flush the frame
