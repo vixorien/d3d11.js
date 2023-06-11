@@ -1022,6 +1022,25 @@ class ID3D11Device extends IUnknown
 
 
 	/**
+	 * Creates a new depth-stencil state from a given description
+	 * 
+	 * @param {D3D11_DEPTH_STENCIL_DESC} depthStencilDesc The description of the new state
+	 * 
+	 * @throws {Error} If the description is null or it contains invalid values
+	 */
+	CreateDepthStencilState(depthStencilDesc)
+	{
+		// Description is not optional
+		if (depthStencilDesc == null)
+			throw new Error("Depth-Stencil description cannot be null");
+
+		// Validate the description and create the state
+		this.#ValidateDepthStencilDesc(depthStencilDesc);
+		return new class extends ID3D11DepthStencilState { }(this, depthStencilDesc);
+	}
+
+
+	/**
 	 * Creates a depth stencil view for the specified resource.  Pass in a null description
 	 * to create a default DSV for this specific resource, which allows mip 0 access for
 	 * the entire resource.
@@ -1086,7 +1105,13 @@ class ID3D11Device extends IUnknown
 		return new ID3D11PixelShader(this, glShader, ps);
 	}
 
-
+	/**
+	 * Creates a new rasterizer state from a given description
+	 * 
+	 * @param {D3D11_RASTERIZER_DESC} rasterizerDesc The description of the new state
+	 * 
+	 * @throws {Error} If the description is null or it contains invalid values
+	 */
 	CreateRasterizerState(rasterizerDesc)
 	{
 		// Description is not optional
@@ -1603,6 +1628,28 @@ class ID3D11Device extends IUnknown
 			throw new Error("Invalid Structured Byte Stride for buffer description.");
 	}
 
+	#ValidateDepthStencilDesc(desc)
+	{
+		// Depth enable is a bool - nothing to really check
+
+		// Depth write mask
+		if (desc.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ALL &&
+			desc.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO)
+			throw new Error("Invalid Depth Write Mask for depth stencil description");
+
+		// Depth function
+		if (desc.DepthFunc < D3D11_COMPARISON_NEVER ||
+			desc.DepthFunc > D3D11_COMPARISON_ALWAYS)
+			throw new Error("Invalid Depth Function for depth stencil description");
+
+		// Stencil
+		// TODO: Implement stencil stuff!
+		if (desc.StencilEnable)
+			throw new Error("Stencil support not yet implemented!");
+
+		// TODO: Check all the stencil stuff, too!
+	}
+
 
 	#ValidateDSVDesc(resource, dsvDesc)
 	{
@@ -2114,6 +2161,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	// Output Merger ---
 	#renderTargetViews;
 	#depthStencilView;
+	#depthStencilState;
+	#stencilRef;
+	#defaultDepthStencilDesc;
 	#outputMergerDirty;
 
 	constructor(device)
@@ -2195,7 +2245,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			this.#renderTargetViews = [];
 			this.#depthStencilView = null;
+			this.#depthStencilState = null;
+			this.#stencilRef = 0;
 			this.#outputMergerDirty = true;
+
+			this.#defaultDepthStencilDesc = new D3D11_DEPTH_STENCIL_DESC();
 		}
 	}
 
@@ -2466,6 +2520,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 		
 		this.#psShaderResourcesDirty = true;
+	}
+
+
+	OMSetDepthStencilState(depthStencilState, stencilRef)
+	{
+		this.#depthStencilState = depthStencilState;
+		this.#stencilRef = stencilRef;
+		this.#outputMergerDirty = true;
 	}
 
 	// TODO: Handle multiple render targets
@@ -2943,11 +3005,38 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#rasterizerDirty = false;
 	}
 
-
+	// TODO: Split Render Target and DS state dirty flags?
 	#PrepareOutputMerger()
 	{
 		if (!this.#outputMergerDirty)
 			return;
+
+		// Handle depth-stencil state
+		{
+			let desc;
+			if (this.#depthStencilState == null)
+				desc = this.#defaultDepthStencilDesc;
+			else
+				desc = this.#depthStencilState.GetDesc();
+
+			// Depth enable
+			if (desc.DepthEnable)
+				this.#gl.enable(this.#gl.DEPTH_TEST);
+			else
+				this.#gl.disable(this.#gl.DEPTH_TEST);
+
+			// Depth write mask
+			if (desc.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ZERO)
+				this.#gl.depthMask(false);
+			else if (desc.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ALL)
+				this.#gl.depthMask(true);
+
+			// Depth function
+			this.#gl.depthFunc(this.#GetGLComparisonFunc(desc.DepthFunc));
+
+			// TODO: Implement stencil!
+
+		}
 
 		// Ensure the framebuffer is bound first
 		this.#BindFakeFramebuffer();
@@ -3140,6 +3229,22 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 	}
 
+	#GetGLComparisonFunc(func)
+	{
+		switch (func)
+		{
+			case D3D11_COMPARISON_NEVER: return this.#gl.NEVER;
+			case D3D11_COMPARISON_LESS: return this.#gl.LESS;
+			case D3D11_COMPARISON_EQUAL: return this.#gl.EQUAL;
+			case D3D11_COMPARISON_LESS_EQUAL: return this.#gl.LEQUAL;
+			case D3D11_COMPARISON_GREATER: return this.#gl.GREATER;
+			case D3D11_COMPARISON_NOT_EQUAL: return this.#gl.NOTEQUAL;
+			case D3D11_COMPARISON_GREATER_EQUAL: return this.#gl.GEQUAL;
+			case D3D11_COMPARISON_ALWAYS: return this.#gl.ALWAYS;
+			default: throw new Error("Invalid comparison function");
+		}
+	}
+
 	#GetGLPrimitiveType(d3dPrimType)
 	{
 		switch (d3dPrimType)
@@ -3247,6 +3352,48 @@ class IDXGISwapChain extends IUnknown
 // -----------------------------------------------------
 // ---------------- Pipeline Interfaces ----------------
 // -----------------------------------------------------
+
+/**
+ * Holds a description for a depth-stencil state that you can bind to the output merger stage.
+ */
+class ID3D11DepthStencilState extends ID3D11DeviceChild
+{
+	#desc;
+
+	/**
+	 * Creates a new depth-stencil state.  Note that this should not be invoked directly.
+	 * 
+	 * @param {ID3D11Device} device The device that created this state
+	 * @param {D3D11_DEPTH_STENCIL_DESC} desc The description of this state
+	 * 
+	 * @throws {Error} If this object is instantiated directly
+	 */
+	constructor(device, desc)
+	{
+		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11DepthStencilState)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11DepthStencilState objects - use device.CreateDepthStencilState() instead");
+		}
+
+		this.#desc = Object.assign({}, desc); // Copy
+	}
+
+	/**
+	 * Gets the description of this depth-stencil state
+	 * 
+	 * @returns {D3D11_DEPTH_STENCIL_DESC} The depth-stencil description for this state
+	 */
+	GetDesc()
+	{
+		// Returns a copy so that we can't alter the original
+		return Object.assign({}, this.#desc);
+	}
+}
+
 
 class ID3D11InputLayout extends ID3D11DeviceChild
 {
@@ -3500,7 +3647,6 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 
 	#GetGLComparisonFunc(gl, func)
 	{
-		console.log(func);
 		switch (func)
 		{
 			case D3D11_COMPARISON_NEVER: return gl.NEVER;

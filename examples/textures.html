@@ -770,6 +770,10 @@
 			let rastState = device.CreateRasterizerState(rsDesc);
 			context.RSSetState(rastState);
 
+			// Create a depth/stencil state
+			let dsDesc = new D3D11_DEPTH_STENCIL_DESC();
+			let dsState = device.CreateDepthStencilState(dsDesc);
+			context.OMSetDepthStencilState(dsState, 0);
 
 			// Common for all verts
 			let vbStride = Vertex.GetStride();

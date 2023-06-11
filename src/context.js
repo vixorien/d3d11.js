@@ -59,6 +59,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	// Output Merger ---
 	#renderTargetViews;
 	#depthStencilView;
+	#depthStencilState;
+	#stencilRef;
+	#defaultDepthStencilDesc;
 	#outputMergerDirty;
 
 	constructor(device)
@@ -140,7 +143,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			this.#renderTargetViews = [];
 			this.#depthStencilView = null;
+			this.#depthStencilState = null;
+			this.#stencilRef = 0;
 			this.#outputMergerDirty = true;
+
+			this.#defaultDepthStencilDesc = new D3D11_DEPTH_STENCIL_DESC();
 		}
 	}
 
@@ -411,6 +418,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 		
 		this.#psShaderResourcesDirty = true;
+	}
+
+
+	OMSetDepthStencilState(depthStencilState, stencilRef)
+	{
+		this.#depthStencilState = depthStencilState;
+		this.#stencilRef = stencilRef;
+		this.#outputMergerDirty = true;
 	}
 
 	// TODO: Handle multiple render targets
@@ -888,11 +903,38 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#rasterizerDirty = false;
 	}
 
-
+	// TODO: Split Render Target and DS state dirty flags?
 	#PrepareOutputMerger()
 	{
 		if (!this.#outputMergerDirty)
 			return;
+
+		// Handle depth-stencil state
+		{
+			let desc;
+			if (this.#depthStencilState == null)
+				desc = this.#defaultDepthStencilDesc;
+			else
+				desc = this.#depthStencilState.GetDesc();
+
+			// Depth enable
+			if (desc.DepthEnable)
+				this.#gl.enable(this.#gl.DEPTH_TEST);
+			else
+				this.#gl.disable(this.#gl.DEPTH_TEST);
+
+			// Depth write mask
+			if (desc.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ZERO)
+				this.#gl.depthMask(false);
+			else if (desc.DepthWriteMask == D3D11_DEPTH_WRITE_MASK_ALL)
+				this.#gl.depthMask(true);
+
+			// Depth function
+			this.#gl.depthFunc(this.#GetGLComparisonFunc(desc.DepthFunc));
+
+			// TODO: Implement stencil!
+
+		}
 
 		// Ensure the framebuffer is bound first
 		this.#BindFakeFramebuffer();
@@ -1082,6 +1124,22 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			case DXGI_FORMAT_R32G32B32_FLOAT: return 3;
 			case DXGI_FORMAT_R32G32B32A32_FLOAT: return 4;
 			default: return 0;
+		}
+	}
+
+	#GetGLComparisonFunc(func)
+	{
+		switch (func)
+		{
+			case D3D11_COMPARISON_NEVER: return this.#gl.NEVER;
+			case D3D11_COMPARISON_LESS: return this.#gl.LESS;
+			case D3D11_COMPARISON_EQUAL: return this.#gl.EQUAL;
+			case D3D11_COMPARISON_LESS_EQUAL: return this.#gl.LEQUAL;
+			case D3D11_COMPARISON_GREATER: return this.#gl.GREATER;
+			case D3D11_COMPARISON_NOT_EQUAL: return this.#gl.NOTEQUAL;
+			case D3D11_COMPARISON_GREATER_EQUAL: return this.#gl.GEQUAL;
+			case D3D11_COMPARISON_ALWAYS: return this.#gl.ALWAYS;
+			default: throw new Error("Invalid comparison function");
 		}
 	}
 

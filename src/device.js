@@ -125,6 +125,25 @@ class ID3D11Device extends IUnknown
 
 
 	/**
+	 * Creates a new depth-stencil state from a given description
+	 * 
+	 * @param {D3D11_DEPTH_STENCIL_DESC} depthStencilDesc The description of the new state
+	 * 
+	 * @throws {Error} If the description is null or it contains invalid values
+	 */
+	CreateDepthStencilState(depthStencilDesc)
+	{
+		// Description is not optional
+		if (depthStencilDesc == null)
+			throw new Error("Depth-Stencil description cannot be null");
+
+		// Validate the description and create the state
+		this.#ValidateDepthStencilDesc(depthStencilDesc);
+		return new class extends ID3D11DepthStencilState { }(this, depthStencilDesc);
+	}
+
+
+	/**
 	 * Creates a depth stencil view for the specified resource.  Pass in a null description
 	 * to create a default DSV for this specific resource, which allows mip 0 access for
 	 * the entire resource.
@@ -189,7 +208,13 @@ class ID3D11Device extends IUnknown
 		return new ID3D11PixelShader(this, glShader, ps);
 	}
 
-
+	/**
+	 * Creates a new rasterizer state from a given description
+	 * 
+	 * @param {D3D11_RASTERIZER_DESC} rasterizerDesc The description of the new state
+	 * 
+	 * @throws {Error} If the description is null or it contains invalid values
+	 */
 	CreateRasterizerState(rasterizerDesc)
 	{
 		// Description is not optional
@@ -704,6 +729,28 @@ class ID3D11Device extends IUnknown
 		// NOTE: No structured buffers in WebGL :(
 		if (desc.StructureByteStride != 0)
 			throw new Error("Invalid Structured Byte Stride for buffer description.");
+	}
+
+	#ValidateDepthStencilDesc(desc)
+	{
+		// Depth enable is a bool - nothing to really check
+
+		// Depth write mask
+		if (desc.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ALL &&
+			desc.DepthWriteMask != D3D11_DEPTH_WRITE_MASK_ZERO)
+			throw new Error("Invalid Depth Write Mask for depth stencil description");
+
+		// Depth function
+		if (desc.DepthFunc < D3D11_COMPARISON_NEVER ||
+			desc.DepthFunc > D3D11_COMPARISON_ALWAYS)
+			throw new Error("Invalid Depth Function for depth stencil description");
+
+		// Stencil
+		// TODO: Implement stencil stuff!
+		if (desc.StencilEnable)
+			throw new Error("Stencil support not yet implemented!");
+
+		// TODO: Check all the stencil stuff, too!
 	}
 
 

@@ -3,6 +3,48 @@
 // ---------------- Pipeline Interfaces ----------------
 // -----------------------------------------------------
 
+/**
+ * Holds a description for a depth-stencil state that you can bind to the output merger stage.
+ */
+class ID3D11DepthStencilState extends ID3D11DeviceChild
+{
+	#desc;
+
+	/**
+	 * Creates a new depth-stencil state.  Note that this should not be invoked directly.
+	 * 
+	 * @param {ID3D11Device} device The device that created this state
+	 * @param {D3D11_DEPTH_STENCIL_DESC} desc The description of this state
+	 * 
+	 * @throws {Error} If this object is instantiated directly
+	 */
+	constructor(device, desc)
+	{
+		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11DepthStencilState)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11DepthStencilState objects - use device.CreateDepthStencilState() instead");
+		}
+
+		this.#desc = Object.assign({}, desc); // Copy
+	}
+
+	/**
+	 * Gets the description of this depth-stencil state
+	 * 
+	 * @returns {D3D11_DEPTH_STENCIL_DESC} The depth-stencil description for this state
+	 */
+	GetDesc()
+	{
+		// Returns a copy so that we can't alter the original
+		return Object.assign({}, this.#desc);
+	}
+}
+
+
 class ID3D11InputLayout extends ID3D11DeviceChild
 {
 	#inputElementDescs;
@@ -255,7 +297,6 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 
 	#GetGLComparisonFunc(gl, func)
 	{
-		console.log(func);
 		switch (func)
 		{
 			case D3D11_COMPARISON_NEVER: return gl.NEVER;
