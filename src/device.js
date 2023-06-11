@@ -818,12 +818,12 @@ class ID3D11Device extends IUnknown
 			throw new Error("Invalid Cull Mode for rasterizer description");
 
 		// Depth bias clamp - unsupported in webgl :(
-		if (desc.DepthBufferClamp != 0)
-			throw new Error("Depth Buffer Clamp unsupported in WebGL");
+		if (desc.DepthBiasClamp != 0)
+			throw new Error("Depth Bias Clamp unsupported in WebGL");
 
 		// Depth clip enable - unsupported in webgl :(
-		if (desc.DepthClipEnable)
-			throw new Error("Depth Clip unsupported in WebGL");
+		if (!desc.DepthClipEnable)
+			throw new Error("Disabling Depth Clip unsupported in WebGL");
 
 		// No multisampling/AA (yet?)
 		if (desc.MultisampleEnable)

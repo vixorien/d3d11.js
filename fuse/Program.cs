@@ -1,6 +1,8 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Nodes;
 
+// Notes for me
+// - Adding a custom tool in VS (for running batch file): https://stackoverflow.com/a/5606276
 namespace Fuse
 {
 	/// <summary>

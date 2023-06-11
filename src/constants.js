@@ -68,6 +68,14 @@ const D3D11_CULL_NONE = 1;
 const D3D11_CULL_FRONT = 2;
 const D3D11_CULL_BACK = 3;
 
+// Defaults for stencil read and write operations
+const D3D11_DEFAULT_STENCIL_READ_MASK = 0xff;
+const D3D11_DEFAULT_STENCIL_WRITE_MASK = 0xff;
+
+// Identify the portion of a depth-stencil buffer for writing depth data.
+const D3D11_DEPTH_WRITE_MASK_ZERO = 0;
+const D3D11_DEPTH_WRITE_MASK_ALL = 1;
+
 // Specifies how to access a resource used in a depth-stencil view
 // Note: The "unknown" dimension is not valid, as per documentation
 //const D3D11_DSV_DIMENSION_UNKNOWN = 0;
@@ -158,8 +166,18 @@ const D3D11_SRV_DIMENSION_TEXTURE2DARRAY = 5;
 //const D3D11_SRV_DIMENSION_TEXTURE2DMSARRAY = 7;
 const D3D11_SRV_DIMENSION_TEXTURE3D = 8;
 const D3D11_SRV_DIMENSION_TEXTURECUBE = 9;
-//const D3D11_SRV_DIMENSION_TEXTURECUBEARRAY = 10;
+//const D3D11_SRV_DIMENSION_TEXTURECUBEARRAY = 10; // Unsupported in WebGL
 //const D3D11_SRV_DIMENSION_BUFFEREX = 11;
+
+// The stencil operations that can be performed during depth-stencil testing.
+const D3D11_STENCIL_OP_KEEP = 1;
+const D3D11_STENCIL_OP_ZERO = 2;
+const D3D11_STENCIL_OP_REPLACE = 3;
+const D3D11_STENCIL_OP_INCR_SAT = 4;
+const D3D11_STENCIL_OP_DECR_SAT = 5;
+const D3D11_STENCIL_OP_INVERT = 6;
+const D3D11_STENCIL_OP_INCR = 7;
+const D3D11_STENCIL_OP_DECR = 8;
 
 // Identify the type of resource that will be viewed as a render target.
 //const D3D11_RTV_DIMENSION_UNKNOWN = 0;

@@ -68,6 +68,14 @@ const D3D11_CULL_NONE = 1;
 const D3D11_CULL_FRONT = 2;
 const D3D11_CULL_BACK = 3;
 
+// Defaults for stencil read and write operations
+const D3D11_DEFAULT_STENCIL_READ_MASK = 0xff;
+const D3D11_DEFAULT_STENCIL_WRITE_MASK = 0xff;
+
+// Identify the portion of a depth-stencil buffer for writing depth data.
+const D3D11_DEPTH_WRITE_MASK_ZERO = 0;
+const D3D11_DEPTH_WRITE_MASK_ALL = 1;
+
 // Specifies how to access a resource used in a depth-stencil view
 // Note: The "unknown" dimension is not valid, as per documentation
 //const D3D11_DSV_DIMENSION_UNKNOWN = 0;
@@ -158,8 +166,18 @@ const D3D11_SRV_DIMENSION_TEXTURE2DARRAY = 5;
 //const D3D11_SRV_DIMENSION_TEXTURE2DMSARRAY = 7;
 const D3D11_SRV_DIMENSION_TEXTURE3D = 8;
 const D3D11_SRV_DIMENSION_TEXTURECUBE = 9;
-//const D3D11_SRV_DIMENSION_TEXTURECUBEARRAY = 10;
+//const D3D11_SRV_DIMENSION_TEXTURECUBEARRAY = 10; // Unsupported in WebGL
 //const D3D11_SRV_DIMENSION_BUFFEREX = 11;
+
+// The stencil operations that can be performed during depth-stencil testing.
+const D3D11_STENCIL_OP_KEEP = 1;
+const D3D11_STENCIL_OP_ZERO = 2;
+const D3D11_STENCIL_OP_REPLACE = 3;
+const D3D11_STENCIL_OP_INCR_SAT = 4;
+const D3D11_STENCIL_OP_DECR_SAT = 5;
+const D3D11_STENCIL_OP_INVERT = 6;
+const D3D11_STENCIL_OP_INCR = 7;
+const D3D11_STENCIL_OP_DECR = 8;
 
 // Identify the type of resource that will be viewed as a render target.
 //const D3D11_RTV_DIMENSION_UNKNOWN = 0;
@@ -359,6 +377,58 @@ class D3D11_BUFFER_DESC
 		this.CPUAccessFlags = cpuAccessFlags;
 		this.MiscFlags = miscFlags;
 		this.StructureByteStride = structureByteStride;
+	}
+}
+
+class D3D11_DEPTH_STENCIL_DESC
+{
+	DepthEnable;
+	DepthWriteMask;
+	DepthFunc;
+	StencilEnable;
+	StencilReadMask;
+	StencilWriteMask;
+	FrontFace;
+	BackFace;
+
+	constructor(
+		depthEnable = true,
+		depthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL,
+		depthFunc = D3D11_COMPARISON_LESS,
+		stencilEnable = false,
+		stencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK,
+		stencilWriteMask = D3D11_DEFAULT_STENCIL_READ_MASK,
+		frontFace = new D3D11_DEPTH_STENCILOP_DESC(),
+		backFace = new D3D11_DEPTH_STENCILOP_DESC())
+	{
+		this.DepthEnable = depthEnable;
+		this.DepthWriteMask = depthWriteMask;
+		this.DepthFunc = depthFunc;
+		this.StencilEnable = stencilEnable;
+		this.StencilReadMask = stencilReadMask;
+		this.StencilWriteMask = stencilWriteMask;
+		this.FrontFace = Object.assign({}, frontFace);
+		this.BackFace = Object.assign({}, backFace);
+	}
+}
+
+class D3D11_DEPTH_STENCILOP_DESC
+{
+	StencilFailOp;
+	StencilDepthFailOp;
+	StencilPassOp;
+	StencilFunc;
+
+	constructor(
+		stencilFailOp = D3D11_STENCIL_OP_KEEP,
+		stencilDepthFailOp = D3D11_STENCIL_OP_KEEP,
+		stencilPassOp = D3D11_STENCIL_OP_KEEP,
+		stencilFunc = D3D11_COMPARISON_ALWAYS)
+	{
+		this.StencilFailOp = stencilFailOp;
+		this.StencilDepthFailOp = stencilDepthFailOp;
+		this.StencilPassOp = stencilPassOp;
+		this.StencilFunc = stencilFunc;
 	}
 }
 
@@ -1645,12 +1715,12 @@ class ID3D11Device extends IUnknown
 			throw new Error("Invalid Cull Mode for rasterizer description");
 
 		// Depth bias clamp - unsupported in webgl :(
-		if (desc.DepthBufferClamp != 0)
-			throw new Error("Depth Buffer Clamp unsupported in WebGL");
+		if (desc.DepthBiasClamp != 0)
+			throw new Error("Depth Bias Clamp unsupported in WebGL");
 
 		// Depth clip enable - unsupported in webgl :(
-		if (desc.DepthClipEnable)
-			throw new Error("Depth Clip unsupported in WebGL");
+		if (!desc.DepthClipEnable)
+			throw new Error("Disabling Depth Clip unsupported in WebGL");
 
 		// No multisampling/AA (yet?)
 		if (desc.MultisampleEnable)

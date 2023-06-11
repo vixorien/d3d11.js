@@ -30,6 +30,58 @@ class D3D11_BUFFER_DESC
 	}
 }
 
+class D3D11_DEPTH_STENCIL_DESC
+{
+	DepthEnable;
+	DepthWriteMask;
+	DepthFunc;
+	StencilEnable;
+	StencilReadMask;
+	StencilWriteMask;
+	FrontFace;
+	BackFace;
+
+	constructor(
+		depthEnable = true,
+		depthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL,
+		depthFunc = D3D11_COMPARISON_LESS,
+		stencilEnable = false,
+		stencilReadMask = D3D11_DEFAULT_STENCIL_READ_MASK,
+		stencilWriteMask = D3D11_DEFAULT_STENCIL_READ_MASK,
+		frontFace = new D3D11_DEPTH_STENCILOP_DESC(),
+		backFace = new D3D11_DEPTH_STENCILOP_DESC())
+	{
+		this.DepthEnable = depthEnable;
+		this.DepthWriteMask = depthWriteMask;
+		this.DepthFunc = depthFunc;
+		this.StencilEnable = stencilEnable;
+		this.StencilReadMask = stencilReadMask;
+		this.StencilWriteMask = stencilWriteMask;
+		this.FrontFace = Object.assign({}, frontFace);
+		this.BackFace = Object.assign({}, backFace);
+	}
+}
+
+class D3D11_DEPTH_STENCILOP_DESC
+{
+	StencilFailOp;
+	StencilDepthFailOp;
+	StencilPassOp;
+	StencilFunc;
+
+	constructor(
+		stencilFailOp = D3D11_STENCIL_OP_KEEP,
+		stencilDepthFailOp = D3D11_STENCIL_OP_KEEP,
+		stencilPassOp = D3D11_STENCIL_OP_KEEP,
+		stencilFunc = D3D11_COMPARISON_ALWAYS)
+	{
+		this.StencilFailOp = stencilFailOp;
+		this.StencilDepthFailOp = stencilDepthFailOp;
+		this.StencilPassOp = stencilPassOp;
+		this.StencilFunc = stencilFunc;
+	}
+}
+
 class D3D11_DEPTH_STENCIL_VIEW_DESC
 {
 	Format;
