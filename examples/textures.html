@@ -553,7 +553,7 @@
 
 				float4 main(VertexToPixel input) : SV_TARGET
 				{
-					return sky.Sample(samp, input.normal);
+					//return sky.Sample(samp, input.normal);
 
 					input.normal = normalize(input.normal);
 					input.tangent = normalize(input.tangent);
@@ -768,6 +768,7 @@
 				D3D11_FILL_SOLID,
 				D3D11_CULL_BACK);
 			let rastState = device.CreateRasterizerState(rsDesc);
+			context.RSSetState(rastState);
 
 
 			// Common for all verts

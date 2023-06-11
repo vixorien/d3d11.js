@@ -817,9 +817,26 @@ class ID3D11Device extends IUnknown
 			desc.CullMode != D3D11_CULL_BACK)
 			throw new Error("Invalid Cull Mode for rasterizer description");
 
-		// The rest are bools, ints and floats with no required ranges (I think).
-		// Going to assume they're fine for now.
-		// TODO: Verify these are fine as any values, or be more stringent with type checking
+		// Depth bias clamp - unsupported in webgl :(
+		if (desc.DepthBufferClamp != 0)
+			throw new Error("Depth Buffer Clamp unsupported in WebGL");
+
+		// Depth clip enable - unsupported in webgl :(
+		if (desc.DepthClipEnable)
+			throw new Error("Depth Clip unsupported in WebGL");
+
+		// No multisampling/AA (yet?)
+		if (desc.MultisampleEnable)
+			throw new Error("Multisampling not yet implemented");
+
+		if (desc.AntiasliasedLineEnable)
+			throw new Error("Antialiased Lines not yet implemented");
+
+		// Front count clockwise - either true or false are fine
+		// Depth bias - any number
+		// Slope scale depth bias - any number
+		// Scissor enable - true or false
+		
 	}
 
 	#ValidateSamplerDesc(desc)

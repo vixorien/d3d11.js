@@ -1644,9 +1644,26 @@ class ID3D11Device extends IUnknown
 			desc.CullMode != D3D11_CULL_BACK)
 			throw new Error("Invalid Cull Mode for rasterizer description");
 
-		// The rest are bools, ints and floats with no required ranges (I think).
-		// Going to assume they're fine for now.
-		// TODO: Verify these are fine as any values, or be more stringent with type checking
+		// Depth bias clamp - unsupported in webgl :(
+		if (desc.DepthBufferClamp != 0)
+			throw new Error("Depth Buffer Clamp unsupported in WebGL");
+
+		// Depth clip enable - unsupported in webgl :(
+		if (desc.DepthClipEnable)
+			throw new Error("Depth Clip unsupported in WebGL");
+
+		// No multisampling/AA (yet?)
+		if (desc.MultisampleEnable)
+			throw new Error("Multisampling not yet implemented");
+
+		if (desc.AntiasliasedLineEnable)
+			throw new Error("Antialiased Lines not yet implemented");
+
+		// Front count clockwise - either true or false are fine
+		// Depth bias - any number
+		// Slope scale depth bias - any number
+		// Scissor enable - true or false
+		
 	}
 
 	#ValidateSamplerDesc(desc)
@@ -2009,6 +2026,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// Rasterizer ---
 	#viewport;
+	#rasterizerState;
+	#defaultRasterizerDesc;
+	#rasterizerDirty;
 
 	// Pixel Shader ---
 	#pixelShader;
@@ -2078,6 +2098,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Rasterizer
 		{
 			this.#viewport = null;
+			this.#rasterizerState = null;
+			this.#rasterizerDirty = true;
+
+			this.#defaultRasterizerDesc = new D3D11_RASTERIZER_DESC(
+				D3D11_FILL_SOLID,
+				D3D11_CULL_BACK);
 		}
 
 		// Pixel Shader
@@ -2110,6 +2136,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#inputAssemblerDirty = true;
 		this.#shadersDirty = true;
 		this.#vsConstantBuffersDirty = true;
+		this.#rasterizerDirty = true;
 		this.#psConstantBuffersDirty = true;
 		this.#psShaderResourcesDirty = true;
 		this.#psSamplersDirty = true;
@@ -2275,6 +2302,23 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		this.#vsConstantBuffersDirty = true;
+	}
+
+	RSGetState()
+	{
+		if (this.#rasterizerState == null)
+			return null;
+
+		this.#rasterizerState.AddRef();
+		return this.#rasterizerState;
+	}
+
+
+	RSSetState(rasterizerState)
+	{
+		// TODO: Type check the state?
+		this.#rasterizerState = rasterizerState;
+		this.#rasterizerDirty = true;
 	}
 
 	// Note: Just taking a single viewport, though
@@ -2763,6 +2807,73 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		return this.#gl.TEXTURE0 + index;
 	}
 
+	#PrepareRasterizer()
+	{
+		if (!this.#rasterizerDirty)
+			return;
+
+		// Which description are we using?
+		let desc;
+		if (this.#rasterizerState == null)
+			desc = this.#defaultRasterizerDesc;
+		else
+			desc = this.#rasterizerState.GetDesc();
+
+		// Fill mode - Solid only for now! (Wireframe isn't an option in WebGL)
+
+		// Cull mode
+		switch (desc.CullMode)
+		{
+			case D3D11_CULL_BACK:
+				this.#gl.enable(this.#gl.CULL_FACE);
+				this.#gl.cullFace(this.#gl.BACK);
+				break;
+
+			case D3D11_CULL_FRONT:
+				this.#gl.enable(this.#gl.CULL_FACE);
+				this.#gl.cullFace(this.#gl.FRONT);
+				break;
+
+			case D3D11_CULL_NONE:
+			default:
+				this.#gl.disable(this.#gl.CULL_FACE);
+				break;
+		}
+
+		// Front Counter Clockwise for flipping the default winding order
+		this.#gl.frontFace(desc.FrontCounterClockwise ? this.#gl.CCW : this.#gl.CW);
+
+		// Depth bias
+		if (desc.DepthBias == 0 && desc.SlopeScaleDepthBias == 0)
+		{
+			// Turn off biasing ("polygon offset")
+			this.#gl.disable(this.#gl.POLYGON_OFFSET_FILL);
+		}
+		else
+		{
+			// Biasing is on with at least one of the params
+			this.#gl.enable(this.#gl.POLYGON_OFFSET_FILL);
+			this.#gl.polygonOffset(
+				desc.SlopeScaleDepthBias,	// Assuming slope scale is "factor"
+				desc.DepthBias);			// And depth bias is "units"
+		}
+
+		// No depth bias clamp in WebGL?
+
+		// Depth clip enable - not present in webgl?
+
+		// Scissor
+		if (desc.ScissorEnable)
+			this.#gl.enable(this.#gl.SCISSOR_TEST);
+		else
+			this.#gl.disable(this.#gl.SCISSOR_TEST);
+
+		// Multisample - not currently implemented!
+
+		this.#rasterizerDirty = false;
+	}
+
+
 	#PrepareOutputMerger()
 	{
 		if (!this.#outputMergerDirty)
@@ -2872,6 +2983,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
 		this.#PrepareTexturesAndSamplers();
+		this.#PrepareRasterizer();
 		this.#PrepareOutputMerger()
 
 		this.#gl.drawArrays(
@@ -2886,6 +2998,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
 		this.#PrepareTexturesAndSamplers();
+		this.#PrepareRasterizer();
 		this.#PrepareOutputMerger()
 
 		// Get proper format

@@ -42,6 +42,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	// Rasterizer ---
 	#viewport;
 	#rasterizerState;
+	#defaultRasterizerDesc;
 	#rasterizerDirty;
 
 	// Pixel Shader ---
@@ -114,6 +115,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#viewport = null;
 			this.#rasterizerState = null;
 			this.#rasterizerDirty = true;
+
+			this.#defaultRasterizerDesc = new D3D11_RASTERIZER_DESC(
+				D3D11_FILL_SOLID,
+				D3D11_CULL_BACK);
 		}
 
 		// Pixel Shader
@@ -312,6 +317,15 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		this.#vsConstantBuffersDirty = true;
+	}
+
+	RSGetState()
+	{
+		if (this.#rasterizerState == null)
+			return null;
+
+		this.#rasterizerState.AddRef();
+		return this.#rasterizerState;
 	}
 
 
@@ -808,6 +822,73 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		return this.#gl.TEXTURE0 + index;
 	}
 
+	#PrepareRasterizer()
+	{
+		if (!this.#rasterizerDirty)
+			return;
+
+		// Which description are we using?
+		let desc;
+		if (this.#rasterizerState == null)
+			desc = this.#defaultRasterizerDesc;
+		else
+			desc = this.#rasterizerState.GetDesc();
+
+		// Fill mode - Solid only for now! (Wireframe isn't an option in WebGL)
+
+		// Cull mode
+		switch (desc.CullMode)
+		{
+			case D3D11_CULL_BACK:
+				this.#gl.enable(this.#gl.CULL_FACE);
+				this.#gl.cullFace(this.#gl.BACK);
+				break;
+
+			case D3D11_CULL_FRONT:
+				this.#gl.enable(this.#gl.CULL_FACE);
+				this.#gl.cullFace(this.#gl.FRONT);
+				break;
+
+			case D3D11_CULL_NONE:
+			default:
+				this.#gl.disable(this.#gl.CULL_FACE);
+				break;
+		}
+
+		// Front Counter Clockwise for flipping the default winding order
+		this.#gl.frontFace(desc.FrontCounterClockwise ? this.#gl.CCW : this.#gl.CW);
+
+		// Depth bias
+		if (desc.DepthBias == 0 && desc.SlopeScaleDepthBias == 0)
+		{
+			// Turn off biasing ("polygon offset")
+			this.#gl.disable(this.#gl.POLYGON_OFFSET_FILL);
+		}
+		else
+		{
+			// Biasing is on with at least one of the params
+			this.#gl.enable(this.#gl.POLYGON_OFFSET_FILL);
+			this.#gl.polygonOffset(
+				desc.SlopeScaleDepthBias,	// Assuming slope scale is "factor"
+				desc.DepthBias);			// And depth bias is "units"
+		}
+
+		// No depth bias clamp in WebGL?
+
+		// Depth clip enable - not present in webgl?
+
+		// Scissor
+		if (desc.ScissorEnable)
+			this.#gl.enable(this.#gl.SCISSOR_TEST);
+		else
+			this.#gl.disable(this.#gl.SCISSOR_TEST);
+
+		// Multisample - not currently implemented!
+
+		this.#rasterizerDirty = false;
+	}
+
+
 	#PrepareOutputMerger()
 	{
 		if (!this.#outputMergerDirty)
@@ -917,6 +998,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
 		this.#PrepareTexturesAndSamplers();
+		this.#PrepareRasterizer();
 		this.#PrepareOutputMerger()
 
 		this.#gl.drawArrays(
@@ -931,6 +1013,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
 		this.#PrepareTexturesAndSamplers();
+		this.#PrepareRasterizer();
 		this.#PrepareOutputMerger()
 
 		// Get proper format
