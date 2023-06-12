@@ -42,16 +42,6 @@ class ID3D11Device extends IUnknown
 		return this.#immediateContext;
 	}
 
-	// TODO: Add description
-	CreateRenderTargetView(resource)
-	{
-		// May have changed GL state!
-		if (this.#immediateContext != null)
-			this.#immediateContext.DirtyPipeline();
-
-		return new ID3D11RenderTargetView(this, resource);
-	}
-
 
 	// TODO: Respect buffer desc
 	// TODO: Use SubresourceData struct for initial data to match d3d spec?
@@ -427,6 +417,10 @@ class ID3D11Device extends IUnknown
 					// Copy the data one mip at a time
 					for (let mip = 0; mip < desc.MipLevels && mip < initialData.length; mip++)
 					{
+						// Skip nulls
+						if (initialData[mip] == null)
+							continue;
+
 						// Calculate size of the mip
 						const div = Math.pow(2, mip);
 						const mipWidth = Math.max(1, Math.floor(desc.Width / div));
@@ -462,6 +456,10 @@ class ID3D11Device extends IUnknown
 					{
 						for (let face = 0; face < 6; face++)
 						{
+							// Skip nulls
+							if (initialData[mip * 6 + face] == null)
+								continue;
+
 							// Calculate size of the mip
 							const div = Math.pow(2, mip);
 							const mipWidth = Math.max(1, Math.floor(desc.Width / div));
@@ -489,6 +487,10 @@ class ID3D11Device extends IUnknown
 					{
 						for (let index = 0; index < desc.ArraySize; index++)
 						{
+							// Skip nulls
+							if (initialData[mip * desc.ArraySize + face] == null)
+								continue;
+
 							// Calculate size of the mip
 							const div = Math.pow(2, mip);
 							const mipWidth = Math.max(1, Math.floor(desc.Width / div));

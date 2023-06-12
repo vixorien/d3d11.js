@@ -939,16 +939,6 @@ class ID3D11Device extends IUnknown
 		return this.#immediateContext;
 	}
 
-	// TODO: Add description
-	CreateRenderTargetView(resource)
-	{
-		// May have changed GL state!
-		if (this.#immediateContext != null)
-			this.#immediateContext.DirtyPipeline();
-
-		return new ID3D11RenderTargetView(this, resource);
-	}
-
 
 	// TODO: Respect buffer desc
 	// TODO: Use SubresourceData struct for initial data to match d3d spec?
@@ -1324,6 +1314,10 @@ class ID3D11Device extends IUnknown
 					// Copy the data one mip at a time
 					for (let mip = 0; mip < desc.MipLevels && mip < initialData.length; mip++)
 					{
+						// Skip nulls
+						if (initialData[mip] == null)
+							continue;
+
 						// Calculate size of the mip
 						const div = Math.pow(2, mip);
 						const mipWidth = Math.max(1, Math.floor(desc.Width / div));
@@ -1359,6 +1353,10 @@ class ID3D11Device extends IUnknown
 					{
 						for (let face = 0; face < 6; face++)
 						{
+							// Skip nulls
+							if (initialData[mip * 6 + face] == null)
+								continue;
+
 							// Calculate size of the mip
 							const div = Math.pow(2, mip);
 							const mipWidth = Math.max(1, Math.floor(desc.Width / div));
@@ -1386,6 +1384,10 @@ class ID3D11Device extends IUnknown
 					{
 						for (let index = 0; index < desc.ArraySize; index++)
 						{
+							// Skip nulls
+							if (initialData[mip * desc.ArraySize + face] == null)
+								continue;
+
 							// Calculate size of the mip
 							const div = Math.pow(2, mip);
 							const mipWidth = Math.max(1, Math.floor(desc.Width / div));
@@ -3065,23 +3067,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			let viewDesc = rtvs[0].GetDesc();
 
 			// TODO: Handle texture vs. render buffer
-
-			// Get the existing color (target 0)
-			let fbTex = this.#gl.getFramebufferAttachmentParameter(
+			this.#gl.framebufferTexture2D(
 				this.#gl.FRAMEBUFFER,
 				this.#gl.COLOR_ATTACHMENT0,
-				this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
-
-			// Do we need to rebind the texture?
-			if (fbTex != rtvResource.GetGLResource())
-			{
-				this.#gl.framebufferTexture2D(
-					this.#gl.FRAMEBUFFER,
-					this.#gl.COLOR_ATTACHMENT0,
-					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
-					rtvResource.GetGLResource(),
-					viewDesc.MipSlice); // TODO: Check existing mip slice binding, too!
-			}
+				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+				rtvResource.GetGLResource(),
+				viewDesc.MipSlice); // TODO: Check existing mip slice binding, too!
 
 			// Done with ref
 			rtvResource.Release();
@@ -4994,10 +4985,17 @@ class HLSL
 		// Set up the texture/sampler combination
 		let combination = this.#GetOrCreateTextureSamplerCombination(textureName, samplerName);
 
+		// Grab the texture type, too
+		let textureType = "";
+		for (let i = 0; i < this.#textures.length; i++)
+			if (this.#textures[i].Name == textureName)
+				textureType = this.#textures[i].Type;
+
 		// Set up the overall texture function details and add to the base function
 		let texFunc = {
 			TextureSamplerCombination: combination,
 			FunctionName: textureFuncName,
+			TextureType: textureType,
 			StartPosition: overallStartPos,
 			EndPosition: overallEndPos,
 			UVExpressionStartPosition: uvExpressionStartPos,
@@ -5507,7 +5505,6 @@ class HLSL
 
 		// End body
 		funcStr += "\n";
-		console.log(funcStr);
 		return funcStr;
 	}
 
@@ -5579,6 +5576,15 @@ class HLSL
 		// We have at least one function and we're at the right position
 		let texFuncStr = "texture(" + whichTexFunc.TextureSamplerCombination.CombinedName + ", ";
 
+		// Is this a 2D texture?
+		if (whichTexFunc.TextureType == "Texture2D")
+		{
+			// Add in extra UV work to flip Y
+			// - What we want is: uv.y = 1 - uv.y
+			// - For that, we'll do: (0,1) + (1,-1) * uvExpression
+			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * ";
+		}
+
 		// Skip ahead to the expression
 		while (it.Position() < whichTexFunc.UVExpressionStartPosition)
 			it.MoveNext();
@@ -5599,6 +5605,7 @@ class HLSL
 		// End the function by moving past the end parens and adding it
 		it.MoveNext();
 		texFuncStr += ")";
+		
 		return texFuncStr;
 	}
 
@@ -5706,7 +5713,7 @@ class HLSL
 		
 		main += "\tgl_PointSize = 1.0;\n"; // Just in case we need to draw points!
 		main += "}\n";
-		console.log(main); return main;
+		return main;
 	}
 
 

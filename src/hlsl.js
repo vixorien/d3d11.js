@@ -1058,10 +1058,17 @@ class HLSL
 		// Set up the texture/sampler combination
 		let combination = this.#GetOrCreateTextureSamplerCombination(textureName, samplerName);
 
+		// Grab the texture type, too
+		let textureType = "";
+		for (let i = 0; i < this.#textures.length; i++)
+			if (this.#textures[i].Name == textureName)
+				textureType = this.#textures[i].Type;
+
 		// Set up the overall texture function details and add to the base function
 		let texFunc = {
 			TextureSamplerCombination: combination,
 			FunctionName: textureFuncName,
+			TextureType: textureType,
 			StartPosition: overallStartPos,
 			EndPosition: overallEndPos,
 			UVExpressionStartPosition: uvExpressionStartPos,
@@ -1571,7 +1578,6 @@ class HLSL
 
 		// End body
 		funcStr += "\n";
-		console.log(funcStr);
 		return funcStr;
 	}
 
@@ -1643,6 +1649,15 @@ class HLSL
 		// We have at least one function and we're at the right position
 		let texFuncStr = "texture(" + whichTexFunc.TextureSamplerCombination.CombinedName + ", ";
 
+		// Is this a 2D texture?
+		if (whichTexFunc.TextureType == "Texture2D")
+		{
+			// Add in extra UV work to flip Y
+			// - What we want is: uv.y = 1 - uv.y
+			// - For that, we'll do: (0,1) + (1,-1) * uvExpression
+			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * ";
+		}
+
 		// Skip ahead to the expression
 		while (it.Position() < whichTexFunc.UVExpressionStartPosition)
 			it.MoveNext();
@@ -1663,6 +1678,7 @@ class HLSL
 		// End the function by moving past the end parens and adding it
 		it.MoveNext();
 		texFuncStr += ")";
+		
 		return texFuncStr;
 	}
 
@@ -1770,7 +1786,7 @@ class HLSL
 		
 		main += "\tgl_PointSize = 1.0;\n"; // Just in case we need to draw points!
 		main += "}\n";
-		console.log(main); return main;
+		return main;
 	}
 
 

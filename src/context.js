@@ -963,23 +963,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			let viewDesc = rtvs[0].GetDesc();
 
 			// TODO: Handle texture vs. render buffer
-
-			// Get the existing color (target 0)
-			let fbTex = this.#gl.getFramebufferAttachmentParameter(
+			this.#gl.framebufferTexture2D(
 				this.#gl.FRAMEBUFFER,
 				this.#gl.COLOR_ATTACHMENT0,
-				this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
-
-			// Do we need to rebind the texture?
-			if (fbTex != rtvResource.GetGLResource())
-			{
-				this.#gl.framebufferTexture2D(
-					this.#gl.FRAMEBUFFER,
-					this.#gl.COLOR_ATTACHMENT0,
-					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
-					rtvResource.GetGLResource(),
-					viewDesc.MipSlice); // TODO: Check existing mip slice binding, too!
-			}
+				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+				rtvResource.GetGLResource(),
+				viewDesc.MipSlice); // TODO: Check existing mip slice binding, too!
 
 			// Done with ref
 			rtvResource.Release();
