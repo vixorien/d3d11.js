@@ -978,7 +978,25 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#BindDepthStencil(dsv)
 	{
 		// Any depth?
-		if (dsv != null)
+		if (dsv == null)
+		{
+			// Unbind depth/stencil
+			this.#gl.framebufferTexture2D(
+				this.#gl.FRAMEBUFFER,
+				this.#gl.DEPTH_STENCIL_ATTACHMENT,
+				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+				null,
+				0);
+
+			// Unbind just depth, too (just in case)
+			this.#gl.framebufferTexture2D(
+				this.#gl.FRAMEBUFFER,
+				this.#gl.DEPTH_ATTACHMENT,
+				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+				null,
+				0);
+		}
+		else
 		{
 			let dsvResource = dsv.GetResource();
 			let viewDesc = dsv.GetDesc();
@@ -987,36 +1005,25 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			let hasStencil = (viewDesc.Format == DXGI_FORMAT_D24_UNORM_S8_UINT);
 			let attach = hasStencil ? this.#gl.DEPTH_STENCIL_ATTACHMENT : this.#gl.DEPTH_ATTACHMENT;
 
-			// Get the existing depth/stencil
-			let fbDepth = this.#gl.getFramebufferAttachmentParameter(
-				this.#gl.FRAMEBUFFER,
-				attach,
-				this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
-
-			// Do we need to rebind?
-			// TODO: What if it's the same resource but different mip/array slice?
-			if (fbDepth != dsvResource.GetGLResource())
+			if (!hasStencil)
 			{
-				if (!hasStencil)
-				{
-					// Unbind the combined depth/stencil just in case
-					this.#gl.framebufferTexture2D(
-						this.#gl.FRAMEBUFFER,
-						this.#gl.DEPTH_STENCIL_ATTACHMENT,
-						this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
-						null,
-						0);
-				}
-
-				// Bind the depth texture
+				// Unbind the combined depth/stencil just in case
 				this.#gl.framebufferTexture2D(
 					this.#gl.FRAMEBUFFER,
-					attach,
+					this.#gl.DEPTH_STENCIL_ATTACHMENT,
 					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
-					dsvResource.GetGLResource(),
-					viewDesc.MipSlice); // TODO: Verify this actually works?  Docs say ZERO only!
+					null,
+					0);
 			}
 
+			// Bind the depth texture
+			this.#gl.framebufferTexture2D(
+				this.#gl.FRAMEBUFFER,
+				attach,
+				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+				dsvResource.GetGLResource(),
+				viewDesc.MipSlice); // TODO: Verify this actually works?  Docs say ZERO only!
+			
 			// Done with ref
 			dsvResource.Release();
 		}
