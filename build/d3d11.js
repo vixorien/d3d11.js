@@ -5582,12 +5582,14 @@ class HLSL
 		let texFuncStr = "texture(" + whichTexFunc.TextureSamplerCombination.CombinedName + ", ";
 
 		// Is this a 2D texture?
+		// TODO: Handle other, similar texture types
+		// TODO: Do we need to do anything similar for cubes?
 		if (whichTexFunc.TextureType == "Texture2D")
 		{
 			// Add in extra UV work to flip Y
 			// - What we want is: uv.y = 1 - uv.y
 			// - For that, we'll do: (0,1) + (1,-1) * uvExpression
-			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * ";
+			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * (";
 		}
 
 		// Skip ahead to the expression
@@ -5610,6 +5612,9 @@ class HLSL
 		// End the function by moving past the end parens and adding it
 		it.MoveNext();
 		texFuncStr += ")";
+
+		if (whichTexFunc.TextureType == "Texture2D")
+			texFuncStr += ")"; // One more since we're wrapping the uv expression in ( )'s
 		
 		return texFuncStr;
 	}
