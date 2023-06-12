@@ -240,7 +240,7 @@
 			// Fetch and grab the binary data, then turn into an image
 			const resp = await fetch(url);
 			const imageBlob = await resp.blob();
-			const bitmap = await createImageBitmap(imageBlob);
+			const bitmap = await createImageBitmap(imageBlob, { imageOrientation: "flipY" });
 
 			// Set up the texture
 			let desc = new D3D11_TEXTURE2D_DESC(
@@ -737,9 +737,29 @@
 
 				float4 main(VertexToPixel input) : SV_TARGET
 				{
-					return pixels.Sample(samp, input.uv);
+					float blurRadius = 10.0;
+					float totalSamples = 0.0;
+
+					float4 thisColor = pixels.Sample(samp, input.uv);
+
+					float3 totalColor = float3(0.0, 0.0, 0.0);
+					for(float y = -blurRadius; y <= blurRadius; y++)
+					{
+						for(float x = -blurRadius; x <= blurRadius; x++)
+						{
+							totalColor += pixels.Sample(samp, input.uv + 0.001f * float2(x, y)).rgb;
+							totalSamples++;
+						}
+					}
+
+					if(input.uv.y > 0.5)
+						return float4(totalColor / totalSamples, 1.0);
+					else
+						return thisColor;
 				}
 			`;
+
+			let postprocessing = false;
 
 			let input = new Input(document);
 
@@ -1032,7 +1052,11 @@
 				
 
 				// Set up post processing
-				context.OMSetRenderTargets([ppRTV], depthDSV);
+				if (postprocessing)
+				{
+					context.OMSetRenderTargets([ppRTV], depthDSV);
+				}
+
 
 				vMat = Matrix4x4.ViewDirectionLH(
 					cameraPosition,
@@ -1149,12 +1173,15 @@
 					context.OMSetDepthStencilState(null);
 				}
 
-				// Finish post processing
-				context.OMSetRenderTargets([rtv], null);
-				context.VSSetShader(fullscreenVS);
-				context.PSSetShader(postprocPS);
-				context.PSSetShaderResources(0, [ppSRV]);
-				context.Draw(3, 0);
+				if (postprocessing)
+				{
+					// Finish post processing
+					context.OMSetRenderTargets([rtv], null);
+					context.VSSetShader(fullscreenVS);
+					context.PSSetShader(postprocPS);
+					context.PSSetShaderResources(0, [ppSRV]);
+					context.Draw(3, 0);
+				}
 
 				// Flush the frame
 				swapChain.Present();

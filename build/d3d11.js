@@ -918,6 +918,11 @@ class ID3D11Device extends IUnknown
 			this.#gl.getExtension("EXT_texture_filter_anisotropic") ||
 			this.#gl.getExtension("MOZ_EXT_texture_filter_anisotropic") ||
 			this.#gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
+
+		// Flip textures when unpacking
+		// NOTE: Does not effect ImageBitmap objects, which need to be flipped
+		//       via their own options.  See here: https://registry.khronos.org/webgl/specs/latest/1.0/#PIXEL_STORAGE_PARAMETERS
+		this.#gl.pixelStorei(this.#gl.UNPACK_FLIP_Y_WEBGL, false);
 	}
 
 	GetAdapter()
@@ -1271,7 +1276,7 @@ class ID3D11Device extends IUnknown
 		// Grab the texture type and bind so we can reserve the resource
 		const glTextureType = this.#GetGLTextureType(desc);
 		this.#gl.bindTexture(glTextureType, glTexture);
-		
+
 		// Which kind of texture are we creating?
 		//  - Using texStorage2D/3D as it initializes the entire texture
 		//    and all subresources at once.
