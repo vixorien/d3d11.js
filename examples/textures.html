@@ -775,7 +775,7 @@
 				}
 			`;
 
-			let postprocessing = false;
+			let postprocessing = true;
 
 			let input = new Input(document);
 
@@ -1038,21 +1038,22 @@
 			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
-			function frameloop(time)
+			function update(time)
 			{
 				// Update
 				let speed = 0.2;
 				if (input.IsKeyDown(Keys.Shift)) speed *= 5;
 				if (input.IsKeyDown(Keys.Ctrl)) speed *= 0.25;
 
-				let cameraMove = new Vector3();
+				let cameraMoveRelative = new Vector3();
+				let cameraMoveAbsolute = new Vector3();
 				let anyMove = false;
-				if (input.IsKeyDown(Keys.A)) { anyMove = true; cameraMove.x -= speed; }
-				if (input.IsKeyDown(Keys.D)) { anyMove = true; cameraMove.x += speed; }
-				if (input.IsKeyDown(Keys.W)) { anyMove = true; cameraMove.z += speed; }
-				if (input.IsKeyDown(Keys.S)) { anyMove = true; cameraMove.z -= speed; }
-				if (input.IsKeyDown(Keys.Space)) { anyMove = true; cameraMove.y += speed; }
-				if (input.IsKeyDown(Keys.X)) { anyMove = true; cameraMove.y -= speed; }
+				if (input.IsKeyDown(Keys.A)) { anyMove = true; cameraMoveRelative.x -= speed; }
+				if (input.IsKeyDown(Keys.D)) { anyMove = true; cameraMoveRelative.x += speed; }
+				if (input.IsKeyDown(Keys.W)) { anyMove = true; cameraMoveRelative.z += speed; }
+				if (input.IsKeyDown(Keys.S)) { anyMove = true; cameraMoveRelative.z -= speed; }
+				if (input.IsKeyDown(Keys.Space)) { anyMove = true; cameraMoveAbsolute.y += speed; }
+				if (input.IsKeyDown(Keys.X)) { anyMove = true; cameraMoveAbsolute.y -= speed; }
 
 				if (input.IsMouseDown(MouseButtons.Left))
 				{
@@ -1065,10 +1066,19 @@
 					camDir.y = -Math.sin(cameraRotation.x);
 				}
 
-				if(anyMove)
-					cameraPosition = Vector3.Add(cameraPosition, Vector3.Rotate(cameraMove, cameraRotation.x, cameraRotation.y, 0));
-				
+				if (anyMove)
+				{
+					// Relative movement based on rotation
+					let moveRelative = Vector3.Rotate(cameraMoveRelative, cameraRotation.x, cameraRotation.y, 0);
+					cameraPosition = Vector3.Add(cameraPosition, moveRelative);
 
+					// Absolute movement
+					cameraPosition = Vector3.Add(cameraPosition, cameraMoveAbsolute);
+				}
+			}
+
+			function draw(time)
+			{
 				// Set up post processing
 				if (postprocessing)
 				{
@@ -1084,7 +1094,7 @@
 				vsData.set(vMat, 16);
 
 				// Clear the frame
-				let black = [0,0,0, 1];
+				let black = [0, 0, 0, 1];
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
 				context.ClearRenderTargetView(rtv, black);
 				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
@@ -1142,7 +1152,7 @@
 					// Update vertex data
 					let rot = new Matrix4x4();
 					Matrix4x4.FillIdentity(rot);//Matrix4x4.RotationY(time * -0.00025);
-					
+
 					let sc = Matrix4x4.ScaleUniform(scale);
 					wMat = Matrix4x4.Multiply(sc, rot);
 					vsData.set(wMat, 0);
@@ -1204,6 +1214,12 @@
 				// Flush the frame
 				swapChain.Present();
 				context.OMSetRenderTargets([rtv], depthDSV);
+			}
+
+			function frameloop(time)
+			{
+				update(time);
+				draw(time);
 
 				// End of frame work
 				window.requestAnimationFrame(frameloop);

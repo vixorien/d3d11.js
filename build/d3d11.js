@@ -3087,7 +3087,25 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#BindDepthStencil(dsv)
 	{
 		// Any depth?
-		if (dsv != null)
+		if (dsv == null)
+		{
+			// Unbind depth/stencil
+			this.#gl.framebufferTexture2D(
+				this.#gl.FRAMEBUFFER,
+				this.#gl.DEPTH_STENCIL_ATTACHMENT,
+				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+				null,
+				0);
+
+			// Unbind just depth, too (just in case)
+			this.#gl.framebufferTexture2D(
+				this.#gl.FRAMEBUFFER,
+				this.#gl.DEPTH_ATTACHMENT,
+				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+				null,
+				0);
+		}
+		else
 		{
 			let dsvResource = dsv.GetResource();
 			let viewDesc = dsv.GetDesc();
@@ -3096,36 +3114,25 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			let hasStencil = (viewDesc.Format == DXGI_FORMAT_D24_UNORM_S8_UINT);
 			let attach = hasStencil ? this.#gl.DEPTH_STENCIL_ATTACHMENT : this.#gl.DEPTH_ATTACHMENT;
 
-			// Get the existing depth/stencil
-			let fbDepth = this.#gl.getFramebufferAttachmentParameter(
-				this.#gl.FRAMEBUFFER,
-				attach,
-				this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
-
-			// Do we need to rebind?
-			// TODO: What if it's the same resource but different mip/array slice?
-			if (fbDepth != dsvResource.GetGLResource())
+			if (!hasStencil)
 			{
-				if (!hasStencil)
-				{
-					// Unbind the combined depth/stencil just in case
-					this.#gl.framebufferTexture2D(
-						this.#gl.FRAMEBUFFER,
-						this.#gl.DEPTH_STENCIL_ATTACHMENT,
-						this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
-						null,
-						0);
-				}
-
-				// Bind the depth texture
+				// Unbind the combined depth/stencil just in case
 				this.#gl.framebufferTexture2D(
 					this.#gl.FRAMEBUFFER,
-					attach,
+					this.#gl.DEPTH_STENCIL_ATTACHMENT,
 					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
-					dsvResource.GetGLResource(),
-					viewDesc.MipSlice); // TODO: Verify this actually works?  Docs say ZERO only!
+					null,
+					0);
 			}
 
+			// Bind the depth texture
+			this.#gl.framebufferTexture2D(
+				this.#gl.FRAMEBUFFER,
+				attach,
+				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+				dsvResource.GetGLResource(),
+				viewDesc.MipSlice); // TODO: Verify this actually works?  Docs say ZERO only!
+			
 			// Done with ref
 			dsvResource.Release();
 		}
@@ -5582,12 +5589,14 @@ class HLSL
 		let texFuncStr = "texture(" + whichTexFunc.TextureSamplerCombination.CombinedName + ", ";
 
 		// Is this a 2D texture?
+		// TODO: Handle other, similar texture types
+		// TODO: Do we need to do anything similar for cubes?
 		if (whichTexFunc.TextureType == "Texture2D")
 		{
 			// Add in extra UV work to flip Y
 			// - What we want is: uv.y = 1 - uv.y
 			// - For that, we'll do: (0,1) + (1,-1) * uvExpression
-			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * ";
+			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * (";
 		}
 
 		// Skip ahead to the expression
@@ -5610,6 +5619,9 @@ class HLSL
 		// End the function by moving past the end parens and adding it
 		it.MoveNext();
 		texFuncStr += ")";
+
+		if (whichTexFunc.TextureType == "Texture2D")
+			texFuncStr += ")"; // One more since we're wrapping the uv expression in ( )'s
 		
 		return texFuncStr;
 	}
