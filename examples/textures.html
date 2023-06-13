@@ -298,6 +298,22 @@
 			return srv;
 		}
 
+		async function loadVertexShader(device, url)
+		{
+			const resp = await fetch(url);
+			const text = await resp.text();
+			console.log(text);
+			return device.CreateVertexShader(text);
+		}
+
+		async function loadPixelShader(device, url)
+		{
+			const resp = await fetch(url);
+			const text = await resp.text();
+			console.log(text);
+			return device.CreatePixelShader(text);
+		}
+
 		async function main()
 		{
 
@@ -991,10 +1007,12 @@
 			let vs = device.CreateVertexShader(hlslVS);
 			let ps = device.CreatePixelShader(hlslPS);
 			let solidPS = device.CreatePixelShader(solidHLSLPS);
-			let skyVS = device.CreateVertexShader(skyHLSLVS);
+			//let skyVS = device.CreateVertexShader(skyHLSLVS);
 			let skyPS = device.CreatePixelShader(skyHLSLPS);
 			let fullscreenVS = device.CreateVertexShader(fullscreenVS_HLSL);
 			let postprocPS = device.CreatePixelShader(postprocPS_HLSL);
+
+			let skyVS = await loadVertexShader(device, "./assets/shaders/VS_Sky.hlsl");
 			
 			context.VSSetShader(vs);
 			context.PSSetShader(ps);
