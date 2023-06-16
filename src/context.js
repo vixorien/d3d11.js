@@ -953,6 +953,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
 	}
 
+	// TODO: Handle texture vs. render buffer
+	// TODO: Test out RTV/Resource combinations:
+	//       - 2D RTV, 2D Resource
+	//       - 2D Array RTV, 2D Resource
+	//       - 2D RTV, 2D Array Resource
+	//       - 2D Array RTV, 2D Array Resource
 	#BindRenderTargets(rtvs)
 	{
 		// Any RTVs?
@@ -960,15 +966,58 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			// TODO: Multiple render targets
 			let rtvResource = rtvs[0].GetResource();
+			let resDesc = rtvResource.GetDesc();
 			let viewDesc = rtvs[0].GetDesc();
 
-			// TODO: Handle texture vs. render buffer
-			this.#gl.framebufferTexture2D(
-				this.#gl.FRAMEBUFFER,
-				this.#gl.COLOR_ATTACHMENT0,
-				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
-				rtvResource.GetGLResource(),
-				viewDesc.MipSlice); // TODO: Check existing mip slice binding, too!
+			// Which texture type?
+			if (!(rtvResource instanceof ID3D11Texture2D))
+				throw new Error("RTV texture type OM binding not yet implemented");
+
+			// Is this RTV a single texture, an array or a cube map?
+			if ((resDesc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE)
+			{
+				// It's (presumably) a cube map, so bind the proper target
+				let glTarget;
+				switch (viewDesc.FirstArraySlice)
+				{
+					case 0: glTarget = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X; break;
+					case 1: glTarget = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X; break;
+					case 2: glTarget = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y; break;
+					case 3: glTarget = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Y; break;
+					case 4: glTarget = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Z; break;
+					case 5: glTarget = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z; break;
+					default:
+						throw new Error("Only array slices 0-5 are valid for texture cube RTVs");
+				}
+
+				// Bind the proper cube face
+				this.#gl.framebufferTexture2D(
+					this.#gl.FRAMEBUFFER,
+					this.#gl.COLOR_ATTACHMENT0,
+					glTarget,
+					rtvResource.GetGLResource(),
+					viewDesc.MipSlice);
+			}
+			else if (resDesc.ArraySize > 1)
+			{
+				// Texture2D Array resource, so we need a different GL function
+				this.#gl.framebufferTextureLayer(
+					this.#gl.FRAMEBUFFER,
+					this.#gl.COLOR_ATTACHMENT0,
+					rtvResource.GetGLResource(),
+					viewDesc.MipSlice,
+					viewDesc.FirstArraySlice);
+			}
+			else
+			{
+				// Just a standard (non-array) Texture2D
+				this.#gl.framebufferTexture2D(
+					this.#gl.FRAMEBUFFER,
+					this.#gl.COLOR_ATTACHMENT0,
+					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+					rtvResource.GetGLResource(),
+					viewDesc.MipSlice); // TODO: Check existing mip slice binding, too!
+			}
 
 			// Done with ref
 			rtvResource.Release();
@@ -1068,6 +1117,15 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			indexCount,
 			format,
 			this.#indexBufferOffset + startIndexLocation);
+	}
+
+	/**
+	 * Sends queued up commands to the GPU to be processed
+	 */
+	Flush()
+	{
+		// TODO: Experiement with flush() vs. finish()
+		this.#gl.flush();
 	}
 
 	// NOTE: Not using all of the params just yet

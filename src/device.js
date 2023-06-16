@@ -1008,15 +1008,14 @@ class ID3D11Device extends IUnknown
 		switch (rtvDesc.ViewDimension)
 		{
 			case D3D11_RTV_DIMENSION_TEXTURE2D:
+			case D3D11_RTV_DIMENSION_TEXTURE2DARRAY:
 				if (!(resource instanceof ID3D11Texture2D))
 					throw new Error("Specified RTV View Dimension does not match resource");
 				break;
 
 			case D3D11_RTV_DIMENSION_TEXTURE1D:
 			case D3D11_RTV_DIMENSION_TEXTURE1DARRAY:
-			case D3D11_RTV_DIMENSION_TEXTURE2DARRAY:
 			case D3D11_RTV_DIMENSION_TEXTURE3D:
-			case D3D11_RTV_DIMENSION_TEXTURECUBE:
 				throw new Error("Specified RTV View Dimension is not yet implemented!");
 
 			default:
