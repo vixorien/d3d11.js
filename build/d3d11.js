@@ -2394,6 +2394,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// TODO: Actually use params
 	// TODO: Limit num buffers to actual WebGL max
+	// TODO: Don't reset buffer array entirely - just update various elements
 	IASetVertexBuffers(startSlot, buffers, strides, offsets)
 	{
 		// Reset existing vb data
@@ -2573,8 +2574,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			let dataType = this.#GetDXGIFormatDataType(ie.Format);
 			let compCount = this.#GetDXGIFormatComponentCount(ie.Format);
 
-			// Bind the correct buffer for this element
+			// Do we have this buffer?
 			let bufferIndex = ie.InputSlot;
+			if (bufferIndex >= this.#vertexBuffers.length)
+				continue;
+
+			// Bind the correct buffer for this element
 			if (bufferIndex != currentBufferIndex) // TODO: Performance worry?  Or skip
 			{
 				this.#gl.bindBuffer(this.#gl.ARRAY_BUFFER, this.#vertexBuffers[bufferIndex].GetGLResource());
