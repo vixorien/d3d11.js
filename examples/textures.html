@@ -588,7 +588,7 @@
 			let skyPS = device.CreatePixelShader(await loadText("../assets/shaders/SkyPS.hlsl"));
 			let fullscreenVS = device.CreateVertexShader(await loadText("../assets/shaders/FullscreenVS.hlsl"));
 			let postprocPS = device.CreatePixelShader(await loadText("../assets/shaders/BlurPS.hlsl"));
-
+			let iblIrradiancePS = device.CreatePixelShader(await loadText("../assets/shaders/IBLIrradianceMapPS.hlsl"));
 
 
 			context.VSSetShader(vs);
@@ -766,7 +766,7 @@
 					// PS -> Nothing necessary
 
 					// Set up texture
-					context.PSSetShaderResources(0, [solidCubeSRV]);//[skySRV]);
+					context.PSSetShaderResources(0, [skySRV]);
 
 					// Draw cube
 					context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);

@@ -271,17 +271,19 @@ class HLSL
 		"matrix": "mat4x4"
 	};
 
-	// Words that may cause problems when used as identifiers
+	// Words that may cause problems when used as identifiers / intrinsic functions
 	ReservedWords = [
 		"$Global", // "Global" constant buffer name
 		"input",
-		"output"
+		"output",
+		"pow"
 	];
 
 	ReservedWordConversion = {
+		"$Global": "_global_cbuffer",
 		"input": "_input",
 		"output": "_output",
-		"$Global": "_global_cbuffer"
+		"pow": "pow_hlsl"
 	};
 
 	// Matrix element access
@@ -454,6 +456,11 @@ class HLSL
 			switch (current.Text)
 			{
 				// TODO: Handle global constants here
+
+				// Skip extra end statements
+				case ";":
+					it.MoveNext();
+					break;
 
 				case "struct":
 					this.#structs.push(this.#ParseStruct(it));
@@ -1236,7 +1243,14 @@ class HLSL
 
 		glsl += "float lerp(float a, float b, float t) { return mix(a, b, t); }\n";
 		glsl += "vec2 lerp(vec2 a, vec2 b, float t) { return mix(a, b, t); }\n";
-		glsl += "vec3 lerp(vec3 a, vec3 b, float t) { return mix(a, b, t); }\n";
+		glsl += "vec3 lerp(vec3 a, vec3 b, float t) { return mix(a, b, t); }\n\n";
+
+		glsl += "void sincos(float a, out float s, out float c) { s = sin(a); c = cos(a); }\n\n";
+
+		glsl += "float pow_hlsl(float a, float b) { return pow(a, b); }\n";
+		glsl += "vec2 pow_hlsl(vec2 v, float f) { return pow(v, vec2(f)); }\n";
+		glsl += "vec3 pow_hlsl(vec3 v, float f) { return pow(v, vec3(f)); }\n";
+		glsl += "vec4 pow_hlsl(vec4 v, float f) { return pow(v, vec4(f)); }\n";
 
 		glsl += "\n";
 		return glsl;
