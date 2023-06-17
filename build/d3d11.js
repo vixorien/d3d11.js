@@ -2452,6 +2452,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#rasterizerDirty = true;
 	}
 
+	RSGetViewports()
+	{
+		return Object.assign({}, this.#viewport);
+	}
+
 	// Note: Just taking a single viewport, though
 	// the name suggests otherwise, as WebGL only handles
 	// a single viewport
@@ -2461,10 +2466,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#viewport = Object.assign({}, viewport);
 
 		// Set the relevant details
-		let invertY = this.#gl.canvas.height - this.#viewport.Height;
+		//let invertY = this.#gl.canvas.height - this.#viewport.Height;
 		this.#gl.viewport(
 			this.#viewport.TopLeftX,
-			invertY - this.#viewport.TopLeftY,
+			this.#gl.canvas.height - this.#viewport.TopLeftY,
 			this.#viewport.Width,
 			this.#viewport.Height);
 

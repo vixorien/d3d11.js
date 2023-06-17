@@ -344,6 +344,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#rasterizerDirty = true;
 	}
 
+	RSGetViewports()
+	{
+		return Object.assign({}, this.#viewport);
+	}
+
 	// Note: Just taking a single viewport, though
 	// the name suggests otherwise, as WebGL only handles
 	// a single viewport

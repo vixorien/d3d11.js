@@ -2,7 +2,7 @@
 
 cbuffer externalData : register(b0)
 {
-	int faceIndex;
+	float faceIndex;
 }
 
 struct VertexToPixel
@@ -25,7 +25,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float3 xDir, yDir, zDir;
 
 	// Figure out the z ("normal" of this pixel)
-	switch (faceIndex)
+	switch (int(faceIndex))
 	{
 	default:
 	case 0: zDir = float3(+1, -o.y, -o.x); break;
@@ -51,8 +51,14 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float PI = 3.14159265359f;
 	float TWO_PI = PI * 2.0f;
 	float PI_OVER_2 = PI * 0.5f;
-	float IRRADIANCE_SAMPLE_STEP_PHI = 0.025f;
-	float IRRADIANCE_SAMPLE_STEP_THETA = 0.025f;
+	float IRRADIANCE_SAMPLE_STEP_PHI = 0.1f; //0.025f;
+	float IRRADIANCE_SAMPLE_STEP_THETA = 0.05f;// 0.025f;
+	
+	
+	return EnvironmentMap.Sample(BasicSampler, zDir);
+
+
+
 
 	// Loop around the hemisphere (360 degrees)
 	for (float phi = 0.0f; phi < TWO_PI; phi += IRRADIANCE_SAMPLE_STEP_PHI)
@@ -76,7 +82,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 				hemisphereDir.z * zDir;
 
 			// Sample in that direction
-			totalColor += cosT * sinT * pow(abs(EnvironmentMap.Sample(BasicSampler, hemisphereDir).rgb), 2.2f);
+			totalColor += cosT * sinT * pow(EnvironmentMap.Sample(BasicSampler, hemisphereDir).rgb, 2.2f);
 			sampleCount++;
 		}
 	}

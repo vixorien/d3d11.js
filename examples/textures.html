@@ -331,6 +331,11 @@
 			let cb = device.CreateBuffer(cbDesc, null);
 			let cbData = new Float32Array(4);
 
+			// Set up viewport
+			let oldVP = context.RSGetViewports();
+			let vp = new D3D11_VIEWPORT(0, 0, mapSize, mapSize, 0, 1);
+			context.RSSetViewports(vp);
+
 			// Process each face
 			context.VSSetShader(vs);
 			context.PSSetShader(ps);
@@ -362,6 +367,7 @@
 
 			// Done with the texture ref
 			irrTexture.Release();
+			context.RSSetViewports(oldVP);
 			return irrSRV;
 		}
 
@@ -380,6 +386,10 @@
 			let swapChain = DXGICreateSwapChain(device);
 			
 			let gl = device.GetAdapter();
+
+			// Set up initial viewport
+			let viewport = new D3D11_VIEWPORT(0, 0, gl.canvas.width, gl.canvas.height, 0, 1);
+			context.RSSetViewports(viewport);
 
 			// Make an RTV of the back buffer
 			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer(), null);
@@ -788,7 +798,7 @@
 					// PS -> Nothing necessary
 
 					// Set up texture
-					context.PSSetShaderResources(0, [skySRV]);
+					context.PSSetShaderResources(0, [irrSRV]);///[skySRV]);
 
 					// Draw cube
 					context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);
