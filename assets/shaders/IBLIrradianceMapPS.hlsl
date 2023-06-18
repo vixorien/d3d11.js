@@ -51,14 +51,8 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float PI = 3.14159265359f;
 	float TWO_PI = PI * 2.0f;
 	float PI_OVER_2 = PI * 0.5f;
-	float IRRADIANCE_SAMPLE_STEP_PHI = 0.1f; //0.025f;
-	float IRRADIANCE_SAMPLE_STEP_THETA = 0.05f;// 0.025f;
-	
-	
-	return EnvironmentMap.Sample(BasicSampler, zDir);
-
-
-
+	float IRRADIANCE_SAMPLE_STEP_PHI = 0.025f;
+	float IRRADIANCE_SAMPLE_STEP_THETA = 0.025f;
 
 	// Loop around the hemisphere (360 degrees)
 	for (float phi = 0.0f; phi < TWO_PI; phi += IRRADIANCE_SAMPLE_STEP_PHI)

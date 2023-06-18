@@ -1673,6 +1673,11 @@ class HLSL
 			// - For that, we'll do: (0,1) + (1,-1) * uvExpression
 			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * (";
 		}
+		else if (whichTexFunc.TextureType == "TextureCube")
+		{
+			// Just flip the Y for the cube direction
+			texFuncStr += "vec3(1.0, -1.0, 1.0) * (";
+		}
 
 		// Skip ahead to the expression
 		while (it.Position() < whichTexFunc.UVExpressionStartPosition)
@@ -1695,7 +1700,7 @@ class HLSL
 		it.MoveNext();
 		texFuncStr += ")";
 
-		if (whichTexFunc.TextureType == "Texture2D")
+		if (whichTexFunc.TextureType == "Texture2D" || whichTexFunc.TextureType == "TextureCube")
 			texFuncStr += ")"; // One more since we're wrapping the uv expression in ( )'s
 		
 		return texFuncStr;

@@ -44,6 +44,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#rasterizerState;
 	#defaultRasterizerDesc;
 	#rasterizerDirty;
+	#viewportDirty;
 
 	// Pixel Shader ---
 	#pixelShader;
@@ -116,6 +117,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Rasterizer
 		{
 			this.#viewport = null;
+			this.#viewportDirty = true;
 			this.#rasterizerState = null;
 			this.#rasterizerDirty = true;
 
@@ -356,18 +358,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	{
 		// Copy the first element
 		this.#viewport = Object.assign({}, viewport);
-
-		// Set the relevant details
-		let invertY = this.#gl.canvas.height - this.#viewport.Height;
-		this.#gl.viewport(
-			this.#viewport.TopLeftX,
-			invertY - this.#viewport.TopLeftY,
-			this.#viewport.Width,
-			this.#viewport.Height);
-
-		this.#gl.depthRange(
-			this.#viewport.MinDepth,
-			this.#viewport.MaxDepth);
+		this.#viewportDirty = true;
 	}
 
 	PSSetShader(pixelShader)
@@ -450,6 +441,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#renderTargetViews = renderTargetViews.slice(); // Copy
 		this.#depthStencilView = depthStencilView;
 		this.#outputMergerDirty = true;
+		this.#viewportDirty = true; // Need to "re-flip" the viewport!
 	}
 
 	// TODO: Handle instancing
@@ -847,8 +839,49 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		return this.#gl.TEXTURE0 + index;
 	}
 
+	// TODO: Split dirty flag into RSState and Viewport?
 	#PrepareRasterizer()
 	{
+		// Check viewport
+		if (this.#viewportDirty && this.#viewport != null)
+		{
+			// Grab the height of the current render target (or depth buffer if no RTV)
+			let rtHeight = 0;
+			if (this.#renderTargetViews != null && this.#renderTargetViews[0] != null)
+			{
+				let rtRes = this.#renderTargetViews[0].GetResource();
+				rtHeight = rtRes.GetDesc().Height;
+				rtRes.Release();
+			}
+			else if (this.#depthStencilView != null)
+			{
+				let dsRes = this.#depthStencilView.GetResource();
+				rtHeight = dsRes.GetDesc().Height;
+				dsRes.Release();
+			}
+
+			// Do we actually have a useful height?
+			if (rtHeight > 0)
+			{
+				let invertY = rtHeight - this.#viewport.Height;
+
+				// Set up the GL viewport first, flipping Y
+				this.#gl.viewport(
+					this.#viewport.TopLeftX,
+					invertY - this.#viewport.TopLeftY,
+					this.#viewport.Width,
+					this.#viewport.Height);
+
+				// Next the depth range
+				this.#gl.depthRange(
+					this.#viewport.MinDepth,
+					this.#viewport.MaxDepth);
+
+				this.#viewportDirty = false;
+			}
+		}
+
+		// Check for overall rasterizer state
 		if (!this.#rasterizerDirty)
 			return;
 
@@ -909,7 +942,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#gl.disable(this.#gl.SCISSOR_TEST);
 
 		// Multisample - not currently implemented!
-
 		this.#rasterizerDirty = false;
 	}
 

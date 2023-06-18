@@ -273,7 +273,7 @@
 				// Fetch and grab the binary data, then turn into an image
 				const resp = await fetch(faceURLs[i]);
 				const imageBlob = await resp.blob();
-				const bitmap = await createImageBitmap(imageBlob);
+				const bitmap = await createImageBitmap(imageBlob, { imageOrientation: "flipY" });
 				faceTextures.push(bitmap);
 			}
 
@@ -798,7 +798,8 @@
 					// PS -> Nothing necessary
 
 					// Set up texture
-					context.PSSetShaderResources(0, [irrSRV]);///[skySRV]);
+					context.PSSetShaderResources(0, [skySRV]);
+					//context.PSSetShaderResources(0, [irrSRV]);
 
 					// Draw cube
 					context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);

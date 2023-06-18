@@ -1153,7 +1153,22 @@ class ID3D11Device extends IUnknown
 		// Validate the RTV and resource combo
 		this.#ValidateRTVDesc(resource, desc);
 
-		return new class extends ID3D11RenderTargetView { }(this, resource, desc);
+		// Now that everything's valid, swap cube map +Y and -Y if necessary
+		let finalDesc = Object.assign({}, desc);
+		if ((resource.GetDesc().MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE)
+		{
+			// Which face?
+			if (finalDesc.FirstArraySlice == 2) // Positive Y
+			{
+				finalDesc.FirstArraySlice = 3; // +Y becomes -Y
+			}
+			else if (finalDesc.FirstArraySlice == 3) // Negative Y
+			{
+				finalDesc.FirstArraySlice = 2; // -Y becomes +Y
+			}
+		}
+
+		return new class extends ID3D11RenderTargetView { }(this, resource, finalDesc);
 	}
 
 
@@ -1347,8 +1362,8 @@ class ID3D11Device extends IUnknown
 					const cubeFaces = [
 						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X,
 						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
-						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
-						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, // Flipped 
+						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y, // Flipped
 						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
 						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
 					];
@@ -2152,6 +2167,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#rasterizerState;
 	#defaultRasterizerDesc;
 	#rasterizerDirty;
+	#viewportDirty;
 
 	// Pixel Shader ---
 	#pixelShader;
@@ -2224,6 +2240,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Rasterizer
 		{
 			this.#viewport = null;
+			this.#viewportDirty = true;
 			this.#rasterizerState = null;
 			this.#rasterizerDirty = true;
 
@@ -2464,18 +2481,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	{
 		// Copy the first element
 		this.#viewport = Object.assign({}, viewport);
-
-		// Set the relevant details
-		//let invertY = this.#gl.canvas.height - this.#viewport.Height;
-		this.#gl.viewport(
-			this.#viewport.TopLeftX,
-			this.#gl.canvas.height - this.#viewport.TopLeftY,
-			this.#viewport.Width,
-			this.#viewport.Height);
-
-		this.#gl.depthRange(
-			this.#viewport.MinDepth,
-			this.#viewport.MaxDepth);
+		this.#viewportDirty = true;
 	}
 
 	PSSetShader(pixelShader)
@@ -2558,6 +2564,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#renderTargetViews = renderTargetViews.slice(); // Copy
 		this.#depthStencilView = depthStencilView;
 		this.#outputMergerDirty = true;
+		this.#viewportDirty = true; // Need to "re-flip" the viewport!
 	}
 
 	// TODO: Handle instancing
@@ -2955,8 +2962,49 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		return this.#gl.TEXTURE0 + index;
 	}
 
+	// TODO: Split dirty flag into RSState and Viewport?
 	#PrepareRasterizer()
 	{
+		// Check viewport
+		if (this.#viewportDirty && this.#viewport != null)
+		{
+			// Grab the height of the current render target (or depth buffer if no RTV)
+			let rtHeight = 0;
+			if (this.#renderTargetViews != null && this.#renderTargetViews[0] != null)
+			{
+				let rtRes = this.#renderTargetViews[0].GetResource();
+				rtHeight = rtRes.GetDesc().Height;
+				rtRes.Release();
+			}
+			else if (this.#depthStencilView != null)
+			{
+				let dsRes = this.#depthStencilView.GetResource();
+				rtHeight = dsRes.GetDesc().Height;
+				dsRes.Release();
+			}
+
+			// Do we actually have a useful height?
+			if (rtHeight > 0)
+			{
+				let invertY = rtHeight - this.#viewport.Height;
+
+				// Set up the GL viewport first, flipping Y
+				this.#gl.viewport(
+					this.#viewport.TopLeftX,
+					invertY - this.#viewport.TopLeftY,
+					this.#viewport.Width,
+					this.#viewport.Height);
+
+				// Next the depth range
+				this.#gl.depthRange(
+					this.#viewport.MinDepth,
+					this.#viewport.MaxDepth);
+
+				this.#viewportDirty = false;
+			}
+		}
+
+		// Check for overall rasterizer state
 		if (!this.#rasterizerDirty)
 			return;
 
@@ -3017,7 +3065,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#gl.disable(this.#gl.SCISSOR_TEST);
 
 		// Multisample - not currently implemented!
-
 		this.#rasterizerDirty = false;
 	}
 
@@ -5679,6 +5726,11 @@ class HLSL
 			// - For that, we'll do: (0,1) + (1,-1) * uvExpression
 			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * (";
 		}
+		else if (whichTexFunc.TextureType == "TextureCube")
+		{
+			// Just flip the Y for the cube direction
+			texFuncStr += "vec3(1.0, -1.0, 1.0) * (";
+		}
 
 		// Skip ahead to the expression
 		while (it.Position() < whichTexFunc.UVExpressionStartPosition)
@@ -5701,7 +5753,7 @@ class HLSL
 		it.MoveNext();
 		texFuncStr += ")";
 
-		if (whichTexFunc.TextureType == "Texture2D")
+		if (whichTexFunc.TextureType == "Texture2D" || whichTexFunc.TextureType == "TextureCube")
 			texFuncStr += ")"; // One more since we're wrapping the uv expression in ( )'s
 		
 		return texFuncStr;

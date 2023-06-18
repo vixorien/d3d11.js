@@ -256,7 +256,23 @@ class ID3D11Device extends IUnknown
 		// Validate the RTV and resource combo
 		this.#ValidateRTVDesc(resource, desc);
 
-		return new class extends ID3D11RenderTargetView { }(this, resource, desc);
+		// Now that everything's valid, swap cube map +Y and -Y if necessary
+		// TOOD: More testing, as this feels SUUUPER dirty
+		let finalDesc = Object.assign({}, desc);
+		if ((resource.GetDesc().MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE)
+		{
+			// Which face?
+			if (finalDesc.FirstArraySlice == 2) // Positive Y
+			{
+				finalDesc.FirstArraySlice = 3; // +Y becomes -Y
+			}
+			else if (finalDesc.FirstArraySlice == 3) // Negative Y
+			{
+				finalDesc.FirstArraySlice = 2; // -Y becomes +Y
+			}
+		}
+
+		return new class extends ID3D11RenderTargetView { }(this, resource, finalDesc);
 	}
 
 
@@ -450,8 +466,8 @@ class ID3D11Device extends IUnknown
 					const cubeFaces = [
 						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X,
 						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
-						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y,
-						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Y,
+						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Y, // Flipped 
+						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y, // Flipped
 						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Z,
 						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
 					];
