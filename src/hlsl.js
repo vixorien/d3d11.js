@@ -1018,11 +1018,21 @@ class HLSL
 	// Texture Sampling Function Details:
 	//
 	// Sample(sampler, uv, [offset])
+	// SampleLevel(sampler, uv, LOD, [offset])
 	// SampleCmp(sampler, uv, compare, [offset], [clamp])
 	// SampleCmpLevelZero(sampler, uv, compare, [offset])
 	// SampleBias(sampler, uv, bias, [offset], [clamp])
 	// SampleGrad(sampler, uv, ddx, ddy, [offset], [clamp])
-	// SampleLevel(sampler, uv, LOD, [offset])
+	//
+	// GLSL Equivalent
+	//  - Note: Offset param is handled through ___Offset() functions, like textureLodOffset()
+	// Sample(samp, uv) -> texture(samp, uv)
+	// SampleLevel(samp, uv, lod) -> textureLod(samp, uv, lod)
+	// SampleCmp() -> texture(samp, vec3(uv, compare)) // UGH
+	// SampleCmpLevelZero() -> textureLod(samp, vec3(uv, compare), 0)
+	// SampleGrad() -> textureGrad(samp, uv, ddx, ddy)
+	// SampleBias() -> texture(samp, uv, bias)
+	// Etc.
 
 	#CheckAndParseTextureObjectFunction(it, baseFunc, relativePosOffset)
 	{
@@ -1046,7 +1056,7 @@ class HLSL
 		// We have the pattern [textureName][.], so next must be an identifier
 		this.#Require(it, TokenIdentifier);
 		let textureFuncName = it.PeekPrev().Text;
-
+		
 		// Which kind of function?
 		// TODO: Handle all the permutations (SO MANY)
 		//       See list of objects & functions here: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/d3d11-graphics-reference-sm5-objects
@@ -1056,9 +1066,9 @@ class HLSL
 				// Pixel shader only!!!
 				if (this.#shaderType != ShaderTypePixel)
 					throw new Error("'Sample' function only valid in pixel shaders");
-
-				// TODO: Maybe a helper to handle all of the permutations?
 				break;
+
+			case "SampleLevel": break; // Valid in either shader, just skip
 
 			default:
 				throw new Error("Texture function '" + textureFuncName + "' not yet implemented!");
@@ -1079,9 +1089,17 @@ class HLSL
 		// Next is comma
 		this.#Require(it, TokenComma);
 
+		// At this point, there should be at least one more, but potentially 
+		// several more, arguments to the function call.  The first is always 
+		// UV coords, but the rest depend on the exact texture function called.
+		let paramExpressions = [];
+		let paramIndex = 1; // Skip first, since that's the sampler
+		let currentParamStartPos = it.Position() - relativePosOffset;
+		let currentParamEndPos = currentParamStartPos; // Will be changed below
+
 		// An entire expression that (theoretically) evaluates to texture
 		// coords, including another texture sample!
-		let uvExpressionStartPos = it.Position() - relativePosOffset;
+		//let uvExpressionStartPos = it.Position() - relativePosOffset;
 		let parenDepth = 1;
 
 		do
@@ -1091,17 +1109,35 @@ class HLSL
 
 			// Check for paren depth changes
 			if (this.#Allow(it, TokenParenLeft))
+			{
 				parenDepth++;
+			}
 			else if (this.#Allow(it, TokenParenRight))
+			{
 				parenDepth--;
-			else
-				it.MoveNext();
+			}
+			else if (parenDepth == 1 && this.#Allow(it, TokenComma))
+			{
+				// We've moved to the next parameter, so calculate the proper end pos
+				currentParamEndPos = it.Position() - relativePosOffset - 1;
+				paramExpressions[paramIndex] = { StartPos: currentParamStartPos, EndPos: currentParamEndPos };
+				paramIndex++;
 
+				// New start pos (will include commas!)
+				currentParamStartPos = it.Position() - relativePosOffset;
+			}
+			else
+			{
+				it.MoveNext();
+			}
 		} while (parenDepth >= 1);
+
+		// Finalize last parameter
+		currentParamEndPos = it.Position() - relativePosOffset - 1;
+		paramExpressions[paramIndex] = { StartPos: currentParamStartPos, EndPos: currentParamEndPos };
 
 		// We've ended the overall function with a right paren
 		// so store the end location and finalize this data
-		let uvExpressionEndPos = it.Position() - relativePosOffset - 1; // Stop one early (before last parens)
 		let overallEndPos = it.Position() - relativePosOffset; // Should include the end parens
 
 		// Set up the texture/sampler combination
@@ -1112,7 +1148,7 @@ class HLSL
 		for (let i = 0; i < this.#textures.length; i++)
 			if (this.#textures[i].Name == textureName)
 				textureType = this.#textures[i].Type;
-
+		
 		// Set up the overall texture function details and add to the base function
 		let texFunc = {
 			TextureSamplerCombination: combination,
@@ -1120,8 +1156,7 @@ class HLSL
 			TextureType: textureType,
 			StartPosition: overallStartPos,
 			EndPosition: overallEndPos,
-			UVExpressionStartPosition: uvExpressionStartPos,
-			UVExpressionEndPosition: uvExpressionEndPos
+			ParamExpressions: paramExpressions
 		};
 		baseFunc.TextureFunctions.push(texFunc);
 	}
@@ -1702,8 +1737,17 @@ class HLSL
 		if (whichTexFunc == null)
 			return "";
 
+		let glslTextureFunc = "";
+		switch (whichTexFunc.FunctionName)
+		{
+			case "Sample": glslTextureFunc = "texture"; break;
+			case "SampleLevel": glslTextureFunc = "textureLod"; break;
+			default:
+				throw new Error("Sample function type not yet implemented!");
+		}
+
 		// We have at least one function and we're at the right position
-		let texFuncStr = "texture(" + whichTexFunc.TextureSamplerCombination.CombinedName + ", ";
+		let texFuncStr = glslTextureFunc + "(" + whichTexFunc.TextureSamplerCombination.CombinedName + ", ";
 
 		// Is this a 2D texture?
 		// TODO: Handle other, similar texture types
@@ -1721,29 +1765,41 @@ class HLSL
 			texFuncStr += "vec3(1.0, -1.0, 1.0) * (";
 		}
 
-		// Skip ahead to the expression
-		while (it.Position() < whichTexFunc.UVExpressionStartPosition)
+		// Skip ahead to the first post-Sampler expression (UV location)
+		while (it.Position() < whichTexFunc.ParamExpressions[1].StartPos)
 			it.MoveNext();
 
-		// Handle the expression, which may require a recursive call
-		while (it.Position() < whichTexFunc.UVExpressionEndPosition)
+		// Handle all expressions
+		let expressionIndex = 1;
+		while (expressionIndex < whichTexFunc.ParamExpressions.length)
 		{
-			// Determine if we've got a sub-texture-function
-			texFuncStr += this.#GetTextureFunctionString(it, baseFunc);
+			// Handle current expression, which may require a recursive call
+			while (it.Position() < whichTexFunc.ParamExpressions[expressionIndex].EndPos)
+			{
+				// Determine if we've got a sub-texture-function
+				texFuncStr += this.#GetTextureFunctionString(it, baseFunc);
 
-			// Handle the remaining tokens
-			texFuncStr += this.#TranslateToken(it.Current());
+				// Handle the remaining tokens
+				texFuncStr += this.#TranslateToken(it.Current());
 
-			// Skip ahead
-			it.MoveNext();
+				// Skip ahead
+				it.MoveNext();
+			}
+
+			// Is this the UV expression (index 1)?  If so, we're flipping Y, so end the () wrapper
+			if (expressionIndex == 1 &&
+				(whichTexFunc.TextureType == "Texture2D" || whichTexFunc.TextureType == "TextureCube"))
+			{
+				texFuncStr += ")"; 
+			}
+
+			// Move to the next
+			expressionIndex++;
 		}
 
 		// End the function by moving past the end parens and adding it
 		it.MoveNext();
 		texFuncStr += ")";
-
-		if (whichTexFunc.TextureType == "Texture2D" || whichTexFunc.TextureType == "TextureCube")
-			texFuncStr += ")"; // One more since we're wrapping the uv expression in ( )'s
 		
 		return texFuncStr;
 	}

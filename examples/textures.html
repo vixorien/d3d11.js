@@ -410,6 +410,13 @@
 			return lutSRV;
 		}
 
+		function createIBLSpecularMap(device, context, mapSize, skySRV, sampler, ps, vs)
+		{
+
+		}
+
+
+
 		async function main()
 		{
 			let postprocessing = false;
@@ -655,8 +662,9 @@
 
 			// Shaders for IBL
 			let iblIrradiancePS = device.CreatePixelShader(await loadText("../assets/shaders/IBLIrradianceMapPS.hlsl"));
+			let iblSpecularPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
 			let brdfLutPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
-
+			
 			// Create IBL textures
 			let irrSRV = createIrradianceMap(device, context, 64, skySRV, sampler, iblIrradiancePS, fullscreenVS);
 			let lutSRV = createBrdfLookUpTable(device, context, 256, brdfLutPS, fullscreenVS);

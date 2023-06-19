@@ -212,7 +212,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 
 	input.normal = normalize(input.normal);
 	input.tangent = normalize(input.tangent);
-
+	
 	float3 albedo = pow(albedoMap.Sample(samp, input.uv).rgb, 2.2);
 	float metal = metalMap.Sample(samp, input.uv).r;
 	float rough = roughnessMap.Sample(samp, input.uv).r;
