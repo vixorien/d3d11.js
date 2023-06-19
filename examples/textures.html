@@ -305,6 +305,45 @@
 			return text;
 		}
 
+		function createBrdfLookUpTable(device, context, size, ps, vs)
+		{
+			let lutDesc = new D3D11_TEXTURE2D_DESC(
+				size,
+				size,
+				1,
+				1,
+				DXGI_FORMAT_R8G8B8A8_UNORM,
+				new DXGI_SAMPLE_DESC(1, 0),
+				D3D11_USAGE_DEFAULT,
+				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
+				0,
+				0);
+			let lutTexture = device.CreateTexture2D(lutDesc, null);
+			let lutSRV = device.CreateShaderResourceView(lutTexture, null);
+
+			// RTV
+			let rtv = device.CreateRenderTargetView(lutTexture, null);
+			context.OMSetRenderTargets([rtv], null);
+
+			// Set up viewport
+			let oldVP = context.RSGetViewports();
+			let vp = new D3D11_VIEWPORT(0, 0, size, size, 0, 1);
+			context.RSSetViewports(vp);
+
+			// Draw
+			context.PSSetShader(ps);
+			context.VSSetShader(vs);
+			context.Draw(3, 0);
+			context.Flush();
+
+			// Finish up before returning the view
+			context.RSSetViewports(oldVP);
+			lutTexture.Release();
+			rtv.Release();
+			return lutSRV;
+		}
+
+
 		function createIrradianceMap(device, context, mapSize, skySRV, sampler, ps, vs)
 		{
 			// Create an empty texture cube for irradiance
@@ -372,47 +411,84 @@
 			return irrSRV;
 		}
 
-		function createBrdfLookUpTable(device, context, size, ps, vs)
+		function createIBLSpecularMap(device, context, mapSize, iblSpecMipsToSkip, skySRV, sampler, ps, vs)
 		{
-			let lutDesc = new D3D11_TEXTURE2D_DESC(
-				size,
-				size,
-				1,
-				1,
+			// How many mips do we need?
+			let totalMips = Math.max(Math.log2(mapSize) + 1 - iblSpecMipsToSkip, 1); // Add 1 for 1x1
+
+			// Create an empty texture cube for specular
+			let cubeDesc = new D3D11_TEXTURE2D_DESC(
+				mapSize,
+				mapSize,
+				totalMips,
+				6, // 6 faces (as array elements)
 				DXGI_FORMAT_R8G8B8A8_UNORM,
 				new DXGI_SAMPLE_DESC(1, 0),
 				D3D11_USAGE_DEFAULT,
 				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
 				0,
-				0);
-			let lutTexture = device.CreateTexture2D(lutDesc, null);
-			let lutSRV = device.CreateShaderResourceView(lutTexture, null);
+				D3D11_RESOURCE_MISC_TEXTURECUBE);
+			let specTexture = device.CreateTexture2D(cubeDesc, null);
+			let specSRV = device.CreateShaderResourceView(specTexture, null);
 
-			// RTV
-			let rtv = device.CreateRenderTargetView(lutTexture, null);
-			context.OMSetRenderTargets([rtv], null);
+			// Constant buffer for per-face data
+			let cbDesc = new D3D11_BUFFER_DESC(
+				Float32Array.BYTES_PER_ELEMENT * 4,
+				D3D11_USAGE_DYNAMIC,
+				D3D11_BIND_CONSTANT_BUFFER,
+				0, 0, 0);
+			let cb = device.CreateBuffer(cbDesc, null);
+			let cbData = new Float32Array(4);
 
 			// Set up viewport
 			let oldVP = context.RSGetViewports();
-			let vp = new D3D11_VIEWPORT(0, 0, size, size, 0, 1);
-			context.RSSetViewports(vp);
 
-			// Draw
-			context.PSSetShader(ps);
+			// Prepare overall pipeline
 			context.VSSetShader(vs);
-			context.Draw(3, 0);
-			context.Flush();
+			context.PSSetShader(ps);
+			context.PSSetConstantBuffers(0, [cb]);
+			context.PSSetShaderResources(0, [skySRV]);
+			context.PSSetSamplers(0, [sampler]);
 
-			// Finish up before returning the view
+			// Process each mip
+			for (let mip = 0; mip < totalMips; mip++)
+			{
+				// Set the viewport for this mip size
+				let mipSize = Math.pow(2, totalMips + iblSpecMipsToSkip - 1 - mip);
+				let vp = new D3D11_VIEWPORT(0, 0, mipSize, mipSize, 0, 1);
+				context.RSSetViewports(vp);
+
+				// Process each face
+				for (let face = 0; face < 6; face++)
+				{
+					// RTV for this face
+					let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
+						DXGI_FORMAT_R8G8B8A8_UNORM,
+						D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
+						mip,
+						face,
+						1);
+					let faceRTV = device.CreateRenderTargetView(specTexture, faceRTVDesc);
+
+					// Set cb data
+					let roughness = mip / (totalMips - 1.0);
+					cbData.set([roughness, face, mip], 0);
+					context.UpdateSubresource(cb, 0, null, cbData, 0, 0);
+
+					// Draw and flush to ensure we're done
+					context.OMSetRenderTargets([faceRTV], null);
+					context.Draw(3, 0);
+					context.Flush();
+
+					faceRTV.Release();
+				}
+			}
+
+			// Clean up and done
+			cb.Release();
+			specTexture.Release();
 			context.RSSetViewports(oldVP);
-			lutTexture.Release();
-			rtv.Release();
-			return lutSRV;
-		}
-
-		function createIBLSpecularMap(device, context, mapSize, skySRV, sampler, ps, vs)
-		{
-
+			return specSRV;
 		}
 
 
@@ -661,13 +737,15 @@
 			let fullscreenVS = device.CreateVertexShader(await loadText("../assets/shaders/FullscreenVS.hlsl"));
 
 			// Shaders for IBL
+			let brdfLutPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
 			let iblIrradiancePS = device.CreatePixelShader(await loadText("../assets/shaders/IBLIrradianceMapPS.hlsl"));
 			let iblSpecularPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
-			let brdfLutPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
 			
 			// Create IBL textures
-			let irrSRV = createIrradianceMap(device, context, 64, skySRV, sampler, iblIrradiancePS, fullscreenVS);
+			let iblSpecMipsToSkip = 3;
 			let lutSRV = createBrdfLookUpTable(device, context, 256, brdfLutPS, fullscreenVS);
+			let irrSRV = createIrradianceMap(device, context, 64, skySRV, sampler, iblIrradiancePS, fullscreenVS);
+			let iblSpecSRV = createIBLSpecularMap(device, context, 256, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS);
 
 			// Reset the render target
 			context.OMSetRenderTargets([rtv], depthDSV);

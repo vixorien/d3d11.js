@@ -74,6 +74,41 @@ float2 Hammersley2d(uint i, uint N) {
 	return float2(float(i) / float(N), radicalInverse_VdC(i));
 }
 
+// Important sampling with GGX
+// 
+// http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+//
+// Calculates a direction in space offset from a starting direction (N), based on
+// a roughness value and a point on a 2d grid.  The 2d grid value is essentially an
+// offset from the starting direction in 2d, so it needs to be translated to 3d first.
+//
+// Xi			- a point on a 2d grid, later converted to a 3d offset
+// roughness	- the roughness of the surface, which tells us how "blurry" reflections are
+// N			- The normal around which we generate this new direction
+//
+float3 ImportanceSampleGGX(float2 Xi, float roughness, float3 N)
+{
+	float a = roughness * roughness;
+	float PI = 3.14159265359f;
+
+	float Phi = 2.0 * PI * Xi.x;
+	float CosTheta = sqrt((1.0 - Xi.y) / (1.0 + (a * a - 1.0) * Xi.y));
+	float SinTheta = sqrt(1.0 - CosTheta * CosTheta);
+
+	float3 H;
+	H.x = SinTheta * cos(Phi);
+	H.y = SinTheta * sin(Phi);
+	H.z = CosTheta;
+
+	float3 UpVector = abs(N.z) < 0.999f ? float3(0, 0, 1) : float3(1, 0, 0);
+	float3 TangentX = normalize(cross(UpVector, N));
+	float3 TangentY = cross(N, TangentX);
+
+	// Tangent to world space
+	return TangentX * H.x + TangentY * H.y + N * H.z;
+}
+
+
 // Convolves (blurs) the texture cube for a particular roughness and reflection vector.
 // This requires taking a huge number of samples for the result to look acceptable, which
 // is why this is done as a pre-process rather than doing it "live".
