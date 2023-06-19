@@ -993,9 +993,37 @@ class HLSL
 	//   - For loop statements: for(EXPRESSION; EXPRESSION; EXPRESSION) - Note: also supports commas!
 	//   - return statement: return EXPRESSION;
 
+	// Levels:
+	// - ParseBlock()
+	//   - Could be { }'s
+	//   - Could be a single statement
+	//
+	// - ParseStatement()
+	//   - Could be single line of code ending with ;
+	//   - Could be if/elseif/else, do, while, for, switch
+	//   - Could be a single ; (as a typo probably?)
+	//
+	// - ParseExpression()
+	//   - Optional prefix operator (+, -, ++, --, !, ~, etc.)
+	//   - Optional grouping: ( )
+	//   - At least one operand: literal, variable, function call
+	//   - Optionally followed by an operator
+	//     - If so, more of grouping/prefix/operand
+	//   - Optionally more operators, etc.
+
 
 	// Check the current token to see if we're at the beginning of a texture
 	// object function call, and if so, store that info
+	//
+	// Texture Sampling Function Details:
+	//
+	// Sample(sampler, uv, [offset])
+	// SampleCmp(sampler, uv, compare, [offset], [clamp])
+	// SampleCmpLevelZero(sampler, uv, compare, [offset])
+	// SampleBias(sampler, uv, bias, [offset], [clamp])
+	// SampleGrad(sampler, uv, ddx, ddy, [offset], [clamp])
+	// SampleLevel(sampler, uv, LOD, [offset])
+
 	#CheckAndParseTextureObjectFunction(it, baseFunc, relativePosOffset)
 	{
 		// Record start position in the event this is a texture object function
