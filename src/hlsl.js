@@ -979,6 +979,20 @@ class HLSL
 		}
 	}
 
+	// EXPRESSION PARSING IDEAS
+	//
+	// - Need to denote all expressions so we can convert ints to floats where necessary
+	// - ALMOST all ints can be changed into floats, except...
+	//   - When a function requires an int (SampleLevel? Custom helpers (UGH))
+	//   - Integer division
+	//   - Bitwise operations on ints
+	// - Expression locations:
+	//   - After assignment operator: x = EXPRESSION;
+	//   - Inside ()'s: x = (EXPRESSION), funcCall(EXPRESSION), etc.
+	//   - Between commas: funcCall(EXPRESSION, EXPRESSION, etc.)
+	//   - For loop statements: for(EXPRESSION; EXPRESSION; EXPRESSION) - Note: also supports commas!
+	//   - return statement: return EXPRESSION;
+
 
 	// Check the current token to see if we're at the beginning of a texture
 	// object function call, and if so, store that info

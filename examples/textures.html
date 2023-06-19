@@ -365,10 +365,49 @@
 				faceRTV.Release();
 			}
 
-			// Done with the texture ref
+			// Release and clean up
+			cb.Release();
 			irrTexture.Release();
 			context.RSSetViewports(oldVP);
 			return irrSRV;
+		}
+
+		function createBrdfLookUpTable(device, context, size, ps, vs)
+		{
+			let lutDesc = new D3D11_TEXTURE2D_DESC(
+				size,
+				size,
+				1,
+				1,
+				DXGI_FORMAT_R8G8B8A8_UNORM,
+				new DXGI_SAMPLE_DESC(1, 0),
+				D3D11_USAGE_DEFAULT,
+				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
+				0,
+				0);
+			let lutTexture = device.CreateTexture2D(lutDesc, null);
+			let lutSRV = device.CreateShaderResourceView(lutTexture, null);
+
+			// RTV
+			let rtv = device.CreateRenderTargetView(lutTexture, null);
+			context.OMSetRenderTargets([rtv], null);
+
+			// Set up viewport
+			let oldVP = context.RSGetViewports();
+			let vp = new D3D11_VIEWPORT(0, 0, size, size, 0, 1);
+			context.RSSetViewports(vp);
+
+			// Draw
+			context.PSSetShader(ps);
+			context.VSSetShader(vs);
+			context.Draw(3, 0);
+			context.Flush();
+
+			// Finish up before returning the view
+			context.RSSetViewports(oldVP);
+			lutTexture.Release();
+			rtv.Release();
+			return lutSRV;
 		}
 
 		async function main()
@@ -612,13 +651,15 @@
 			let skyVS = device.CreateVertexShader(await loadText("../assets/shaders/SkyVS.hlsl"));
 			let skyPS = device.CreatePixelShader(await loadText("../assets/shaders/SkyPS.hlsl"));
 			let postprocPS = device.CreatePixelShader(await loadText("../assets/shaders/BlurPS.hlsl"));
+			let fullscreenVS = device.CreateVertexShader(await loadText("../assets/shaders/FullscreenVS.hlsl"));
 
 			// Shaders for IBL
 			let iblIrradiancePS = device.CreatePixelShader(await loadText("../assets/shaders/IBLIrradianceMapPS.hlsl"));
-			let fullscreenVS = device.CreateVertexShader(await loadText("../assets/shaders/FullscreenVS.hlsl"));
+			let brdfLutPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
 
-			// Create an irradiance map
+			// Create IBL textures
 			let irrSRV = createIrradianceMap(device, context, 64, skySRV, sampler, iblIrradiancePS, fullscreenVS);
+			let lutSRV = createBrdfLookUpTable(device, context, 256, brdfLutPS, fullscreenVS);
 
 			// Reset the render target
 			context.OMSetRenderTargets([rtv], depthDSV);
