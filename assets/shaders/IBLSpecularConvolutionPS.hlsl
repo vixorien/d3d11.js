@@ -147,7 +147,7 @@ float3 ConvolveTextureCube(float roughness, float3 R)
 	}
 
 	// Divide and return result
-	return pow(abs(finalColor / totalWeight), 1.0f / 2.2f); // Using abs() to stop a compiler warning
+	return pow(finalColor / totalWeight, 1.0f / 2.2f);
 }
 
 
@@ -156,7 +156,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 {
 	// Get a -1 to 1 range on x/y
 	float2 o = input.uv * 2.0 - 1.0;
-
+	
 	// Tangent basis
 	float3 xDir, yDir, zDir;
 

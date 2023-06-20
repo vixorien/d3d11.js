@@ -21,10 +21,12 @@ struct Light
 cbuffer psData : register(b0)
 {
 	float3 cameraPos;	// Auto pad
-	float3 tint;		// Auto pad
-	
-	float iblSpecMips; // Pad?
-	float pad;
+
+	float3 tint;		// Pad
+	float pad0;			// Pad out this float4
+
+	float iblSpecMips;
+	float lightCount;
 	float pad1;
 	float pad2;
 
@@ -244,7 +246,8 @@ float4 main(VertexToPixel input) : SV_TARGET
 
 	float3 color = float3(0,0,0);
 	float3 toCam = normalize(cameraPos - input.worldPos);
-	for (int i = 0; i < 11; i++)
+	
+	for (int i = 0; i < int(lightCount); i++)
 	{
 		Light l = lights[i];
 
@@ -282,8 +285,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float2 indirectBRDF = brdfLUT.Sample(clampSamp, float2(NdotV, rough)).rg;
 	float3 indSpecFresnel = specColor * indirectBRDF.x + indirectBRDF.y;
 	float3 indirectSpecular = pow(iblSpecular.SampleLevel(samp, viewRefl, rough * (iblSpecMips - 1.0)).rgb, 2.2) * indSpecFresnel;
-
-	float3 fullIndirect = (indirectDiffuse* albedo* saturate(1.0 - metal)) + indirectSpecular;
 	
+	float3 fullIndirect = (indirectDiffuse * albedo * saturate(1.0 - metal)) + indirectSpecular;
 	return float4(pow(color + fullIndirect, 1.0 / 2.2), 1);
 }

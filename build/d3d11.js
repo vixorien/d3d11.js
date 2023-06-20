@@ -2976,6 +2976,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				let rtRes = this.#renderTargetViews[0].GetResource();
 				rtHeight = rtRes.GetDesc().Height;
 				rtRes.Release();
+
+				// Determine the actual height based on the RTV mip level
+				let mip = this.#renderTargetViews[0].GetDesc().MipSlice;
+				let div = Math.pow(2, mip);
+				rtHeight = Math.max(1, Math.floor(rtHeight / div));
 			}
 			else if (this.#depthStencilView != null)
 			{
@@ -3180,9 +3185,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				this.#gl.framebufferTexture2D(
 					this.#gl.FRAMEBUFFER,
 					this.#gl.COLOR_ATTACHMENT0,
-					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
+					this.#gl.TEXTURE_2D,
 					rtvResource.GetGLResource(),
-					viewDesc.MipSlice); // TODO: Check existing mip slice binding, too!
+					viewDesc.MipSlice);
 			}
 
 			// Done with ref
