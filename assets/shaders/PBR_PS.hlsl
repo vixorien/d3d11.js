@@ -22,17 +22,26 @@ cbuffer psData : register(b0)
 {
 	float3 cameraPos;	// Auto pad
 	float3 tint;		// Auto pad
+	
+	float iblSpecMips; // Pad?
+	float pad;
+	float pad1;
+	float pad2;
 
 	Light lights[11];
 }
 
-Texture2D albedoMap		: register(t0);
-Texture2D normalMap		: register(t1);
-Texture2D metalMap		: register(t2);
-Texture2D roughnessMap	: register(t3);
-TextureCube sky			: register(t4);
+Texture2D albedoMap			: register(t0);
+Texture2D normalMap			: register(t1);
+Texture2D metalMap			: register(t2);
+Texture2D roughnessMap		: register(t3);
 
-SamplerState samp		: register(s0);
+Texture2D brdfLUT			: register(t4);
+TextureCube iblIrradiance	: register(t5);
+TextureCube iblSpecular		: register(t6);
+
+SamplerState samp			: register(s0);
+SamplerState clampSamp		: register(s1);
 
 // Range-based attenuation function
 float attenuate(Light light, float3 worldPos)
@@ -209,13 +218,14 @@ float3 PointLightPBR(Light light, float3 normal, float3 worldPos, float3 camPos,
 float4 main(VertexToPixel input) : SV_TARGET
 {
 	//return sky.Sample(samp, input.normal);
+	float MIN_ROUGHNESS = 0.0000001f;
 
 	input.normal = normalize(input.normal);
 	input.tangent = normalize(input.tangent);
 	
 	float3 albedo = pow(albedoMap.Sample(samp, input.uv).rgb, 2.2);
 	float metal = metalMap.Sample(samp, input.uv).r;
-	float rough = roughnessMap.Sample(samp, input.uv).r;
+	float rough = max(roughnessMap.Sample(samp, input.uv).r, MIN_ROUGHNESS);
 	float3 normalFromMap = normalMap.Sample(samp, input.uv).rgb;
 	normalFromMap = normalize(normalFromMap * 2.0 - 1.0);
 
@@ -264,5 +274,16 @@ float4 main(VertexToPixel input) : SV_TARGET
 		}
 	}
 
-	return float4(pow(color, 1.0 / 2.2), 1);
+	// --- Indirect PBR ---
+	float3 indirectDiffuse = pow(iblIrradiance.Sample(samp, input.normal).rgb, 2.2);
+
+	float NdotV = dot(input.normal, toCam);
+	float3 viewRefl = reflect(-toCam, input.normal);
+	float2 indirectBRDF = brdfLUT.Sample(clampSamp, float2(NdotV, rough)).rg;
+	float3 indSpecFresnel = specColor * indirectBRDF.x + indirectBRDF.y;
+	float3 indirectSpecular = pow(iblSpecular.SampleLevel(samp, viewRefl, rough * (iblSpecMips - 1.0)).rgb, 2.2) * indSpecFresnel;
+
+	float3 fullIndirect = (indirectDiffuse* albedo* saturate(1.0 - metal)) + indirectSpecular;
+	
+	return float4(pow(color + fullIndirect, 1.0 / 2.2), 1);
 }

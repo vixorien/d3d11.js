@@ -537,10 +537,10 @@
 			context.OMSetRenderTargets([rtv], depthDSV);
 
 			// Attempt to load an image
-			let albedoSRV = await loadTexture2D(device, context, "../assets/textures/floor_albedo.png");
-			let normalSRV = await loadTexture2D(device, context, "../assets/textures/floor_normals.png");
-			let metalSRV =  await loadTexture2D(device, context, "../assets/textures/floor_metal.png");
-			let roughSRV =  await loadTexture2D(device, context, "../assets/textures/floor_roughness.png");
+			let albedoSRV = await loadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png");
+			let normalSRV = await loadTexture2D(device, context, "../assets/textures/cobblestone_normals.png");
+			let metalSRV =  await loadTexture2D(device, context, "../assets/textures/cobblestone_metal.png");
+			let roughSRV =  await loadTexture2D(device, context, "../assets/textures/cobblestone_roughness.png");
 			context.PSSetShaderResources(0, [albedoSRV, normalSRV, metalSRV, roughSRV]);
 
 
@@ -577,7 +577,14 @@
 				0,
 				D3D11_FLOAT32_MAX);
 			let sampler = device.CreateSamplerState(sampDesc);
-			context.PSSetSamplers(0, [sampler]);
+
+			// Make a clamp sampler, too
+			sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+			sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+			sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+			let clampSampler = device.CreateSamplerState(sampDesc);
+
+			context.PSSetSamplers(0, [sampler, clampSampler]);
 
 
 			// Create a rasterizer state for the sky
@@ -644,7 +651,8 @@
 			// Cbuffer for pixel shader
 			let lightCount = 8 + 3; // 8 point, 3 dir
 			let lightSizeInFloats = 16;
-			let psElementCount = 8 + lightSizeInFloats * lightCount; // Two vectors, and N lights
+			let elementsBeforeLights = 12; // 3 vectors
+			let psElementCount = elementsBeforeLights + lightSizeInFloats * lightCount; // Two vectors, plus one for IBL, and N lights
 			let psCBDesc = new D3D11_BUFFER_DESC(
 				psElementCount * Float32Array.BYTES_PER_ELEMENT,
 				D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
@@ -678,7 +686,7 @@
 						0, 0, 0, 0, // direction + pad
 						lightColors[i][0], lightColors[i][1], lightColors[i][2], 0 //color + pad
 					],
-					8 + i * 16);
+					elementsBeforeLights + i * 16);
 			}
 
 			// Add the three dir lights after point lights
@@ -698,7 +706,7 @@
 						dirs[i - 8][0], dirs[i - 8][1], dirs[i - 8][2], 0, // direction + pad
 						1, 1, 1, 0 //color + pad
 					],
-					8 + i * 16);
+					elementsBeforeLights + i * 16);
 			}
 
 
@@ -742,10 +750,14 @@
 			let iblSpecularPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
 			
 			// Create IBL textures
+			let iblSpecSize = 256;
 			let iblSpecMipsToSkip = 3;
+			let iblTotalMips = Math.max(Math.log2(iblSpecSize) + 1 - iblSpecMipsToSkip, 1);
+			psData.set([iblTotalMips], 8);
+
 			let lutSRV = createBrdfLookUpTable(device, context, 256, brdfLutPS, fullscreenVS);
 			let irrSRV = createIrradianceMap(device, context, 64, skySRV, sampler, iblIrradiancePS, fullscreenVS);
-			let iblSpecSRV = createIBLSpecularMap(device, context, 256, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS);
+			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS);
 
 			// Reset the render target
 			context.OMSetRenderTargets([rtv], depthDSV);
@@ -857,7 +869,7 @@
 						context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 						// Update PS data for later (8 initial, 16 per light, 4 floats deep)
-						psData.set(lightPos, 8 + i * 16 + 4);
+						psData.set(lightPos, elementsBeforeLights + i * 16 + 4);
 
 						// Update data for this draw
 						solidData.set(lightColors[i], 0);
@@ -899,7 +911,7 @@
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 					// Textures
-					context.PSSetShaderResources(0, [albedoSRV, normalSRV, metalSRV, roughSRV]);
+					context.PSSetShaderResources(0, [albedoSRV, normalSRV, metalSRV, roughSRV, lutSRV, irrSRV, iblSpecSRV]);
 
 					// Draw
 					context.VSSetShader(vs);
@@ -926,7 +938,6 @@
 
 					// Set up texture
 					context.PSSetShaderResources(0, [skySRV]);
-					//context.PSSetShaderResources(0, [irrSRV]);
 
 					// Draw cube
 					context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);
