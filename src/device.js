@@ -1192,17 +1192,57 @@ class ID3D11Device extends IUnknown
 
 		// Validate usage
 		// Initial data can be null, unless the resource is immutable
+		// TODO: Spin this off into it's own helper since it's the same for all resource types?
 		switch (desc.Usage)
 		{
 			case D3D11_USAGE_DEFAULT:
+				// Can be either input or output (or no bind flags).  
+				// CPU Access technically works(huh)
+				// TOOD: Determine if there are any other specific requirements?
+				break;
+
 			case D3D11_USAGE_DYNAMIC:
+				// Can ONLY be input to a shader stage
+				if ((desc.BindFlags & D3D11_BIND_DEPTH_STENCIL) == D3D11_BIND_DEPTH_STENCIL ||
+					(desc.BindFlags & D3D11_BIND_RENDER_TARGET) == D3D11_BIND_RENDER_TARGET)
+					throw new Error("Dynamic resources cannot be bound for output");
+
+				// Must have at least one bind flag
+				if (desc.BindFlags == 0)
+					throw new Error("Dynamic resources must have at least one Bind Flag");
+
+				// MUST have CPU Access Write set
+				if (desc.CPUAccessFlags != D3D11_CPU_ACCESS_WRITE)
+					throw new Error("Dyanmic resources must have CPU Access Write");
+
+				// Can only have a single subresource
+				if (desc.MipLevels != 1)
+					throw new Error("Invalid mip levels - dynamic resources can only have a single subresource");
+				else if(desc.ArraySize != 1)
+					throw new Error("Invalid array size - dynamic resources can only have a single subresource");
+
+				break;
+
 			case D3D11_USAGE_STAGING:
-				// Should all be fine as-is?
+				// Cannot have any bind flags!
+				if (desc.BindFlags != 0)
+					throw new Error("Staging resources cannot be bound to the pipeline and cannot have any bind flags set");
+
+				// Must have CPU read or write access!
+				if (desc.CPUAccessFlags == 0)
+					throw new Error("Staging resources must have a CPU Access of either Read or Write.");
 				break;
 
 			case D3D11_USAGE_IMMUTABLE:
+				// Must have initial data
 				if ((initialData == null || initialData.length == 0))
 					throw new Error("Immutable textures must have initial data");
+
+				// Can ONLY be input to a shader stage
+				if ((desc.BindFlags & D3D11_BIND_DEPTH_STENCIL) == D3D11_BIND_DEPTH_STENCIL ||
+					(desc.BindFlags & D3D11_BIND_RENDER_TARGET) == D3D11_BIND_RENDER_TARGET)
+					throw new Error("Immutable resources cannot be bound for output");
+
 				break;
 
 			default:
