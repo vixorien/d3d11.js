@@ -199,6 +199,30 @@ const D3D11_TEXTURE_ADDRESS_BORDER = 4;			// Unsupported in WebGL!
 const D3D11_TEXTURE_ADDRESS_MIRROR_ONCE = 5;	// Unsupported in WebGL!
 
 // Identifies expected resource use during rendering
+//
+// Usage details:
+//
+// USAGE       Default   Dynamic   Immutable   Staging
+// ------------------------------------------------------
+// GPU-Read     yes        yes      yes         yes*
+// GPU-Write    yes                             yes*
+// CPU-Read                                     yes*
+// CPU-Write               yes                  yes*
+//
+// * Staging GPU read/write limited to COPY operations
+// * No depth/stencil or multisampled as staging!
+//
+// Binding Details
+//
+//
+// BOUND AS    Default   Dynamic   Immutable   Staging
+// ------------------------------------------------------
+//  Input       yes+      yes^      yes
+//  Output      yes+
+//
+// + One resource bound as both input and output must be different subresoruces
+// ^ Dynamic resources can only have a single subresource (no array/mips)
+//
 const D3D11_USAGE_DEFAULT = 0;
 const D3D11_USAGE_IMMUTABLE = 1;
 const D3D11_USAGE_DYNAMIC = 2;

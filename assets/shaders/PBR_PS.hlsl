@@ -280,12 +280,15 @@ float4 main(VertexToPixel input) : SV_TARGET
 	// --- Indirect PBR ---
 	float3 indirectDiffuse = pow(iblIrradiance.Sample(samp, input.normal).rgb, 2.2);
 
+	// Convert to perceptual
+	rough *= rough;
+
 	float NdotV = dot(input.normal, toCam);
 	float3 viewRefl = reflect(-toCam, input.normal);
 	float2 indirectBRDF = brdfLUT.Sample(clampSamp, float2(NdotV, rough)).rg;
 	float3 indSpecFresnel = specColor * indirectBRDF.x + indirectBRDF.y;
 	float3 indirectSpecular = pow(iblSpecular.SampleLevel(samp, viewRefl, rough * (iblSpecMips - 1.0)).rgb, 2.2) * indSpecFresnel;
-	
+
 	float3 fullIndirect = (indirectDiffuse * albedo * saturate(1.0 - metal)) + indirectSpecular;
 	return float4(pow(color + fullIndirect, 1.0 / 2.2), 1);
 }
