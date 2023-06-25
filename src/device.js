@@ -1148,6 +1148,15 @@ class ID3D11Device extends IUnknown
 			throw new Error("Specified SRV Array Size is invalid");
 	}
 
+
+	/**
+	 * Validates the description for a 2D texture
+	 * 
+	 * @param {D3D11_TEXTURE2D_DESC} desc The description of the texture
+	 * @param {any} initialData The initial data, or null
+	 * 
+	 * @throws {Error} If any part of the description is invalid
+	 */
 	#ValidateTexture2DDesc(desc, initialData)
 	{
 		// Description cannot be null
