@@ -386,7 +386,8 @@
 				Float32Array.BYTES_PER_ELEMENT * 4,
 				D3D11_USAGE_DYNAMIC,
 				D3D11_BIND_CONSTANT_BUFFER,
-				0, 0, 0);
+				D3D11_CPU_ACCESS_WRITE,
+				0, 0);
 			let cb = device.CreateBuffer(cbDesc, null);
 			let cbData = new Float32Array(4);
 
@@ -456,7 +457,8 @@
 				Float32Array.BYTES_PER_ELEMENT * 4,
 				D3D11_USAGE_DYNAMIC,
 				D3D11_BIND_CONSTANT_BUFFER,
-				0, 0, 0);
+				D3D11_CPU_ACCESS_WRITE,
+				0, 0);
 			let cb = device.CreateBuffer(cbDesc, null);
 			let cbData = new Float32Array(4);
 
@@ -675,9 +677,10 @@
 			let elementCount = 16 * 3; // 3 matrices
 			let vsCBDesc = new D3D11_BUFFER_DESC(
 				elementCount * Float32Array.BYTES_PER_ELEMENT,
-				D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
+				D3D11_USAGE_DYNAMIC,
 				D3D11_BIND_CONSTANT_BUFFER,
-				0, 0, 0);
+				D3D11_CPU_ACCESS_WRITE,
+				0, 0);
 			let vsCB = device.CreateBuffer(vsCBDesc, null);
 
 			
@@ -706,9 +709,10 @@
 			let psElementCount = elementsBeforeLights + lightSizeInFloats * lightCount; // Two vectors, plus one for IBL, and N lights
 			let psCBDesc = new D3D11_BUFFER_DESC(
 				psElementCount * Float32Array.BYTES_PER_ELEMENT,
-				D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
+				D3D11_USAGE_DYNAMIC,
 				D3D11_BIND_CONSTANT_BUFFER,
-				0, 0, 0);
+				D3D11_CPU_ACCESS_WRITE,
+				0, 0);
 			let psCB = device.CreateBuffer(psCBDesc, null);
 
 			// Set up initial PS CB data
@@ -765,9 +769,10 @@
 			// Cbuffer for solid color
 			let solidCBDesc = new D3D11_BUFFER_DESC(
 				4 * Float32Array.BYTES_PER_ELEMENT,
-				D3D11_USAGE_DEFAULT, // TODO: Dynamic?
+				D3D11_USAGE_DYNAMIC,
 				D3D11_BIND_CONSTANT_BUFFER,
-				0, 0, 0);
+				D3D11_CPU_ACCESS_WRITE,
+				0, 0);
 			let solidCB = device.CreateBuffer(solidCBDesc, null);
 			let solidData = new Float32Array(4);
 			solidData.set([1, 1, 1], 0);

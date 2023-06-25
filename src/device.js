@@ -55,7 +55,7 @@ class ID3D11Device extends IUnknown
 	CreateBuffer(bufferDesc, initialData)
 	{
 		// Validate description
-		this.#ValidateBufferDesc(bufferDesc);
+		this.#ValidateBufferDesc(bufferDesc, initialData);
 
 		// May have changed GL state!
 		if (this.#immediateContext != null)
@@ -76,7 +76,7 @@ class ID3D11Device extends IUnknown
 			case D3D11_USAGE_DEFAULT:
 			default:
 				glUsage = this.#gl.DYNAMIC_DRAW; // ???
-				// NOTE: Constant buffers with default usage should probably still be dyanmic draw
+				// NOTE: Constant buffers with default usage should probably still be dynamic draw
 				// TODO: Test this and handle here
 				break;
 		}
@@ -696,7 +696,7 @@ class ID3D11Device extends IUnknown
 	}
 
 
-	#ValidateBufferDesc(desc)
+	#ValidateBufferDesc(desc, initialData)
 	{
 		let isVB = ((desc.BindFlags & D3D11_BIND_VERTEX_BUFFER) == D3D11_BIND_VERTEX_BUFFER);
 		let isIB = ((desc.BindFlags & D3D11_BIND_INDEX_BUFFER) == D3D11_BIND_INDEX_BUFFER);
@@ -713,9 +713,7 @@ class ID3D11Device extends IUnknown
 			throw new Error("Invalid byte width for buffer description.  Constant buffer byte width must be a multiple of 16");
 
 		// Validate usage
-		if (desc.Usage < D3D11_USAGE_DEFAULT ||
-			desc.Usage > D3D11_USAGE_STAGING)
-			throw new Error("Invalid usage for buffer description.");
+		this.#ValidateUsage(desc, initialData);
 
 		// Bind flags
 		// Note: D3D spec says constant buffer cannot be combined with other flags
@@ -1187,17 +1185,54 @@ class ID3D11Device extends IUnknown
 		if (desc.MipLevels <= 0 || desc.MipLevels > maxMips)
 			throw new Error("Invalid mip levels specified for texture");
 
-		// TODO: Validate format
-
+		// TODO: Validate format - check all, or just assume it's fine?
 
 		// Validate usage
-		// Initial data can be null, unless the resource is immutable
-		// TODO: Spin this off into it's own helper since it's the same for all resource types?
+		this.#ValidateUsage(desc, initialData);
+
+		// TODO: Verify these bind flag combinations are fine (SRV + Depth in WebGL?)
+		switch (desc.BindFlags)
+		{
+			// These are fine for textures
+			case D3D11_BIND_SHADER_RESOURCE:
+			case D3D11_BIND_RENDER_TARGET:
+			case D3D11_BIND_DEPTH_STENCIL:
+			case D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET:
+			case D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_DEPTH_STENCIL:
+				break;
+
+			// No other combinations (mostly a WebGL limitation)
+			default:
+				throw new Error("Invalid bind flags specified");
+		}
+
+		// Validate misc flags
+		if (isCube && desc.ArraySize != 6)
+			throw new Error("Invalid array size for texture cube - must be exactly 6");
+		
+		// Note: this matches spec but is not strictly necessary for WebGL
+		if (genMips && (
+			(desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0 ||
+			(desc.BindFlags & D3D11_BIND_RENDER_TARGET) == 0))
+			throw new Error("Resource must have SHADER_RESOURCE and RENDER_TARGET bind flags to generate mip maps");
+	}
+
+
+	/**
+	 * Validates the usage portion of a resource description
+	 * 
+	 * @param {any} desc The resource description to validate
+	 * @param {any} initialData The initial data for the resource, which may be null
+	 * 
+	 * @throws {Error} If the usage doesn't match the rest of the description
+	 */
+	#ValidateUsage(desc, initialData)
+	{
 		switch (desc.Usage)
 		{
 			case D3D11_USAGE_DEFAULT:
 				// Can be either input or output (or no bind flags).  
-				// CPU Access technically works(huh)
+				// Any CPU Access technically works (tested in C++)
 				// TOOD: Determine if there are any other specific requirements?
 				break;
 
@@ -1213,14 +1248,16 @@ class ID3D11Device extends IUnknown
 
 				// MUST have CPU Access Write set
 				if (desc.CPUAccessFlags != D3D11_CPU_ACCESS_WRITE)
-					throw new Error("Dyanmic resources must have CPU Access Write");
+					throw new Error("Dynamic resources must have CPU Access Write");
 
-				// Can only have a single subresource
-				if (desc.MipLevels != 1)
-					throw new Error("Invalid mip levels - dynamic resources can only have a single subresource");
-				else if(desc.ArraySize != 1)
-					throw new Error("Invalid array size - dynamic resources can only have a single subresource");
-
+				// If we're not a buffer description, check for subresources
+				if (!(desc instanceof D3D11_BUFFER_DESC))
+				{
+					if (desc.MipLevels != 1)
+						throw new Error("Invalid mip levels - dynamic resources can only have a single subresource");
+					else if (desc.ArraySize != 1)
+						throw new Error("Invalid array size - dynamic resources can only have a single subresource");
+				}
 				break;
 
 			case D3D11_USAGE_STAGING:
@@ -1246,21 +1283,7 @@ class ID3D11Device extends IUnknown
 				break;
 
 			default:
-				throw new Error("Invalid usage for texture 2d");
+				throw new Error("Invalid usage specified");
 		}
-
-		// TODO: Validate bind flags
-
-		// TODO: Validate CPU Access flags
-
-		// Validate misc flags
-		if (isCube && desc.ArraySize != 6)
-			throw new Error("Invalid array size for texture cube - must be exactly 6");
-		
-		// Note: this matches spec but is not strictly necessary for WebGL
-		if (genMips && (
-			(desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0 ||
-			(desc.BindFlags & D3D11_BIND_RENDER_TARGET) == 0))
-			throw new Error("Resource must have SHADER_RESOURCE and RENDER_TARGET bind flags to generate mip maps");
 	}
 }

@@ -199,6 +199,30 @@ const D3D11_TEXTURE_ADDRESS_BORDER = 4;			// Unsupported in WebGL!
 const D3D11_TEXTURE_ADDRESS_MIRROR_ONCE = 5;	// Unsupported in WebGL!
 
 // Identifies expected resource use during rendering
+//
+// Usage details:
+//
+// USAGE       Default   Dynamic   Immutable   Staging
+// ------------------------------------------------------
+// GPU-Read     yes        yes      yes         yes*
+// GPU-Write    yes                             yes*
+// CPU-Read                                     yes*
+// CPU-Write               yes                  yes*
+//
+// * Staging GPU read/write limited to COPY operations
+// * No depth/stencil or multisampled as staging!
+//
+// Binding Details
+//
+//
+// BOUND AS    Default   Dynamic   Immutable   Staging
+// ------------------------------------------------------
+//  Input       yes+      yes^      yes
+//  Output      yes+
+//
+// + One resource bound as both input and output must be different subresoruces
+// ^ Dynamic resources can only have a single subresource (no array/mips)
+//
 const D3D11_USAGE_DEFAULT = 0;
 const D3D11_USAGE_IMMUTABLE = 1;
 const D3D11_USAGE_DYNAMIC = 2;
@@ -952,7 +976,7 @@ class ID3D11Device extends IUnknown
 	CreateBuffer(bufferDesc, initialData)
 	{
 		// Validate description
-		this.#ValidateBufferDesc(bufferDesc);
+		this.#ValidateBufferDesc(bufferDesc, initialData);
 
 		// May have changed GL state!
 		if (this.#immediateContext != null)
@@ -973,7 +997,7 @@ class ID3D11Device extends IUnknown
 			case D3D11_USAGE_DEFAULT:
 			default:
 				glUsage = this.#gl.DYNAMIC_DRAW; // ???
-				// NOTE: Constant buffers with default usage should probably still be dyanmic draw
+				// NOTE: Constant buffers with default usage should probably still be dynamic draw
 				// TODO: Test this and handle here
 				break;
 		}
@@ -1593,7 +1617,7 @@ class ID3D11Device extends IUnknown
 	}
 
 
-	#ValidateBufferDesc(desc)
+	#ValidateBufferDesc(desc, initialData)
 	{
 		let isVB = ((desc.BindFlags & D3D11_BIND_VERTEX_BUFFER) == D3D11_BIND_VERTEX_BUFFER);
 		let isIB = ((desc.BindFlags & D3D11_BIND_INDEX_BUFFER) == D3D11_BIND_INDEX_BUFFER);
@@ -1610,9 +1634,7 @@ class ID3D11Device extends IUnknown
 			throw new Error("Invalid byte width for buffer description.  Constant buffer byte width must be a multiple of 16");
 
 		// Validate usage
-		if (desc.Usage < D3D11_USAGE_DEFAULT ||
-			desc.Usage > D3D11_USAGE_STAGING)
-			throw new Error("Invalid usage for buffer description.");
+		this.#ValidateUsage(desc, initialData);
 
 		// Bind flags
 		// Note: D3D spec says constant buffer cannot be combined with other flags
@@ -2084,31 +2106,26 @@ class ID3D11Device extends IUnknown
 		if (desc.MipLevels <= 0 || desc.MipLevels > maxMips)
 			throw new Error("Invalid mip levels specified for texture");
 
-		// TODO: Validate format
-
+		// TODO: Validate format - check all, or just assume it's fine?
 
 		// Validate usage
-		// Initial data can be null, unless the resource is immutable
-		switch (desc.Usage)
+		this.#ValidateUsage(desc, initialData);
+
+		// TODO: Verify these bind flag combinations are fine (SRV + Depth in WebGL?)
+		switch (desc.BindFlags)
 		{
-			case D3D11_USAGE_DEFAULT:
-			case D3D11_USAGE_DYNAMIC:
-			case D3D11_USAGE_STAGING:
-				// Should all be fine as-is?
+			// These are fine for textures
+			case D3D11_BIND_SHADER_RESOURCE:
+			case D3D11_BIND_RENDER_TARGET:
+			case D3D11_BIND_DEPTH_STENCIL:
+			case D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET:
+			case D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_DEPTH_STENCIL:
 				break;
 
-			case D3D11_USAGE_IMMUTABLE:
-				if ((initialData == null || initialData.length == 0))
-					throw new Error("Immutable textures must have initial data");
-				break;
-
+			// No other combinations (mostly a WebGL limitation)
 			default:
-				throw new Error("Invalid usage for texture 2d");
+				throw new Error("Invalid bind flags specified");
 		}
-
-		// TODO: Validate bind flags
-
-		// TODO: Validate CPU Access flags
 
 		// Validate misc flags
 		if (isCube && desc.ArraySize != 6)
@@ -2119,6 +2136,76 @@ class ID3D11Device extends IUnknown
 			(desc.BindFlags & D3D11_BIND_SHADER_RESOURCE) == 0 ||
 			(desc.BindFlags & D3D11_BIND_RENDER_TARGET) == 0))
 			throw new Error("Resource must have SHADER_RESOURCE and RENDER_TARGET bind flags to generate mip maps");
+	}
+
+
+	/**
+	 * Validates the usage portion of a resource description
+	 * 
+	 * @param {any} desc The resource description to validate
+	 * @param {any} initialData The initial data for the resource, which may be null
+	 * 
+	 * @throws {Error} If the usage doesn't match the rest of the description
+	 */
+	#ValidateUsage(desc, initialData)
+	{
+		switch (desc.Usage)
+		{
+			case D3D11_USAGE_DEFAULT:
+				// Can be either input or output (or no bind flags).  
+				// Any CPU Access technically works (tested in C++)
+				// TOOD: Determine if there are any other specific requirements?
+				break;
+
+			case D3D11_USAGE_DYNAMIC:
+				// Can ONLY be input to a shader stage
+				if ((desc.BindFlags & D3D11_BIND_DEPTH_STENCIL) == D3D11_BIND_DEPTH_STENCIL ||
+					(desc.BindFlags & D3D11_BIND_RENDER_TARGET) == D3D11_BIND_RENDER_TARGET)
+					throw new Error("Dynamic resources cannot be bound for output");
+
+				// Must have at least one bind flag
+				if (desc.BindFlags == 0)
+					throw new Error("Dynamic resources must have at least one Bind Flag");
+
+				// MUST have CPU Access Write set
+				if (desc.CPUAccessFlags != D3D11_CPU_ACCESS_WRITE)
+					throw new Error("Dynamic resources must have CPU Access Write");
+
+				// If we're not a buffer description, check for subresources
+				if (!(desc instanceof D3D11_BUFFER_DESC))
+				{
+					if (desc.MipLevels != 1)
+						throw new Error("Invalid mip levels - dynamic resources can only have a single subresource");
+					else if (desc.ArraySize != 1)
+						throw new Error("Invalid array size - dynamic resources can only have a single subresource");
+				}
+				break;
+
+			case D3D11_USAGE_STAGING:
+				// Cannot have any bind flags!
+				if (desc.BindFlags != 0)
+					throw new Error("Staging resources cannot be bound to the pipeline and cannot have any bind flags set");
+
+				// Must have CPU read or write access!
+				if (desc.CPUAccessFlags == 0)
+					throw new Error("Staging resources must have a CPU Access of either Read or Write.");
+				break;
+
+			case D3D11_USAGE_IMMUTABLE:
+				// Must have initial data
+				if ((initialData == null || initialData.length == 0))
+					throw new Error("Immutable textures must have initial data");
+
+				// Can ONLY be input to a shader stage
+				if ((desc.BindFlags & D3D11_BIND_DEPTH_STENCIL) == D3D11_BIND_DEPTH_STENCIL ||
+					(desc.BindFlags & D3D11_BIND_RENDER_TARGET) == D3D11_BIND_RENDER_TARGET)
+					throw new Error("Immutable resources cannot be bound for output");
+
+				break;
+
+			default:
+				throw new Error("Invalid usage specified");
+		}
 	}
 }
 
