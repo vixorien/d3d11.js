@@ -29,3 +29,17 @@ function DXGICreateSwapChain(device)
 {
 	return new IDXGISwapChain(device);
 }
+
+/**
+ * Calculates a subresource index for a texture
+ * 
+ * @param {Number} mipSlice A zero-based index for the mipmap level to address; 0 indicates the first, most detailed mipmap level
+ * @param {Number} arraySlice The zero-based index for the array level to address; always use 0 for volume (3D) textures
+ * @param {Number} mipLevels Number of mipmap levels in the resource
+ * 
+ * @returns The index which equals MipSlice + (ArraySlice * MipLevels)
+ */
+function D3D11CalcSubresource(mipSlice, arraySlice, mipLevels)
+{
+	return mipSlice + (arraySlice * mipLevels);
+}

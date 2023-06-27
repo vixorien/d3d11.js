@@ -561,6 +561,148 @@ class ID3D11Device extends IUnknown
 	}
 
 
+	/**
+	 * Copies data from a single subresource of a texture or buffer into the provided
+	 * destination data array.  This method causes a pipeline stall to ensure all 
+	 * existing GPU work has been completed!  Note that, while actual D3D11 has very 
+	 * specific restrictions on the use of this method, here it can be used on any 
+	 * resource denoted as USAGE_STAGING with the CPU_ACCESS_READ flag
+	 * 
+	 * @param {TypedArray} dstData The array to fill with data from the subresource
+	 * @param {ID3D11Resource} srcResource The resource from which to read
+	 * @param {Number} srcSubresource The zero-based index of the specific subresource.  Use {@see D3D11CalcSubresource} to calculate.
+	 * @param {D3D11_BOX} srcBox A box that defines a portion of the subresource to read, or null for the entire subresource.  An empty box results in no data being read.
+	 */
+	ReadFromSubresource(dstData, srcResource, srcSubresource, srcBox = null)
+	{
+		// WebGL:
+		// - readPixels() for textures: https://developer.mozilla.org/en-US/docs/Web/API/WebGLRenderingContext/readPixels
+		// - getBufferSubData() for buffers: https://developer.mozilla.org/en-US/docs/Web/API/WebGL2RenderingContext/getBufferSubData
+		//
+		// D3D11:
+		// - Match ReadFromSubresource(): https://learn.microsoft.com/en-us/windows/win32/api/d3d11_3/nf-d3d11_3-id3d11device3-readfromsubresource
+		// - D3D11_BOX: https://learn.microsoft.com/en-us/windows/win32/api/d3d11/ns-d3d11-d3d11_box
+		// - CalcSubresource: https://learn.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-d3d11calcsubresource
+
+		// Is the box empty?  If so, nothing to do.
+		if (srcBox != null && srcBox.IsEmpty())
+			return;
+
+		// Determine the type of resource we're dealing with
+		if (srcResource instanceof ID3D11Texture2D) // readPixels()
+		{
+			let desc = srcResource.GetDesc();
+
+			// Validate resource details
+			if (desc.Usage != D3D11_USAGE_STAGING)
+				throw new Error("Invalid usage on resource - can only read from staging resources");
+			
+			if ((desc.CPUAccessFlags & D3D11_CPU_ACCESS_READ) == 0)
+				throw new Error("Invalid CPU Access flag on resource - must be set for reading");
+
+			// Validate the subresource index
+			let maxSubresource = D3D11CalcSubresource(
+				desc.MipLevels - 1,
+				desc.ArraySize - 1,
+				desc.MipLevels);
+			if (srcSubresource < 0 || srcSubresource > maxSubresource)
+				throw new Error("Invalid subresource index for reading");
+
+			// Calculate subresource details from index
+			let arraySlice = Math.floor(srcSubresource / desc.MipLevels);
+			let mipSlice = srcSubresource - (arraySlice * desc.MipLevels);
+
+			// Actual offsets
+			let x = 0;
+			let y = 0;
+			let width = desc.Width;
+			let height = desc.Height;
+			if (srcBox != null)
+			{
+				x = srcBox.Left;
+				y = srcBox.Top; // TODO: Determine how we flip this!
+				width = srcBox.Right - srcBox.Left;
+				height = srcBox.Bottom - srcBox.Top;
+			}
+
+			// Mark the overall pipeline as dirty, since we need to
+			// make some changes to the framebuffer
+			// TODO: Determine if this is necessary, since we're only changing
+			//       the READ framebuffer and not the whole thing
+			// TODO: Optimize this to only mark Output Merger dirty?
+			this.#immediateContext.DirtyPipeline();
+
+			// If this is a texture array (and not a cube map), we
+			// need to use a different function for binding
+			let isCubemap = ((desc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE);
+			let isArray = desc.ArraySize > 1;
+
+			// Which function?
+			if (!isArray || isCubemap)
+			{
+				// Which GL texture target?
+				let target = this.#gl.TEXTURE_2D;
+				if (isCubemap)
+				{
+					switch (arraySlice)
+					{
+						case 0: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X; break;
+						case 1: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X; break;
+						case 2: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Y; break; // FLIP Y!
+						case 3: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y; break; // FLIP Y!
+						case 4: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Z; break;
+						case 5: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z; break;
+						default: throw new Error("Invalid subresource for cube map reading");
+					}
+				}
+
+				// Bind for reading
+				this.#gl.framebufferTexture2D(
+					this.#gl.READ_FRAMEBUFFER,
+					this.#gl.COLOR_ATTACHMENT0,
+					target,
+					srcResource.GetGLResource(),
+					mipSlice);
+			}
+			else
+			{
+				// Is an array and NOT a cube map, so we
+				// need to use the specific function that
+				// allows us to specify the array slice
+				this.#gl.framebufferTextureLayer(
+					this.#gl.READ_FRAMEBUFFER,
+					this.#gl.COLOR_ATTACHMENT0,
+					srcResource.GetGLResource(),
+					mipSlice,
+					arraySlice);
+			}
+
+			// Determine the format and types for GL
+			let formatDetails = this.#GetFormatDetails(desc.Format);
+
+			// Perform the read (which should stall the pipeline to
+			// complete all work automatically?  Or do we flush?)
+			this.#gl.readPixels(
+				x,
+				y,
+				width,
+				height,
+				formatDetails.Format,
+				formatDetails.Type,
+				dstData);
+		}
+		else if (srcResource instanceof ID3D11Buffer)
+		{
+			// Buffer, which uses getBufferSubData()
+			throw new Error("Reading from a buffer is not yet implemented!");
+
+		}
+		else 
+		{
+			throw new Error("Given source resource is invalid or not yet implemented!");
+		}
+	}
+
 
 	#CompileGLShader(glslCode, glShaderType)
 	{

@@ -843,6 +843,15 @@
 			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 
+			// Perform a readback
+			// Need to actually copy to a staging resource!
+			//let readback = new Uint8Array(256*256*4);
+			//let lutResource = lutSRV.GetResource();
+			//device.ReadFromSubresource(readback, lutResource, 0, null);
+			//lutResource.Release();
+			//
+			//console.log(readback);
+
 			function update(time)
 			{
 				// Update
