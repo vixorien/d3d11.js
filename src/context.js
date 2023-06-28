@@ -228,6 +228,212 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#gl.clear(mask);
 	}
 
+	/**
+	 * Copy a region from a source resource to a destination resource
+	 * 
+	 * @param {ID3D11Resource} dstResource The destination resource.
+	 * @param {Number} dstSubresource Zero-based destination subresource index.  Use {@see D3D11CalcSubresource} to calculate.
+	 * @param {Number} dstX The x-coordinate of the upper left corner of the destination region.
+	 * @param {Number} dstY The y-coordinate of the upper left corner of the destination region. For a 1D subresource, this must be zero.
+	 * @param {Number} dstZ The z-coordinate of the upper left corner of the destination region. For a 1D or 2D subresource, this must be zero.
+	 * @param {ID3D11Resource} srcResource The source resource.
+	 * @param {Number} srcSubresource Zero-based source subresource index.  Use {@see D3D11CalcSubresource} to calculate.
+	 * @param {D3D11_BOX} srcBox A box that defines a portion of the subresource to read, or null for the entire subresource.  An empty box results in no data being copied.
+	 *
+	 * @throws {Error}
+	 */
+	CopySubresourceRegion(dstResource, dstSubresource, dstX, dstY, dstZ, srcResource, srcSubresource, srcBox = null)
+	{
+		// Is the box empty?  If so, nothing to do.
+		if (srcBox != null && srcBox.IsEmpty())
+			return;
+
+		// Grab descriptions and validate
+		let srcDesc = srcResource.GetDesc();
+		let dstDesc = dstResource.GetDesc();
+
+		// Validate resource details
+		if (dstDesc.Usage == D3D11_USAGE_IMMUTABLE)
+			throw new Error("Cannot copy into an immutable resource");
+
+		// Validate subresource indices
+		this.#ValidateSubresourceIndex(srcDesc, srcSubresource);
+		this.#ValidateSubresourceIndex(dstDesc, dstSubresource);
+
+		// Same exact subresource?
+		if (srcResource == dstResource &&
+			srcSubresource == dstSubresource)
+			throw new Error("Cannot use the same subresource as both the source and destination of a copy");
+
+		// Must have the same format
+		if (srcDesc.Format != dstDesc.Format)
+			throw new Error("Source and destination must have same format when copying");
+
+		// If one is a buffer, they both must be buffers
+		let srcIsBuffer = srcResource instanceof ID3D11Buffer;
+		let dstIsBuffer = dstResource instanceof ID3D11Buffer;
+		if ((srcIsBuffer && !dstIsBuffer) ||
+			(dstIsBuffer && !srcIsBuffer))
+			throw new Error("Source and destination must be the same type (buffer or texture) when copying");
+
+		// SOURCE resource first ---------------------
+		if (srcResource instanceof ID3D11Texture2D)
+		{
+			// dstZ must be zero for 1D and 2D textures
+			if (dstZ != 0)
+				throw new Error("Invalid destination Z value for 2D textures - must be zero");
+
+			// Bind the source subresource to the read framebuffer
+			this.#BindSubresourceAsReadFramebuffer(srcResource, srcDesc, srcSubresource);
+		}
+		else
+		{
+			throw new Error("Given source resource is invalid or not yet implemented!");
+		}
+
+		// DESTINATION resource and copy -------------
+		if (dstResource instanceof ID3D11Texture2D)
+		{
+			// Actual offsets
+			let x = 0;
+			let y = 0;
+			let width = srcDesc.Width;
+			let height = srcDesc.Height;
+			if (srcBox != null)
+			{
+				x = srcBox.Left;
+				y = srcBox.Top; // TODO: Determine how we flip this!
+				width = srcBox.Right - srcBox.Left;
+				height = srcBox.Bottom - srcBox.Top;
+			}
+
+			// Calculate destination subresource details
+			let dstArraySlice = Math.floor(dstSubresource / dstDesc.MipLevels);
+			let dstMipSlice = dstSubresource - (dstArraySlice * dstDesc.MipLevels);
+			let dstIsArray = dstDesc.ArraySize > 1;
+			let dstIsCubemap = (dstDesc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+			// Which function for copying
+			if (!dstIsArray || dstIsCubemap)
+			{
+				// Which GL texture target?
+				let target = this.#gl.TEXTURE_2D;
+				if (dstIsCubemap)
+				{
+					switch (dstArraySlice)
+					{
+						case 0: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X; break;
+						case 1: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X; break;
+						case 2: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Y; break; // FLIP Y!
+						case 3: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y; break; // FLIP Y!
+						case 4: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Z; break;
+						case 5: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z; break;
+						default: throw new Error("Invalid subresource for cube map copying");
+					}
+
+					// Also bind as a cube map target
+					this.#gl.bindTexture(this.#gl.TEXTURE_CUBE_MAP, dstResource.GetGLResource());
+				}
+				else
+				{
+					// Regular texture2d binding for the target
+					this.#gl.bindTexture(this.#gl.TEXTURE_2D, dstResource.GetGLResource());
+				}
+
+				// Use the basic copy function
+				this.#gl.copyTexSubImage2D(
+					target,
+					dstMipSlice,
+					dstX,
+					dstY,
+					x, y, width, height);
+			}
+			else
+			{
+				// Bind the target before copy
+				this.#gl.bindTexture(this.#gl.TEXTURE_2D_ARRAY, dstResource.GetGLResource());
+
+				// Is an array and NOT a cube map, so we
+				// need to use the specific function that
+				// allows us to specify the array slice
+				this.#gl.copyTexSubImage3D(
+					this.#gl.TEXTURE_2D_ARRAY,
+					dstMipSlice,
+					dstX,
+					dstY,
+					dstArraySlice,
+					x, y, width, height);
+			}
+		}
+		else
+		{
+			throw new Error("Given destination resource is invalid or not yet implemented!");
+		}
+	}
+
+	#ValidateSubresourceIndex(resourceDesc, subresourceIndex)
+	{
+		let maxSubresource = D3D11CalcSubresource(
+			resourceDesc.MipLevels - 1,
+			resourceDesc.ArraySize - 1,
+			resourceDesc.MipLevels);
+		if (subresourceIndex < 0 || subresourceIndex > maxSubresource)
+			throw new Error("Invalid subresource index");
+	}
+
+	#BindSubresourceAsReadFramebuffer(resource, desc, subresource)
+	{
+		// Calculate subresource details from indices
+		let arraySlice = Math.floor(subresource / desc.MipLevels);
+		let mipSlice = subresource - (arraySlice * desc.MipLevels);
+
+		// If this is a texture array (and not a cube map), we
+		// need to use a different function for binding
+		let isCubemap = ((desc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE);
+		let isArray = desc.ArraySize > 1;
+
+		// Which function?
+		if (!isArray || isCubemap)
+		{
+			// Which GL texture target?
+			let target = this.#gl.TEXTURE_2D;
+			if (isCubemap)
+			{
+				switch (arraySlice)
+				{
+					case 0: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X; break;
+					case 1: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X; break;
+					case 2: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Y; break; // FLIP Y!
+					case 3: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y; break; // FLIP Y!
+					case 4: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Z; break;
+					case 5: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z; break;
+					default: throw new Error("Invalid subresource for cube map reading");
+				}
+			}
+
+			// Bind for reading
+			this.#gl.framebufferTexture2D(
+				this.#gl.READ_FRAMEBUFFER,
+				this.#gl.COLOR_ATTACHMENT0,
+				target,
+				resource.GetGLResource(),
+				mipSlice);
+		}
+		else
+		{
+			// Is an array and NOT a cube map, so we
+			// need to use the specific function that
+			// allows us to specify the array slice
+			this.#gl.framebufferTextureLayer(
+				this.#gl.READ_FRAMEBUFFER,
+				this.#gl.COLOR_ATTACHMENT0,
+				resource.GetGLResource(),
+				mipSlice,
+				arraySlice);
+		}
+	}
+
+
 	GenerateMips(shaderResourceView)
 	{
 		// Get the base resource of the view to check bind flags
