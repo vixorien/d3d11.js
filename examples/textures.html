@@ -816,6 +816,25 @@
 			let irrSRV = createIrradianceMap(device, context, 64, skySRV, sampler, iblIrradiancePS, fullscreenVS);
 			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS);
 
+
+			// Create a texture for copy testing
+			let copyTexDesc = new D3D11_TEXTURE2D_DESC(256, 256, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, new DXGI_SAMPLE_DESC(1, 0), D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0);
+			let copyTexture = device.CreateTexture2D(copyTexDesc, null);
+
+			let lutResource = lutSRV.GetResource();
+			context.CopySubresourceRegion(
+				copyTexture,
+				0,
+				0, 0, 0,
+				lutResource,
+				0,
+				new D3D11_BOX(0, 0, 256, 128));
+			lutResource.Release();
+			let copySRV = device.CreateShaderResourceView(copyTexture, null);
+
+			// Use the copy results
+			//lutSRV = copySRV;
+
 			// Reset the render target
 			context.OMSetRenderTargets([rtv], depthDSV);
 

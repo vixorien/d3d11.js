@@ -612,15 +612,20 @@ class ID3D11Device extends IUnknown
 			let arraySlice = Math.floor(srcSubresource / desc.MipLevels);
 			let mipSlice = srcSubresource - (arraySlice * desc.MipLevels);
 
+			// Calculate size of the mip
+			let div = Math.pow(2, mipSlice);
+			let mipWidth = Math.max(1, Math.floor(desc.Width / div));
+			let mipHeight = Math.max(1, Math.floor(desc.Height / div));
+
 			// Actual offsets
 			let x = 0;
 			let y = 0;
-			let width = desc.Width;
-			let height = desc.Height;
+			let width = mipWidth;
+			let height = mipHeight;
 			if (srcBox != null)
 			{
 				x = srcBox.Left;
-				y = srcBox.Top; // TODO: Determine how we flip this!
+				y = mipHeight - srcBox.Bottom; // Flip the Y
 				width = srcBox.Right - srcBox.Left;
 				height = srcBox.Bottom - srcBox.Top;
 			}

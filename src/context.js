@@ -283,8 +283,26 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			if (dstZ != 0)
 				throw new Error("Invalid destination Z value for 2D textures - must be zero");
 
+			// Validate the source box
+			if (srcBox != null)
+			{
+				let srcArraySlice = Math.floor(srcSubresource / srcDesc.MipLevels);
+				let srcMipSlice = srcSubresource - (srcArraySlice * srcDesc.MipLevels);
+				let div = Math.pow(2, srcMipSlice);
+				let srcMipWidth = Math.max(1, Math.floor(dstDesc.Width / div));
+				let srcMipHeight = Math.max(1, Math.floor(dstDesc.Height / div));
+
+				if (srcBox.Left < 0 || srcBox.Right > srcMipWidth ||
+					srcBox.Top < 0 || srcBox.Bottom > srcMipHeight)
+					throw new Error("Source box extends outside source resource dimensions for mip level " + srcMipSlice);
+			}
+
 			// Bind the source subresource to the read framebuffer
 			this.#BindSubresourceAsReadFramebuffer(srcResource, srcDesc, srcSubresource);
+
+			// Assume the output merger is dirty due to the framebuffer change
+			// TODO: Determine if this is necessary, since it's only change the read buffer?
+			this.#outputMergerDirty = true;
 		}
 		else
 		{
@@ -294,24 +312,40 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// DESTINATION resource and copy -------------
 		if (dstResource instanceof ID3D11Texture2D)
 		{
-			// Actual offsets
-			let x = 0;
-			let y = 0;
-			let width = srcDesc.Width;
-			let height = srcDesc.Height;
-			if (srcBox != null)
-			{
-				x = srcBox.Left;
-				y = srcBox.Top; // TODO: Determine how we flip this!
-				width = srcBox.Right - srcBox.Left;
-				height = srcBox.Bottom - srcBox.Top;
-			}
-
 			// Calculate destination subresource details
 			let dstArraySlice = Math.floor(dstSubresource / dstDesc.MipLevels);
 			let dstMipSlice = dstSubresource - (dstArraySlice * dstDesc.MipLevels);
 			let dstIsArray = dstDesc.ArraySize > 1;
 			let dstIsCubemap = (dstDesc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE;
+
+			// Calculate size of the mip
+			let div = Math.pow(2, dstMipSlice);
+			let dstMipWidth = Math.max(1, Math.floor(dstDesc.Width / div));
+			let dstMipHeight = Math.max(1, Math.floor(dstDesc.Height / div));
+
+			// Actual offsets
+			let x = 0;
+			let y = 0;
+			let width = dstMipWidth;
+			let height = dstMipHeight;
+			if (srcBox != null)
+			{
+				x = srcBox.Left;
+				y = dstMipHeight - srcBox.Bottom; // Flip the Y
+				width = srcBox.Right - srcBox.Left;
+				height = srcBox.Bottom - srcBox.Top;
+
+				// Update the destination location Y, too
+				let dstBottom = dstY + height;
+				dstY = dstMipHeight - dstBottom;
+			}
+
+			// Validate the desintation offsets, too
+			if (dstX < 0 ||
+				dstY < 0 ||
+				dstX + width > dstMipWidth ||
+				dstY + height > dstMipHeight)
+				throw new Error("Destination offset extends outside destination resource dimensions for mip level " + dstMipSlice);
 
 			// Which function for copying
 			if (!dstIsArray || dstIsCubemap)
