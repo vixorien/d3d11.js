@@ -514,6 +514,29 @@
 		}
 
 
+		function writeTGAFile(fileName, pixelData, width, height)
+		{
+			let header = new Uint8Array([
+				0, 0, 2, // No ID field, no color map, image type 2
+				0, 0, 0, 0, 0, // Color map details (none)
+				0, 0, // Image origin X (0) as two bytes
+				0, 0, // Image origin Y (0) as two bytes
+				Math.floor(width % 256), Math.floor(width / 256), // Image width (two bytes)
+				Math.floor(height % 256), Math.floor(height / 256), // Image height (two bytes)
+				32, // Bytes per pixel
+				0x20
+			]);
+
+			let fileBlob = new Blob([header, pixelData], { type: "image/x-targa" });
+			let file = window.URL.createObjectURL(fileBlob);
+
+			let aTag = document.createElement("a");
+			aTag.setAttribute("download", fileName);
+			aTag.href = file;
+			aTag.click();
+
+		}
+
 
 		async function main()
 		{
@@ -817,23 +840,43 @@
 			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS);
 
 
-			// Create a texture for copy testing
-			let copyTexDesc = new D3D11_TEXTURE2D_DESC(256, 256, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, new DXGI_SAMPLE_DESC(1, 0), D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0);
-			let copyTexture = device.CreateTexture2D(copyTexDesc, null);
+			// Create a texture for copy subresource testing
+			//let copyTexDesc = new D3D11_TEXTURE2D_DESC(256, 256, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, new DXGI_SAMPLE_DESC(1, 0), D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0);
+			//let copyTexture = device.CreateTexture2D(copyTexDesc, null);
+			//
+			//let lutResource = lutSRV.GetResource();
+			//context.CopySubresourceRegion(
+			//	copyTexture,
+			//	0,
+			//	0, 0, 0,
+			//	lutResource,
+			//	0,
+			//	new D3D11_BOX(0, 0, 256, 128));
+			//lutResource.Release();
+			//let copySRV = device.CreateShaderResourceView(copyTexture, null);
 
-			let lutResource = lutSRV.GetResource();
-			context.CopySubresourceRegion(
-				copyTexture,
-				0,
-				0, 0, 0,
-				lutResource,
-				0,
-				new D3D11_BOX(0, 0, 256, 128));
-			lutResource.Release();
-			let copySRV = device.CreateShaderResourceView(copyTexture, null);
+			// Create a texture for full resource copy testing
+			let iblSpecRes = iblSpecSRV.GetResource();
+			let iblSpecDesc = iblSpecRes.GetDesc();
+			iblSpecDesc.BindFlags = 0;
+			iblSpecDesc.Usage = D3D11_USAGE_STAGING;
+			iblSpecDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+			let iblSpecCopyTexture = device.CreateTexture2D(iblSpecDesc, null);
 
-			// Use the copy results
-			//lutSRV = copySRV;
+			// Perform the copy and make a new SRV
+			context.CopyResource(iblSpecCopyTexture, iblSpecRes);
+			iblSpecRes.Release(); // Cleanup
+
+			// Perform a readback of the data in one subresource
+			let w = iblSpecDesc.Width;
+			let h = iblSpecDesc.Height;
+			let readbackData = new Uint8Array(w * h * 4);
+			device.ReadFromSubresource(readbackData, iblSpecCopyTexture, 0, null);
+			
+
+			//writeTGAFile("test.tga", readbackData, w, h);
+
+
 
 			// Reset the render target
 			context.OMSetRenderTargets([rtv], depthDSV);

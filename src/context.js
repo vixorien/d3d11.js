@@ -229,6 +229,63 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	}
 
 	/**
+	 * Copies the entirety of a resource to another one, including all subresources.
+	 * 
+	 * @param {ID3D11Resource} dstResource The destination resource
+	 * @param {ID3D11Resource} srcResource The source resource
+	 * 
+	 * @throws {Error}
+	 */
+	CopyResource(dstResource, srcResource)
+	{
+		if (dstResource == srcResource)
+			throw new Error("Cannot copy resource when destination and source are the same resource");
+
+		// Check types
+		if (dstResource instanceof ID3D11Buffer &&
+			srcResource instanceof ID3D11Buffer)
+		{
+			// Do a buffer-to-buffer copy
+			throw new Error("Buffer resource copying not yet implemented!");
+		}
+		else if (
+			dstResource instanceof ID3D11Texture2D &&
+			srcResource instanceof ID3D11Texture2D)
+		{
+			// Validate descriptions match
+			let srcDesc = srcResource.GetDesc();
+			let dstDesc = dstResource.GetDesc();
+
+			if (dstResource.Usage == D3D11_USAGE_IMMUTABLE)
+				throw new Error("Cannot use an immutable resource as a copy destination");
+
+			if (srcDesc.Width != dstDesc.Width ||
+				srcDesc.Height != dstDesc.Height ||
+				srcDesc.ArraySize != dstDesc.ArraySize ||
+				srcDesc.MipLevels != dstDesc.MipLevels)
+				throw new Error("Source and destination resources do not match in size or subresource count");
+
+			if (srcDesc.Format != dstDesc.Format)
+				throw new Error("Source and destination resources have different formats");
+
+			// Loop through all mips of each array slice
+			for (let arrSlice = 0; arrSlice < srcDesc.ArraySize; arrSlice++)
+			{
+				for (let mip = 0; mip < srcDesc.MipLevels; mip++)
+				{
+					// Calculate this subresource index and copy
+					let subresIndex = D3D11CalcSubresource(mip, arrSlice, srcDesc.MipLevels);
+					this.CopySubresourceRegion(dstResource, subresIndex, 0, 0, 0, srcResource, subresIndex, null);
+				}
+			}
+		}
+		else
+		{
+			throw new Error("Resources being copied do not match or are not yet implemented!");
+		}
+	}
+
+	/**
 	 * Copy a region from a source resource to a destination resource
 	 * 
 	 * @param {ID3D11Resource} dstResource The destination resource.

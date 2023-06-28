@@ -568,7 +568,7 @@ class ID3D11Device extends IUnknown
 	 * specific restrictions on the use of this method, here it can be used on any 
 	 * resource denoted as USAGE_STAGING with the CPU_ACCESS_READ flag
 	 * 
-	 * @param {TypedArray} dstData The array to fill with data from the subresource
+	 * @param {TypedArray} dstData The array to fill with data from the subresource.  Note that it must already have enough room for the data being read.
 	 * @param {ID3D11Resource} srcResource The resource from which to read
 	 * @param {Number} srcSubresource The zero-based index of the specific subresource.  Use {@see D3D11CalcSubresource} to calculate.
 	 * @param {D3D11_BOX} srcBox A box that defines a portion of the subresource to read, or null for the entire subresource.  An empty box results in no data being read.
@@ -1350,6 +1350,7 @@ class ID3D11Device extends IUnknown
 		switch (desc.BindFlags)
 		{
 			// These are fine for textures
+			case 0: // Mostly for staging resources
 			case D3D11_BIND_SHADER_RESOURCE:
 			case D3D11_BIND_RENDER_TARGET:
 			case D3D11_BIND_DEPTH_STENCIL:

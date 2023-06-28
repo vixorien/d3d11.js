@@ -1547,7 +1547,7 @@ class ID3D11Device extends IUnknown
 	 * specific restrictions on the use of this method, here it can be used on any 
 	 * resource denoted as USAGE_STAGING with the CPU_ACCESS_READ flag
 	 * 
-	 * @param {TypedArray} dstData The array to fill with data from the subresource
+	 * @param {TypedArray} dstData The array to fill with data from the subresource.  Note that it must already have enough room for the data being read.
 	 * @param {ID3D11Resource} srcResource The resource from which to read
 	 * @param {Number} srcSubresource The zero-based index of the specific subresource.  Use {@see D3D11CalcSubresource} to calculate.
 	 * @param {D3D11_BOX} srcBox A box that defines a portion of the subresource to read, or null for the entire subresource.  An empty box results in no data being read.
@@ -2329,6 +2329,7 @@ class ID3D11Device extends IUnknown
 		switch (desc.BindFlags)
 		{
 			// These are fine for textures
+			case 0: // Mostly for staging resources
 			case D3D11_BIND_SHADER_RESOURCE:
 			case D3D11_BIND_RENDER_TARGET:
 			case D3D11_BIND_DEPTH_STENCIL:
@@ -2651,6 +2652,63 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 		// Actual clear
 		this.#gl.clear(mask);
+	}
+
+	/**
+	 * Copies the entirety of a resource to another one, including all subresources.
+	 * 
+	 * @param {ID3D11Resource} dstResource The destination resource
+	 * @param {ID3D11Resource} srcResource The source resource
+	 * 
+	 * @throws {Error}
+	 */
+	CopyResource(dstResource, srcResource)
+	{
+		if (dstResource == srcResource)
+			throw new Error("Cannot copy resource when destination and source are the same resource");
+
+		// Check types
+		if (dstResource instanceof ID3D11Buffer &&
+			srcResource instanceof ID3D11Buffer)
+		{
+			// Do a buffer-to-buffer copy
+			throw new Error("Buffer resource copying not yet implemented!");
+		}
+		else if (
+			dstResource instanceof ID3D11Texture2D &&
+			srcResource instanceof ID3D11Texture2D)
+		{
+			// Validate descriptions match
+			let srcDesc = srcResource.GetDesc();
+			let dstDesc = dstResource.GetDesc();
+
+			if (dstResource.Usage == D3D11_USAGE_IMMUTABLE)
+				throw new Error("Cannot use an immutable resource as a copy destination");
+
+			if (srcDesc.Width != dstDesc.Width ||
+				srcDesc.Height != dstDesc.Height ||
+				srcDesc.ArraySize != dstDesc.ArraySize ||
+				srcDesc.MipLevels != dstDesc.MipLevels)
+				throw new Error("Source and destination resources do not match in size or subresource count");
+
+			if (srcDesc.Format != dstDesc.Format)
+				throw new Error("Source and destination resources have different formats");
+
+			// Loop through all mips of each array slice
+			for (let arrSlice = 0; arrSlice < srcDesc.ArraySize; arrSlice++)
+			{
+				for (let mip = 0; mip < srcDesc.MipLevels; mip++)
+				{
+					// Calculate this subresource index and copy
+					let subresIndex = D3D11CalcSubresource(mip, arrSlice, srcDesc.MipLevels);
+					this.CopySubresourceRegion(dstResource, subresIndex, 0, 0, 0, srcResource, subresIndex, null);
+				}
+			}
+		}
+		else
+		{
+			throw new Error("Resources being copied do not match or are not yet implemented!");
+		}
 	}
 
 	/**
