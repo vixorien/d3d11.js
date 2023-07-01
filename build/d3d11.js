@@ -261,8 +261,8 @@ const DXGI_FORMAT_R32G32_FLOAT = 16;		// 64-bit, two channel float (for input la
 //const DXGI_FORMAT_R10G10B10A2_UINT = 25;
 //const DXGI_FORMAT_R11G11B10_FLOAT = 26;
 //const DXGI_FORMAT_R8G8B8A8_TYPELESS = 27;
-const DXGI_FORMAT_R8G8B8A8_UNORM = 28;		// Standard 32-bit, 8-per-channel color format
-//const DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29;
+const DXGI_FORMAT_R8G8B8A8_UNORM = 28;		// Default 32-bit, 8-per-channel color format
+const DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29; // 32-bit, 8-per-channel format, using sRGB for gamma conversion
 //const DXGI_FORMAT_R8G8B8A8_UINT = 30;
 //const DXGI_FORMAT_R8G8B8A8_SNORM = 31;
 //const DXGI_FORMAT_R8G8B8A8_SINT = 32;
@@ -721,6 +721,31 @@ class DXGI_SAMPLE_DESC
 	}
 }
 
+/**
+ * Simplified swap chain description, removing a majority of
+ * DXGI/D3D11 parameters that aren't applicable in WebGL
+ */
+class DXGI_SWAP_CHAIN_DESC
+{
+	Width;
+	Height;
+	Format;
+
+	/**
+	 * Creates a new DXGI Swap Chain description
+	 * 
+	 * @param {Number} width The width of the back buffer
+	 * @param {Number} height The height of the back buffer
+	 * @param {any} format The back buffer format, either DXGI_FORMAT_R8G8B8A8_UNORM or DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+	 */
+	constructor(width, height, format = DXGI_FORMAT_R8G8B8A8_UNORM)
+	{
+		this.Width = width;
+		this.Height = height;
+		this.Format = format;
+	}
+}
+
 
 // -----------------------------------------------------
 // ------------------ Other Structures -----------------
@@ -957,10 +982,15 @@ function D3D11CreateDevice(canvas) // Canvas acts as the adapter here
 	return new ID3D11Device(gl);
 }
 
-// TODO: Determine if any params of the actual swap chain desc are useful
-function DXGICreateSwapChain(device)
+/**
+ * Creates a new DXGI Swap Chain for presenting the final frame to the user
+ * 
+ * @param {ID3D11Device} device The ID3D11Device for the swap chain
+ * @param {DXGI_SWAP_CHAIN_DESC} desc A description of the swap chain
+ */
+function DXGICreateSwapChain(device, desc)
 {
-	return new IDXGISwapChain(device);
+	return new IDXGISwapChain(device, desc);
 }
 
 /**
@@ -3991,36 +4021,43 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 class IDXGISwapChain extends IUnknown
 {
+	#desc;
 	#device;
 	#gl;
 	#backBuffer;
 	#finalCopyFramebuffer;
 
 	// TODO: Take in a description to customize back buffer!
-	constructor(device)
+	constructor(device, desc)
 	{
 		super();
+		this.#desc = Object.assign({}, desc); // Copy
 		this.#device = device;
 		this.#gl = device.GetAdapter();
 
-		// Create the "back buffer"
-		let bbDesc = new D3D11_TEXTURE2D_DESC(
-			this.#gl.canvas.width,		// TODO: parameterize?
-			this.#gl.canvas.height,		// TODO: parameterize?
-			1,
-			1,
-			DXGI_FORMAT_R8G8B8A8_UNORM,	// TODO: parameterize!
-			new DXGI_SAMPLE_DESC(1, 0),
-			D3D11_USAGE_DEFAULT,
-			D3D11_BIND_RENDER_TARGET,	// TODO: parameterize!
-			0, 0);
+		// Validate the description
+		if (this.#desc.Width <= 0) throw new Error("Swap Chain width must be greater than zero");
+		if (this.#desc.Height <= 0) throw new Error("Swap Chain height must be greater than zero");
+		if (this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM &&
+			this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+			throw new Error("Invalid Swap Chain format");
 
-		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, null);
+		// Create the back buffer from the description
+		this.#CreateBackBuffer();
 
 		// Create a frame buffer for the final blit on Present()
 		this.#finalCopyFramebuffer = this.#gl.createFramebuffer();
 	}
 
+	/**
+	 * Gets the description of this swap chain
+	 * 
+	 * @returns {DXGI_SWAP_CHAIN_DESC} A copy of the description
+	 * */
+	GetDesc()
+	{
+		return Object.assign({}, this.#desc);
+	}
 
 	GetBuffer()
 	{
@@ -4045,8 +4082,8 @@ class IDXGISwapChain extends IUnknown
 			0);
 
 		// Perform the blit
-		let w = this.#gl.canvas.width;
-		let h = this.#gl.canvas.height;
+		let w = this.#desc.Width;
+		let h = this.#desc.Height;
 		this.#gl.blitFramebuffer(
 			0, 0, w, h, // Source L,T,R,B
 			0, 0, w, h, // Dest L,T,R,B
@@ -4058,6 +4095,7 @@ class IDXGISwapChain extends IUnknown
 		this.#gl.flush();
 	}
 
+
 	Release()
 	{
 		super.Release();
@@ -4068,6 +4106,64 @@ class IDXGISwapChain extends IUnknown
 			this.#gl.deleteFramebuffer(this.#finalCopyFramebuffer);
 		}
 	}
+
+	/**
+	 * Resizes the swap chain back buffer if the parameters differ
+	 * from the existing back buffer
+	 * 
+	 * @param {Number} width The new width
+	 * @param {Number} height The new height
+	 * @param {any} newFormat The new format.  Use DXGI_FORMAT_UNKNOWN to preserve the existing format.
+	 */
+	ResizeBuffers(width, height, newFormat = DXGI_FORMAT_UNKNOWN)
+	{
+		// Preserve format?
+		if (newFormat == DXGI_FORMAT_UNKNOWN)
+			newFormat = this.#desc.Format;
+
+		// Anything to do?
+		if (this.#desc.Width == width &&
+			this.#desc.Height == height &&
+			this.#desc.Format == newFormat)
+			return;
+
+		// Validate the parameters
+		if (width <= 0) throw new Error("Swap Chain width must be greater than zero");
+		if (height <= 0) throw new Error("Swap Chain height must be greater than zero");
+		if (newFormat != DXGI_FORMAT_R8G8B8A8_UNORM &&
+			newFormat != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+			throw new Error("Invalid Swap Chain format");
+
+		// All set, update the description and perform the resize
+		this.#desc.Width = width;
+		this.#desc.Height = height;
+		this.#desc.Format = newFormat;
+
+		// Release the back buffer reference
+		this.#backBuffer.Release();
+		if (this.#backBuffer.GetRef() != 0)
+			throw new Error("One or more outstanding back buffer references exist; cannot resize");
+
+		this.#CreateBackBuffer();
+	}
+
+
+	#CreateBackBuffer()
+	{
+		// Create the "back buffer" description and texture
+		let bbDesc = new D3D11_TEXTURE2D_DESC(
+			this.#desc.Width,
+			this.#desc.Height,
+			1,
+			1,
+			this.#desc.Format,
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_RENDER_TARGET,
+			0, 0);
+		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, null);
+	}
+
 }
 
 

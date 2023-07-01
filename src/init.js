@@ -24,10 +24,15 @@ function D3D11CreateDevice(canvas) // Canvas acts as the adapter here
 	return new ID3D11Device(gl);
 }
 
-// TODO: Determine if any params of the actual swap chain desc are useful
-function DXGICreateSwapChain(device)
+/**
+ * Creates a new DXGI Swap Chain for presenting the final frame to the user
+ * 
+ * @param {ID3D11Device} device The ID3D11Device for the swap chain
+ * @param {DXGI_SWAP_CHAIN_DESC} desc A description of the swap chain
+ */
+function DXGICreateSwapChain(device, desc)
 {
-	return new IDXGISwapChain(device);
+	return new IDXGISwapChain(device, desc);
 }
 
 /**

@@ -346,3 +346,28 @@ class DXGI_SAMPLE_DESC
 		this.Quality = quality;
 	}
 }
+
+/**
+ * Simplified swap chain description, removing a majority of
+ * DXGI/D3D11 parameters that aren't applicable in WebGL
+ */
+class DXGI_SWAP_CHAIN_DESC
+{
+	Width;
+	Height;
+	Format;
+
+	/**
+	 * Creates a new DXGI Swap Chain description
+	 * 
+	 * @param {Number} width The width of the back buffer
+	 * @param {Number} height The height of the back buffer
+	 * @param {any} format The back buffer format, either DXGI_FORMAT_R8G8B8A8_UNORM or DXGI_FORMAT_R8G8B8A8_UNORM_SRGB
+	 */
+	constructor(width, height, format = DXGI_FORMAT_R8G8B8A8_UNORM)
+	{
+		this.Width = width;
+		this.Height = height;
+		this.Format = format;
+	}
+}

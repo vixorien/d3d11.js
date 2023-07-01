@@ -4,11 +4,19 @@
 	<script src="../build/d3d11.js"></script>
 	<script src="../build/d3dmath.js"></script>
 	<script src="../build/input.js"></script>
+
+	<style>
+		#viewport {
+			width: 100vw;
+			height: 100vh;
+			display: block;
+		}
+	</style>
 </head>
 <body style="background-color:#000;">
-	<h1 style="color:#fff;">D3D11.js - Texture Test</h1>
+	<!--<h1 style="color:#fff;">D3D11.js - Texture Test</h1>-->
 
-	<canvas id="viewport" width="800" height="600"></canvas>
+	<canvas id="viewport"></canvas>
 
 	<script>
 		
@@ -534,10 +542,10 @@
 			aTag.setAttribute("download", fileName);
 			aTag.href = file;
 			aTag.click();
-
 		}
 
 
+		
 		async function main()
 		{
 			let postprocessing = false;
@@ -547,24 +555,35 @@
 			// Some quick vars
 			let float32Size = Float32Array.BYTES_PER_ELEMENT;
 
-			// Init the API
+			// Init the API		
 			let device = D3D11CreateDevice(document.querySelector("#viewport"));
 			let context = device.GetImmediateContext();
-			let swapChain = DXGICreateSwapChain(device);
-			
+
 			let gl = device.GetAdapter();
+			gl.canvas.width = gl.canvas.clientWidth;
+			gl.canvas.height = gl.canvas.clientHeight;
+
+			let swapDesc = new DXGI_SWAP_CHAIN_DESC(
+				gl.canvas.clientWidth,
+				gl.canvas.clientHeight,
+				DXGI_FORMAT_R8G8B8A8_UNORM);
+
+			let swapChain = DXGICreateSwapChain(device, swapDesc);
+			
 
 			// Set up initial viewport
 			let viewport = new D3D11_VIEWPORT(0, 0, gl.canvas.width, gl.canvas.height, 0, 1);
 			context.RSSetViewports(viewport);
 
 			// Make an RTV of the back buffer
-			let rtv = device.CreateRenderTargetView(swapChain.GetBuffer(), null);
+			let backBuffer = swapChain.GetBuffer();
+			let rtv = device.CreateRenderTargetView(backBuffer, null);
+			backBuffer.Release();
 
 			// Create a depth buffer
 			let depthDesc = new D3D11_TEXTURE2D_DESC(
-				gl.canvas.width,
-				gl.canvas.height,
+				gl.canvas.clientWidth,
+				gl.canvas.clientHeight,
 				1,
 				1,
 				DXGI_FORMAT_D24_UNORM_S8_UINT,
@@ -577,6 +596,7 @@
 
 			// Default DSV
 			let depthDSV = device.CreateDepthStencilView(depthBuffer, null);
+			depthBuffer.Release();
 
 			// Set the targets
 			context.OMSetRenderTargets([rtv], depthDSV);
@@ -953,8 +973,54 @@
 				}
 			}
 
+			function checkForResize()
+			{
+				// Has the window changed size?
+				if (gl.canvas.width != gl.canvas.clientWidth ||
+					gl.canvas.height != gl.canvas.clientHeight)
+				{
+					// Need to resize, so first release all references
+					rtv.Release(); // Back buffer
+					depthDSV.Release(); // Depth buffer
+
+					// Ask the swap chain to resize and update the canvas
+					gl.canvas.width = gl.canvas.clientWidth;
+					gl.canvas.height = gl.canvas.clientHeight;
+					swapChain.ResizeBuffers(gl.canvas.clientWidth, gl.canvas.clientHeight);
+
+					// Make new RTV
+					let bb = swapChain.GetBuffer();
+					rtv = device.CreateRenderTargetView(bb, null);
+					bb.Release();
+
+					// Make new depth buffer
+					let depthDesc = new D3D11_TEXTURE2D_DESC(
+						gl.canvas.clientWidth,
+						gl.canvas.clientHeight,
+						1,
+						1,
+						DXGI_FORMAT_D24_UNORM_S8_UINT,
+						new DXGI_SAMPLE_DESC(1, 0),
+						D3D11_USAGE_DEFAULT,
+						D3D11_BIND_DEPTH_STENCIL,
+						0,
+						0);
+					let depthBuffer = device.CreateTexture2D(depthDesc, null);
+
+					// Default DSV
+					depthDSV = device.CreateDepthStencilView(depthBuffer, null);
+					depthBuffer.Release();
+
+					// Set the new views
+					context.OMSetRenderTargets([rtv], depthDSV);
+				}
+			}
+
+
 			function draw(time)
 			{
+				checkForResize();
+
 				// Set up post processing
 				if (postprocessing)
 				{
