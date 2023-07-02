@@ -6,6 +6,9 @@
 	<script src="../build/input.js"></script>
 
 	<style>
+		body {
+			margin: 0;
+		}
 		#viewport {
 			width: 100vw;
 			height: 100vh;
@@ -572,7 +575,7 @@
 			
 
 			// Set up initial viewport
-			let viewport = new D3D11_VIEWPORT(0, 0, gl.canvas.width, gl.canvas.height, 0, 1);
+			let viewport = new D3D11_VIEWPORT(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight, 0, 1);
 			context.RSSetViewports(viewport);
 
 			// Make an RTV of the back buffer
@@ -1013,6 +1016,7 @@
 
 					// Set the new views
 					context.OMSetRenderTargets([rtv], depthDSV);
+					console.log("RESIZE DONE");
 				}
 			}
 
@@ -1020,7 +1024,7 @@
 			function draw(time)
 			{
 				checkForResize();
-
+				
 				// Set up post processing
 				if (postprocessing)
 				{
@@ -1040,7 +1044,7 @@
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
 				context.ClearRenderTargetView(rtv, black);
 				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
-
+				
 				// Sphere draws
 				{
 					// Swap to sphere buffers
@@ -1073,7 +1077,7 @@
 						context.DrawIndexed(sphereIndexCount, 0, 0);
 					}
 				}
-
+				
 				// Pipeline for next several draws
 				context.VSSetShader(vs);
 				context.PSSetShader(ps);
