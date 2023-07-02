@@ -39,10 +39,19 @@ class ID3D11Device extends IUnknown
 		return this.#anisoExt;
 	}
 
+	/**
+	 * Gets the immediate context, which is used for issuing rendering commands.
+	 * Note that this method will increment the reference count of the context by
+	 * one each time, so that reference should be released when you are done with it.
+	 * 
+	 * @returns {ID3D11DeviceContext} The rendering context
+	 */
 	GetImmediateContext()
 	{
 		if (this.#immediateContext == null)
 			this.#immediateContext = new ID3D11DeviceContext(this);
+		else
+			this.#immediateContext.AddRef();
 
 		return this.#immediateContext;
 	}

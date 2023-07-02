@@ -729,8 +729,8 @@
 				0, 0);
 			let vsCB = device.CreateBuffer(vsCBDesc, null);
 
-			
-			let aspectRatio = gl.canvas.width / gl.canvas.height;
+
+			let aspectRatio = gl.canvas.clientWidth / gl.canvas.clientHeight;
 
 			// Camera
 			let cameraPosition = new Vector3(0, 0, -10);
@@ -1016,6 +1016,16 @@
 
 					// Set the new views
 					context.OMSetRenderTargets([rtv], depthDSV);
+
+					// Update aspect ratio and camera
+					aspectRatio = gl.canvas.clientWidth / gl.canvas.clientHeight;
+					pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, aspectRatio, 0.01, 100);
+					vsData.set(pMat, 32);
+
+					// Update  viewport, too
+					viewport.Width = gl.canvas.clientWidth;
+					viewport.Height = gl.canvas.clientHeight;
+					context.RSSetViewports(viewport);
 				}
 			}
 

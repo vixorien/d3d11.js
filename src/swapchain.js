@@ -52,6 +52,11 @@ class IDXGISwapChain extends IUnknown
 	// Blit from the back buffer to the default frame buffer
 	Present()
 	{
+		// Detach everything from the current READ framebuffer, as this
+		// tends to mess with a potentially newly-resized back buffer
+		// TODO: Simplify this so we're not making assumptions about what is/is not bound!
+		this.#DetachReadFramebuffers();
+
 		// Bind the default frame buffer (null) to the DRAW buffer
 		// and the back buffer as the READ buffer
 		this.#gl.bindFramebuffer(this.#gl.DRAW_FRAMEBUFFER, null);
@@ -73,7 +78,6 @@ class IDXGISwapChain extends IUnknown
 			0, 0, w, h, // Dest L,T,R,B
 			this.#gl.COLOR_BUFFER_BIT, // Colors only
 			this.#gl.NEAREST); // No interpolation
-		// TODO: Determine if interpolation (LINEAR) makes sense here
 
 		// Flush (not strictly necessary)
 		this.#gl.flush();
@@ -128,6 +132,7 @@ class IDXGISwapChain extends IUnknown
 		if (this.#backBuffer.GetRef() != 0)
 			throw new Error("One or more outstanding back buffer references exist; cannot resize");
 
+		// Everything checks out, so create the back buffer
 		this.#CreateBackBuffer();
 	}
 
@@ -148,4 +153,58 @@ class IDXGISwapChain extends IUnknown
 		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, null);
 	}
 
+
+	#DetachReadFramebuffers()
+	{
+		this.#gl.framebufferTexture2D(
+			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.COLOR_ATTACHMENT0,
+			this.#gl.TEXTURE_2D,
+			null,
+			0);
+		this.#gl.framebufferTexture2D(
+			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.DEPTH_ATTACHMENT,
+			this.#gl.TEXTURE_2D,
+			null,
+			0);
+		this.#gl.framebufferTexture2D(
+			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.DEPTH_STENCIL_ATTACHMENT,
+			this.#gl.TEXTURE_2D,
+			null,
+			0);
+
+	}
+
+	// JUST FOR TESTING - WILL REMOVE
+	#EnumerateFramebufferAttachments()
+	{
+		let attachNames = ["Color", "Depth", "DepthStencil"];
+		let attachments = [
+			this.#gl.COLOR_ATTACHMENT0,
+			this.#gl.DEPTH_ATTACHMENT,
+			this.#gl.DEPTH_STENCIL_ATTACHMENT
+		];
+
+		let targetNames = ["Read", "Draw"];
+		let targets = [this.#gl.READ_FRAMEBUFFER, this.#gl.DRAW_FRAMEBUFFER];
+
+		for (let t = 0; t < targets.length; t++)
+		{
+			for (let a = 0; a < attachments.length; a++)
+			{
+				let param = this.#gl.getFramebufferAttachmentParameter(
+					targets[t],
+					attachments[a],
+					this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+
+				console.log("Target: " + targetNames[t] + " | Attachment: " + attachNames[a]);
+				console.log(param);
+				console.log(" ");
+			}
+		}
+
+		console.log("---");
+	}
 }
