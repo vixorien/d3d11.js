@@ -548,6 +548,39 @@
 		}
 
 
+		function writePNGFile(fileName, pixelData, width, height)
+		{
+			// Create a canvas element with the proper size
+			let canvas = document.createElement("canvas");
+			let canvasContext = canvas.getContext("2d");
+			let imageData = canvasContext.createImageData(width, height);
+
+			// Copy data to the canvas image
+			// Need to flip the Y axis!
+			let pixelWidth = width * 4;
+			for (let y = 0; y < height; y++)
+			{
+				let flippedY = height - y - 1;
+				for (let x = 0; x < width * 4; x++)
+				{
+					let readIndex = x + y * pixelWidth;
+					let writeIndex = x + flippedY * pixelWidth;
+
+					imageData.data[writeIndex] = pixelData[readIndex];
+				}
+			}
+
+			// Put the data into the canvas
+			canvas.width = width;
+			canvas.height = height;
+			canvasContext.putImageData(imageData, 0, 0);
+
+			let aTag = document.createElement("a");
+			aTag.setAttribute("download", fileName);
+			aTag.href = canvas.toDataURL("image/png");
+			aTag.click();
+		}
+
 		
 		async function main()
 		{
@@ -898,7 +931,7 @@
 			
 
 			//writeTGAFile("test.tga", readbackData, w, h);
-
+			//writePNGFile("test.png", readbackData, w, h);
 
 
 			// Reset the render target
