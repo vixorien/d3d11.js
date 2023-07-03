@@ -1017,6 +1017,8 @@ class ID3D11Device extends IUnknown
 	#gl;
 	#immediateContext;
 	#anisoExt;
+	#readbackFramebuffer;
+	#backBufferFramebuffer;
 
 	constructor(gl)
 	{
@@ -1024,6 +1026,10 @@ class ID3D11Device extends IUnknown
 
 		this.#gl = gl;
 		this.#immediateContext = null;
+
+		// TODO: Delete these on release
+		this.#readbackFramebuffer = this.#gl.createFramebuffer();
+		this.#backBufferFramebuffer = this.#gl.createFramebuffer();
 
 		// Attempt to load the anisotropic extension
 		this.#anisoExt =
@@ -1046,6 +1052,12 @@ class ID3D11Device extends IUnknown
 	GetAnisoExt()
 	{
 		return this.#anisoExt;
+	}
+
+	// Not to spec, but I want ONE of these that both the context and the swapchain can use
+	GetBackBufferFramebuffer()
+	{
+		return this.#backBufferFramebuffer;
 	}
 
 	/**
@@ -1654,6 +1666,9 @@ class ID3D11Device extends IUnknown
 			//       the READ framebuffer and not the whole thing
 			// TODO: Optimize this to only mark Output Merger dirty?
 			this.#immediateContext.DirtyPipeline();
+
+			// Bind the readback framebuffer
+			this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, this.#readbackFramebuffer);
 
 			// If this is a texture array (and not a cube map), we
 			// need to use a different function for binding
@@ -2473,7 +2488,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#gl;
 
 	// General pipeline ---
-	#fakeBackBufferFrameBuffer;
+	#backBufferFramebuffer;
+	#readbackFrameBuffer;
 
 	// General shaders ---
 	#maxCombinedTextures;
@@ -2542,8 +2558,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#gl.enable(this.#gl.DEPTH_TEST);
 
 		// General
-		this.#fakeBackBufferFrameBuffer = this.#gl.createFramebuffer();
-		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
+		this.#backBufferFramebuffer = device.GetBackBufferFramebuffer();
+		this.#readbackFrameBuffer = this.#gl.createFramebuffer();
 
 		// General shaders
 		this.#shaderProgramMap = new Map();
@@ -2643,7 +2659,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			throw new Error("Invalid RenderTargetView for clear");
 
 		// Bind the RTV
-		this.#BindFakeFramebuffer();
+		this.#BindBackBufferFramebuffer();
 		this.#BindRenderTargets([renderTargetView]);
 
 		// TODO: Turn off scissor and buffer write masks, as
@@ -2668,7 +2684,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			return;
 
 		// Bind the depth stencil
-		this.#BindFakeFramebuffer();
+		this.#BindBackBufferFramebuffer();
 		this.#BindDepthStencil(depthStencilView);
 
 		// TODO: Turn off scissor and buffer write masks, as
@@ -2818,13 +2834,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 					srcBox.Top < 0 || srcBox.Bottom > srcMipHeight)
 					throw new Error("Source box extends outside source resource dimensions for mip level " + srcMipSlice);
 			}
-
-			// Bind the source subresource to the read framebuffer
-			this.#BindSubresourceAsReadFramebuffer(srcResource, srcDesc, srcSubresource);
-
-			// Assume the output merger is dirty due to the framebuffer change
-			// TODO: Determine if this is necessary, since it's only change the read buffer?
-			this.#outputMergerDirty = true;
 		}
 		else
 		{
@@ -2869,6 +2878,17 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				dstY + height > dstMipHeight)
 				throw new Error("Destination offset extends outside destination resource dimensions for mip level " + dstMipSlice);
 
+			// Validate cube map array slice
+			if (dstIsCubemap && (dstArraySlice < 0 || dstArraySlice >= 6))
+				throw new Error("Invalid subresource for cube map copying");
+
+			// Should be all good, so actually bind the framebuffer
+			this.#BindSubresourceAsReadFramebuffer(srcResource, srcDesc, srcSubresource);
+
+			// Assume the output merger is dirty due to the framebuffer change
+			// TODO: Determine if this is necessary, since it's only changing the read buffer?
+			this.#outputMergerDirty = true;
+
 			// Which function for copying
 			if (!dstIsArray || dstIsCubemap)
 			{
@@ -2884,7 +2904,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 						case 3: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y; break; // FLIP Y!
 						case 4: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Z; break;
 						case 5: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z; break;
-						default: throw new Error("Invalid subresource for cube map copying");
 					}
 
 					// Also bind as a cube map target
@@ -2939,6 +2958,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	#BindSubresourceAsReadFramebuffer(resource, desc, subresource)
 	{
+		// Set up the read framebuffer
+		this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, this.#readbackFrameBuffer);
+
 		// Calculate subresource details from indices
 		let arraySlice = Math.floor(subresource / desc.MipLevels);
 		let mipSlice = subresource - (arraySlice * desc.MipLevels);
@@ -3713,6 +3735,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	}
 
 	// TODO: Split Render Target and DS state dirty flags?
+	// TODO: Move framebuffer binding above dirty flag so it's ALWAYS set each draw?
 	#PrepareOutputMerger()
 	{
 		if (!this.#outputMergerDirty)
@@ -3746,7 +3769,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Ensure the framebuffer is bound first
-		this.#BindFakeFramebuffer();
+		this.#BindBackBufferFramebuffer();
 
 		// Bind the render target and depth buffer as necessary
 		this.#BindRenderTargets(this.#renderTargetViews);
@@ -3756,10 +3779,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#outputMergerDirty = false;
 	}
 
-	#BindFakeFramebuffer()
+	#BindBackBufferFramebuffer()
 	{
-		// NOTE: Removed getParam() check due to "best practices" advice
-		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
+		// Remove from the read framebuffer just in case
+		this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, null);
+		this.#gl.bindFramebuffer(this.#gl.DRAW_FRAMEBUFFER, this.#backBufferFramebuffer);
 	}
 
 	// TODO: Handle texture vs. render buffer
@@ -3801,7 +3825,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 				// Bind the proper cube face
 				this.#gl.framebufferTexture2D(
-					this.#gl.FRAMEBUFFER,
+					this.#gl.DRAW_FRAMEBUFFER,
 					this.#gl.COLOR_ATTACHMENT0,
 					glTarget,
 					rtvResource.GetGLResource(),
@@ -3811,7 +3835,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			{
 				// Texture2D Array resource, so we need a different GL function
 				this.#gl.framebufferTextureLayer(
-					this.#gl.FRAMEBUFFER,
+					this.#gl.DRAW_FRAMEBUFFER,
 					this.#gl.COLOR_ATTACHMENT0,
 					rtvResource.GetGLResource(),
 					viewDesc.MipSlice,
@@ -3821,7 +3845,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			{
 				// Just a standard (non-array) Texture2D
 				this.#gl.framebufferTexture2D(
-					this.#gl.FRAMEBUFFER,
+					this.#gl.DRAW_FRAMEBUFFER,
 					this.#gl.COLOR_ATTACHMENT0,
 					this.#gl.TEXTURE_2D,
 					rtvResource.GetGLResource(),
@@ -3840,7 +3864,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			// Unbind depth/stencil
 			this.#gl.framebufferTexture2D(
-				this.#gl.FRAMEBUFFER,
+				this.#gl.DRAW_FRAMEBUFFER,
 				this.#gl.DEPTH_STENCIL_ATTACHMENT,
 				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
 				null,
@@ -3848,7 +3872,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 			// Unbind just depth, too (just in case)
 			this.#gl.framebufferTexture2D(
-				this.#gl.FRAMEBUFFER,
+				this.#gl.DRAW_FRAMEBUFFER,
 				this.#gl.DEPTH_ATTACHMENT,
 				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
 				null,
@@ -3867,7 +3891,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			{
 				// Unbind the combined depth/stencil just in case
 				this.#gl.framebufferTexture2D(
-					this.#gl.FRAMEBUFFER,
+					this.#gl.DRAW_FRAMEBUFFER,
 					this.#gl.DEPTH_STENCIL_ATTACHMENT,
 					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
 					null,
@@ -3876,7 +3900,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 			// Bind the depth texture
 			this.#gl.framebufferTexture2D(
-				this.#gl.FRAMEBUFFER,
+				this.#gl.DRAW_FRAMEBUFFER,
 				attach,
 				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
 				dsvResource.GetGLResource(),
@@ -4034,9 +4058,9 @@ class IDXGISwapChain extends IUnknown
 	#device;
 	#gl;
 	#backBuffer;
-	#finalCopyFramebuffer;
+	#backBufferFramebuffer;
 
-	// TODO: Take in a description to customize back buffer!
+	
 	constructor(device, desc)
 	{
 		super();
@@ -4054,40 +4078,44 @@ class IDXGISwapChain extends IUnknown
 		// Create the back buffer from the description
 		this.#CreateBackBuffer();
 
-		// Create a frame buffer for the final blit on Present()
-		this.#finalCopyFramebuffer = this.#gl.createFramebuffer();
+		// Grab the singular back buffer frame buffer from the device,
+		// so we can clean it up properly (detach depth/stencil) on
+		// a resize
+		this.#backBufferFramebuffer = device.GetBackBufferFramebuffer();
+		
 	}
 
 	/**
 	 * Gets the description of this swap chain
 	 * 
 	 * @returns {DXGI_SWAP_CHAIN_DESC} A copy of the description
-	 * */
+	 */
 	GetDesc()
 	{
 		return Object.assign({}, this.#desc);
 	}
 
+	/**
+	 * Gets the swap chain's back buffer.  Note that a reference
+	 * will be added to the back buffer object each time this is called.
+	 * 
+	 * @returns {ID3D11Texture2D} The swap chain's back buffer 
+	 */
 	GetBuffer()
 	{
 		this.#backBuffer.AddRef();
 		return this.#backBuffer;
 	}
 
+
 	// Blit from the back buffer to the default frame buffer
 	Present()
 	{
-		// Detach everything from the current READ framebuffer, as this
-		// tends to mess with a potentially newly-resized back buffer
-		// TODO: Simplify this so we're not making assumptions about what is/is not bound!
-		this.#DetachReadFramebuffers();
-
-		// Bind the default frame buffer (null) to the DRAW buffer
-		// and the back buffer as the READ buffer
-		this.#gl.bindFramebuffer(this.#gl.DRAW_FRAMEBUFFER, null);
-		this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, this.#finalCopyFramebuffer);
-
-		// Attach the back buffer to the read frame buffer
+		// Set the "real" back buffer as the draw framebuffer
+		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, null);
+		
+		// Bind the "fake" back buffer to the read framebuffer for a blit
+		this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, this.#backBufferFramebuffer);
 		this.#gl.framebufferTexture2D(
 			this.#gl.READ_FRAMEBUFFER,
 			this.#gl.COLOR_ATTACHMENT0,
@@ -4116,7 +4144,6 @@ class IDXGISwapChain extends IUnknown
 		if (this.GetRef() <= 0)
 		{
 			this.#backBuffer.Release();
-			this.#gl.deleteFramebuffer(this.#finalCopyFramebuffer);
 		}
 	}
 
@@ -4157,7 +4184,11 @@ class IDXGISwapChain extends IUnknown
 		if (this.#backBuffer.GetRef() != 0)
 			throw new Error("One or more outstanding back buffer references exist; cannot resize");
 
-		// Everything checks out, so create the back buffer
+		// We're good, so unbind ALL textures from the back buffer framebuffer
+		// since (presumably) the depth/stencil sizes will eventually change, too
+		this.#DetachBackBufferFramebuffer();
+
+		// Everything checks out, so create the new back buffer
 		this.#CreateBackBuffer();
 	}
 
@@ -4178,23 +4209,29 @@ class IDXGISwapChain extends IUnknown
 		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, null);
 	}
 
-
-	#DetachReadFramebuffers()
+	/**
+	 * Detaches color and depth/stencil attachments
+	 * from our "fake back buffer" framebuffer, usually
+	 * after a resize given that the other buffers will
+	 * presumably be resized at some point, too.
+	 */
+	#DetachBackBufferFramebuffer()
 	{
+		this.#gl.bindFramebuffer(this.#gl.DRAW_FRAMEBUFFER, this.#backBufferFramebuffer);
 		this.#gl.framebufferTexture2D(
-			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.DRAW_FRAMEBUFFER,
 			this.#gl.COLOR_ATTACHMENT0,
 			this.#gl.TEXTURE_2D,
 			null,
 			0);
 		this.#gl.framebufferTexture2D(
-			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.DRAW_FRAMEBUFFER,
 			this.#gl.DEPTH_ATTACHMENT,
 			this.#gl.TEXTURE_2D,
 			null,
 			0);
 		this.#gl.framebufferTexture2D(
-			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.DRAW_FRAMEBUFFER,
 			this.#gl.DEPTH_STENCIL_ATTACHMENT,
 			this.#gl.TEXTURE_2D,
 			null,
@@ -4214,15 +4251,23 @@ class IDXGISwapChain extends IUnknown
 
 		let targetNames = ["Read", "Draw"];
 		let targets = [this.#gl.READ_FRAMEBUFFER, this.#gl.DRAW_FRAMEBUFFER];
+		let targetBindings = [this.#gl.READ_FRAMEBUFFER_BINDING, this.#gl.DRAW_FRAMEBUFFER_BINDING];
 
 		for (let t = 0; t < targets.length; t++)
 		{
+			// Get the current binding to check for validity (default backbuffer == null)
+			let binding = this.#gl.getParameter(targetBindings[t]);
+
 			for (let a = 0; a < attachments.length; a++)
 			{
-				let param = this.#gl.getFramebufferAttachmentParameter(
-					targets[t],
-					attachments[a],
-					this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+				let param = "NULL";
+				if (binding != null)
+				{
+					param = this.#gl.getFramebufferAttachmentParameter(
+						targets[t],
+						attachments[a],
+						this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+				}
 
 				console.log("Target: " + targetNames[t] + " | Attachment: " + attachNames[a]);
 				console.log(param);

@@ -9,9 +9,9 @@ class IDXGISwapChain extends IUnknown
 	#device;
 	#gl;
 	#backBuffer;
-	#finalCopyFramebuffer;
+	#backBufferFramebuffer;
 
-	// TODO: Take in a description to customize back buffer!
+	
 	constructor(device, desc)
 	{
 		super();
@@ -29,40 +29,44 @@ class IDXGISwapChain extends IUnknown
 		// Create the back buffer from the description
 		this.#CreateBackBuffer();
 
-		// Create a frame buffer for the final blit on Present()
-		this.#finalCopyFramebuffer = this.#gl.createFramebuffer();
+		// Grab the singular back buffer frame buffer from the device,
+		// so we can clean it up properly (detach depth/stencil) on
+		// a resize
+		this.#backBufferFramebuffer = device.GetBackBufferFramebuffer();
+		
 	}
 
 	/**
 	 * Gets the description of this swap chain
 	 * 
 	 * @returns {DXGI_SWAP_CHAIN_DESC} A copy of the description
-	 * */
+	 */
 	GetDesc()
 	{
 		return Object.assign({}, this.#desc);
 	}
 
+	/**
+	 * Gets the swap chain's back buffer.  Note that a reference
+	 * will be added to the back buffer object each time this is called.
+	 * 
+	 * @returns {ID3D11Texture2D} The swap chain's back buffer 
+	 */
 	GetBuffer()
 	{
 		this.#backBuffer.AddRef();
 		return this.#backBuffer;
 	}
 
+
 	// Blit from the back buffer to the default frame buffer
 	Present()
 	{
-		// Detach everything from the current READ framebuffer, as this
-		// tends to mess with a potentially newly-resized back buffer
-		// TODO: Simplify this so we're not making assumptions about what is/is not bound!
-		this.#DetachReadFramebuffers();
-
-		// Bind the default frame buffer (null) to the DRAW buffer
-		// and the back buffer as the READ buffer
-		this.#gl.bindFramebuffer(this.#gl.DRAW_FRAMEBUFFER, null);
-		this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, this.#finalCopyFramebuffer);
-
-		// Attach the back buffer to the read frame buffer
+		// Set the "real" back buffer as the draw framebuffer
+		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, null);
+		
+		// Bind the "fake" back buffer to the read framebuffer for a blit
+		this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, this.#backBufferFramebuffer);
 		this.#gl.framebufferTexture2D(
 			this.#gl.READ_FRAMEBUFFER,
 			this.#gl.COLOR_ATTACHMENT0,
@@ -91,7 +95,6 @@ class IDXGISwapChain extends IUnknown
 		if (this.GetRef() <= 0)
 		{
 			this.#backBuffer.Release();
-			this.#gl.deleteFramebuffer(this.#finalCopyFramebuffer);
 		}
 	}
 
@@ -132,7 +135,11 @@ class IDXGISwapChain extends IUnknown
 		if (this.#backBuffer.GetRef() != 0)
 			throw new Error("One or more outstanding back buffer references exist; cannot resize");
 
-		// Everything checks out, so create the back buffer
+		// We're good, so unbind ALL textures from the back buffer framebuffer
+		// since (presumably) the depth/stencil sizes will eventually change, too
+		this.#DetachBackBufferFramebuffer();
+
+		// Everything checks out, so create the new back buffer
 		this.#CreateBackBuffer();
 	}
 
@@ -153,23 +160,29 @@ class IDXGISwapChain extends IUnknown
 		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, null);
 	}
 
-
-	#DetachReadFramebuffers()
+	/**
+	 * Detaches color and depth/stencil attachments
+	 * from our "fake back buffer" framebuffer, usually
+	 * after a resize given that the other buffers will
+	 * presumably be resized at some point, too.
+	 */
+	#DetachBackBufferFramebuffer()
 	{
+		this.#gl.bindFramebuffer(this.#gl.DRAW_FRAMEBUFFER, this.#backBufferFramebuffer);
 		this.#gl.framebufferTexture2D(
-			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.DRAW_FRAMEBUFFER,
 			this.#gl.COLOR_ATTACHMENT0,
 			this.#gl.TEXTURE_2D,
 			null,
 			0);
 		this.#gl.framebufferTexture2D(
-			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.DRAW_FRAMEBUFFER,
 			this.#gl.DEPTH_ATTACHMENT,
 			this.#gl.TEXTURE_2D,
 			null,
 			0);
 		this.#gl.framebufferTexture2D(
-			this.#gl.READ_FRAMEBUFFER,
+			this.#gl.DRAW_FRAMEBUFFER,
 			this.#gl.DEPTH_STENCIL_ATTACHMENT,
 			this.#gl.TEXTURE_2D,
 			null,
@@ -189,15 +202,23 @@ class IDXGISwapChain extends IUnknown
 
 		let targetNames = ["Read", "Draw"];
 		let targets = [this.#gl.READ_FRAMEBUFFER, this.#gl.DRAW_FRAMEBUFFER];
+		let targetBindings = [this.#gl.READ_FRAMEBUFFER_BINDING, this.#gl.DRAW_FRAMEBUFFER_BINDING];
 
 		for (let t = 0; t < targets.length; t++)
 		{
+			// Get the current binding to check for validity (default backbuffer == null)
+			let binding = this.#gl.getParameter(targetBindings[t]);
+
 			for (let a = 0; a < attachments.length; a++)
 			{
-				let param = this.#gl.getFramebufferAttachmentParameter(
-					targets[t],
-					attachments[a],
-					this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+				let param = "NULL";
+				if (binding != null)
+				{
+					param = this.#gl.getFramebufferAttachmentParameter(
+						targets[t],
+						attachments[a],
+						this.#gl.FRAMEBUFFER_ATTACHMENT_OBJECT_NAME);
+				}
 
 				console.log("Target: " + targetNames[t] + " | Attachment: " + attachNames[a]);
 				console.log(param);

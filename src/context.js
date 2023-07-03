@@ -8,7 +8,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	#gl;
 
 	// General pipeline ---
-	#fakeBackBufferFrameBuffer;
+	#backBufferFramebuffer;
+	#readbackFrameBuffer;
 
 	// General shaders ---
 	#maxCombinedTextures;
@@ -77,8 +78,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#gl.enable(this.#gl.DEPTH_TEST);
 
 		// General
-		this.#fakeBackBufferFrameBuffer = this.#gl.createFramebuffer();
-		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
+		this.#backBufferFramebuffer = device.GetBackBufferFramebuffer();
+		this.#readbackFrameBuffer = this.#gl.createFramebuffer();
 
 		// General shaders
 		this.#shaderProgramMap = new Map();
@@ -178,7 +179,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			throw new Error("Invalid RenderTargetView for clear");
 
 		// Bind the RTV
-		this.#BindFakeFramebuffer();
+		this.#BindBackBufferFramebuffer();
 		this.#BindRenderTargets([renderTargetView]);
 
 		// TODO: Turn off scissor and buffer write masks, as
@@ -203,7 +204,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			return;
 
 		// Bind the depth stencil
-		this.#BindFakeFramebuffer();
+		this.#BindBackBufferFramebuffer();
 		this.#BindDepthStencil(depthStencilView);
 
 		// TODO: Turn off scissor and buffer write masks, as
@@ -353,13 +354,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 					srcBox.Top < 0 || srcBox.Bottom > srcMipHeight)
 					throw new Error("Source box extends outside source resource dimensions for mip level " + srcMipSlice);
 			}
-
-			// Bind the source subresource to the read framebuffer
-			this.#BindSubresourceAsReadFramebuffer(srcResource, srcDesc, srcSubresource);
-
-			// Assume the output merger is dirty due to the framebuffer change
-			// TODO: Determine if this is necessary, since it's only change the read buffer?
-			this.#outputMergerDirty = true;
 		}
 		else
 		{
@@ -404,6 +398,17 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				dstY + height > dstMipHeight)
 				throw new Error("Destination offset extends outside destination resource dimensions for mip level " + dstMipSlice);
 
+			// Validate cube map array slice
+			if (dstIsCubemap && (dstArraySlice < 0 || dstArraySlice >= 6))
+				throw new Error("Invalid subresource for cube map copying");
+
+			// Should be all good, so actually bind the framebuffer
+			this.#BindSubresourceAsReadFramebuffer(srcResource, srcDesc, srcSubresource);
+
+			// Assume the output merger is dirty due to the framebuffer change
+			// TODO: Determine if this is necessary, since it's only changing the read buffer?
+			this.#outputMergerDirty = true;
+
 			// Which function for copying
 			if (!dstIsArray || dstIsCubemap)
 			{
@@ -419,7 +424,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 						case 3: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Y; break; // FLIP Y!
 						case 4: target = this.#gl.TEXTURE_CUBE_MAP_POSITIVE_Z; break;
 						case 5: target = this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z; break;
-						default: throw new Error("Invalid subresource for cube map copying");
 					}
 
 					// Also bind as a cube map target
@@ -474,6 +478,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	#BindSubresourceAsReadFramebuffer(resource, desc, subresource)
 	{
+		// Set up the read framebuffer
+		this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, this.#readbackFrameBuffer);
+
 		// Calculate subresource details from indices
 		let arraySlice = Math.floor(subresource / desc.MipLevels);
 		let mipSlice = subresource - (arraySlice * desc.MipLevels);
@@ -1248,6 +1255,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	}
 
 	// TODO: Split Render Target and DS state dirty flags?
+	// TODO: Move framebuffer binding above dirty flag so it's ALWAYS set each draw?
 	#PrepareOutputMerger()
 	{
 		if (!this.#outputMergerDirty)
@@ -1281,7 +1289,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Ensure the framebuffer is bound first
-		this.#BindFakeFramebuffer();
+		this.#BindBackBufferFramebuffer();
 
 		// Bind the render target and depth buffer as necessary
 		this.#BindRenderTargets(this.#renderTargetViews);
@@ -1291,10 +1299,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#outputMergerDirty = false;
 	}
 
-	#BindFakeFramebuffer()
+	#BindBackBufferFramebuffer()
 	{
-		// NOTE: Removed getParam() check due to "best practices" advice
-		this.#gl.bindFramebuffer(this.#gl.FRAMEBUFFER, this.#fakeBackBufferFrameBuffer);
+		// Remove from the read framebuffer just in case
+		this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, null);
+		this.#gl.bindFramebuffer(this.#gl.DRAW_FRAMEBUFFER, this.#backBufferFramebuffer);
 	}
 
 	// TODO: Handle texture vs. render buffer
@@ -1336,7 +1345,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 				// Bind the proper cube face
 				this.#gl.framebufferTexture2D(
-					this.#gl.FRAMEBUFFER,
+					this.#gl.DRAW_FRAMEBUFFER,
 					this.#gl.COLOR_ATTACHMENT0,
 					glTarget,
 					rtvResource.GetGLResource(),
@@ -1346,7 +1355,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			{
 				// Texture2D Array resource, so we need a different GL function
 				this.#gl.framebufferTextureLayer(
-					this.#gl.FRAMEBUFFER,
+					this.#gl.DRAW_FRAMEBUFFER,
 					this.#gl.COLOR_ATTACHMENT0,
 					rtvResource.GetGLResource(),
 					viewDesc.MipSlice,
@@ -1356,7 +1365,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			{
 				// Just a standard (non-array) Texture2D
 				this.#gl.framebufferTexture2D(
-					this.#gl.FRAMEBUFFER,
+					this.#gl.DRAW_FRAMEBUFFER,
 					this.#gl.COLOR_ATTACHMENT0,
 					this.#gl.TEXTURE_2D,
 					rtvResource.GetGLResource(),
@@ -1375,7 +1384,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			// Unbind depth/stencil
 			this.#gl.framebufferTexture2D(
-				this.#gl.FRAMEBUFFER,
+				this.#gl.DRAW_FRAMEBUFFER,
 				this.#gl.DEPTH_STENCIL_ATTACHMENT,
 				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
 				null,
@@ -1383,7 +1392,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 			// Unbind just depth, too (just in case)
 			this.#gl.framebufferTexture2D(
-				this.#gl.FRAMEBUFFER,
+				this.#gl.DRAW_FRAMEBUFFER,
 				this.#gl.DEPTH_ATTACHMENT,
 				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
 				null,
@@ -1402,7 +1411,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			{
 				// Unbind the combined depth/stencil just in case
 				this.#gl.framebufferTexture2D(
-					this.#gl.FRAMEBUFFER,
+					this.#gl.DRAW_FRAMEBUFFER,
 					this.#gl.DEPTH_STENCIL_ATTACHMENT,
 					this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
 					null,
@@ -1411,7 +1420,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 			// Bind the depth texture
 			this.#gl.framebufferTexture2D(
-				this.#gl.FRAMEBUFFER,
+				this.#gl.DRAW_FRAMEBUFFER,
 				attach,
 				this.#gl.TEXTURE_2D, // TODO: Handle cube faces?
 				dsvResource.GetGLResource(),

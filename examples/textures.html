@@ -985,7 +985,7 @@
 					// Need to resize, so first release all references
 					rtv.Release(); // Back buffer
 					depthDSV.Release(); // Depth buffer
-
+					
 					// Ask the swap chain to resize and update the canvas
 					gl.canvas.width = gl.canvas.clientWidth;
 					gl.canvas.height = gl.canvas.clientHeight;
@@ -1203,9 +1203,10 @@
 					context.PSSetShaderResources(0, [ppSRV]);
 					context.Draw(3, 0);
 				}
-
+				
 				// Flush the frame
 				swapChain.Present();
+				
 				context.OMSetRenderTargets([rtv], depthDSV);
 			}
 

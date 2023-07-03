@@ -8,6 +8,8 @@ class ID3D11Device extends IUnknown
 	#gl;
 	#immediateContext;
 	#anisoExt;
+	#readbackFramebuffer;
+	#backBufferFramebuffer;
 
 	constructor(gl)
 	{
@@ -15,6 +17,10 @@ class ID3D11Device extends IUnknown
 
 		this.#gl = gl;
 		this.#immediateContext = null;
+
+		// TODO: Delete these on release
+		this.#readbackFramebuffer = this.#gl.createFramebuffer();
+		this.#backBufferFramebuffer = this.#gl.createFramebuffer();
 
 		// Attempt to load the anisotropic extension
 		this.#anisoExt =
@@ -37,6 +43,12 @@ class ID3D11Device extends IUnknown
 	GetAnisoExt()
 	{
 		return this.#anisoExt;
+	}
+
+	// Not to spec, but I want ONE of these that both the context and the swapchain can use
+	GetBackBufferFramebuffer()
+	{
+		return this.#backBufferFramebuffer;
 	}
 
 	/**
@@ -645,6 +657,9 @@ class ID3D11Device extends IUnknown
 			//       the READ framebuffer and not the whole thing
 			// TODO: Optimize this to only mark Output Merger dirty?
 			this.#immediateContext.DirtyPipeline();
+
+			// Bind the readback framebuffer
+			this.#gl.bindFramebuffer(this.#gl.READ_FRAMEBUFFER, this.#readbackFramebuffer);
 
 			// If this is a texture array (and not a cube map), we
 			// need to use a different function for binding
