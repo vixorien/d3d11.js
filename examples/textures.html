@@ -21,6 +21,12 @@
 
 	<canvas id="viewport"></canvas>
 
+	<!--<div style="position:absolute; left:20px; top:20px; background-color:#aaaaaaaa">
+		<input type="file"/> 
+		<br/><br/>
+		<button>Load HDR</button>
+	</div>-->
+
 	<script>
 		
 
@@ -524,6 +530,12 @@
 			return specSRV;
 		}
 
+
+		function readHDRFile(fileName)
+		{
+			let reader = new FileReader();
+
+		}
 
 		function writeTGAFile(fileName, pixelData, width, height)
 		{

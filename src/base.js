@@ -28,12 +28,11 @@ class IUnknown
 		this.AddRef();
 	}
 
-	// Not to spec, but necessary due to a lack
-	// of protected access in javascript
-	// NOTE: Could be "faked" with an Add(), Release() pair, but that feels silly
+
 
 	/**
-	 * Get the current reference count of the object
+	 * Get the current reference count of the object.  Note that this is not
+	 * to spec but is necessary due to the lack of protected access in javascript.
 	 * 
 	 * @returns {number} The current reference count
 	 */
