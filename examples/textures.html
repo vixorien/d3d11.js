@@ -9,11 +9,32 @@
 		body {
 			margin: 0;
 		}
+
 		#viewport {
 			width: 100vw;
 			height: 100vh;
 			display: block;
 		}
+
+		#loading_container {
+			position: absolute;
+			left: 20px;
+			top: 20px;
+			background-color: #aaaaaaaa;
+		}
+
+		#load_six_faces {
+			visibility: visible;
+		}
+
+		#load_dds {
+			visibility: hidden;
+		}
+
+		#load_hdr {
+			visibility: hidden;
+		}
+
 	</style>
 </head>
 <body style="background-color:#000;">
@@ -21,14 +42,70 @@
 
 	<canvas id="viewport"></canvas>
 
-	<!--<div style="position:absolute; left:20px; top:20px; background-color:#aaaaaaaa">
-		<input type="file"/> 
-		<br/><br/>
-		<button>Load HDR</button>
-	</div>-->
+	<div id="loading_container">
+
+		<label>Load Type: </label>
+		<select>
+			<option>Six faces</option>
+			<option>Single DDS (not yet implemented)</option>
+			<option>Single HDR (not yet implemented)</option>
+		</select>
+
+		<div id="load_six_faces">
+			<table>
+				<tr><td>X Positive</td><td><input type="file" id="sixFacesXPos"/></td></tr>
+				<tr><td>X Negative</td><td><input type="file" id="sixFacesXNeg"/></td></tr>
+				<tr><td>Y Positive</td><td><input type="file" id="sixFacesYPos"/></td></tr>
+				<tr><td>Y Negative</td><td><input type="file" id="sixFacesYNeg"/></td></tr>
+				<tr><td>Z Positive</td><td><input type="file" id="sixFacesZPos"/></td></tr>
+				<tr><td>Z Negative</td><td><input type="file" id="sixFacesZNeg"/></td></tr>
+			</table>
+			<button onclick="loadSixFaces()">Load</button>
+		</div>
+
+		<div id="load_dds">
+			<label>DDS File</label>
+		</div>
+
+		<div id="load_hdr">
+			<label>HDR File</label>
+		</div>
+
+		<!--<input type="file" />
+		<br /><br />
+		<button>Load HDR</button>-->
+	</div>
 
 	<script>
-		
+
+		function loadSixFaces()
+		{
+			// Get element
+			let xPosInput = document.getElementById("sixFacesXPos");
+			if (xPosInput.files.length == 0)
+			{
+				return;
+			}
+
+			// Grab the first input
+			let filename = xPosInput.files[0].name;
+			let extension = filename.slice(filename.lastIndexOf('.'));
+
+			if (extension != ".jpg" && extension != ".jpeg" && extension != ".png")
+			{
+				alert("Wrong file type");
+				return;
+			}
+
+			// We have a file, attempt to load
+			let fr = new FileReader();
+			fr.onload = function ()
+			{
+				let texture = loadTexture2D(globalDevice, globalContext, fr.result);
+				// TODO: Figure out how to get this texture in the right context
+			}
+			fr.readAsDataURL(xPosInput.files[0]);
+		}
 
 		class Vertex
 		{
@@ -593,7 +670,9 @@
 			aTag.click();
 		}
 
-		
+		let globalDevice = null;
+		let globalContext = null;
+
 		async function main()
 		{
 			let postprocessing = false;
@@ -606,6 +685,9 @@
 			// Init the API		
 			let device = D3D11CreateDevice(document.querySelector("#viewport"));
 			let context = device.GetImmediateContext();
+
+			globalDevice = device;
+			globalContext = context;
 
 			let gl = device.GetAdapter();
 			gl.canvas.width = gl.canvas.clientWidth;
