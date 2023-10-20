@@ -78,34 +78,58 @@
 
 	<script>
 
-		function loadSixFaces()
+		let globalSkySRV = null;
+
+		async function loadSixFaces()
 		{
-			// Get element
-			let xPosInput = document.getElementById("sixFacesXPos");
-			if (xPosInput.files.length == 0)
+			// Collect all input elements
+			let inputs = [
+				document.getElementById("sixFacesXPos"),
+				document.getElementById("sixFacesXNeg"),
+				document.getElementById("sixFacesYPos"),
+				document.getElementById("sixFacesYNeg"),
+				document.getElementById("sixFacesZPos"),
+				document.getElementById("sixFacesZNeg")
+			];
+
+			// Validate files
+			for (let i = 0; i < 6; i++)
 			{
-				return;
+				// Ensure file has been set
+				if (inputs[i].files.length == 0)
+				{
+					alert("Missing one or more files for skybox load");
+					return;
+				}
+
+				// Check extension
+				let filename = inputs[i].files[0].name;
+				let extension = filename.slice(filename.lastIndexOf('.'));
+				if (extension != ".jpg" && extension != ".jpeg" && extension != ".png")
+				{
+					alert("One or more files for skybox load have invalid extensions");
+					return;
+				}
 			}
 
-			// Grab the first input
-			let filename = xPosInput.files[0].name;
-			let extension = filename.slice(filename.lastIndexOf('.'));
-
-			if (extension != ".jpg" && extension != ".jpeg" && extension != ".png")
+			// Files validated - Perform the load(s)
+			// NOTE: This obviously doesn't work - need to rework!
+			let fileURLs = [];
+			fileURLs = await loadCubeFaceRecursive(inputs, 0, fileURLs);
+			for (let i = 0; i < 6; i++)
 			{
-				alert("Wrong file type");
-				return;
+				let fr = new FileReader();
+				fr.onload = function ()
+				{
+					fileURLs.push(fr.result);
+				}
+				fr.readAsDataURL(inputs[i].files[0]);
 			}
 
-			// We have a file, attempt to load
-			let fr = new FileReader();
-			fr.onload = function ()
-			{
-				let texture = loadTexture2D(globalDevice, globalContext, fr.result);
-				// TODO: Figure out how to get this texture in the right context
-			}
-			fr.readAsDataURL(xPosInput.files[0]);
+			// All loaded - Attempt to load as a cube map
+			globalSkySRV = await loadTextureCube(globalDevice, globalContext, fileURLs, true);
 		}
+
 
 		class Vertex
 		{
@@ -359,15 +383,36 @@
 			return srv;
 		}
 
-		async function loadTextureCube(device, context, faceURLs)
+		async function loadTextureCube(device, context, faceURLs, filesAreLocal)
 		{
+			alert(faceURLs);
+
 			let faceTextures = [];
+			let size = -1;
 			for (let i = 0; i < faceURLs.length; i++)
 			{
 				// Fetch and grab the binary data, then turn into an image
-				const resp = await fetch(faceURLs[i]);
+				const resp = filesAreLocal ? faceURLs[i] : await fetch(faceURLs[i]);
 				const imageBlob = await resp.blob();
 				const bitmap = await createImageBitmap(imageBlob, { imageOrientation: "flipY" });
+
+				// Set size on first bitmap
+				if (size == -1)
+					size = bitmap.width;
+
+				// Validate bitmap aspect ratio
+				if (bitmap.width != bitmap.height)
+				{
+					console.log("Error: Texture cube faces must be square");
+					return;
+				}
+
+				// Validate size matches
+				if (size != bitmap.width)
+				{
+					console.log("Error: Texture cube faces must all be the same size");
+				}
+
 				faceTextures.push(bitmap);
 			}
 
@@ -781,8 +826,10 @@
 					"../assets/skies/cloudsblue/down.png",
 					"../assets/skies/cloudsblue/front.png",
 					"../assets/skies/cloudsblue/back.png"
-				]
+				],
+				false
 			);
+			globalSkySRV = skySRV;
 			context.PSSetShaderResources(4, [skySRV]);
 
 			// Create/release test
@@ -1309,7 +1356,7 @@
 					// PS -> Nothing necessary
 
 					// Set up texture
-					context.PSSetShaderResources(0, [skySRV]);
+					context.PSSetShaderResources(0, [globalSkySRV]); //[skySRV]); XXXXXXXXXXXXXXXXX
 
 					// Draw cube
 					context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);
