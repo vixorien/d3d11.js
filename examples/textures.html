@@ -115,19 +115,28 @@
 			// Files validated - Perform the load(s)
 			// NOTE: This obviously doesn't work - need to rework!
 			let fileURLs = [];
-			fileURLs = await loadCubeFaceRecursive(inputs, 0, fileURLs);
 			for (let i = 0; i < 6; i++)
 			{
-				let fr = new FileReader();
-				fr.onload = function ()
-				{
-					fileURLs.push(fr.result);
-				}
-				fr.readAsDataURL(inputs[i].files[0]);
+				let cubeDataArray = await loadCubeFace(inputs[i].files[0]);
+				fileURLs[i] = new Blob([cubeDataArray]);
 			}
 
 			// All loaded - Attempt to load as a cube map
 			globalSkySRV = await loadTextureCube(globalDevice, globalContext, fileURLs, true);
+		}
+
+		async function loadCubeFace(file)
+		{
+			return new Promise((resolve, reject) =>
+			{
+				let fr = new FileReader();
+				fr.onerror = reject;
+				fr.onload = function ()
+				{
+					resolve(fr.result);
+				}
+				fr.readAsArrayBuffer(file);
+			});
 		}
 
 
@@ -385,15 +394,13 @@
 
 		async function loadTextureCube(device, context, faceURLs, filesAreLocal)
 		{
-			alert(faceURLs);
-
 			let faceTextures = [];
 			let size = -1;
 			for (let i = 0; i < faceURLs.length; i++)
 			{
 				// Fetch and grab the binary data, then turn into an image
 				const resp = filesAreLocal ? faceURLs[i] : await fetch(faceURLs[i]);
-				const imageBlob = await resp.blob();
+				const imageBlob = filesAreLocal ? resp : await resp.blob();
 				const bitmap = await createImageBitmap(imageBlob, { imageOrientation: "flipY" });
 
 				// Set size on first bitmap
