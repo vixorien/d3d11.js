@@ -780,7 +780,7 @@ class ID3D11Device extends IUnknown
 			return isArray ? this.#gl.TEXTURE_2D_ARRAY : this.#gl.TEXTURE_2D;
 		}
 
-		throw new Error("Description does not many any known WebGL texture types");
+		throw new Error("Description does not match any known WebGL texture types");
 	}
 
 	// Gets the GL format details based on a DXGI Format
