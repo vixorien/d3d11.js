@@ -6,23 +6,45 @@
 	<script src="../build/input.js"></script>
 
 	<style>
+
+		html {
+			height: 100%;
+		}
+
 		body {
 			margin: 0;
+			height:100%;
 			font-family:Arial;
 		}
 
-		#viewport {
-			width: 100vw;
-			height: 100vh;
-			display: block;
+		#pageContainer {
+			display: flex;
+			flex-direction: row;
+			height: 100%;
 		}
 
-		#loading_container {
+		#controlsContainer {
+			flex: 0 0 auto;
+			height: 100%;
+			align-items: stretch;
+		}
+
+		#canvasContainer {
+			background-color:red;
+			flex: 1 0 0;
+		}
+
+		#viewport {
+			width: 100%;
+			height: 100%;
+		}
+
+		/*#loading_container {
 			position: absolute;
 			left: 20px;
 			top: 20px;
 			background-color: #aaaaaaaa;
-		}
+		}*/
 
 		#load_six_faces {
 			visibility: visible;
@@ -40,43 +62,43 @@
 </head>
 <body style="background-color:#000;">
 	<!--<h1 style="color:#fff;">D3D11.js - Texture Test</h1>-->
+	<div id="pageContainer">
+		<div id="controlsContainer">
+			<label>Load Type: </label>
+			<select>
+				<option>Six faces</option>
+				<option>Single DDS (not yet implemented)</option>
+				<option>Single HDR (not yet implemented)</option>
+			</select>
 
-	<canvas id="viewport"></canvas>
+			<div id="load_six_faces">
+				<table>
+					<tr><td>X Positive</td><td><input type="file" id="sixFacesXPos" /></td></tr>
+					<tr><td>X Negative</td><td><input type="file" id="sixFacesXNeg" /></td></tr>
+					<tr><td>Y Positive</td><td><input type="file" id="sixFacesYPos" /></td></tr>
+					<tr><td>Y Negative</td><td><input type="file" id="sixFacesYNeg" /></td></tr>
+					<tr><td>Z Positive</td><td><input type="file" id="sixFacesZPos" /></td></tr>
+					<tr><td>Z Negative</td><td><input type="file" id="sixFacesZNeg" /></td></tr>
+				</table>
+				<button onclick="loadSixFaces()">Load</button>
+			</div>
 
-	<div id="loading_container">
+			<div id="load_dds">
+				<label>DDS File</label>
+			</div>
 
-		<label>Load Type: </label>
-		<select>
-			<option>Six faces</option>
-			<option>Single DDS (not yet implemented)</option>
-			<option>Single HDR (not yet implemented)</option>
-		</select>
+			<div id="load_hdr">
+				<label>HDR File</label>
+			</div>
 
-		<div id="load_six_faces">
-			<table>
-				<tr><td>X Positive</td><td><input type="file" id="sixFacesXPos"/></td></tr>
-				<tr><td>X Negative</td><td><input type="file" id="sixFacesXNeg"/></td></tr>
-				<tr><td>Y Positive</td><td><input type="file" id="sixFacesYPos"/></td></tr>
-				<tr><td>Y Negative</td><td><input type="file" id="sixFacesYNeg"/></td></tr>
-				<tr><td>Z Positive</td><td><input type="file" id="sixFacesZPos"/></td></tr>
-				<tr><td>Z Negative</td><td><input type="file" id="sixFacesZNeg"/></td></tr>
-			</table>
-			<button onclick="loadSixFaces()">Load</button>
+			<!--<input type="file" />
+			<br /><br />
+			<button>Load HDR</button>-->
 		</div>
-
-		<div id="load_dds">
-			<label>DDS File</label>
+		<div id="canvasContainer">
+			<canvas id="viewport"></canvas>
 		</div>
-
-		<div id="load_hdr">
-			<label>HDR File</label>
-		</div>
-
-		<!--<input type="file" />
-		<br /><br />
-		<button>Load HDR</button>-->
 	</div>
-
 	<script>
 
 		let globalSkySRV = null;
@@ -1248,6 +1270,8 @@
 			//writePNGFile("test.png", readbackData, w, h);
 
 			// DDS TEST --------------
+			let ddsTest = false;
+			if(ddsTest)
 			{
 				// Readback the entire resource into an array of Uint8Arrays
 				let w = iblSpecDesc.Width;
