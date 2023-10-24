@@ -1,19 +1,20 @@
 <!DOCTYPE html>
-<html>
+<html class="h-100">
 <head>
 	<script src="../build/d3d11.js"></script>
 	<script src="../build/d3dmath.js"></script>
 	<script src="../build/input.js"></script>
 
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 	<style>
 
-		html {
+	/*	html {
 			height: 100%;
 		}
 
 		body {
 			margin: 0;
-			height:100%;
+			height: 100%;
 			font-family: Arial;
 			background-color: white;
 		}
@@ -51,12 +52,21 @@
 
 		#load_hdr {
 			visibility: hidden;
+		}*/
+
+		.fixed-size-custom {
+			width:250px !important;
 		}
 
+		.canvas-fill-parent {
+			width: 100%;
+			height: 100%;
+			max-height: 100vh;
+		}
 	</style>
 </head>
-<body>
-	<div id="pageContainer">
+<body class="h-100 m-0 p-0">
+	<!--<div id="pageContainer">
 		<div id="controlsContainer">
 			<label>Load Type: </label>
 			<select>
@@ -86,21 +96,118 @@
 			</div>
 			<hr />
 			<div id="save_buttons">
-				<button>Save Convolved Spec Map as DDS</button><br/>
-				<button>Save Irradiance Map as DDS</button><br/>
+				<button>Save Convolved Spec Map as DDS</button><br />
+				<button>Save Irradiance Map as DDS</button><br />
 				<button>Save LUT as PNG</button>
+			</div>-->
+	<!--<input type="file" />
+	<br /><br />
+	<button>Load HDR</button>-->
+	<!--</div>
+	<div id="canvasContainer">
+		<canvas id="viewport"></canvas>
+	</div
+	</div>>-->
+
+	<!-- Trying out bootstrap -->
+
+	<!-- Main "container", but skipping actual .container class to ensure edge-to-edge page! -->
+	<div class="row h-100 m-0 p-0 overflow-hidden">
+
+		<!-- Left "sidebar", scrollable-->
+		<div class="col-3 h-100 overflow-y-auto">
+			<h1>Cube Maps</h1>
+			
+			<strong>Load Environment Map</strong>
+
+			<div class="accordion" id="loadAccordion">
+
+				<!-- SIX FACES -->
+				<div class="accordion-item" >
+					<h2 class="accordion-header">
+						<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+							Six Individual Faces
+						</button>
+					</h2>
+					<div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+						<div class="accordion-body">
+
+							<div class="input-group">
+								<label for="sixFacesXPos" class="input-group-text">+X</label>
+								<input class="form-control" type="file" id="sixFacesXPos" />
+							</div>
+
+							<div class="input-group">
+								<label for="sixFacesXNeg" class="input-group-text">-X</label>
+								<input class="form-control" type="file" id="sixFacesXNeg" />
+							</div>
+
+							<div class="input-group">
+								<label for="sixFacesYPos" class="input-group-text">+Y</label>
+								<input class="form-control" type="file" id="sixFacesYPos" />
+							</div>
+
+							<div class="input-group">
+								<label for="sixFacesYNeg" class="input-group-text">-Y</label>
+								<input class="form-control" type="file" id="sixFacesYNeg" />
+							</div>
+
+							<div class="input-group">
+								<label for="sixFacesZPos" class="input-group-text">+Z</label>
+								<input class="form-control" type="file" id="sixFacesZPos" />
+							</div>
+
+							<div class="input-group">
+								<label for="sixFacesZNeg" class="input-group-text">-Z</label>
+								<input class="form-control" type="file" id="sixFacesZNeg" />
+							</div>
+
+								<button type="button" class="btn btn-primary" onclick="loadSixFaces()">Load</button>
+
+							</div>
+						</div>
+				</div>
+
+				<!-- DDS CUBE MAP -->
+				<div class="accordion-item">
+					<h2 class="accordion-header">
+						<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+							DDS Cube Map (Not yet implemented)
+						</button>
+					</h2>
+					<div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+						<div class="accordion-body">
+							Stuff here
+						</div>
+					</div>
+				</div>
+
+				<!-- HDR FILE -->
+				<div class="accordion-item">
+					<h2 class="accordion-header">
+						<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+							HDR File (Not yet implemented)
+						</button>
+					</h2>
+					<div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+						<div class="accordion-body">
+							More stuff
+						</div>
+					</div>
+				</div>
 			</div>
 
-			<!--<input type="file" />
-			<br /><br />
-			<button>Load HDR</button>-->
 		</div>
-		<div id="canvasContainer">
-			<canvas id="viewport"></canvas>
+
+		<!-- Content (3D viewport) -->
+		<div class="col m-0 p-0">
+			<canvas id="viewport" class="canvas-fill-parent"></canvas>
 		</div>
 	</div>
-	<script>
+	
 
+	<!-- END bootstrap -->
+	<script>
 		let globalSkySRV = null;
 		let globalIrrSRV = null;
 		let globalIBLSpecSRV = null;
@@ -182,7 +289,7 @@
 			Normal;
 			Tangent;
 
-			constructor(pos, uv, norm, tang = new Vector3(0,0,0))
+			constructor(pos, uv, norm, tang = new Vector3(0, 0, 0))
 			{
 				this.Position = pos.slice();
 				this.UV = uv.slice();
@@ -206,7 +313,7 @@
 			let uvs = [];
 			let vertices = [];
 			let indices = [];
-			
+
 			let lines = fileText.split("\n");
 			for (let i = 0; i < lines.length; i++)
 			{
@@ -214,7 +321,7 @@
 				lines[i] = lines[i].trim();
 				if (lines[i].length == 0)
 					continue;
-				
+
 				// Check the type of line
 				if (lines[i].charAt(0) == 'v' && lines[i].charAt(1) == 'n')
 				{
@@ -248,7 +355,7 @@
 					//  - or -
 					// f 1/2/3 1/2/3 1/2/3 1/2/3
 					let faceLine = lines[i].split(' ');
-					
+
 					// Assume at least 3 verts per face
 					for (let f = 1; f <= 3; f++)
 					{
@@ -353,7 +460,7 @@
 				v3.Tangent.y += ty;
 				v3.Tangent.z += tz;
 			}
-			
+
 			// Orthonormalize
 			for (let i = 0; i < vertices.length; i++)
 			{
@@ -364,8 +471,8 @@
 					Vector3.Subtract(t, Vector3.Multiply(n, Vector3.Dot(n, t)))
 				);
 			}
-			
-			
+
+
 			// Copy data to float array
 			let floatsPerVert = 3 + 2 + 3 + 3;
 			let vbData = new Float32Array(vertices.length * floatsPerVert);
@@ -376,7 +483,7 @@
 				vbData.set(vertices[v].Normal, v * floatsPerVert + 5);
 				vbData.set(vertices[v].Tangent, v * floatsPerVert + 8);
 			}
-			
+
 			// Create vertex buffer
 			let ibData = new Int16Array(indices);
 			let vbDesc = new D3D11_BUFFER_DESC(
@@ -393,7 +500,7 @@
 				D3D11_BIND_INDEX_BUFFER,
 				0, 0, 0);
 			let ib = device.CreateBuffer(ibDesc, ibData);
-			
+
 			return [vb, ib, indices.length];
 		}
 
@@ -597,7 +704,7 @@
 				// Set cb data
 				cbData.set([face], 0);
 				context.UpdateSubresource(cb, 0, null, cbData, 0, 0);
-				
+
 				// Draw and flush to ensure we're done
 				context.OMSetRenderTargets([faceRTV], null);
 				context.Draw(3, 0);
@@ -612,14 +719,14 @@
 			context.RSSetViewports(oldVP);
 			return irrSRV;
 		}
-		
+
 		function createIBLSpecularMap(device, context, mapSize, iblSpecMipsToSkip, skySRV, sampler, ps, vs)
 		{
 			let usePreviousMipForNextMip = true;
 
 			// How many mips do we need?
 			let totalMips = Math.max(Math.log2(mapSize) + 1 - iblSpecMipsToSkip, 1); // Add 1 for 1x1
-			
+
 			// Create an empty texture cube for specular
 			let cubeDesc = new D3D11_TEXTURE2D_DESC(
 				mapSize,
@@ -662,7 +769,7 @@
 			{
 				// Set the viewport for this mip size
 				let mipSize = Math.pow(2, totalMips + iblSpecMipsToSkip - 1 - mip);
-				
+
 				let vp = new D3D11_VIEWPORT(0, 0, mipSize, mipSize, 0, 1);
 				context.RSSetViewports(vp);
 
@@ -698,7 +805,7 @@
 
 					// Set the SRV for this render
 					context.PSSetShaderResources(0, [srvForMip]);
-					
+
 					// Draw and flush to ensure we're done
 					context.OMSetRenderTargets([faceRTV], null);
 					context.Draw(3, 0);
@@ -790,7 +897,7 @@
 		//
 		// Header details
 		// - dwSize - Always 124
-		// - dwFlags 
+		// - dwFlags
 		// - dwHeight
 		// - dwWidth
 		// - dwPitchOrLinearSize
@@ -807,14 +914,14 @@
 		function writeDDSFile(fileName, pixelData, width, height, mipLevels, isCube)
 		{
 			// Overall Flags
-			const DDSD_CAPS			= 0x1;
-			const DDSD_HEIGHT		= 0x2;
-			const DDSD_WIDTH		= 0x4;
-			const DDSD_PITCH		= 0x8;
-			const DDSD_PIXELFORMAT	= 0x1000;
-			const DDSD_MIPMAPCOUNT	= 0x20000;
-			const DDSD_LINEARSIZE	= 0x80000;
-			const DDSD_DEPTH		= 0x800000;
+			const DDSD_CAPS = 0x1;
+			const DDSD_HEIGHT = 0x2;
+			const DDSD_WIDTH = 0x4;
+			const DDSD_PITCH = 0x8;
+			const DDSD_PIXELFORMAT = 0x1000;
+			const DDSD_MIPMAPCOUNT = 0x20000;
+			const DDSD_LINEARSIZE = 0x80000;
+			const DDSD_DEPTH = 0x800000;
 
 			const DDS_HEADER_FLAGS_TEXTURE =
 				DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
@@ -877,15 +984,15 @@
 				1, // Depth (Unused for non-volume textures - maybe just set to zero?)
 				mipLevels,
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 11x unused (reserved) entries
-				// Pixel format ----
-				/* dwSize        */ 32, // Always 32
-				/* dwFlags       */ pixelFormatFlags,
-				/* dwFourCC      */ 0,
-				/* dwRGBBitCount */ bitsPerPixel, // Includes alpha!
-				/* dwRBitMask    */ 0x000000ff, // Yes these feel "backwards" but are correct
-				/* dwGBitMask    */ 0x0000ff00,
-				/* dwBBitMask    */ 0x00ff0000,
-				/* dwABitMask    */ 0xff000000,
+								// Pixel format ----
+								/* dwSize        */ 32, // Always 32
+								/* dwFlags       */ pixelFormatFlags,
+								/* dwFourCC      */ 0,
+								/* dwRGBBitCount */ bitsPerPixel, // Includes alpha!
+								/* dwRBitMask    */ 0x000000ff, // Yes these feel "backwards" but are correct
+								/* dwGBitMask    */ 0x0000ff00,
+								/* dwBBitMask    */ 0x00ff0000,
+								/* dwABitMask    */ 0xff000000,
 				// End pixel format ---
 				caps,
 				caps2,
@@ -915,7 +1022,7 @@
 			// Some quick vars
 			let float32Size = Float32Array.BYTES_PER_ELEMENT;
 
-			// Init the API		
+			// Init the API
 			let device = D3D11CreateDevice(document.querySelector("#viewport"));
 			let context = device.GetImmediateContext();
 
@@ -932,7 +1039,7 @@
 				DXGI_FORMAT_R8G8B8A8_UNORM);
 
 			let swapChain = DXGICreateSwapChain(device, swapDesc);
-			
+
 
 			// Set up initial viewport
 			let viewport = new D3D11_VIEWPORT(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight, 0, 1);
@@ -967,8 +1074,8 @@
 			// Attempt to load an image
 			let albedoSRV = await loadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png");
 			let normalSRV = await loadTexture2D(device, context, "../assets/textures/cobblestone_normals.png");
-			let metalSRV =  await loadTexture2D(device, context, "../assets/textures/cobblestone_metal.png");
-			let roughSRV =  await loadTexture2D(device, context, "../assets/textures/cobblestone_roughness.png");
+			let metalSRV = await loadTexture2D(device, context, "../assets/textures/cobblestone_metal.png");
+			let roughSRV = await loadTexture2D(device, context, "../assets/textures/cobblestone_roughness.png");
 			context.PSSetShaderResources(0, [albedoSRV, normalSRV, metalSRV, roughSRV]);
 
 			// Create several solid textures
@@ -1213,12 +1320,12 @@
 			let brdfLutPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
 			let iblIrradiancePS = device.CreatePixelShader(await loadText("../assets/shaders/IBLIrradianceMapPS.hlsl"));
 			let iblSpecularPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
-			
+
 			// Create IBL textures
 			let iblSpecSize = 256;
 			let iblSpecMipsToSkip = 3;
 			let iblTotalMips = Math.max(Math.log2(iblSpecSize) + 1 - iblSpecMipsToSkip, 1);
-			
+
 			psData.set([iblTotalMips], 8);
 
 			let lutSRV = createBrdfLookUpTable(device, context, 1024, brdfLutPS, fullscreenVS);
@@ -1271,7 +1378,7 @@
 
 			// DDS TEST --------------
 			let ddsTest = false;
-			if(ddsTest)
+			if (ddsTest)
 			{
 				// Readback the entire resource into an array of Uint8Arrays
 				let w = iblSpecDesc.Width;
@@ -1421,7 +1528,7 @@
 					// Need to resize, so first release all references
 					rtv.Release(); // Back buffer
 					depthDSV.Release(); // Depth buffer
-					
+
 					// Ask the swap chain to resize and update the canvas
 					gl.canvas.width = gl.canvas.clientWidth;
 					gl.canvas.height = gl.canvas.clientHeight;
@@ -1469,7 +1576,7 @@
 			function draw(time)
 			{
 				checkForResize();
-				
+
 				// Set up post processing
 				if (postprocessing)
 				{
@@ -1489,7 +1596,7 @@
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
 				context.ClearRenderTargetView(rtv, black);
 				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
-				
+
 				// Sphere draws
 				{
 					// Swap to sphere buffers
@@ -1522,7 +1629,7 @@
 						context.DrawIndexed(sphereIndexCount, 0, 0);
 					}
 				}
-				
+
 				// Pipeline for next several draws
 				context.VSSetShader(vs);
 				context.PSSetShader(ps);
@@ -1639,10 +1746,10 @@
 					context.PSSetShaderResources(0, [ppSRV]);
 					context.Draw(3, 0);
 				}
-				
+
 				// Flush the frame
 				swapChain.Present();
-				
+
 				context.OMSetRenderTargets([rtv], depthDSV);
 			}
 
@@ -1663,6 +1770,7 @@
 
 		main();
 	</script>
+	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 </body>
 </html>
 
