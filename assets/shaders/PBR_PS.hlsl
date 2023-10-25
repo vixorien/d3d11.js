@@ -286,17 +286,24 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float NdotV = dot(input.normal, toCam);
 	float3 viewRefl = reflect(-toCam, input.normal);
 	float2 indirectBRDF = brdfLUT.Sample(clampSamp, float2(NdotV, rough)).rg;
-
-	float3 indSpecFresnel = specColor * indirectBRDF.x + indirectBRDF.y;
-
-	// Multiscattering compensation
-	//float3 xxx = float3(indirectBRDF.x, indirectBRDF.x, indirectBRDF.x);
-	//float3 yyy = float3(indirectBRDF.y, indirectBRDF.y, indirectBRDF.y);
-	//float3 indSpecFresnel = lerp(xxx, yyy, specColor);
-	//return float4(pow(indSpecFresnel, 1.0 / 2.2), 1);
+	
+	// No multiscatter compensation (results in darker metals as roughness increases)
+	//float3 indSpecFresnel = specColor * indirectBRDF.x + indirectBRDF.y;
+	
+	// --- Multiscattering compensation ---
+	// Should now pass the white furnace test!
+	// 
+	// First, adjust fresnel term due to changes to look up table
+	// See end of: https://google.github.io/filament/Filament.md.html#lighting/imagebasedlights/distantlightprobes/pre-integrationformultiscattering
+	float3 indSpecFresnel = lerp(indirectBRDF.xxx, indirectBRDF.yyy, specColor);
+	
+	// Add energy compensation based on LUT roughness
+	// See end of: https://google.github.io/filament/Filament.md.html#materialsystem/improvingthebrdfs/energylossinspecularreflectance
+	float3 energyCompensation = 1.0 + specColor * (1.0 / indirectBRDF.y - 1.0);
+	indSpecFresnel *= energyCompensation;
+	// --- END multiscattering compensation ---
 
 	float3 indirectSpecular = pow(iblSpecular.SampleLevel(samp, viewRefl, rough * (iblSpecMips - 1.0)).rgb, 2.2) * indSpecFresnel;
-
 	float3 fullIndirect = (indirectDiffuse * albedo * saturate(1.0 - metal)) + indirectSpecular;
 	return float4(pow(color + fullIndirect, 1.0 / 2.2), 1);
 }
