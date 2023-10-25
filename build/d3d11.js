@@ -846,12 +846,11 @@ class IUnknown
 		this.AddRef();
 	}
 
-	// Not to spec, but necessary due to a lack
-	// of protected access in javascript
-	// NOTE: Could be "faked" with an Add(), Release() pair, but that feels silly
+
 
 	/**
-	 * Get the current reference count of the object
+	 * Get the current reference count of the object.  Note that this is not
+	 * to spec but is necessary due to the lack of protected access in javascript.
 	 * 
 	 * @returns {number} The current reference count
 	 */
@@ -1789,7 +1788,7 @@ class ID3D11Device extends IUnknown
 			return isArray ? this.#gl.TEXTURE_2D_ARRAY : this.#gl.TEXTURE_2D;
 		}
 
-		throw new Error("Description does not many any known WebGL texture types");
+		throw new Error("Description does not match any known WebGL texture types");
 	}
 
 	// Gets the GL format details based on a DXGI Format
@@ -6187,7 +6186,9 @@ class HLSL
 
 		glsl += "float lerp(float a, float b, float t) { return mix(a, b, t); }\n";
 		glsl += "vec2 lerp(vec2 a, vec2 b, float t) { return mix(a, b, t); }\n";
-		glsl += "vec3 lerp(vec3 a, vec3 b, float t) { return mix(a, b, t); }\n\n";
+		glsl += "vec2 lerp(vec2 a, vec2 b, vec2 t) { return mix(a, b, t); }\n";
+		glsl += "vec3 lerp(vec3 a, vec3 b, float t) { return mix(a, b, t); }\n";
+		glsl += "vec3 lerp(vec3 a, vec3 b, vec3 t) { return mix(a, b, t); }\n\n";
 
 		glsl += "void sincos(float a, out float s, out float c) { s = sin(a); c = cos(a); }\n\n";
 

@@ -286,7 +286,15 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float NdotV = dot(input.normal, toCam);
 	float3 viewRefl = reflect(-toCam, input.normal);
 	float2 indirectBRDF = brdfLUT.Sample(clampSamp, float2(NdotV, rough)).rg;
+
 	float3 indSpecFresnel = specColor * indirectBRDF.x + indirectBRDF.y;
+
+	// Multiscattering compensation
+	//float3 xxx = float3(indirectBRDF.x, indirectBRDF.x, indirectBRDF.x);
+	//float3 yyy = float3(indirectBRDF.y, indirectBRDF.y, indirectBRDF.y);
+	//float3 indSpecFresnel = lerp(xxx, yyy, specColor);
+	//return float4(pow(indSpecFresnel, 1.0 / 2.2), 1);
+
 	float3 indirectSpecular = pow(iblSpecular.SampleLevel(samp, viewRefl, rough * (iblSpecMips - 1.0)).rgb, 2.2) * indSpecFresnel;
 
 	float3 fullIndirect = (indirectDiffuse * albedo * saturate(1.0 - metal)) + indirectSpecular;

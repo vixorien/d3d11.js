@@ -1320,7 +1320,9 @@ class HLSL
 
 		glsl += "float lerp(float a, float b, float t) { return mix(a, b, t); }\n";
 		glsl += "vec2 lerp(vec2 a, vec2 b, float t) { return mix(a, b, t); }\n";
-		glsl += "vec3 lerp(vec3 a, vec3 b, float t) { return mix(a, b, t); }\n\n";
+		glsl += "vec2 lerp(vec2 a, vec2 b, vec2 t) { return mix(a, b, t); }\n";
+		glsl += "vec3 lerp(vec3 a, vec3 b, float t) { return mix(a, b, t); }\n";
+		glsl += "vec3 lerp(vec3 a, vec3 b, vec3 t) { return mix(a, b, t); }\n\n";
 
 		glsl += "void sincos(float a, out float s, out float c) { s = sin(a); c = cos(a); }\n\n";
 

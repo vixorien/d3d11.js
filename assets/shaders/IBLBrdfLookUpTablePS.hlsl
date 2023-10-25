@@ -149,6 +149,10 @@ float2 IntegrateBRDF(float roughnessValue, float nDotV)
 			float Fc = pow(1.0 - vDotH, 5.0);
 			A += (1.0 - Fc) * G_Vis;
 			B += Fc * G_Vis;
+
+			// Multiscattering compensation: https://google.github.io/filament/Filament.md.html#toc5.3.4.7
+			//A += Fc * G_Vis;
+			//B += G_Vis;
 		}
 	}
 
