@@ -284,6 +284,29 @@
 			});
 		}
 
+		function getLineFromArrayBuffer(arrayBuffer, startPos)
+		{
+			// Create a character view into the array buffer
+			let charArray = new Uint8Array(arrayBuffer, startPos);
+
+			// Track where we are
+			let offset = 0;
+			let line = "";
+			let char = "";
+			do
+			{
+				// Append character from array buffer
+				char = String.fromCharCode(charArray[offset]);
+				line += char;
+
+				// Move forward
+				offset++;
+			}
+			while (offset < charArray.length && char != "\n");
+
+			return line;
+		}
+
 		// Reads an HDR file
 		// Based on: http://www.cs.virginia.edu/~jcw5q/apps/imageview/src/libimageviewer/hdr.c
 		// Also see: https://paulbourke.net/dataformats/pic/
@@ -327,11 +350,37 @@
 			}
 
 			// Loop and find format string
+			let offset = headerSigSize + 1; // Account for initial new line
+			let line = "";
 
-			// Loop and find resolution string
+			do
+			{
+				// Grab line (untrimmed so we can offset properly)
+				line = getLineFromArrayBuffer(data, offset);
+				offset += line.length;
+
+				// Trim before checking
+				line = line.trim();
+				console.log(line);
+				// Look for header details
+				
+			}
+			while (line != "");
+
+			// We've found a blank line, so the next thing should be the resolution string
+			let resString = getLineFromArrayBuffer(data, offset);
+			offset += resString.length;
 			
+			// Parse resolution string
 
-			// TODO: Use typed arrays (Int8Array, Int32Array, etc.) as views into the data
+
+			// Offset is now where the actual data begins!
+
+			alert(resString);
+
+
+
+			
 
 			// C++ IMPLEMENTATION
 	//			const char* HeaderSignature = "#?RADIANCE";
