@@ -286,7 +286,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float NdotV = dot(input.normal, toCam);
 	float3 viewRefl = reflect(-toCam, input.normal);
 	float2 indirectBRDF = brdfLUT.Sample(clampSamp, float2(NdotV, rough)).rg;
-	
+
 	// No multiscatter compensation (results in darker metals as roughness increases)
 	//float3 indSpecFresnel = specColor * indirectBRDF.x + indirectBRDF.y;
 	

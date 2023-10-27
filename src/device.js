@@ -9,6 +9,7 @@ class ID3D11Device extends IUnknown
 	#immediateContext;
 	#anisoExt;
 	#floatTextureExt;
+	#floatTextureFilterExt;
 	#readbackFramebuffer;
 	#backBufferFramebuffer;
 
@@ -29,8 +30,9 @@ class ID3D11Device extends IUnknown
 			this.#gl.getExtension("MOZ_EXT_texture_filter_anisotropic") ||
 			this.#gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
 
-		// Attempt to load the floating point texture extension
+		// Attempt to load the floating point texture extension and the ability to linearly filter them
 		this.#floatTextureExt = this.#gl.getExtension("EXT_color_buffer_float");
+		this.#floatTextureFilterExt = this.#gl.getExtension("OES_texture_float_linear");
 
 		// Flip textures when unpacking
 		// NOTE: Does not effect ImageBitmap objects, which need to be flipped
@@ -52,6 +54,11 @@ class ID3D11Device extends IUnknown
 	GetFloatTextureExt()
 	{
 		return this.#floatTextureExt;
+	}
+
+	GetFloatTextureFilterExt()
+	{
+		return this.#floatTextureFilterExt;
 	}
 
 	// Not to spec, but I want ONE of these that both the context and the swapchain can use
@@ -1127,9 +1134,9 @@ class ID3D11Device extends IUnknown
 
 		// Max anisotropy should be between 1 and 16
 		const anisoOn = ((filter & 64) == 64); // 64's bit is aniso on/off
-		if (this.#anisoExt)
+		if (this.#anisoExt && anisoOn)
 		{
-			// Is available, so validate maxAniso range
+			// Is available and this sampler wants anisotropic, so validate maxAniso range
 			const maxAni = this.#gl.getParameter(this.#anisoExt.MAX_TEXTURE_MAX_ANISOTROPY_EXT);
 			if (desc.MaxAnisotropy < 1 || desc.MaxAnisotropy > maxAni)
 				throw new Error(`Invalid MaxAnisotropy value for sampler state - range is [${1}, ${maxAni}]`);
