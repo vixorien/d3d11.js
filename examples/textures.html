@@ -344,7 +344,7 @@
 			const formatXYZ = "XYZ";
 
 			// Use typed array as a view into the data, and decode as a string
-			let sig = decoder.decode(new Int8Array(data, 0, headerSigSize));
+			let sig = decoder.decode(new Int8Array(data, 0, headerSig.length));
 			if (sig != headerSig)
 			{
 				alert("Required HDR header signature not found");
@@ -360,7 +360,7 @@
 			let height = -1;
 
 			// Loop and find format string
-			let offset = headerSigSize + 1; // Account for initial new line
+			let offset = headerSig.length + 1; // Account for initial new line
 			let line = "";
 
 			do
@@ -467,35 +467,52 @@
 				sourceIndex += 4;
 
 				// First pixel is encoding information
-				if (encoding[0] == 2 && encoding[1] == 2 && encoding[2] < 128) // New RLE
+				let scanlineStart = destIndex;
+				if (encoding[0] == 2 && encoding[1] == 2 && encoding[2] < 128) // New RLE ---
 				{
 					// Components handled separately
 					for (let c = 0; c < 4; c++)
 					{
+						// Offset to this component in the scanline
+						let compOffset = scanlineStart + c;
+
 						// Loop through destination pixels
-						for (let destIndex = 0; destIndex < width;)
+						for (let destPixel = 0; destPixel < width;)
 						{
-							let num = source[sourceIndex];
+							let run = source[sourceIndex];
 							sourceIndex++;
 
 							// Check the first component of this pixel
-							if (num <= 128)
+							if (run <= 128)
 							{
-								// No run, read the data
-								for (let i = 0; i < num; i++)
+								// No run; contiguous single-component data
+								for (let r = 0; r < run; r++)
 								{
-
+									dest[compOffset + r * 4] = source[sourceIndex];
+									sourceIndex++;
 								}
 							}
 							else
 							{
-								// Run!
+								// Run!  Adjust value
+								run -= 128; // Or (run &= 127)?
+
+								// Grab the value for this run
+								let val = source[sourceIndex];
+								sourceIndex++;
+
+								for (let r = 0; r < run; r++)
+								{
+									dest[compOffset + r * 4] = val;
+								}
 							}
 
+							// Apply this run to the destination pixel on this scanline
+							destPixel += run;
 						}
 					}
 				}
-				else // Old RLE
+				else // Old RLE ---
 				{
 					// First set of data is actually the first pixel, so back up
 					sourceIndex -= 4;
@@ -544,133 +561,25 @@
 
 			}
 
+			// Got the data, now to convert it
+			// Based on "Real Pixels" by Greg Ward in Graphics Gems II
+			//let invExposure = 1 / exposure;
+			//for (let i = 0; i < dest.length; i += 4)
+			//{
+			//	let mul = invExposure * Math.pow(2, dest[i + 3] - 128);// 4th component is exponent
 
+			//	dest[i + 0] = (dest[i + 0] + 0.5) * mul;
+			//	dest[i + 1] = (dest[i + 1] + 0.5) * mul;
+			//	dest[i + 2] = (dest[i + 2] + 0.5) * mul;
+			//	dest[i + 3] = 1;
+			//}
 
-	//// ACTUAL DATA ------------------------------
+			console.log(dest);
 
-	//unsigned int dataSize = (*width) * (*height) * 4;
-	//unsigned char* data = new unsigned char[dataSize];
-	//memset(data, 0, dataSize); // For testing
+			// Finish up
+			return dest;
 
-	//// Scanline encoding
-	//char enc[4] = { 0 };
-
-	//// Loop through the scanlines, one at a time
-	//for (unsigned int y = 0; y < (*height); y++)
-	//{
-	//	// Inverted Y doesn't seem to matter?
-	//	int start = /*invY ? ((*height) - y - 1) * (*width) :*/ y * (*width);
-	//	int step = /*invX ? -1 :*/ 1;
-
-	//	// Check the encoding info for this line
-	//	file.read(enc, 4);
-	//	if (file.eof())
-	//		break;
-
-	//	// Which RLE scheme?
-	//	if (enc[0] == 2 && enc[1] == 2 && enc[2] >= 0)
-	//	{
-	//		// NEW RLE SCHEME -------------------
-
-	//		// Each component is RLE'd separately
-	//		for (int c = 0; c < 4; c++)
-	//		{
-	//			int pos = start;
-	//			unsigned int x = 0;
-
-	//			// Loop through the pixels/components
-	//			while (x < (*width))
-	//			{
-	//				char temp;
-	//				file.read(&temp, 1);
-	//				unsigned char num = reinterpret_cast<unsigned char&>(temp);
-
-	//				// Check if this is a run
-	//				if (num <= 128)
-	//				{
-	//					// No run, read the data
-	//					for (int i = 0; i < num; i++)
-	//					{
-	//						char temp;
-	//						file.read(&temp, 1);
-	//						data[c + pos * 4] = reinterpret_cast<unsigned char&>(temp);
-
-	//						pos += step;
-	//					}
-	//				}
-	//				else
-	//				{
-	//					// Run!  Get the value and set everything
-	//					char temp;
-	//					file.read(&temp, 1);
-	//					unsigned char value = reinterpret_cast<unsigned char&>(temp);
-
-	//					num -= 128;
-	//					for (int i = 0; i < num; i++)
-	//					{
-	//						data[c + pos * 4] = value;
-	//						pos += step;
-	//					}
-	//				}
-
-	//				// Move to the next section
-	//				x += num;
-	//			}
-	//		}
-	//	}
-	//	else
-	//	{
-	//		// OLD RLE SCHEME -------------------
-
-	//		int pos = start;
-
-	//		// Loop through scanline
-	//		for (unsigned int x = 0; x < (*width); x++)
-	//		{
-	//			if (x > 0)
-	//			{
-	//				file.read(enc, 4); // TODO: check for eof?
-	//			}
-
-	//			// Check for RLE header
-	//			if (enc[0] == 1 && enc[1] == 1 && enc[2] == 1)
-	//			{
-	//				// RLE
-	//				int num = ((int)enc[3]) & 0xFF;
-	//				unsigned char r = data[(pos - step) * 4 + 0];
-	//				unsigned char g = data[(pos - step) * 4 + 1];
-	//				unsigned char b = data[(pos - step) * 4 + 2];
-	//				unsigned char e = data[(pos - step) * 4 + 3];
-
-	//				// Loop and set
-	//				for (int i = 0; i < num; i++)
-	//				{
-	//					data[pos * 4 + 0] = r;
-	//					data[pos * 4 + 1] = g;
-	//					data[pos * 4 + 2] = b;
-	//					data[pos * 4 + 3] = e;
-	//					pos += step;
-	//				}
-
-	//				x += num - 1;
-	//			}
-	//			else
-	//			{
-	//				// No RLE, just read data
-	//				data[pos * 4 + 0] = enc[0];
-	//				data[pos * 4 + 1] = enc[1];
-	//				data[pos * 4 + 2] = enc[2];
-	//				data[pos * 4 + 3] = enc[3];
-	//				pos += step;
-	//			}
-
-	//		}
-	//	}
-	//}
-
-	//// Done with file
-	//file.close();
-
+	
 
 	//// Convert data to final IEEE floats
 	//// Based on "Real Pixels" by Greg Ward in Graphics Gems II
@@ -695,12 +604,6 @@
 	//	}
 	//}
 
-	//// Clean up
-	//delete[] data;
-
-	//// Success
-	//return pixels;
-			// END C++
 		}
 
 
@@ -1042,7 +945,7 @@
 				size,
 				1,
 				1,
-				DXGI_FORMAT_R8G8B8A8_UNORM,
+				DXGI_FORMAT_R8G8B8A8_UNORM, //DXGI_FORMAT_R32G32B32A32_FLOAT <-- No errors, but results are always black!
 				new DXGI_SAMPLE_DESC(1, 0),
 				D3D11_USAGE_DEFAULT,
 				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,

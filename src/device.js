@@ -8,6 +8,7 @@ class ID3D11Device extends IUnknown
 	#gl;
 	#immediateContext;
 	#anisoExt;
+	#floatTextureExt;
 	#readbackFramebuffer;
 	#backBufferFramebuffer;
 
@@ -28,6 +29,9 @@ class ID3D11Device extends IUnknown
 			this.#gl.getExtension("MOZ_EXT_texture_filter_anisotropic") ||
 			this.#gl.getExtension("WEBKIT_EXT_texture_filter_anisotropic");
 
+		// Attempt to load the floating point texture extension
+		this.#floatTextureExt = this.#gl.getExtension("EXT_color_buffer_float");
+
 		// Flip textures when unpacking
 		// NOTE: Does not effect ImageBitmap objects, which need to be flipped
 		//       via their own options.  See here: https://registry.khronos.org/webgl/specs/latest/1.0/#PIXEL_STORAGE_PARAMETERS
@@ -43,6 +47,11 @@ class ID3D11Device extends IUnknown
 	GetAnisoExt()
 	{
 		return this.#anisoExt;
+	}
+
+	GetFloatTextureExt()
+	{
+		return this.#floatTextureExt;
 	}
 
 	// Not to spec, but I want ONE of these that both the context and the swapchain can use
@@ -829,6 +838,12 @@ class ID3D11Device extends IUnknown
 				glFormatDetails.InternalFormat = this.#gl.RGBA8;
 				break;
 
+			case DXGI_FORMAT_R32G32B32A32_FLOAT:
+				glFormatDetails.Type = this.#gl.FLOAT;
+				glFormatDetails.Format = this.#gl.RGBA;
+				glFormatDetails.InternalFormat = this.#gl.RGBA32F;
+				break;
+
 			default:
 				throw new Error("Format specified is not implemented yet!");
 		}
@@ -1181,7 +1196,9 @@ class ID3D11Device extends IUnknown
 		switch (rtvDesc.Format)
 		{
 			// Basic color format is fine
-			case DXGI_FORMAT_R8G8B8A8_UNORM: break;
+			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R32G32B32A32_FLOAT:
+				break;
 
 			default:
 				throw new Error("Specified RTV Format is invalid or not yet implemented!");
@@ -1256,7 +1273,9 @@ class ID3D11Device extends IUnknown
 		//   - MUST have D3D11_RESOURCE_MISC_BUFFER_ALLOW_RAW_VIEWS flag on resource
 		switch (srvDesc.Format)
 		{
-			case DXGI_FORMAT_R8G8B8A8_UNORM: break;
+			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R32G32B32A32_FLOAT:
+				break;
 
 			default:
 				throw new Error("Specified SRV Format is invalid or not yet implemented!");
@@ -1365,7 +1384,28 @@ class ID3D11Device extends IUnknown
 		if (desc.MipLevels <= 0 || desc.MipLevels > maxMips)
 			throw new Error("Invalid mip levels specified for texture");
 
-		// TODO: Validate format - check all, or just assume it's fine?
+		// Validate format
+		switch (desc.Format)
+		{
+			// Depth buffers
+			case DXGI_FORMAT_D16_UNORM:
+			case DXGI_FORMAT_D32_FLOAT:
+			case DXGI_FORMAT_D24_UNORM_S8_UINT:
+				break;
+
+			// Non-float color buffers
+			case DXGI_FORMAT_R8G8B8A8_UNORM:
+				break;
+
+			// Float color buffers
+			case DXGI_FORMAT_R32G32B32A32_FLOAT:
+				if (this.#floatTextureExt == null)
+					throw new Error("Floating point Texture2D formats are unsupported on your device");
+				break;
+
+			default:
+				throw new Error("Specified Texture2D Format is invalid or not yet implemented!");
+		}
 
 		// Validate usage
 		this.#ValidateUsage(desc, initialData);
