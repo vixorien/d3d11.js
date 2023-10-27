@@ -452,22 +452,22 @@
 			}
 
 			// Offset is now where the actual data begins!
-			let sourcePixels = new Uint8Array(data, offset);
+			let source = new Uint8Array(data, offset);
 			let sourceIndex = 0;
 
 			// We'll be storing results as R32G32B32A32 float pixels
-			let destPixels = new Uint32Array(width * height * 4);
+			let dest = new Uint32Array(width * height * 4);
 			let destIndex = 0;
 
 			// Loop through scanlines
 			for (let s = 0; s < height; s++)
 			{
-				// Grab the first pixel of this line
-				let pixel = new Uint8Array(sourcePixels, sourceIndex * 4, 4);
-				sourceIndex++;
+				// Grab the first "pixel" of this line, which is encoding info
+				let encoding = new Uint8Array(source, sourceIndex, 4);
+				sourceIndex += 4;
 
 				// First pixel is encoding information
-				if(pixel[0] == 2 && pixel[1] == 2 && pixel[2] < 128) // New RLE
+				if (encoding[0] == 2 && encoding[1] == 2 && encoding[2] < 128) // New RLE
 				{
 					// Components handled separately
 					for (let c = 0; c < 4; c++)
@@ -475,24 +475,38 @@
 						// Loop through destination pixels
 						for (let destIndex = 0; destIndex < width;)
 						{
-							pixel = new Uint8Array(sourcePixels, sourceIndex * 4, 4);
+							let num = source[sourceIndex];
 							sourceIndex++;
+
+							// Check the first component of this pixel
+							if (num <= 128)
+							{
+								// No run, read the data
+								for (let i = 0; i < num; i++)
+								{
+
+								}
+							}
+							else
+							{
+								// Run!
+							}
 
 						}
 					}
 				}
 				else // Old RLE
 				{
+					// First set of data is actually the first pixel, so back up
+					sourceIndex -= 4;
+
 					// Loop through pixels of this scanline
 					let shift = 0;
-					for (let destIndex = 0; destIndex < width;)
+					for (let destIndex = 0; destIndex < width * 4;)
 					{
-						// Grab a new pixel each time after the first
-						if (destIndex > 0)
-						{
-							pixel = new Uint8Array(sourcePixels, sourceIndex * 4, 4);
-							sourceIndex++;
-						}
+						// Grab this pixel
+						let pixel = new Uint8Array(source, sourceIndex, 4);
+						sourceIndex += 4;
 
 						// Check this pixel for RLE span
 						// Note: Starting with the first pixel from above!
@@ -503,11 +517,12 @@
 
 							for (let i = 0; i < spanLength; i++)
 							{
-								destPixels[destIndex * 4 + 0] = pixel[0];
-								destPixels[destIndex * 4 + 1] = pixel[1];
-								destPixels[destIndex * 4 + 2] = pixel[2];
-								destPixels[destIndex * 4 + 3] = pixel[3];
-								destIndex++;
+								// Converting from int to float here!
+								dest[destIndex + 0] = pixel[0];
+								dest[destIndex + 1] = pixel[1];
+								dest[destIndex + 2] = pixel[2];
+								dest[destIndex + 3] = pixel[3];
+								destIndex += 4;
 							}
 
 							shift += 8; // Next RLE is shifted (? Is this correct?)
@@ -515,11 +530,12 @@
 						else
 						{
 							// Not an RLE span, just a regular pixel
-							destPixels[destIndex * 4 + 0] = pixel[0];
-							destPixels[destIndex * 4 + 1] = pixel[1];
-							destPixels[destIndex * 4 + 2] = pixel[2];
-							destPixels[destIndex * 4 + 3] = pixel[3];
-							destIndex++; // One more destination pixel down
+							// Converting from int to float here!
+							dest[destIndex + 0] = pixel[0];
+							dest[destIndex + 1] = pixel[1];
+							dest[destIndex + 2] = pixel[2];
+							dest[destIndex + 3] = pixel[3];
+							destIndex += 4; // One more destination pixel down
 
 							shift = 0; // Reset bit shift after RLE
 						}
