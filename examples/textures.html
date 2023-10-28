@@ -266,10 +266,10 @@
 			globalSkySRV = await loadTextureCube(globalDevice, globalContext, fileURLs, true);
 
 			globalIrrSRV.Release();
-			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS);
+			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
 
 			globalIBLSpecSRV.Release();
-			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 256, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS);
+			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 256, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
 		}
 
 		async function readLocalFile(file)
@@ -681,6 +681,16 @@
 
 			// Save ref
 			globalSkySRV = hdrCubeSRV;
+
+			// Note: Need to generate mip maps for cube so that spec IBL can sample different mips
+			// See here: https://learnopengl.com/PBR/IBL/Specular-IBL
+
+			// Create new indirect PBR maps
+			globalIrrSRV.Release();
+			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT);
+
+			globalIBLSpecSRV.Release();
+			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 256, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT);
 		}
 
 
@@ -1022,7 +1032,7 @@
 				size,
 				1,
 				1,
-				DXGI_FORMAT_R32G32B32A32_FLOAT,
+				DXGI_FORMAT_R16G16_FLOAT,
 				new DXGI_SAMPLE_DESC(1, 0),
 				D3D11_USAGE_DEFAULT,
 				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
@@ -1054,7 +1064,7 @@
 		}
 
 
-		function createIrradianceMap(device, context, mapSize, skySRV, sampler, ps, vs)
+		function createIrradianceMap(device, context, mapSize, skySRV, sampler, ps, vs, format)
 		{
 			// Create an empty texture cube for irradiance
 			let cubeDesc = new D3D11_TEXTURE2D_DESC(
@@ -1062,7 +1072,7 @@
 				mapSize,
 				1, // No mips
 				6, // 6 faces (as array elements)
-				DXGI_FORMAT_R8G8B8A8_UNORM,
+				format,
 				new DXGI_SAMPLE_DESC(1, 0),
 				D3D11_USAGE_DEFAULT,
 				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
@@ -1096,7 +1106,7 @@
 			{
 				// RTV for this face
 				let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
-					DXGI_FORMAT_R8G8B8A8_UNORM,
+					format,
 					D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
 					0,
 					face,
@@ -1122,7 +1132,7 @@
 			return irrSRV;
 		}
 
-		function createIBLSpecularMap(device, context, mapSize, iblSpecMipsToSkip, skySRV, sampler, ps, vs)
+		function createIBLSpecularMap(device, context, mapSize, iblSpecMipsToSkip, skySRV, sampler, ps, vs, format)
 		{
 			let usePreviousMipForNextMip = true;
 
@@ -1135,7 +1145,7 @@
 				mapSize,
 				totalMips,
 				6, // 6 faces (as array elements)
-				DXGI_FORMAT_R8G8B8A8_UNORM,
+				format,
 				new DXGI_SAMPLE_DESC(1, 0),
 				D3D11_USAGE_DEFAULT,
 				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
@@ -1161,7 +1171,6 @@
 			context.VSSetShader(vs);
 			context.PSSetShader(ps);
 			context.PSSetConstantBuffers(0, [cb]);
-			//context.PSSetShaderResources(0, [skySRV]); // Handled below since we may created new SRVs per mip
 			context.PSSetSamplers(0, [sampler]);
 
 			let srvForMip = skySRV;
@@ -1179,7 +1188,7 @@
 				if (mip > 0 && usePreviousMipForNextMip)
 				{
 					let mipSRVDesc = new D3D11_SHADER_RESOURCE_VIEW_DESC(
-						DXGI_FORMAT_R8G8B8A8_UNORM,
+						format,
 						D3D11_SRV_DIMENSION_TEXTURECUBE,
 						mip - 1,
 						1,
@@ -1188,12 +1197,15 @@
 					srvForMip = device.CreateShaderResourceView(specTexture, mipSRVDesc);
 				}
 
+				// Set the SRV for this render
+				context.PSSetShaderResources(0, [srvForMip]);
+
 				// Process each face
 				for (let face = 0; face < 6; face++)
 				{
 					// RTV for this face
 					let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
-						DXGI_FORMAT_R8G8B8A8_UNORM,
+						format,
 						D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
 						mip,
 						face,
@@ -1205,9 +1217,6 @@
 					cbData.set([roughness, face, mip], 0);
 					context.UpdateSubresource(cb, 0, null, cbData, 0, 0);
 
-					// Set the SRV for this render
-					context.PSSetShaderResources(0, [srvForMip]);
-
 					// Draw and flush to ensure we're done
 					context.OMSetRenderTargets([faceRTV], null);
 					context.Draw(3, 0);
@@ -1217,7 +1226,7 @@
 				}
 
 				// Done with this mip?
-				if (mip > 0 && usePreviousMipForNextMip)
+				if (mip > 0 && totalMips > 1 && usePreviousMipForNextMip)
 				{
 					srvForMip.Release();
 				}
@@ -1728,8 +1737,8 @@
 			psData.set([iblTotalMips], 8);
 
 			let lutSRV = createBrdfLookUpTable(device, context, 1024, brdfLutPS, fullscreenVS);
-			let irrSRV = createIrradianceMap(device, context, 256, skySRV, sampler, iblIrradiancePS, fullscreenVS);
-			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS);
+			let irrSRV = createIrradianceMap(device, context, 256, skySRV, sampler, iblIrradiancePS, fullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
+			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
 			globalIrrSRV = irrSRV;
 			globalIBLSpecSRV = iblSpecSRV;
 

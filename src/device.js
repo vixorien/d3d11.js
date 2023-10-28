@@ -845,6 +845,12 @@ class ID3D11Device extends IUnknown
 				glFormatDetails.InternalFormat = this.#gl.RGBA8;
 				break;
 
+			case DXGI_FORMAT_R16G16_FLOAT:
+				glFormatDetails.Type = this.#gl.FLOAT;
+				glFormatDetails.Format = this.#gl.RG;
+				glFormatDetails.InternalFormat = this.#gl.RG16F;
+				break;
+
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				glFormatDetails.Type = this.#gl.FLOAT;
 				glFormatDetails.Format = this.#gl.RGBA;
@@ -1204,6 +1210,7 @@ class ID3D11Device extends IUnknown
 		{
 			// Basic color format is fine
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				break;
 
@@ -1281,6 +1288,7 @@ class ID3D11Device extends IUnknown
 		switch (srvDesc.Format)
 		{
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				break;
 
@@ -1405,6 +1413,7 @@ class ID3D11Device extends IUnknown
 				break;
 
 			// Float color buffers
+			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				if (this.#floatTextureExt == null)
 					throw new Error("Floating point Texture2D formats are unsupported on your device");

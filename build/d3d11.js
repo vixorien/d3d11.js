@@ -235,7 +235,7 @@ const D3D11_USAGE_STAGING = 3;
 // - https://learn.microsoft.com/en-us/previous-versions//ff471325(v=vs.85)?redirectedfrom=MSDN
 const DXGI_FORMAT_UNKNOWN = 0;
 //const DXGI_FORMAT_R32G32B32A32_TYPELESS = 1;
-const DXGI_FORMAT_R32G32B32A32_FLOAT = 2;	// 128-bit, four channel float (for input layouts)
+const DXGI_FORMAT_R32G32B32A32_FLOAT = 2;	// 128-bit, four channel float (for input layouts or textures)
 //const DXGI_FORMAT_R32G32B32A32_UINT = 3;
 //const DXGI_FORMAT_R32G32B32A32_SINT = 4;
 //const DXGI_FORMAT_R32G32B32_TYPELESS = 5;
@@ -262,12 +262,12 @@ const DXGI_FORMAT_R32G32_FLOAT = 16;		// 64-bit, two channel float (for input la
 //const DXGI_FORMAT_R11G11B10_FLOAT = 26;
 //const DXGI_FORMAT_R8G8B8A8_TYPELESS = 27;
 const DXGI_FORMAT_R8G8B8A8_UNORM = 28;		// Default 32-bit, 8-per-channel color format
-const DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29; // 32-bit, 8-per-channel format, using sRGB for gamma conversion
+//const DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29; // 32-bit, 8-per-channel format, using sRGB for gamma conversion
 //const DXGI_FORMAT_R8G8B8A8_UINT = 30;
 //const DXGI_FORMAT_R8G8B8A8_SNORM = 31;
 //const DXGI_FORMAT_R8G8B8A8_SINT = 32;
 //const DXGI_FORMAT_R16G16_TYPELESS = 33;
-//const DXGI_FORMAT_R16G16_FLOAT = 34;
+const DXGI_FORMAT_R16G16_FLOAT = 34;		// 32-bit, two channel, 16-per-channel float
 //const DXGI_FORMAT_R16G16_UNORM = 35;
 //const DXGI_FORMAT_R16G16_UINT = 36;
 //const DXGI_FORMAT_R16G16_SNORM = 37;
@@ -1853,6 +1853,12 @@ class ID3D11Device extends IUnknown
 				glFormatDetails.InternalFormat = this.#gl.RGBA8;
 				break;
 
+			case DXGI_FORMAT_R16G16_FLOAT:
+				glFormatDetails.Type = this.#gl.FLOAT;
+				glFormatDetails.Format = this.#gl.RG;
+				glFormatDetails.InternalFormat = this.#gl.RG16F;
+				break;
+
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				glFormatDetails.Type = this.#gl.FLOAT;
 				glFormatDetails.Format = this.#gl.RGBA;
@@ -2212,6 +2218,7 @@ class ID3D11Device extends IUnknown
 		{
 			// Basic color format is fine
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				break;
 
@@ -2289,6 +2296,7 @@ class ID3D11Device extends IUnknown
 		switch (srvDesc.Format)
 		{
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				break;
 
@@ -2413,6 +2421,7 @@ class ID3D11Device extends IUnknown
 				break;
 
 			// Float color buffers
+			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				if (this.#floatTextureExt == null)
 					throw new Error("Floating point Texture2D formats are unsupported on your device");
