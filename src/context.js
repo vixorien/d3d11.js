@@ -748,6 +748,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#viewportDirty = true; // Need to "re-flip" the viewport!
 	}
 
+	// TODO: Finalize the way we return multiple pieces of data
+	OMGetRenderTargets()
+	{
+		return [this.#renderTargetViews.slice(), this.#depthStencilView];
+	}
+
 	// TODO: Handle instancing
 	// TODO: Error reporting if state isn't set
 	#PrepareInputAssembler()

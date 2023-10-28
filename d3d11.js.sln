@@ -23,7 +23,7 @@ Project("{E24C65DC-7377-472B-9ABA-BC803B73C61A}") = "d3d11.js", ".", "{009FCAC0-
 		Release.AspNetCompiler.ForceOverwrite = "true"
 		Release.AspNetCompiler.FixedNames = "false"
 		Release.AspNetCompiler.Debug = "False"
-		VWDPort = "54523"
+		VWDPort = "1447"
 		SlnRelativePath = "..\d3d11.js\"
 	EndProjectSection
 EndProject

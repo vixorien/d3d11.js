@@ -3274,6 +3274,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#viewportDirty = true; // Need to "re-flip" the viewport!
 	}
 
+	// TODO: Finalize the way we return multiple pieces of data
+	OMGetRenderTargets()
+	{
+		return [this.#renderTargetViews.slice(), this.#depthStencilView];
+	}
+
 	// TODO: Handle instancing
 	// TODO: Error reporting if state isn't set
 	#PrepareInputAssembler()
@@ -6238,6 +6244,8 @@ class HLSL
 		glsl += "vec3 lerp(vec3 a, vec3 b, vec3 t) { return mix(a, b, t); }\n\n";
 
 		glsl += "void sincos(float a, out float s, out float c) { s = sin(a); c = cos(a); }\n\n";
+
+		glsl += "float atan2(float a, float b) { return atan(b, a); }\n\n";
 
 		glsl += "float pow_hlsl(float a, float b) { return pow(a, b); }\n";
 		glsl += "vec2 pow_hlsl(vec2 v, float f) { return pow(v, vec2(f)); }\n";

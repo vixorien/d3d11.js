@@ -1326,6 +1326,8 @@ class HLSL
 
 		glsl += "void sincos(float a, out float s, out float c) { s = sin(a); c = cos(a); }\n\n";
 
+		glsl += "float atan2(float a, float b) { return atan(b, a); }\n\n";
+
 		glsl += "float pow_hlsl(float a, float b) { return pow(a, b); }\n";
 		glsl += "vec2 pow_hlsl(vec2 v, float f) { return pow(v, vec2(f)); }\n";
 		glsl += "vec3 pow_hlsl(vec3 v, float f) { return pow(v, vec3(f)); }\n";
