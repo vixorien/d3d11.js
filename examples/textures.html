@@ -265,7 +265,7 @@
 			}
 
 			// All loaded - Attempt to load as a cube map
-			globalSkySRV = await loadTextureCube(globalDevice, globalContext, fileURLs, true);
+			globalSkySRV = await loadTextureCube(globalDevice, globalContext, fileURLs, true, true);
 			globalSkyIsHDR = true;
 
 			globalIrrSRV.Release();
@@ -358,7 +358,7 @@
 
 			// File details from header
 			let format = null;
-			let exposure = 1;
+			let exposure = 128;
 			let flipX = false;
 			let flipY = false;
 			let width = -1;
@@ -953,7 +953,7 @@
 			return srv;
 		}
 
-		async function loadTextureCube(device, context, faceURLs, filesAreLocal)
+		async function loadTextureCube(device, context, faceURLs, filesAreLocal, generateMips)
 		{
 			let faceTextures = [];
 			let size = -1;
@@ -985,20 +985,32 @@
 			}
 
 			// Set up the texture cube
+			let mips = 1;
+			if (generateMips)
+			{
+				mips = Math.floor(Math.log2(faceTextures[0].width)) + 1;
+			}
+
 			let desc = new D3D11_TEXTURE2D_DESC(
 				faceTextures[0].width,
 				faceTextures[0].height,
-				1, // No mips
+				mips,
 				6, // 6 faces (as array elements)
 				DXGI_FORMAT_R8G8B8A8_UNORM,
 				new DXGI_SAMPLE_DESC(1, 0),
 				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE,
+				D3D11_BIND_SHADER_RESOURCE | (generateMips ? D3D11_BIND_RENDER_TARGET : 0),
 				0,
-				D3D11_RESOURCE_MISC_TEXTURECUBE);
+				D3D11_RESOURCE_MISC_TEXTURECUBE | (generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0));
 			let texture = device.CreateTexture2D(desc, faceTextures);
 
 			let srv = device.CreateShaderResourceView(texture, null);
+
+			// Generate mip maps for the enviroment map for later IBL steps
+			if (generateMips)
+			{
+				context.GenerateMips(srv);
+			}
 
 			// Release the texture
 			texture.Release();
@@ -1536,7 +1548,8 @@
 					"../assets/skies/cloudsblue/front.png",
 					"../assets/skies/cloudsblue/back.png"
 				],
-				false
+				false,
+				true
 			);
 			globalSkySRV = skySRV;
 			globalSkyIsHDR = false;

@@ -53,7 +53,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float TWO_PI = PI * 2.0f;
 	float PI_OVER_2 = PI * 0.5f;
 	float IRRADIANCE_SAMPLE_STEP_PHI = 0.025f;
-	float IRRADIANCE_SAMPLE_STEP_THETA = 0.025f;
+	float IRRADIANCE_SAMPLE_STEP_THETA = 0.1f;
 
 	// Loop around the hemisphere (360 degrees)
 	for (float phi = 0.0f; phi < TWO_PI; phi += IRRADIANCE_SAMPLE_STEP_PHI)
@@ -75,6 +75,10 @@ float4 main(VertexToPixel input) : SV_TARGET
 				hemisphereDir.x * xDir +
 				hemisphereDir.y * yDir +
 				hemisphereDir.z * zDir;
+
+			// TODO: Adjust sample based on PDF
+			// Cosine PDF(x) = 1/(2 * pi) * (1 + cos(x)) // From: https://www.statisticshowto.com/cosine-distribution
+			// Also here:  https://learnopengl.com/PBR/IBL/Specular-IBL
 
 			// Sample in that direction
 			float3 samp = EnvironmentMap.Sample(BasicSampler, hemisphereDir).rgb;
