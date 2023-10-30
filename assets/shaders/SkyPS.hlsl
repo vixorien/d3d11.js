@@ -9,5 +9,5 @@ SamplerState BasicSampler	: register(s0);
 
 float4 main(VertexToPixel_Sky input) : SV_TARGET
 {
-	return SkyTexture.SampleLevel(BasicSampler, input.sampleDir, 0);
+	return SkyTexture.SampleLevel(BasicSampler, input.sampleDir, 0.0f);
 }

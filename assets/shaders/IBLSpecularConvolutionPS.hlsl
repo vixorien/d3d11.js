@@ -7,6 +7,7 @@ cbuffer data : register(b0)
 	float faceIndex;
 	float mipLevel;
 	float envIsHDR;
+	float cubeSize;
 }
 
 struct VertexToPixel
@@ -110,6 +111,31 @@ float3 ImportanceSampleGGX(float2 Xi, float roughness, float3 N)
 }
 
 
+// Normal Distribution Function: GGX (Trowbridge-Reitz)
+//
+// a - Roughness
+// h - Half vector
+// n - Normal
+// 
+// D(h, n, a) = a^2 / pi * ((n dot h)^2 * (a^2 - 1) + 1)^2
+float D_GGX(float3 n, float3 h, float roughness)
+{
+	// Pre-calculations
+	float NdotH = saturate(dot(n, h));
+	float NdotH2 = NdotH * NdotH;
+	float a = roughness * roughness;
+	float a2 = max(a * a, 0.000001); // Applied after remap!
+
+	// ((n dot h)^2 * (a^2 - 1) + 1)
+	// Can go to zero if roughness is 0 and NdotH is 1
+	float denomToSquare = NdotH2 * (a2 - 1.0) + 1.0;
+
+	// Final value
+	return a2 / (3.14159 * denomToSquare * denomToSquare);
+}
+
+
+
 // Convolves (blurs) the texture cube for a particular roughness and reflection vector.
 // This requires taking a huge number of samples for the result to look acceptable, which
 // is why this is done as a pre-process rather than doing it "live".
@@ -126,10 +152,14 @@ float3 ConvolveTextureCube(float roughness, float3 R)
 	float3 finalColor = float3(0, 0, 0);
 	float totalWeight = 0.0;
 
+	// Pre-calc for mip level selection
+	float PI = 3.14159265359f;
+	float solidAngleTexel = 4.0f * PI / (6.0f * cubeSize * cubeSize);
+
 	// Sample the texture cube MANY times
 	//  - 4096 would be an ideal number of samples 
 	//  - Fewer is faster, but looks worse overall
-	uint MAX_IBL_SAMPLES = 1024u;
+	uint MAX_IBL_SAMPLES = 4096u;
 	for (uint i = 0u; i < MAX_IBL_SAMPLES; i++)
 	{
 		// Grab this sample
@@ -141,7 +171,16 @@ float3 ConvolveTextureCube(float roughness, float3 R)
 		float nDotL = saturate(dot(N, L));
 		if (nDotL > 0.0)
 		{
-			float3 thisColor = EnvironmentMap.SampleLevel(BasicSampler, L, 0.0).rgb;
+			// V and N are the same!
+			float nDotH_and_hDotV = saturate(dot(N, H));
+
+			// Select the proper mip level, as done here: https://chetanjags.wordpress.com/2015/08/26/image-based-lighting/
+			float D = D_GGX(N, H, roughness);
+			float pdf = (D * nDotH_and_hDotV / (4.0f * nDotH_and_hDotV)) + 0.0001f;
+			float solidAngleSample = 1.0f / (float(MAX_IBL_SAMPLES) * pdf + 0.0001f);
+			float mipLevel = roughness == 0.0f ? 0.0f : 0.5f * log2(solidAngleSample / solidAngleTexel);
+
+			float3 thisColor = EnvironmentMap.SampleLevel(BasicSampler, L, mipLevel).rgb;
 			finalColor += nDotL * (envIsHDR == 0.0 ? pow(thisColor, 2.2) : thisColor);
 			totalWeight += nDotL;
 		}

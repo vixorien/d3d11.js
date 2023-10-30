@@ -4,6 +4,7 @@ cbuffer externalData : register(b0)
 {
 	float faceIndex;
 	float envIsHDR;
+	float cubeSize;
 }
 
 struct VertexToPixel
@@ -53,7 +54,14 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float TWO_PI = PI * 2.0f;
 	float PI_OVER_2 = PI * 0.5f;
 	float IRRADIANCE_SAMPLE_STEP_PHI = 0.025f;
-	float IRRADIANCE_SAMPLE_STEP_THETA = 0.1f;
+	float IRRADIANCE_SAMPLE_STEP_THETA = 0.01f;
+
+	// Pre-calculate values necessary for mip selection
+	float totalSamples = 
+		(PI_OVER_2 / IRRADIANCE_SAMPLE_STEP_THETA) *
+		(TWO_PI / IRRADIANCE_SAMPLE_STEP_PHI);
+	float solidAngleTexel = 4.0f * PI / (6.0f * cubeSize * cubeSize);
+	float distr = 1.0f / PI; // I think?
 
 	// Loop around the hemisphere (360 degrees)
 	for (float phi = 0.0f; phi < TWO_PI; phi += IRRADIANCE_SAMPLE_STEP_PHI)
@@ -76,18 +84,20 @@ float4 main(VertexToPixel input) : SV_TARGET
 				hemisphereDir.y * yDir +
 				hemisphereDir.z * zDir;
 
-			// TODO: Adjust sample based on PDF
-			// Cosine PDF(x) = 1/(2 * pi) * (1 + cos(x)) // From: https://www.statisticshowto.com/cosine-distribution
-			// Also here:  https://learnopengl.com/PBR/IBL/Specular-IBL
+			// Select the proper mip level, as done here: https://chetanjags.wordpress.com/2015/08/26/image-based-lighting/
+			// Note: We're using a cosine distribution
+			float pdf = (distr * cosT / 4.0f) + 0.0001f;
+			float solidAngleSample = 1.0f / (totalSamples * pdf + 0.0001f);
+			float mipLevel = 0.5f * log2(solidAngleSample / solidAngleTexel);
 
 			// Sample in that direction
-			float3 samp = EnvironmentMap.Sample(BasicSampler, hemisphereDir).rgb;
+			float3 samp = EnvironmentMap.SampleLevel(BasicSampler, hemisphereDir, mipLevel).rgb;
 			totalColor += cosT * sinT * (envIsHDR == 0.0f ? pow(samp, 2.2f) : samp);
 			sampleCount++;
 		}
 	}
 
 	float3 finalColor = PI * totalColor / sampleCount;
-	return float4(pow(abs(finalColor), 1.0f / 2.2f), 1);
+	return float4(pow(finalColor, 1.0f / 2.2f), 1);
 	//return float4(finalColor, 1);
 }

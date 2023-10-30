@@ -610,26 +610,32 @@
 				0);
 			let hdrTexture = globalDevice.CreateTexture2D(hdrDesc, [dest]);
 			let hdrSRV = globalDevice.CreateShaderResourceView(hdrTexture, null);
-			
+
+			// Collect info on cube
+			let cubeSize = width / 4;
+			let generateMips = true;
+			let mips = 1;
+			if (generateMips)
+			{
+				mips = Math.floor(Math.log2(cubeSize)) + 1;
+			}
 
 			// Create empty cube map
-			let cubeSize = width / 4;
 			let cubeDesc = new D3D11_TEXTURE2D_DESC(
 				cubeSize,
 				cubeSize,
-				1, // No mips
+				mips,
 				6, // 6 faces (as array elements)
 				DXGI_FORMAT_R32G32B32A32_FLOAT,
 				new DXGI_SAMPLE_DESC(1, 0),
 				D3D11_USAGE_DEFAULT,
 				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
 				0,
-				D3D11_RESOURCE_MISC_TEXTURECUBE);
+				D3D11_RESOURCE_MISC_TEXTURECUBE | (generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0));
 			let hdrCubeTexture = globalDevice.CreateTexture2D(cubeDesc, null);
 			let hdrCubeSRV = globalDevice.CreateShaderResourceView(hdrCubeTexture, null);
 			
-
-
+			
 			// Constant buffer for per-face data (index)
 			let cbDesc = new D3D11_BUFFER_DESC(
 				Float32Array.BYTES_PER_ELEMENT * 4,
@@ -676,6 +682,13 @@
 
 				faceRTV.Release();
 			}
+
+			// Generate mip maps for the enviroment map for later IBL steps
+			if (generateMips)
+			{
+				globalContext.GenerateMips(hdrCubeSRV);
+			}
+
 
 			// Release and clean up
 			cb.Release();
@@ -1085,6 +1098,11 @@
 
 		function createIrradianceMap(device, context, mapSize, skySRV, sampler, ps, vs, format, envIsHDR)
 		{
+			// Get the size of the sky box
+			let res = skySRV.GetResource();
+			let cubeSize = res.GetDesc().Width;
+			res.Release(); // Release the new ref
+
 			// Create an empty texture cube for irradiance
 			let cubeDesc = new D3D11_TEXTURE2D_DESC(
 				mapSize,
@@ -1133,8 +1151,12 @@
 				let faceRTV = device.CreateRenderTargetView(irrTexture, faceRTVDesc);
 
 				// Set cb data
-				cbData.set([face], 0);
-				cbData.set([envIsHDR ? 1 : 0], 1);
+				cbData.set([
+					face,
+					envIsHDR ? 1 : 0,
+					cubeSize
+				]);
+				
 				context.UpdateSubresource(cb, 0, null, cbData, 0, 0);
 
 				// Draw and flush to ensure we're done
@@ -1156,6 +1178,11 @@
 		{
 			let usePreviousMipForNextMip = false;
 
+			// Get the size of the sky box
+			let res = skySRV.GetResource();
+			let cubeSize = res.GetDesc().Width;
+			res.Release(); // Release the new ref
+
 			// How many mips do we need?
 			let totalMips = Math.max(Math.log2(mapSize) + 1 - iblSpecMipsToSkip, 1); // Add 1 for 1x1
 
@@ -1176,13 +1203,13 @@
 
 			// Constant buffer for per-face data
 			let cbDesc = new D3D11_BUFFER_DESC(
-				Float32Array.BYTES_PER_ELEMENT * 4,
+				Float32Array.BYTES_PER_ELEMENT * 8,
 				D3D11_USAGE_DYNAMIC,
 				D3D11_BIND_CONSTANT_BUFFER,
 				D3D11_CPU_ACCESS_WRITE,
 				0, 0);
 			let cb = device.CreateBuffer(cbDesc, null);
-			let cbData = new Float32Array(4);
+			let cbData = new Float32Array(8);
 
 			// Set up viewport
 			let oldVP = context.RSGetViewports();
@@ -1234,7 +1261,13 @@
 
 					// Set cb data
 					let roughness = mip / Math.max(totalMips - 1.0, 1.0);
-					cbData.set([roughness, face, mip, envIsHDR ? 1 : 0], 0);
+					cbData.set([
+						roughness,
+						face,
+						mip,
+						envIsHDR ? 1 : 0,
+						cubeSize
+					]);
 					context.UpdateSubresource(cb, 0, null, cbData, 0, 0);
 
 					// Draw and flush to ensure we're done
