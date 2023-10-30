@@ -6,6 +6,7 @@ cbuffer data : register(b0)
 	float roughness;
 	float faceIndex;
 	float mipLevel;
+	float envIsHDR;
 }
 
 struct VertexToPixel
@@ -140,14 +141,15 @@ float3 ConvolveTextureCube(float roughness, float3 R)
 		float nDotL = saturate(dot(N, L));
 		if (nDotL > 0.0)
 		{
-			float3 thisColor = pow(EnvironmentMap.SampleLevel(BasicSampler, L, 0.0).rgb, 2.2);
-			finalColor += thisColor * nDotL;
+			float3 thisColor = EnvironmentMap.SampleLevel(BasicSampler, L, 0.0).rgb;
+			finalColor += nDotL * (envIsHDR == 0.0 ? pow(thisColor, 2.2) : thisColor);
 			totalWeight += nDotL;
 		}
 	}
 
 	// Divide and return result
 	return pow(finalColor / totalWeight, 1.0f / 2.2f);
+	//return finalColor / totalWeight;
 }
 
 

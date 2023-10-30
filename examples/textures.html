@@ -215,6 +215,8 @@
 		let globalIrrSRV = null;
 		let globalIBLSpecSRV = null;
 
+		let globalSkyIsHDR = false;
+
 		let globalIBLSampler = null;
 		let globalIrrPS = null;
 		let globalIBLSpecPS = null;
@@ -264,12 +266,13 @@
 
 			// All loaded - Attempt to load as a cube map
 			globalSkySRV = await loadTextureCube(globalDevice, globalContext, fileURLs, true);
+			globalSkyIsHDR = true;
 
 			globalIrrSRV.Release();
 			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
 
 			globalIBLSpecSRV.Release();
-			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 256, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
+			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
 		}
 
 		async function readLocalFile(file)
@@ -500,7 +503,7 @@
 							else
 							{
 								// Run!  Adjust value
-								run -= 128; // Or (run &= 127)?
+								run -= 128;
 
 								// Grab the value for this run
 								let val = source[sourceIndex];
@@ -564,28 +567,31 @@
 				}
 			}
 
-			// Got the data, now to convert it
-			// Based on "Real Pixels" by Greg Ward in Graphics Gems II
-			let invExposure = 1 / 128;// exposure;
-			for (let i = 0; i < dest.length; i += 4)
+			// Got the data, now to convert it (if necessary based on format from header)
+			if (format == formatRGB)
 			{
-				let exponent = dest[i + 3];
-				if (exponent == 0)
+				// Based on "Real Pixels" by Greg Ward in Graphics Gems II
+				let invExposure = 1 / exposure;
+				for (let i = 0; i < dest.length; i += 4)
 				{
-					dest[i + 0] = 0;
-					dest[i + 1] = 0;
-					dest[i + 2] = 0;
-				}
-				else
-				{
-					// Replicate ldexp(x, exponent) --> x * 2 ^ exp
-					// ldexp(invExposure, exponent - 128) --> invExposure * 2 ^ (exponent - 128)
-					let v = invExposure * Math.pow(2, exponent - 128);
+					let exponent = dest[i + 3];
+					if (exponent == 0)
+					{
+						dest[i + 0] = 0;
+						dest[i + 1] = 0;
+						dest[i + 2] = 0;
+					}
+					else
+					{
+						// Replicate ldexp(x, exponent) --> x * 2 ^ exp
+						// ldexp(invExposure, exponent - 128) --> invExposure * 2 ^ (exponent - 128)
+						let v = invExposure * Math.pow(2, exponent - 128);
 
-					dest[i + 0] = (dest[i + 0] + 0.5) * v;
-					dest[i + 1] = (dest[i + 1] + 0.5) * v;
-					dest[i + 2] = (dest[i + 2] + 0.5) * v;
-					dest[i + 3] = 1;
+						dest[i + 0] = (dest[i + 0] + 0.5) * v;
+						dest[i + 1] = (dest[i + 1] + 0.5) * v;
+						dest[i + 2] = (dest[i + 2] + 0.5) * v;
+						dest[i + 3] = 1;
+					}
 				}
 			}
 			
@@ -681,16 +687,17 @@
 
 			// Save ref
 			globalSkySRV = hdrCubeSRV;
+			globalSkyIsHDR = true;
 
 			// Note: Need to generate mip maps for cube so that spec IBL can sample different mips
 			// See here: https://learnopengl.com/PBR/IBL/Specular-IBL
 
 			// Create new indirect PBR maps
 			globalIrrSRV.Release();
-			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT);
+			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
 
 			globalIBLSpecSRV.Release();
-			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 256, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT);
+			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
 		}
 
 
@@ -1064,7 +1071,7 @@
 		}
 
 
-		function createIrradianceMap(device, context, mapSize, skySRV, sampler, ps, vs, format)
+		function createIrradianceMap(device, context, mapSize, skySRV, sampler, ps, vs, format, envIsHDR)
 		{
 			// Create an empty texture cube for irradiance
 			let cubeDesc = new D3D11_TEXTURE2D_DESC(
@@ -1115,6 +1122,7 @@
 
 				// Set cb data
 				cbData.set([face], 0);
+				cbData.set([envIsHDR ? 1 : 0], 1);
 				context.UpdateSubresource(cb, 0, null, cbData, 0, 0);
 
 				// Draw and flush to ensure we're done
@@ -1132,9 +1140,9 @@
 			return irrSRV;
 		}
 
-		function createIBLSpecularMap(device, context, mapSize, iblSpecMipsToSkip, skySRV, sampler, ps, vs, format)
+		function createIBLSpecularMap(device, context, mapSize, iblSpecMipsToSkip, skySRV, sampler, ps, vs, format, envIsHDR)
 		{
-			let usePreviousMipForNextMip = true;
+			let usePreviousMipForNextMip = false;
 
 			// How many mips do we need?
 			let totalMips = Math.max(Math.log2(mapSize) + 1 - iblSpecMipsToSkip, 1); // Add 1 for 1x1
@@ -1214,7 +1222,7 @@
 
 					// Set cb data
 					let roughness = mip / Math.max(totalMips - 1.0, 1.0);
-					cbData.set([roughness, face, mip], 0);
+					cbData.set([roughness, face, mip, envIsHDR ? 1 : 0], 0);
 					context.UpdateSubresource(cb, 0, null, cbData, 0, 0);
 
 					// Draw and flush to ensure we're done
@@ -1390,15 +1398,15 @@
 				1, // Depth (Unused for non-volume textures - maybe just set to zero?)
 				mipLevels,
 				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 11x unused (reserved) entries
-								// Pixel format ----
-								/* dwSize        */ 32, // Always 32
-								/* dwFlags       */ pixelFormatFlags,
-								/* dwFourCC      */ 0,
-								/* dwRGBBitCount */ bitsPerPixel, // Includes alpha!
-								/* dwRBitMask    */ 0x000000ff, // Yes these feel "backwards" but are correct
-								/* dwGBitMask    */ 0x0000ff00,
-								/* dwBBitMask    */ 0x00ff0000,
-								/* dwABitMask    */ 0xff000000,
+				// Pixel format ----
+				/* dwSize        */ 32, // Always 32
+				/* dwFlags       */ pixelFormatFlags,
+				/* dwFourCC      */ 0,
+				/* dwRGBBitCount */ bitsPerPixel, // Includes alpha!
+				/* dwRBitMask    */ 0x000000ff, // Yes these feel "backwards" but are correct
+				/* dwGBitMask    */ 0x0000ff00,
+				/* dwBBitMask    */ 0x00ff0000,
+				/* dwABitMask    */ 0xff000000,
 				// End pixel format ---
 				caps,
 				caps2,
@@ -1421,7 +1429,7 @@
 
 		async function main()
 		{
-			let postprocessing = false;
+			let postprocessing = true;
 
 			let input = new Input(document);
 
@@ -1531,6 +1539,7 @@
 				false
 			);
 			globalSkySRV = skySRV;
+			globalSkyIsHDR = false;
 			context.PSSetShaderResources(4, [skySRV]);
 
 			// Create/release test
@@ -1719,6 +1728,7 @@
 			let solidPS = device.CreatePixelShader(await loadText("../assets/shaders/SolidColorPS.hlsl"));
 			let skyVS = device.CreateVertexShader(await loadText("../assets/shaders/SkyVS.hlsl"));
 			let skyPS = device.CreatePixelShader(await loadText("../assets/shaders/SkyPS.hlsl"));
+			let tonemapPS = device.CreatePixelShader(await loadText("../assets/shaders/TonemapPS.hlsl"));
 			let postprocPS = device.CreatePixelShader(await loadText("../assets/shaders/BlurPS.hlsl"));
 			let fullscreenVS = device.CreateVertexShader(await loadText("../assets/shaders/FullscreenVS.hlsl"));
 
@@ -1737,8 +1747,8 @@
 			psData.set([iblTotalMips], 8);
 
 			let lutSRV = createBrdfLookUpTable(device, context, 1024, brdfLutPS, fullscreenVS);
-			let irrSRV = createIrradianceMap(device, context, 256, skySRV, sampler, iblIrradiancePS, fullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
-			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
+			let irrSRV = createIrradianceMap(device, context, 256, skySRV, sampler, iblIrradiancePS, fullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM, false);
+			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM, false);
 			globalIrrSRV = irrSRV;
 			globalIBLSpecSRV = iblSpecSRV;
 
@@ -1865,7 +1875,7 @@
 				gl.canvas.height,
 				1,
 				1,
-				DXGI_FORMAT_R8G8B8A8_UNORM,
+				DXGI_FORMAT_R32G32B32A32_FLOAT,
 				new DXGI_SAMPLE_DESC(1, 0),
 				D3D11_USAGE_DEFAULT,
 				D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
@@ -1978,6 +1988,25 @@
 					viewport.Width = gl.canvas.clientWidth;
 					viewport.Height = gl.canvas.clientHeight;
 					context.RSSetViewports(viewport);
+
+					// Create new post processing resource, too
+					ppSRV.Release();
+					ppRTV.Release();
+					let ppTexDesc = new D3D11_TEXTURE2D_DESC(
+						gl.canvas.width,
+						gl.canvas.height,
+						1,
+						1,
+						DXGI_FORMAT_R32G32B32A32_FLOAT,
+						new DXGI_SAMPLE_DESC(1, 0),
+						D3D11_USAGE_DEFAULT,
+						D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
+						0,
+						0);
+					let ppTexture = device.CreateTexture2D(ppTexDesc, [null]);
+					ppSRV = device.CreateShaderResourceView(ppTexture, null);
+					ppRTV = device.CreateRenderTargetView(ppTexture, null);
+					ppTexture.Release();
 				}
 			}
 
@@ -1986,8 +2015,8 @@
 			{
 				checkForResize();
 
-				// Set up post processing
-				if (postprocessing)
+				// Set up tone mapping if necessary
+				if (globalSkyIsHDR)
 				{
 					context.OMSetRenderTargets([ppRTV], depthDSV);
 				}
@@ -2134,7 +2163,7 @@
 					// PS -> Nothing necessary
 
 					// Set up texture
-					context.PSSetShaderResources(0, [globalSkySRV]); //[skySRV]); XXXXXXXXXXXXXXXXX
+					context.PSSetShaderResources(0, [globalSkySRV]);
 
 					// Draw cube
 					context.IASetVertexBuffers(0, [cubeVB], [vbStride], [vbOffset]);
@@ -2146,12 +2175,12 @@
 					context.OMSetDepthStencilState(null);
 				}
 
-				if (postprocessing)
+				// Finalize post processing if necessary
+				if (globalSkyIsHDR)
 				{
-					// Finish post processing
 					context.OMSetRenderTargets([rtv], null);
 					context.VSSetShader(fullscreenVS);
-					context.PSSetShader(postprocPS);
+					context.PSSetShader(tonemapPS);
 					context.PSSetShaderResources(0, [ppSRV]);
 					context.Draw(3, 0);
 				}

@@ -4,11 +4,11 @@ struct VertexToPixel
 	float2 uv           : TEXCOORD0;
 };
 
-cbuffer psData : register(b0)
-{
-	float tonemapType;
-	float exposure;
-}
+//cbuffer psData : register(b0)
+//{
+//	float tonemapType;
+//	float exposure;
+//}
 
 Texture2D pixels : register(t0);
 SamplerState samp : register(s0);
@@ -43,6 +43,13 @@ float3 ReinhardTonemap(float3 color)
 	return color / (color + 1.0f);
 }
 
+// https://64.github.io/tonemapping/
+float3 ReinhardWhitePoint(float3 color, float whitePoint)
+{
+	float3 num = color * (1.0f + (color / float3(whitePoint * whitePoint)));
+	return num / (1.0f + color);
+}
+
 // http://learnopengl.com/#!Advanced-Lighting/HDR
 float3 ExposureTonemap(float3 color)
 {
@@ -52,14 +59,18 @@ float3 ExposureTonemap(float3 color)
 float4 main(VertexToPixel input) : SV_TARGET
 {
 	// Tonemap types
-	float TONEMAP_LINEAR = 0.0f;
-	float TONEMAP_REINHARD = 1.0f
-	float TONEMAP_EXPOSURE = 2.0f;
-	float TONEMAP_UNCHARTED = 3.0f;
-	float TONEMAP_ACES = 4.0f;
+	const int TONEMAP_LINEAR = 0;
+	const int TONEMAP_REINHARD = 1;
+	const int TONEMAP_REINHARD_WHITE_POINT = 2;
+;	const int TONEMAP_EXPOSURE = 3;
+	const int TONEMAP_UNCHARTED = 4;
+	const int TONEMAP_ACES = 5;
+
+	int tonemapType = 0;
+	float exposure = 0.01f;
 
 	// Grab the color and apply exposure before tonemapping
-	float3 color = pixels.Sample(samp, input.uv).rgb;
+	float3 color = pow(pixels.Sample(samp, input.uv).rgb, 2.2f);
 	color *= exposure;
 
 	// Choose the tonemap type
@@ -68,10 +79,11 @@ float4 main(VertexToPixel input) : SV_TARGET
 	default:
 	case TONEMAP_LINEAR: break; // Just return color as-is
 	case TONEMAP_REINHARD: color = ReinhardTonemap(color); break;
+	case TONEMAP_REINHARD_WHITE_POINT: color = ReinhardWhitePoint(color, 1.0f); break;
 	case TONEMAP_EXPOSURE: color = ExposureTonemap(color); break;
 	case TONEMAP_UNCHARTED: color = Uncharted2Tonemap(color); break;
 	case TONEMAP_ACES: color = AcesTonemap(color); break;
 	}
 
-	return float4(color, 1);
+	return float4(pow(color, 1.0f / 2.2f), 1);
 }

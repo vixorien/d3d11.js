@@ -51,7 +51,6 @@ class Input
 	#FocusOutHandler(e)
 	{
 		this.#ClearState();
-		console.log("focus out");
 	}
 
 	#ContextMenuHandler(e)

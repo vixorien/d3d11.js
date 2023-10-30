@@ -3,6 +3,7 @@
 cbuffer externalData : register(b0)
 {
 	float faceIndex;
+	float envIsHDR;
 }
 
 struct VertexToPixel
@@ -76,11 +77,13 @@ float4 main(VertexToPixel input) : SV_TARGET
 				hemisphereDir.z * zDir;
 
 			// Sample in that direction
-			totalColor += cosT * sinT * pow(EnvironmentMap.Sample(BasicSampler, hemisphereDir).rgb, 2.2f);
+			float3 samp = EnvironmentMap.Sample(BasicSampler, hemisphereDir).rgb;
+			totalColor += cosT * sinT * (envIsHDR == 0.0f ? pow(samp, 2.2f) : samp);
 			sampleCount++;
 		}
 	}
 
 	float3 finalColor = PI * totalColor / sampleCount;
 	return float4(pow(abs(finalColor), 1.0f / 2.2f), 1);
+	//return float4(finalColor, 1);
 }

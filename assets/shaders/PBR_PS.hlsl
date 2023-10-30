@@ -279,6 +279,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 
 	// --- Indirect PBR ---
 	float3 indirectDiffuse = pow(iblIrradiance.Sample(samp, input.normal).rgb, 2.2);
+	//float3 indirectDiffuse = iblIrradiance.Sample(samp, input.normal).rgb;
 
 	// Convert to perceptual
 	rough *= rough;
@@ -304,6 +305,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	// --- END multiscattering compensation ---
 
 	float3 indirectSpecular = pow(iblSpecular.SampleLevel(samp, viewRefl, rough * (iblSpecMips - 1.0)).rgb, 2.2) * indSpecFresnel;
+	//float3 indirectSpecular = iblSpecular.SampleLevel(samp, viewRefl, rough * (iblSpecMips - 1.0)).rgb * indSpecFresnel;
 	float3 fullIndirect = (indirectDiffuse * albedo * saturate(1.0 - metal)) + indirectSpecular;
 	return float4(pow(color + fullIndirect, 1.0 / 2.2), 1);
 }
