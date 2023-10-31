@@ -190,7 +190,7 @@ float3 DirLightPBR(Light light, float3 normal, float3 worldPos, float3 camPos, f
 
 	// Calculate diffuse with energy conservation
 	// (Reflected light doesn't get diffused)
-	float3 balancedDiff = DiffuseEnergyConserve(float3(diff), spec, metalness);
+	float3 balancedDiff = DiffuseEnergyConserve(float3(diff), F, metalness);
 
 	// Combine amount with 
 	return (balancedDiff * surfaceColor + spec) * light.intensity * light.color;
@@ -210,7 +210,7 @@ float3 PointLightPBR(Light light, float3 normal, float3 worldPos, float3 camPos,
 
 	// Calculate diffuse with energy conservation
 	// (Reflected light doesn't diffuse)
-	float3 balancedDiff = DiffuseEnergyConserve(float3(diff), spec, metalness);
+	float3 balancedDiff = DiffuseEnergyConserve(float3(diff), F, metalness);
 
 	// Combine
 	return (balancedDiff * surfaceColor + spec) * atten * light.intensity * light.color;

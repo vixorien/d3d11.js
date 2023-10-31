@@ -8,52 +8,6 @@
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 	<style>
 
-	/*	html {
-			height: 100%;
-		}
-
-		body {
-			margin: 0;
-			height: 100%;
-			font-family: Arial;
-			background-color: white;
-		}
-
-		#pageContainer {
-			display: flex;
-			flex-direction: row;
-			height: 100%;
-		}
-
-		#controlsContainer {
-			margin: 10px;
-			flex: 0 0 auto;
-			height: 100%;
-			align-items: stretch;
-		}
-
-		#canvasContainer {
-			flex: 1 0 0;
-			background-color: dimgrey;
-		}
-
-		#viewport {
-			width: 100%;
-			height: 100%;
-		}
-
-		#load_six_faces {
-			visibility: visible;
-		}
-
-		#load_dds {
-			visibility: hidden;
-		}
-
-		#load_hdr {
-			visibility: hidden;
-		}*/
-
 		.fixed-size-custom {
 			width:250px !important;
 		}
@@ -84,8 +38,18 @@
 					<h5 class="card-title">Scene</h5>
 					<p>Change the mesh(es), lighting, environment map, etc.</p>
 
-					<label for="exposureRange" class="form-label">Exposure (HDR only)</label>
-					<input type="range" class="form-range" min="0" max="0.01" step="0.0001" value="0.01" id="exposureRange" oninput="setExposure(this.value);"/>
+					<label for="exposureRange" class="form-label">Exposure Adjust (HDR only): 0</label>
+					<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust (HDR only): ' + this.value;"/>
+
+					<label for="tonemapType" class="form-label">Tonemap Type (HDR Only)</label>
+					<select class="form-select" onchange="setTonemapType(this.value);">
+						<option value="0" selected>None (Linear)</option>
+						<option value="1">Reinhard</option>
+						<option value="2">Reinhard (White Point)</option>
+						<option value="3">Exposure</option>
+						<option value="4">Uncharted 2</option>
+						<option value="5">Aces</option>
+					</select>
 				</div>
 			</div>
 
@@ -218,6 +182,8 @@
 		let globalIrrSRV = null;
 		let globalIBLSpecSRV = null;
 
+		let globalIBLMips = -1;
+		let globalIBLMipsToSkip = 3;
 		let globalSkyIsHDR = false;
 
 		let globalIBLSampler = null;
@@ -226,7 +192,13 @@
 		let globalEquirectToCubePS = null;
 		let globalFullscreenVS = null;
 
-		let globalExposure = 0.01;
+		let globalTonemapType = 0;
+		let globalExposure = 0;
+
+		function setTonemapType(val)
+		{
+			globalTonemapType = val;
+		}
 
 		function setExposure(val)
 		{
@@ -281,7 +253,7 @@
 			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
 
 			globalIBLSpecSRV.Release();
-			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
+			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, globalIBLMipsToSkip, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
 		}
 
 		async function readLocalFile(file)
@@ -581,6 +553,7 @@
 			{
 				// Based on "Real Pixels" by Greg Ward in Graphics Gems II
 				let invExposure = 1 / fileExposure;
+				let adjust = 0.0; // Ward adjusts by 0.5, trying without
 				for (let i = 0; i < dest.length; i += 4)
 				{
 					let exponent = dest[i + 3];
@@ -594,11 +567,11 @@
 					{
 						// Replicate ldexp(x, exponent) --> x * 2 ^ exp
 						// ldexp(invExposure, exponent - 128) --> invExposure * 2 ^ (exponent - 128)
-						let v = invExposure * Math.pow(2, exponent - 128);
+						let v = invExposure * Math.pow(2, exponent - (128+8));
 
-						dest[i + 0] = (dest[i + 0] + 0.5) * v;
-						dest[i + 1] = (dest[i + 1] + 0.5) * v;
-						dest[i + 2] = (dest[i + 2] + 0.5) * v;
+						dest[i + 0] = (dest[i + 0] + adjust) * v;
+						dest[i + 1] = (dest[i + 1] + adjust) * v;
+						dest[i + 2] = (dest[i + 2] + adjust) * v;
 						dest[i + 3] = 1;
 					}
 				}
@@ -719,7 +692,7 @@
 			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
 
 			globalIBLSpecSRV.Release();
-			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
+			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, globalIBLMipsToSkip, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
 		}
 
 
@@ -1193,13 +1166,13 @@
 			res.Release(); // Release the new ref
 
 			// How many mips do we need?
-			let totalMips = Math.max(Math.log2(mapSize) + 1 - iblSpecMipsToSkip, 1); // Add 1 for 1x1
+			globalIBLMips = Math.max(Math.log2(mapSize) + 1 - iblSpecMipsToSkip, 1); // Add 1 for 1x1
 
 			// Create an empty texture cube for specular
 			let cubeDesc = new D3D11_TEXTURE2D_DESC(
 				mapSize,
 				mapSize,
-				totalMips,
+				globalIBLMips,
 				6, // 6 faces (as array elements)
 				format,
 				new DXGI_SAMPLE_DESC(1, 0),
@@ -1232,10 +1205,10 @@
 			let srvForMip = skySRV;
 
 			// Process each mip
-			for (let mip = 0; mip < totalMips; mip++)
+			for (let mip = 0; mip < globalIBLMips; mip++)
 			{
 				// Set the viewport for this mip size
-				let mipSize = Math.pow(2, totalMips + iblSpecMipsToSkip - 1 - mip);
+				let mipSize = Math.pow(2, globalIBLMips + iblSpecMipsToSkip - 1 - mip);
 
 				let vp = new D3D11_VIEWPORT(0, 0, mipSize, mipSize, 0, 1);
 				context.RSSetViewports(vp);
@@ -1269,7 +1242,7 @@
 					let faceRTV = device.CreateRenderTargetView(specTexture, faceRTVDesc);
 
 					// Set cb data
-					let roughness = mip / Math.max(totalMips - 1.0, 1.0);
+					let roughness = mip / Math.max(globalIBLMips - 1.0, 1.0);
 					cbData.set([
 						roughness,
 						face,
@@ -1288,7 +1261,7 @@
 				}
 
 				// Done with this mip?
-				if (mip > 0 && totalMips > 1 && usePreviousMipForNextMip)
+				if (mip > 0 && globalIBLMips > 1 && usePreviousMipForNextMip)
 				{
 					srvForMip.Release();
 				}
@@ -1795,15 +1768,9 @@
 			let iblSpecularPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
 
 			// Create IBL textures
-			let iblSpecSize = 256;
-			let iblSpecMipsToSkip = 3;
-			let iblTotalMips = Math.max(Math.log2(iblSpecSize) + 1 - iblSpecMipsToSkip, 1);
-
-			psData.set([iblTotalMips], 8);
-
 			let lutSRV = createBrdfLookUpTable(device, context, 1024, brdfLutPS, fullscreenVS);
 			let irrSRV = createIrradianceMap(device, context, 256, skySRV, sampler, iblIrradiancePS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
-			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
+			let iblSpecSRV = createIBLSpecularMap(device, context, 256, globalIBLMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
 			globalIrrSRV = irrSRV;
 			globalIBLSpecSRV = iblSpecSRV;
 
@@ -2166,6 +2133,7 @@
 
 					// Update pixel data (set above while lights are moving)
 					psData.set(cameraPosition, 0);
+					psData.set([globalIBLMips], 8);
 					psData.set([lightCount], 9);  // Set light count (all lights)
 					psData.set([globalSkyIsHDR ? 1 : 0], 10); // Set HDR switch
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
@@ -2250,7 +2218,7 @@
 					context.PSSetShaderResources(0, [ppSRV]);
 					context.PSSetConstantBuffers(0, [ppCB]);
 					ppData.set([
-						3, // Tonemap type
+						globalTonemapType, // Tonemap type
 						globalExposure // Exposure
 					], 0);
 					context.UpdateSubresource(ppCB, 0, null, ppData, 0, 0);
