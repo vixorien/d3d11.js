@@ -181,14 +181,14 @@ float3 ConvolveTextureCube(float roughness, float3 R)
 			float mipLevel = roughness == 0.0f ? 0.0f : 0.5f * log2(solidAngleSample / solidAngleTexel);
 
 			float3 thisColor = EnvironmentMap.SampleLevel(BasicSampler, L, mipLevel).rgb;
-			finalColor += nDotL * (envIsHDR == 0.0 ? pow(thisColor, 2.2) : thisColor);
+			finalColor += nDotL * (envIsHDR == 1.0 ? thisColor : pow(thisColor, 2.2));
 			totalWeight += nDotL;
 		}
 	}
 
 	// Divide and return result
-	return pow(finalColor / totalWeight, 1.0f / 2.2f);
-	//return finalColor / totalWeight;
+	//return pow(finalColor / totalWeight, 1.0f / 2.2f);
+	return finalColor / totalWeight;
 }
 
 

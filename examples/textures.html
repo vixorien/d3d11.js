@@ -83,6 +83,9 @@
 				<div class="card-body">
 					<h5 class="card-title">Scene</h5>
 					<p>Change the mesh(es), lighting, environment map, etc.</p>
+
+					<label for="exposureRange" class="form-label">Exposure (HDR only)</label>
+					<input type="range" class="form-range" min="0" max="0.01" step="0.0001" value="0.01" id="exposureRange" oninput="setExposure(this.value);"/>
 				</div>
 			</div>
 
@@ -223,6 +226,12 @@
 		let globalEquirectToCubePS = null;
 		let globalFullscreenVS = null;
 
+		let globalExposure = 0.01;
+
+		function setExposure(val)
+		{
+			globalExposure = val;
+		}
 
 		async function loadSixFaces()
 		{
@@ -266,13 +275,13 @@
 
 			// All loaded - Attempt to load as a cube map
 			globalSkySRV = await loadTextureCube(globalDevice, globalContext, fileURLs, true, true);
-			globalSkyIsHDR = true;
+			globalSkyIsHDR = false;
 
 			globalIrrSRV.Release();
-			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
+			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
 
 			globalIBLSpecSRV.Release();
-			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM);
+			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, 3, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
 		}
 
 		async function readLocalFile(file)
@@ -358,7 +367,7 @@
 
 			// File details from header
 			let format = null;
-			let exposure = 128;
+			let fileExposure = 1;
 			let flipX = false;
 			let flipY = false;
 			let width = -1;
@@ -407,7 +416,7 @@
 					// Ignore zero
 					if (expFromHeader != 0)
 					{
-						exposure = expFromHeader;
+						fileExposure = expFromHeader;
 					}
 				}
 			}
@@ -571,7 +580,7 @@
 			if (format == formatRGB)
 			{
 				// Based on "Real Pixels" by Greg Ward in Graphics Gems II
-				let invExposure = 1 / exposure;
+				let invExposure = 1 / fileExposure;
 				for (let i = 0; i < dest.length; i += 4)
 				{
 					let exponent = dest[i + 3];
@@ -1793,8 +1802,8 @@
 			psData.set([iblTotalMips], 8);
 
 			let lutSRV = createBrdfLookUpTable(device, context, 1024, brdfLutPS, fullscreenVS);
-			let irrSRV = createIrradianceMap(device, context, 256, skySRV, sampler, iblIrradiancePS, fullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM, false);
-			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R8G8B8A8_UNORM, false);
+			let irrSRV = createIrradianceMap(device, context, 256, skySRV, sampler, iblIrradiancePS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
+			let iblSpecSRV = createIBLSpecularMap(device, context, iblSpecSize, iblSpecMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
 			globalIrrSRV = irrSRV;
 			globalIBLSpecSRV = iblSpecSRV;
 
@@ -1931,6 +1940,16 @@
 			let ppSRV = device.CreateShaderResourceView(ppTexture, null);
 			let ppRTV = device.CreateRenderTargetView(ppTexture, null);
 			ppTexture.Release();
+
+			// Post process constant buffer
+			let ppCBDesc = new D3D11_BUFFER_DESC(
+				Float32Array.BYTES_PER_ELEMENT * 4,
+				D3D11_USAGE_DYNAMIC,
+				D3D11_BIND_CONSTANT_BUFFER,
+				D3D11_CPU_ACCESS_WRITE,
+				0, 0);
+			let ppCB = device.CreateBuffer(ppCBDesc, null);
+			let ppData = new Float32Array(4);
 
 			// Ensure we're set for triangles
 			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -2081,7 +2100,7 @@
 				context.ClearRenderTargetView(rtv, black);
 				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
 
-				// Sphere draws
+				// Light sphere draws
 				{
 					// Swap to sphere buffers
 					context.VSSetShader(vs);
@@ -2148,6 +2167,7 @@
 					// Update pixel data (set above while lights are moving)
 					psData.set(cameraPosition, 0);
 					psData.set([lightCount], 9);  // Set light count (all lights)
+					psData.set([globalSkyIsHDR ? 1 : 0], 10); // Set HDR switch
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 					// Textures
@@ -2228,6 +2248,12 @@
 					context.VSSetShader(fullscreenVS);
 					context.PSSetShader(tonemapPS);
 					context.PSSetShaderResources(0, [ppSRV]);
+					context.PSSetConstantBuffers(0, [ppCB]);
+					ppData.set([
+						3, // Tonemap type
+						globalExposure // Exposure
+					], 0);
+					context.UpdateSubresource(ppCB, 0, null, ppData, 0, 0);
 					context.Draw(3, 0);
 				}
 

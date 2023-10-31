@@ -4,11 +4,11 @@ struct VertexToPixel
 	float2 uv           : TEXCOORD0;
 };
 
-//cbuffer psData : register(b0)
-//{
-//	float tonemapType;
-//	float exposure;
-//}
+cbuffer psData : register(b0)
+{
+	float tonemapType;
+	float exposure;
+}
 
 Texture2D pixels : register(t0);
 SamplerState samp : register(s0);
@@ -66,15 +66,12 @@ float4 main(VertexToPixel input) : SV_TARGET
 	const int TONEMAP_UNCHARTED = 4;
 	const int TONEMAP_ACES = 5;
 
-	int tonemapType = 0;
-	float exposure = 0.01f;
-
 	// Grab the color and apply exposure before tonemapping
 	float3 color = pow(pixels.Sample(samp, input.uv).rgb, 2.2f);
 	color *= exposure;
 
 	// Choose the tonemap type
-	switch (tonemapType)
+	switch (int(tonemapType))
 	{
 	default:
 	case TONEMAP_LINEAR: break; // Just return color as-is

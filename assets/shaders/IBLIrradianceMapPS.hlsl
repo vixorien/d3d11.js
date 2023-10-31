@@ -92,12 +92,12 @@ float4 main(VertexToPixel input) : SV_TARGET
 
 			// Sample in that direction
 			float3 samp = EnvironmentMap.SampleLevel(BasicSampler, hemisphereDir, mipLevel).rgb;
-			totalColor += cosT * sinT * (envIsHDR == 0.0f ? pow(samp, 2.2f) : samp);
+			totalColor += cosT * sinT * (envIsHDR == 1.0f ? samp : pow(samp, 2.2f));
 			sampleCount++;
 		}
 	}
 
 	float3 finalColor = PI * totalColor / sampleCount;
-	return float4(pow(finalColor, 1.0f / 2.2f), 1);
-	//return float4(finalColor, 1);
+	//return float4(pow(finalColor, 1.0f / 2.2f), 1);
+	return float4(finalColor, 1);
 }
