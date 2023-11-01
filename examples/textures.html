@@ -38,8 +38,11 @@
 					<h5 class="card-title">Scene</h5>
 					<p>Change the mesh(es), lighting, environment map, etc.</p>
 
+					<label for="exposureRange" class="form-label">Sky Mip Level: 0</label>
+					<input type="range" class="form-range" min="0" max="16" value="0" id="mipLevelRange" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Sky Mip Level: ' + this.value;" />
+
 					<label for="exposureRange" class="form-label">Exposure Adjust (HDR only): 0</label>
-					<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust (HDR only): ' + this.value;"/>
+					<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust (HDR only): ' + this.value;" />
 
 					<label for="tonemapType" class="form-label">Tonemap Type (HDR Only)</label>
 					<select class="form-select" onchange="setTonemapType(this.value);">
@@ -185,6 +188,7 @@
 		let globalIBLMips = -1;
 		let globalIBLMipsToSkip = 3;
 		let globalSkyIsHDR = false;
+		let globalSkyMipLevelPreview = 0;
 
 		let globalIBLSampler = null;
 		let globalIrrPS = null;
@@ -203,6 +207,11 @@
 		function setExposure(val)
 		{
 			globalExposure = val;
+		}
+
+		function setSkyMipPreview(val)
+		{
+			globalSkyMipLevelPreview = val;
 		}
 
 		async function loadSixFaces()
@@ -1921,6 +1930,16 @@
 			// Ensure we're set for triangles
 			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
+			// Sky mip preview constant buffer
+			let skyCBDesc = new D3D11_BUFFER_DESC(
+				Float32Array.BYTES_PER_ELEMENT * 4,
+				D3D11_USAGE_DYNAMIC,
+				D3D11_BIND_CONSTANT_BUFFER,
+				D3D11_CPU_ACCESS_WRITE,
+				0, 0);
+			let skyCB = device.CreateBuffer(skyCBDesc, null);
+			let skyData = new Float32Array(4);
+
 
 			// Perform a readback
 			// Need to actually copy to a staging resource!
@@ -2194,7 +2213,13 @@
 
 					// NOTE: Current cbuffers should be fine?
 					// VS -> Using same w/v/p
-					// PS -> Nothing necessary
+
+					// Set up sky PS cbuffer
+					context.PSSetConstantBuffers(0, [skyCB]);
+					skyData.set([
+						globalSkyMipLevelPreview
+					]);
+					context.UpdateSubresource(skyCB, 0, null, skyData, 0, 0);
 
 					// Set up texture
 					context.PSSetShaderResources(0, [globalSkySRV]);

@@ -4,10 +4,15 @@ struct VertexToPixel_Sky
 	float3 sampleDir		: DIRECTION;
 };
 
+cbuffer data : register(b0)
+{
+	float mipLevel;
+}
+
 TextureCube SkyTexture		: register(t0);
 SamplerState BasicSampler	: register(s0);
 
 float4 main(VertexToPixel_Sky input) : SV_TARGET
 {
-	return SkyTexture.SampleLevel(BasicSampler, input.sampleDir, 0.0f);
+	return SkyTexture.SampleLevel(BasicSampler, input.sampleDir, mipLevel);
 }
