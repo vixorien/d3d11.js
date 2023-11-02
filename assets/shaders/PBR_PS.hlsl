@@ -230,7 +230,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float rough = max(roughnessMap.Sample(samp, input.uv).r, MIN_ROUGHNESS);
 	float3 normalFromMap = normalMap.Sample(samp, input.uv).rgb;
 	normalFromMap = normalize(normalFromMap * 2.0 - 1.0);
-
+	
 	// Gather the required vectors for converting the normal
 	float3 N = input.normal;
 	float3 T = normalize(input.tangent - N * dot(input.tangent, N));
@@ -280,9 +280,6 @@ float4 main(VertexToPixel input) : SV_TARGET
 	// --- Indirect PBR ---
 	//float3 indirectDiffuse = pow(iblIrradiance.Sample(samp, input.normal).rgb, 2.2);
 	float3 indirectDiffuse = iblIrradiance.Sample(samp, input.normal).rgb;
-
-	// Convert to perceptual
-	rough *= rough;
 
 	float NdotV = dot(input.normal, toCam);
 	float3 viewRefl = reflect(-toCam, input.normal);

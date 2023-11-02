@@ -16,6 +16,7 @@
 			width: 100%;
 			height: 100%;
 			max-height: 100vh;
+			outline:none;
 		}
 	</style>
 </head>
@@ -173,7 +174,7 @@
 
 		<!-- Content (3D viewport) -->
 		<div class="col m-0 p-0">
-			<canvas id="viewport" class="canvas-fill-parent"></canvas>
+			<canvas id="viewport" tabindex="1" class="canvas-fill-parent"></canvas>
 		</div>
 
 	</div>
@@ -1191,7 +1192,7 @@
 				D3D11_RESOURCE_MISC_TEXTURECUBE);
 			let specTexture = device.CreateTexture2D(cubeDesc, null);
 			let specSRV = device.CreateShaderResourceView(specTexture, null);
-
+			console.log("Sky: " + cubeSize + " IBL: " + mapSize);
 			// Constant buffer for per-face data
 			let cbDesc = new D3D11_BUFFER_DESC(
 				Float32Array.BYTES_PER_ELEMENT * 8,
@@ -1467,7 +1468,7 @@
 		{
 			let postprocessing = true;
 
-			let input = new Input(document);
+			let input = new Input(document.getElementById("viewport"));
 
 			// Some quick vars
 			let float32Size = Float32Array.BYTES_PER_ELEMENT;
@@ -1552,6 +1553,7 @@
 			for (let i = 0; i < 11; i++)
 			{
 				let r = Math.floor((i / 10.0) * 255);
+				
 				let srv = createSolidTexture(device, 2, 2, new Uint8Array([
 					r, r, r, 255,
 					r, r, r, 255,
@@ -1779,7 +1781,7 @@
 			// Create IBL textures
 			let lutSRV = createBrdfLookUpTable(device, context, 1024, brdfLutPS, fullscreenVS);
 			let irrSRV = createIrradianceMap(device, context, 256, skySRV, sampler, iblIrradiancePS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
-			let iblSpecSRV = createIBLSpecularMap(device, context, 256, globalIBLMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
+			let iblSpecSRV = createIBLSpecularMap(device, context, 512, globalIBLMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
 			globalIrrSRV = irrSRV;
 			globalIBLSpecSRV = iblSpecSRV;
 
