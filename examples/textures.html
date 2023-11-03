@@ -1192,7 +1192,7 @@
 				D3D11_RESOURCE_MISC_TEXTURECUBE);
 			let specTexture = device.CreateTexture2D(cubeDesc, null);
 			let specSRV = device.CreateShaderResourceView(specTexture, null);
-			console.log("Sky: " + cubeSize + " IBL: " + mapSize);
+			
 			// Constant buffer for per-face data
 			let cbDesc = new D3D11_BUFFER_DESC(
 				Float32Array.BYTES_PER_ELEMENT * 8,
@@ -1239,6 +1239,9 @@
 				// Set the SRV for this render
 				context.PSSetShaderResources(0, [srvForMip]);
 
+				// Roughness for this mip
+				let roughness = mip / Math.max(globalIBLMips - 1.0, 1.0);
+
 				// Process each face
 				for (let face = 0; face < 6; face++)
 				{
@@ -1252,7 +1255,6 @@
 					let faceRTV = device.CreateRenderTargetView(specTexture, faceRTVDesc);
 
 					// Set cb data
-					let roughness = mip / Math.max(globalIBLMips - 1.0, 1.0);
 					cbData.set([
 						roughness,
 						face,
@@ -1541,6 +1543,24 @@
 				255, 255, 255, 255,
 				255, 255, 255, 255,
 				255, 255, 255, 255]));
+
+			let blueSRV = createSolidTexture(device, 2, 2, new Uint8Array([
+				0, 0, 192, 255,
+				0, 0, 192, 255,
+				0, 0, 192, 255,
+				0, 0, 192, 255]));
+
+			let greenSRV = createSolidTexture(device, 2, 2, new Uint8Array([
+				0, 128, 0, 255,
+				0, 128, 0, 255,
+				0, 128, 0, 255,
+				0, 128, 0, 255]));
+
+			let redSRV = createSolidTexture(device, 2, 2, new Uint8Array([
+				255, 0, 0, 255,
+				255, 0, 0, 255,
+				255, 0, 0, 255,
+				255, 0, 0, 255]));
 
 			let flatNormalsSRV = createSolidTexture(device, 2, 2, new Uint8Array([
 				127, 127, 255, 255,
@@ -2172,19 +2192,30 @@
 				{
 					let scale = 2;
 					let y = 7;
-					let spacing = 2;
+					let spacing = 2.2;
 					let sc = Matrix4x4.ScaleUniform(scale);
 					let tr = Matrix4x4.Identity();
 
 					// Turn off lights
-					psData.set([0], 9); // Zero light count
+					psData.set([9], 9); // Zero light count
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 					// Set up the overall pipeline for spheres
 					context.IASetVertexBuffers(0, [sphereVB], [vbStride], [vbOffset]);
 					context.IASetIndexBuffer(sphereIB, DXGI_FORMAT_R16_UINT, 0);
 
-					for (let row = 0; row < 2; row++)
+
+					let rowMats = [
+						// Albedo,	normals,        metals
+						[blackSRV,  flatNormalsSRV, blackSRV],
+						[whiteSRV,  flatNormalsSRV, blackSRV],
+						[redSRV,    flatNormalsSRV, blackSRV],
+						[greenSRV,  flatNormalsSRV, blackSRV],
+						[blueSRV,   flatNormalsSRV, blackSRV],
+						[whiteSRV,  flatNormalsSRV,	whiteSRV]
+					];
+
+					for (let row = 0; row < rowMats.length; row++)
 					{
 						for (let i = 0; i < 11; i++)
 						{
@@ -2195,7 +2226,7 @@
 							context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 							// Set textures for this sphere
-							context.PSSetShaderResources(0, [whiteSRV, flatNormalsSRV, row == 0 ? blackSRV : whiteSRV, solidRoughSRVs[i], lutSRV, globalIrrSRV, globalIBLSpecSRV]);
+							context.PSSetShaderResources(0, [rowMats[row][0], rowMats[row][1], rowMats[row][2], solidRoughSRVs[i], lutSRV, globalIrrSRV, globalIBLSpecSRV]);
 
 							// Draw one sphere
 							context.DrawIndexed(sphereIndexCount, 0, 0);

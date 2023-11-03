@@ -230,6 +230,8 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float rough = max(roughnessMap.Sample(samp, input.uv).r, MIN_ROUGHNESS);
 	float3 normalFromMap = normalMap.Sample(samp, input.uv).rgb;
 	normalFromMap = normalize(normalFromMap * 2.0 - 1.0);
+
+	//return float4(rough, rough, rough, 1);
 	
 	// Gather the required vectors for converting the normal
 	float3 N = input.normal;
