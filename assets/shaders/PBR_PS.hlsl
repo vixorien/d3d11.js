@@ -64,6 +64,25 @@ float DiffusePBR(float3 normal, float3 dirToLight)
 	return saturate(dot(normal, dirToLight));
 }
 
+// From 5.3 in https://media.disneyanimation.com/uploads/production/publication_asset/48/asset/s2012_pbs_disney_brdf_notes_v3.pdf
+float BurleyDiffuse(float3 N, float3 L, float3 V, float roughness)
+{
+	// Pre-calcs
+	float3 H = (L + V) / 2.0;
+	float a = roughness * roughness; // Perceptual to linear
+	float NdotL = saturate(dot(N, L));
+	float NdotV = saturate(dot(N, V));
+	float VdotH = saturate(dot(V, H)); // Theta_d in the disney paper
+
+	float f_d90 = 0.5 + 2.0 * a * VdotH * VdotH;
+	float f_d90_minus_1 = f_d90 - 1.0;
+
+	float lTerm = 1.0 + f_d90_minus_1 * pow(1.0 - NdotL, 5.0);
+	float vTerm = 1.0 + f_d90_minus_1 + pow(1.0 - NdotV, 5.0);
+
+	return NdotL * lTerm * vTerm;
+}
+
 // Normal Distribution Function: GGX (Trowbridge-Reitz)
 //
 // a - Roughness
@@ -184,6 +203,7 @@ float3 DirLightPBR(Light light, float3 normal, float3 worldPos, float3 camPos, f
 	float3 toCam = normalize(camPos - worldPos);
 
 	// Calculate the light amounts
+	//float diff = BurleyDiffuse(normal, toLight, toCam, roughness);
 	float diff = DiffusePBR(normal, toLight);
 	float3 F;
 	float3 spec = MicrofacetBRDF(normal, toLight, toCam, roughness, specularColor, F);
@@ -204,6 +224,7 @@ float3 PointLightPBR(Light light, float3 normal, float3 worldPos, float3 camPos,
 
 	// Calculate the light amounts
 	float atten = attenuate(light, worldPos);
+	// float diff = BurleyDiffuse(normal, toLight, toCam, roughness);
 	float diff = DiffusePBR(normal, toLight);
 	float3 F;
 	float3 spec = MicrofacetBRDF(normal, toLight, toCam, roughness, specularColor, F);
@@ -307,7 +328,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float3 indirectSpecular = iblSpecular.SampleLevel(samp, viewRefl, rough * (iblSpecMips - 1.0)).rgb * indSpecFresnel;
 	float3 fullIndirect = (indirectDiffuse * albedo * saturate(1.0 - metal)) + indirectSpecular;
 
-	float3 finalColor = color + fullIndirect;
+	float3 finalColor = color;// +fullIndirect;
 	if (envIsHDR == 0.0)
 		finalColor = pow(finalColor, 1.0 / 2.2);
 
