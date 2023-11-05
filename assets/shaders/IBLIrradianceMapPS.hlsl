@@ -19,11 +19,6 @@ SamplerState BasicSampler	: register(s0);
 
 
 
-
-
-
-
-
 // Part of the Hammersley 2D sampling function.  More info here:
 // http://holger.dammertz.org/stuff/notes_HammersleyOnHemisphere.html
 // This function is useful for computing numbers in the Van der Corput sequence
@@ -139,125 +134,78 @@ float D_GGX(float3 n, float3 h, float roughness)
 
 
 
-// Use Convolution method:
-
-// http://www.codinglabs.net/article_physically_based_rendering.aspx
-//float4 main(VertexToPixel input) : SV_TARGET
-//{
-//	// Get a -1 to 1 range on x/y
-//	float2 o = input.uv * 2.0 - 1.0;
-//
-//	// Tangent basis
-//	float3 xDir, yDir, zDir;
-//
-//	// Figure out the z ("normal" of this pixel)
-//	switch (int(faceIndex))
-//	{
-//	default:
-//	case 0: zDir = float3(+1, -o.y, -o.x); break;
-//	case 1: zDir = float3(-1, -o.y, +o.x); break;
-//	case 2: zDir = float3(+o.x, +1, +o.y); break;
-//	case 3: zDir = float3(+o.x, -1, -o.y); break;
-//	case 4: zDir = float3(+o.x, -o.y, +1); break;
-//	case 5: zDir = float3(-o.x, -o.y, -1); break;
-//	}
-//	zDir = normalize(zDir);
-//
-//	// Calculate the tangent and bitangent
-//	xDir = normalize(cross(float3(0, 1, 0), zDir));
-//	yDir = normalize(cross(zDir, xDir));
-//
-//	// Total color (to be averaged at the end)
-//	float3 totalColor = float3(0, 0, 0);
-//	float sampleCount = 0.0;
-//
-//	// Perfectly diffuse!
-//	float roughness = 1.0;
-//
-//	// Assume N == V == R, a common assumption to simplify the approximation quite a bit
-//	float3 R = zDir;
-//	float3 N = R;
-//	float3 V = R;
-//
-//	// Final color
-//	float3 finalColor = float3(0, 0, 0);
-//	float totalWeight = 0.0;
-//
-//	// Pre-calc for mip level selection
-//	// Note the scaled cube size, which helps
-//	// immensely with HDR convolution "speckles"
-//	float PI = 3.14159265359f;
-//	float scaledCubeSize = cubeSize * 4.0;
-//	float solidAngleTexel = 4.0f * PI / (6.0f * scaledCubeSize * scaledCubeSize);
-//
-//	// Sample the texture cube MANY times
-//	//  - 4096 would be an ideal number of samples 
-//	//  - Fewer is faster, but looks worse overall
-//	uint MAX_IBL_SAMPLES = 4096u;
-//	for (uint i = 0u; i < MAX_IBL_SAMPLES; i++)
-//	{
-//		// Grab this sample
-//		float2 Xi = Hammersley2d(i, MAX_IBL_SAMPLES);
-//		float3 H = ImportanceSampleGGX(Xi, roughness, N);
-//		float3 L = 2.0 * dot(V, H) * H - V;
-//
-//		// Check N dot L result
-//		float nDotL = saturate(dot(N, L));
-//		if (nDotL > 0.0)
-//		{
-//			// V and N are the same!
-//			float nDotH_and_hDotV = saturate(dot(N, H));
-//
-//			// Select the proper mip level, as done here: https://chetanjags.wordpress.com/2015/08/26/image-based-lighting/
-//			float D = D_GGX(N, H, roughness);
-//			float pdf = (D * nDotH_and_hDotV / (4.0f * nDotH_and_hDotV)) + 0.0001f;
-//			float solidAngleSample = 1.0f / (float(MAX_IBL_SAMPLES) * pdf);
-//			float mipToSample = roughness == 0.0f ? 0.0f : 0.5f * log2(solidAngleSample / solidAngleTexel);
-//
-//			float3 thisColor = EnvironmentMap.SampleLevel(BasicSampler, L, mipToSample).rgb;
-//			finalColor += nDotL * (envIsHDR == 1.0 ? thisColor : pow(thisColor, 2.2));
-//			totalWeight += nDotL;
-//		}
-//	}
-//
-//	// Divide and return result
-//	//return pow(finalColor / totalWeight, 1.0f / 2.2f);
-//	return float4(finalColor / totalWeight, 1);
-//}
-
-
-
-
-// Use sin/cos method: http://www.codinglabs.net/article_physically_based_rendering.aspx
-float4 main(VertexToPixel input) : SV_TARGET
+// Convolution method (similar to specular IBL)
+float3 Convolution(float3 zDir)
 {
-	// Get a -1 to 1 range on x/y
-	float2 o = input.uv * 2.0 - 1.0;
+	// Total color (to be averaged at the end)
+	float3 totalColor = float3(0, 0, 0);
+	float sampleCount = 0.0;
 
-	// Tangent basis
-	float3 xDir, yDir, zDir;
+	// Perfectly diffuse!
+	float roughness = 1.0;
 
-	// Figure out the z ("normal" of this pixel)
-	switch (int(faceIndex))
+	// Assume N == V == R, a common assumption to simplify the approximation quite a bit
+	float3 R = zDir;
+	float3 N = R;
+	float3 V = R;
+
+	// Final color
+	float3 finalColor = float3(0, 0, 0);
+	float totalWeight = 0.0;
+
+	// Pre-calc for mip level selection
+	// Note the scaled cube size, which helps
+	// immensely with HDR convolution "speckles"
+	float PI = 3.14159265359f;
+	float scaledCubeSize = cubeSize * 4.0;
+	float solidAngleTexel = 4.0f * PI / (6.0f * scaledCubeSize * scaledCubeSize);
+
+	// Sample the texture cube MANY times
+	//  - 4096 would be an ideal number of samples 
+	//  - Fewer is faster, but looks worse overall
+	uint MAX_IBL_SAMPLES = 4096u;
+	for (uint i = 0u; i < MAX_IBL_SAMPLES; i++)
 	{
-	default:
-	case 0: zDir = float3(+1, -o.y, -o.x); break;
-	case 1: zDir = float3(-1, -o.y, +o.x); break;
-	case 2: zDir = float3(+o.x, +1, +o.y); break;
-	case 3: zDir = float3(+o.x, -1, -o.y); break;
-	case 4: zDir = float3(+o.x, -o.y, +1); break;
-	case 5: zDir = float3(-o.x, -o.y, -1); break;
-	}
-	zDir = normalize(zDir);
+		// Grab this sample
+		float2 Xi = Hammersley2d(i, MAX_IBL_SAMPLES);
+		float3 H = ImportanceSampleGGX(Xi, roughness, N);
+		float3 L = 2.0 * dot(V, H) * H - V;
 
+		// Check N dot L result
+		float nDotL = saturate(dot(N, L));
+		if (nDotL > 0.0)
+		{
+			// V and N are the same!
+			float nDotH_and_hDotV = saturate(dot(N, H));
+
+			// Select the proper mip level, as done here: https://chetanjags.wordpress.com/2015/08/26/image-based-lighting/
+			float D = D_GGX(N, H, roughness);
+			float pdf = (D * nDotH_and_hDotV / (4.0f * nDotH_and_hDotV)) + 0.0001f;
+			float solidAngleSample = 1.0f / (float(MAX_IBL_SAMPLES) * pdf);
+			float mipToSample = roughness == 0.0f ? 0.0f : 0.5f * log2(solidAngleSample / solidAngleTexel);
+
+			float3 thisColor = EnvironmentMap.SampleLevel(BasicSampler, L, mipToSample).rgb;
+			finalColor += nDotL * (envIsHDR == 1.0 ? thisColor : pow(thisColor, 2.2));
+			totalWeight += nDotL;
+		}
+	}
+
+	// Divide and return result
+	return finalColor / totalWeight;
+}
+
+// Nested loop around the hemisphere
+// From: http://www.codinglabs.net/article_physically_based_rendering.aspx
+float3 IrradianceHemisphereSamples(float3 zDir)
+{
 	// Calculate the tangent and bitangent
-	xDir = normalize(cross(float3(0, 1, 0), zDir));
-	yDir = normalize(cross(zDir, xDir));
+	float3 xDir = normalize(cross(float3(0, 1, 0), zDir));
+	float3 yDir = normalize(cross(zDir, xDir));
 
 	// Total color (to be averaged at the end)
 	float3 totalColor = float3(0, 0, 0);
 	float sampleCount = 0.0;
-	 
+
 	// Variables for various sin/cos values
 	float sinT, cosT, sinP, cosP;
 
@@ -268,7 +216,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float IRRADIANCE_SAMPLE_STEP_THETA = 0.01f;
 
 	// Pre-calculate values necessary for mip selection
-	float totalSamples = 
+	float totalSamples =
 		(PI_OVER_2 / IRRADIANCE_SAMPLE_STEP_THETA) *
 		(TWO_PI / IRRADIANCE_SAMPLE_STEP_PHI);
 	float solidAngleTexel = 4.0f * PI / (6.0f * cubeSize * cubeSize);
@@ -308,7 +256,29 @@ float4 main(VertexToPixel input) : SV_TARGET
 		}
 	}
 
-	float3 finalColor = PI * totalColor / sampleCount;
-	//return float4(pow(finalColor, 1.0f / 2.2f), 1);
-	return float4(finalColor, 1);
+	return PI * totalColor / sampleCount;
+}
+
+
+float4 main(VertexToPixel input) : SV_TARGET
+{
+	// Get a -1 to 1 range on x/y
+	float2 o = input.uv * 2.0 - 1.0;
+
+	// Figure out the z ("normal" of this pixel)
+	float3 zDir;
+	switch (int(faceIndex))
+	{
+	default:
+	case 0: zDir = float3(+1, -o.y, -o.x); break;
+	case 1: zDir = float3(-1, -o.y, +o.x); break;
+	case 2: zDir = float3(+o.x, +1, +o.y); break;
+	case 3: zDir = float3(+o.x, -1, -o.y); break;
+	case 4: zDir = float3(+o.x, -o.y, +1); break;
+	case 5: zDir = float3(-o.x, -o.y, -1); break;
+	}
+	zDir = normalize(zDir);
+
+	//return float4(IrradianceHemisphereSamples(zDir), 1); // Has some strange "reflection" artifacts
+	return float4(Convolution(zDir), 1); // MUCH smoother
 }
