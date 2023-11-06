@@ -33,6 +33,36 @@
 			<!-- Overall title-->
 			<h1>Cube Maps</h1>
 
+			<!-- Testing tabs -->
+			<ul class="nav nav-tabs" id="navbar" role="tablist">
+				<li class="nav-item" role="presentation">
+					<button class="nav-link active" id="tabScene" data-bs-toggle="tab" data-bs-target="#scene" type="button" role="tab">Scene</button>
+				</li>
+
+				<li class="nav-item" role="presentation">
+					<button class="nav-link" id="tabEnvironment" data-bs-toggle="tab" data-bs-target="#environment" type="button" role="tab">Environment</button>
+				</li>
+
+				<li class="nav-item" role="presentation">
+					<button class="nav-link" id="tabControls" data-bs-toggle="tab" data-bs-target="#controls" type="button" role="tab">Controls</button>
+				</li>
+			</ul>
+
+			<!-- Tab content -->
+			<div class="tab-content">
+				<div class="tab-pane active" id="scene" role="tabpanel" tabindex="0">
+					SCENE STUFF HERE!
+				</div>
+
+				<div class="tab-pane" id="environment" role="tabpanel" tabindex="0">
+					ENVIRON STUFF HERE!
+				</div>
+
+				<div class="tab-pane" id="controls" role="tabpanel" tabindex="0">
+					CONTROLS STUFF HERE!
+				</div>
+			</div>
+
 			<!-- Section for scene -->
 			<div class="card mb-3">
 				<div class="card-body">
@@ -164,9 +194,9 @@
 				<div class="card-body">
 					<h5 class="card-title">Save IBL Maps</h5>
 					<p>Save any of the generated Image-Based Lighting maps</p>
-					<button class="btn btn-primary mb-1">Save Convolved Spec Map as DDS</button><br />
-					<button class="btn btn-primary mb-1">Save Irradiance Map as DDS</button><br />
-					<button class="btn btn-primary mb-1">Save LUT as PNG</button>
+					<button class="btn btn-primary mb-1" disabled>Save Convolved Spec Map as DDS</button><br />
+					<button class="btn btn-primary mb-1" disabled>Save Irradiance Map as DDS</button><br />
+					<button class="btn btn-primary mb-1" disabled>Save LUT as PNG</button>
 				</div>
 			</div>
 
