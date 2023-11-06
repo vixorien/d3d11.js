@@ -34,172 +34,210 @@
 			<h1>Cube Maps</h1>
 
 			<!-- Testing tabs -->
-			<ul class="nav nav-tabs" id="navbar" role="tablist">
+			<ul class="nav nav-pills" id="navbar" role="tablist">
 				<li class="nav-item" role="presentation">
-					<button class="nav-link active" id="tabScene" data-bs-toggle="tab" data-bs-target="#scene" type="button" role="tab">Scene</button>
+					<button class="nav-link active" id="tabScene" data-bs-toggle="pill" data-bs-target="#scene" type="button" role="tab">Scene</button>
 				</li>
 
 				<li class="nav-item" role="presentation">
-					<button class="nav-link" id="tabEnvironment" data-bs-toggle="tab" data-bs-target="#environment" type="button" role="tab">Environment</button>
+					<button class="nav-link" id="tabEnvironment" data-bs-toggle="pill" data-bs-target="#environment" type="button" role="tab">Environment</button>
 				</li>
 
 				<li class="nav-item" role="presentation">
-					<button class="nav-link" id="tabControls" data-bs-toggle="tab" data-bs-target="#controls" type="button" role="tab">Controls</button>
+					<button class="nav-link" id="tabControls" data-bs-toggle="pill" data-bs-target="#controls" type="button" role="tab">Controls</button>
 				</li>
 			</ul>
 
 			<!-- Tab content -->
 			<div class="tab-content">
-				<div class="tab-pane active" id="scene" role="tabpanel" tabindex="0">
-					SCENE STUFF HERE!
-				</div>
 
-				<div class="tab-pane" id="environment" role="tabpanel" tabindex="0">
-					ENVIRON STUFF HERE!
-				</div>
+				<!-- Scene tab pane -->
+				<div class="tab-pane pt-3 active" id="scene" role="tabpanel" tabindex="0">
 
-				<div class="tab-pane" id="controls" role="tabpanel" tabindex="0">
-					CONTROLS STUFF HERE!
-				</div>
-			</div>
+					<!-- Card: Scene -->
+					<div class="card mb-3">
+						<div class="card-body">
+							<h5 class="card-title">Scene Selection</h5>
 
-			<!-- Section for scene -->
-			<div class="card mb-3">
-				<div class="card-body">
-					<h5 class="card-title">Scene</h5>
-					<p>Change the mesh(es), lighting, environment map, etc.</p>
-
-					<label for="exposureRange" class="form-label">Sky Mip Level: 0</label>
-					<input type="range" class="form-range" min="0" max="16" value="0" id="mipLevelRange" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Sky Mip Level: ' + this.value;" />
-
-					<label for="exposureRange" class="form-label">Exposure Adjust (HDR only): 0</label>
-					<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust (HDR only): ' + this.value;" />
-
-					<label for="tonemapType" class="form-label">Tonemap Type (HDR Only)</label>
-					<select class="form-select" onchange="setTonemapType(this.value);">
-						<option value="0" selected>None (Linear)</option>
-						<option value="1">Reinhard</option>
-						<option value="2">Reinhard (White Point)</option>
-						<option value="3">Exposure</option>
-						<option value="4">Uncharted 2</option>
-						<option value="5">Aces</option>
-					</select>
-				</div>
-			</div>
-
-			<!-- Section for controls -->
-			<div class="card mb-3">
-				<div class="card-body">
-					<h5 class="card-title">Controls</h5>
-					<p>Left-click & drag</p>
-					<p>WASD movement</p>
-				</div>
-			</div>
-
-			<!-- Section for Loading -->
-
-			<div class="card mb-3">
-				<div class="card-body">
-					<h5 class="card-title">Load Environment</h5>
-					<p>Load a new environment map in one of several ways.</p>
-				</div>
-
-				<div class="accordion m-1" id="loadAccordion">
-
-					<!-- SIX FACES -->
-					<div class="accordion-item">
-						<h2 class="accordion-header">
-							<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
-								Six Individual Faces
-							</button>
-						</h2>
-						<div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
-							<div class="accordion-body">
-
-								<div class="input-group text-center">
-									<label for="sixFacesXPos" class="input-group-text" style="min-width:50px;">+X</label>
-									<input class="form-control" type="file" id="sixFacesXPos" />
-								</div>
-
-								<div class="input-group">
-									<label for="sixFacesXNeg" class="input-group-text" style="min-width: 50px;">- X</label>
-									<input class="form-control" type="file" id="sixFacesXNeg" />
-								</div>
-
-								<div class="input-group">
-									<label for="sixFacesYPos" class="input-group-text" style="min-width:50px;">+Y</label>
-									<input class="form-control" type="file" id="sixFacesYPos" />
-								</div>
-
-								<div class="input-group">
-									<label for="sixFacesYNeg" class="input-group-text" style="min-width:50px;">- Y</label>
-									<input class="form-control" type="file" id="sixFacesYNeg" />
-								</div>
-
-								<div class="input-group">
-									<label for="sixFacesZPos" class="input-group-text" style="min-width:50px;">+Z</label>
-									<input class="form-control" type="file" id="sixFacesZPos" />
-								</div>
-
-								<div class="input-group">
-									<label for="sixFacesZNeg" class="input-group-text" style="min-width:50px;">- Z</label>
-									<input class="form-control" type="file" id="sixFacesZNeg" />
-								</div>
-
-								<button type="button" class="btn btn-primary mt-2" onclick="loadSixFaces()">Load</button>
-
-							</div>
+							<label for="tonemapType" class="form-label">Scenes</label>
+							<select class="form-select" onchange="">
+								<option value="0" selected>Sphere</option>
+								<option value="1">Cube</option>
+								<option value="2">Helix</option>
+								<option value="3">Roughness Grid</option>
+							</select>
 						</div>
 					</div>
 
-					<!-- DDS CUBE MAP -->
-					<div class="accordion-item">
-						<h2 class="accordion-header">
-							<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-								DDS Cube Map (Not yet implemented)
-							</button>
-						</h2>
-						<div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
-							<div class="accordion-body">
-								Stuff here
-							</div>
+					<!-- Card: Lighting -->
+					<div class="card mb-3">
+						<div class="card-body">
+							<h5 class="card-title">Lights</h5>
+
+							<label for="tonemapType" class="form-label">Lights</label>
+							<select class="form-select" onchange="">
+								<option value="0" selected>Three directional light</option>
+								<option value="1">Eight rotating lights</option>
+							</select>
 						</div>
 					</div>
 
-					<!-- HDR FILE -->
-					<div class="accordion-item">
-						<h2 class="accordion-header">
-							<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
-								HDR File
-							</button>
-						</h2>
-						<div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
-							<div class="accordion-body">
+				</div> 
+				<!-- END Scene tab pane -->
 
-								<div class="input-group">
-									<label for="hdrFile" class="input-group-text">HDR</label>
-									<input class="form-control" type="file" id="hdrFile" />
+				<!-- Environment tab pane -->
+				<div class="tab-pane pt-3" id="environment" role="tabpanel" tabindex="0">
+
+					<!-- CARD: Tonemapping -->
+					<div class="card mb-3">
+						<div class="card-body">
+							<h5 class="card-title">Tonemapping</h5>
+							<p>Change the mesh(es), lighting, environment map, etc.</p>
+
+							<label for="mipLevelRange" class="form-label">Sky Mip Level: 0</label>
+							<input type="range" class="form-range" min="0" max="16" value="0" id="mipLevelRange" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Sky Mip Level: ' + this.value;" />
+
+							<label for="exposureRange" class="form-label">Exposure Adjust (HDR only): 0</label>
+							<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust (HDR only): ' + this.value;" />
+
+							<label for="tonemapType" class="form-label">Tonemap Type (HDR Only)</label>
+							<select class="form-select" onchange="setTonemapType(this.value);">
+								<option value="0" selected>None (Linear)</option>
+								<option value="1">Reinhard</option>
+								<option value="2">Reinhard (White Point)</option>
+								<option value="3">Exposure</option>
+								<option value="4">Uncharted 2</option>
+								<option value="5">Aces</option>
+							</select>
+						</div>
+					</div>
+
+					<!-- CARD: Loading -->
+					<div class="card mb-3">
+						<div class="card-body">
+							<h5 class="card-title">Load Environment</h5>
+							<p>Load a new environment map in one of several ways.</p>
+						</div>
+
+						<div class="accordion m-1" id="loadAccordion">
+
+							<!-- SIX FACES -->
+							<div class="accordion-item">
+								<h2 class="accordion-header">
+									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+										Six Individual Faces
+									</button>
+								</h2>
+								<div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+									<div class="accordion-body">
+
+										<div class="input-group text-center">
+											<label for="sixFacesXPos" class="input-group-text" style="min-width:50px;">+X</label>
+											<input class="form-control" type="file" id="sixFacesXPos" />
+										</div>
+
+										<div class="input-group">
+											<label for="sixFacesXNeg" class="input-group-text" style="min-width: 50px;">- X</label>
+											<input class="form-control" type="file" id="sixFacesXNeg" />
+										</div>
+
+										<div class="input-group">
+											<label for="sixFacesYPos" class="input-group-text" style="min-width:50px;">+Y</label>
+											<input class="form-control" type="file" id="sixFacesYPos" />
+										</div>
+
+										<div class="input-group">
+											<label for="sixFacesYNeg" class="input-group-text" style="min-width:50px;">- Y</label>
+											<input class="form-control" type="file" id="sixFacesYNeg" />
+										</div>
+
+										<div class="input-group">
+											<label for="sixFacesZPos" class="input-group-text" style="min-width:50px;">+Z</label>
+											<input class="form-control" type="file" id="sixFacesZPos" />
+										</div>
+
+										<div class="input-group">
+											<label for="sixFacesZNeg" class="input-group-text" style="min-width:50px;">- Z</label>
+											<input class="form-control" type="file" id="sixFacesZNeg" />
+										</div>
+
+										<button type="button" class="btn btn-primary mt-2" onclick="loadSixFaces()">Load</button>
+
+									</div>
 								</div>
+							</div>
 
-								<button type="button" class="btn btn-primary mt-2" onclick="loadHDR()">Load</button>
+							<!-- DDS CUBE MAP -->
+							<div class="accordion-item">
+								<h2 class="accordion-header">
+									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+										DDS Cube Map (Not yet implemented)
+									</button>
+								</h2>
+								<div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+									<div class="accordion-body">
+										Stuff here
+									</div>
+								</div>
+							</div>
 
+							<!-- HDR FILE -->
+							<div class="accordion-item">
+								<h2 class="accordion-header">
+									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+										HDR File
+									</button>
+								</h2>
+								<div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+									<div class="accordion-body">
+
+										<div class="input-group">
+											<label for="hdrFile" class="input-group-text">HDR</label>
+											<input class="form-control" type="file" id="hdrFile" />
+										</div>
+
+										<button type="button" class="btn btn-primary mt-2" onclick="loadHDR()">Load</button>
+
+									</div>
+								</div>
 							</div>
 						</div>
 					</div>
-				</div>
+					<!-- END Card: Loading-->
+
+					<!-- Card: Save IBL Maps -->
+					<div class="card mb-3">
+						<div class="card-body">
+							<h5 class="card-title">Save IBL Maps</h5>
+							<p>Save any of the generated Image-Based Lighting maps</p>
+							<button class="btn btn-primary mb-1" disabled>Save Convolved Spec Map as DDS</button><br />
+							<button class="btn btn-primary mb-1" disabled>Save Irradiance Map as DDS</button><br />
+							<button class="btn btn-primary mb-1" disabled>Save LUT as PNG</button>
+						</div>
+					</div>
+					<!-- END Card: Save IBL Maps -->
+
+				</div> 
+				<!-- END Environment tab pane -->
+
+				<!-- Controls tab pane -->
+				<div class="tab-pane pt-3" id="controls" role="tabpanel" tabindex="0">
+
+					<!-- CARD: Controls -->
+					<div class="card mb-3">
+						<div class="card-body">
+							<h5 class="card-title">Controls</h5>
+							<p>Left-click & drag</p>
+							<p>WASD movement</p>
+						</div>
+					</div>
+
+				</div> 
+				<!-- END Controls tab pane -->
+
 			</div>
 
-			<!-- Section for saving -->
-			<div class="card mb-3">
-				<div class="card-body">
-					<h5 class="card-title">Save IBL Maps</h5>
-					<p>Save any of the generated Image-Based Lighting maps</p>
-					<button class="btn btn-primary mb-1" disabled>Save Convolved Spec Map as DDS</button><br />
-					<button class="btn btn-primary mb-1" disabled>Save Irradiance Map as DDS</button><br />
-					<button class="btn btn-primary mb-1" disabled>Save LUT as PNG</button>
-				</div>
-			</div>
-
+			
 		</div>
 
 		<!-- Content (3D viewport) -->
