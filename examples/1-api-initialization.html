@@ -1,0 +1,45 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<script src="../build/d3d11.js"></script>
+</head>
+<body>
+	<h1>D3D11.js - API Initialization</h1>
+
+	<canvas id="viewport" width="800" height="600"></canvas>
+
+	<script>
+
+		// Init the API by creating the ID3D11Device object, which
+		// internally creates an ID3D11DeviceContext object
+		let device = D3D11CreateDevice(document.querySelector("#viewport"));
+		let context = device.GetImmediateContext();
+
+		// Get the width and height of the adapter (the underlying WebGL context, in this case)
+		let gl = device.GetAdapter();
+		gl.canvas.width = gl.canvas.clientWidth;
+		gl.canvas.height = gl.canvas.clientHeight;
+
+		// Describe the swap chain and create it
+		const swapDesc = new DXGI_SWAP_CHAIN_DESC(
+			gl.canvas.clientWidth,
+			gl.canvas.clientHeight,
+			DXGI_FORMAT_R8G8B8A8_UNORM);
+		let swapChain = DXGICreateSwapChain(device, swapDesc);
+
+		// Make an RTV of the back buffer
+		// Note: Passing in null for the description creates a default
+		//       render target view that has access to the first subresource
+		let rtv = device.CreateRenderTargetView(swapChain.GetBuffer(), null);
+		
+		// Clear the RTV
+		let cornflowerBlue = [0.39, 0.58, 0.93, 1];
+		context.ClearRenderTargetView(rtv, cornflowerBlue);
+
+		// Flush the frame
+		swapChain.Present();
+
+	</script>
+</body>
+</html>
+
