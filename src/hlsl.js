@@ -456,6 +456,8 @@ class HLSL
 			switch (current.Text)
 			{
 				// TODO: Handle global constants here
+				case "const":
+					throw new Error("Global constants not yet implemented");
 
 				// Skip extra end statements
 				case ";":
@@ -484,17 +486,18 @@ class HLSL
 
 				case "Texture2DMS":
 				case "Texture2DMSArray":
-					console.log("Not currently handling multisampled textures");
-					break;
+					throw new Error("Not currently handling multisampled textures");
 
 				default:
 					// Should be a data type and the next should be an identifier
 					if (!this.#IsDataType(current.Text) ||
 						it.PeekNext().Type != TokenIdentifier)
-						break;
+						throw new Error("Invalid token in HLSL file on line " + current.Line + ": " + current.Text);
 
 					// Check for global variable or function
-					this.#ParseGlobalVarOrFunction(it, globalCB);
+					if (!this.#ParseGlobalVarOrFunction(it, globalCB))
+						throw new Error("Error parsing global variable or function");
+
 					break;
 			}
 		}
@@ -965,6 +968,9 @@ class HLSL
 				// Just a helper function
 				this.#functions.push(f);
 			}
+
+			// Found something useful
+			return true;
 		}
 		else if (this.#Allow(it, TokenSemicolon))
 		{
@@ -976,7 +982,13 @@ class HLSL
 				Semantic: null
 			};
 			globalCB.Variables.push(v); // Note: main loop will do MoveNext
+
+			// Found a global variable
+			return true;
 		}
+
+		// Unsuccessful parse
+		return false;
 	}
 
 	// EXPRESSION PARSING IDEAS

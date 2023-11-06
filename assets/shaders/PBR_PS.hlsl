@@ -328,7 +328,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float3 indirectSpecular = iblSpecular.SampleLevel(samp, viewRefl, rough * (iblSpecMips - 1.0)).rgb * indSpecFresnel;
 	float3 fullIndirect = (indirectDiffuse * albedo * saturate(1.0 - metal)) + indirectSpecular;
 
-	float3 finalColor = color;// +fullIndirect;
+	float3 finalColor = color + fullIndirect;
 	if (envIsHDR == 0.0)
 		finalColor = pow(finalColor, 1.0 / 2.2);
 
