@@ -22,9 +22,9 @@ class IDXGISwapChain extends IUnknown
 		// Validate the description
 		if (this.#desc.Width <= 0) throw new Error("Swap Chain width must be greater than zero");
 		if (this.#desc.Height <= 0) throw new Error("Swap Chain height must be greater than zero");
-		if (this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM &&
-			this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+		if (this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM) // TODO: Handle other back buffer formats (SRGB mostly)
 			throw new Error("Invalid Swap Chain format");
+			
 
 		// Create the back buffer from the description
 		this.#CreateBackBuffer();

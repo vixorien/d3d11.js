@@ -262,7 +262,7 @@ const DXGI_FORMAT_R32G32_FLOAT = 16;		// 64-bit, two channel float (for input la
 //const DXGI_FORMAT_R11G11B10_FLOAT = 26;
 //const DXGI_FORMAT_R8G8B8A8_TYPELESS = 27;
 const DXGI_FORMAT_R8G8B8A8_UNORM = 28;		// Default 32-bit, 8-per-channel color format
-const DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29; // 32-bit, 8-per-channel format, using sRGB for gamma conversion
+//const DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29; // 32-bit, 8-per-channel format, using sRGB for gamma conversion
 //const DXGI_FORMAT_R8G8B8A8_UINT = 30;
 //const DXGI_FORMAT_R8G8B8A8_SNORM = 31;
 //const DXGI_FORMAT_R8G8B8A8_SINT = 32;
@@ -1028,7 +1028,11 @@ class ID3D11Device extends IUnknown
 		this.#gl = gl;
 		this.#immediateContext = null;
 
-		// TODO: Delete these on release
+		// Resize GL's canvas to match the client size
+		gl.canvas.width = gl.canvas.clientWidth;
+		gl.canvas.height = gl.canvas.clientHeight;
+
+		// Will be deleted on release
 		this.#readbackFramebuffer = this.#gl.createFramebuffer();
 		this.#backBufferFramebuffer = this.#gl.createFramebuffer();
 
@@ -1046,6 +1050,21 @@ class ID3D11Device extends IUnknown
 		// NOTE: Does not effect ImageBitmap objects, which need to be flipped
 		//       via their own options.  See here: https://registry.khronos.org/webgl/specs/latest/1.0/#PIXEL_STORAGE_PARAMETERS
 		this.#gl.pixelStorei(this.#gl.UNPACK_FLIP_Y_WEBGL, false);
+	}
+
+	Release()
+	{
+		super.Release();
+
+		if (this.GetRef() <= 0)
+		{
+			// Release our context ref
+			this.#immediateContext.Release();
+
+			// Clean up our GL resources
+			this.#gl.deleteFramebuffer(this.#readbackFramebuffer);
+			this.#gl.deleteFramebuffer(this.#backBufferFramebuffer);
+		}
 	}
 
 	GetAdapter()
@@ -4140,9 +4159,9 @@ class IDXGISwapChain extends IUnknown
 		// Validate the description
 		if (this.#desc.Width <= 0) throw new Error("Swap Chain width must be greater than zero");
 		if (this.#desc.Height <= 0) throw new Error("Swap Chain height must be greater than zero");
-		if (this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM &&
-			this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
+		if (this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM) // TODO: Handle other back buffer formats (SRGB mostly)
 			throw new Error("Invalid Swap Chain format");
+			
 
 		// Create the back buffer from the description
 		this.#CreateBackBuffer();

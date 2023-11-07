@@ -20,7 +20,11 @@ class ID3D11Device extends IUnknown
 		this.#gl = gl;
 		this.#immediateContext = null;
 
-		// TODO: Delete these on release
+		// Resize GL's canvas to match the client size
+		gl.canvas.width = gl.canvas.clientWidth;
+		gl.canvas.height = gl.canvas.clientHeight;
+
+		// Will be deleted on release
 		this.#readbackFramebuffer = this.#gl.createFramebuffer();
 		this.#backBufferFramebuffer = this.#gl.createFramebuffer();
 
@@ -38,6 +42,21 @@ class ID3D11Device extends IUnknown
 		// NOTE: Does not effect ImageBitmap objects, which need to be flipped
 		//       via their own options.  See here: https://registry.khronos.org/webgl/specs/latest/1.0/#PIXEL_STORAGE_PARAMETERS
 		this.#gl.pixelStorei(this.#gl.UNPACK_FLIP_Y_WEBGL, false);
+	}
+
+	Release()
+	{
+		super.Release();
+
+		if (this.GetRef() <= 0)
+		{
+			// Release our context ref
+			this.#immediateContext.Release();
+
+			// Clean up our GL resources
+			this.#gl.deleteFramebuffer(this.#readbackFramebuffer);
+			this.#gl.deleteFramebuffer(this.#backBufferFramebuffer);
+		}
 	}
 
 	GetAdapter()
