@@ -1,6 +1,6 @@
 
 
-class Vector2 extends Float32Array
+export class Vector2 extends Float32Array
 {
 	get x() { return this[0]; }
 	get y() { return this[1]; }
@@ -18,7 +18,7 @@ class Vector2 extends Float32Array
 
 
 
-class Vector3 extends Float32Array
+export class Vector3 extends Float32Array
 {
 	static UnitX = new Vector3(1, 0, 0);
 	static UnitY = new Vector3(0, 1, 0);
@@ -118,7 +118,7 @@ class Vector3 extends Float32Array
 // Note: Fastest way of filling these arrays is manually (one element at a time)
 // - Using fill() is much worse
 // - Using .set() is even worse
-class Matrix4x4 extends Float32Array
+export class Matrix4x4 extends Float32Array
 {
 	constructor()
 	{
@@ -637,15 +637,5 @@ class Matrix4x4 extends Float32Array
 
 		return mat;
 	}
-
-
-
-
-
-
-	
-
-
-
 }
 

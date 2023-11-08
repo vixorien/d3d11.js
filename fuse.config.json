@@ -25,6 +25,10 @@
 		{
 			"input": [ "./src/utils/input.js" ],
 			"output": "./build/input.js"
+		},
+		{
+			"input": [ "./src/utils/vertex.js" ],
+			"output": "./build/vertex.js"
 		}
 	]
 }

@@ -27,8 +27,8 @@ class IDXGISwapChain extends IUnknown
 			throw new Error("Invalid Swap Chain format");
 
 		// Resize GL's canvas to match the client size
-		gl.canvas.width = gl.canvas.clientWidth;
-		gl.canvas.height = gl.canvas.clientHeight;
+		this.#gl.canvas.width = this.#gl.canvas.clientWidth;
+		this.#gl.canvas.height = this.#gl.canvas.clientHeight;
 
 		// Create the back buffer from the description
 		this.#CreateBackBuffer();
@@ -130,8 +130,8 @@ class IDXGISwapChain extends IUnknown
 			throw new Error("Invalid Swap Chain format");
 
 		// Resize GL's canvas to match the client size
-		gl.canvas.width = gl.canvas.clientWidth;
-		gl.canvas.height = gl.canvas.clientHeight;
+		this.#gl.canvas.width = this.#gl.canvas.clientWidth;
+		this.#gl.canvas.height = this.#gl.canvas.clientHeight;
 
 		// All set, update the description and perform the resize
 		this.#desc.Width = width;
