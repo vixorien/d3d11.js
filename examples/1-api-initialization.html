@@ -30,7 +30,7 @@
 		// its internal back buffer, allowing us to render into it.
 		//  - We *could* pass in a description of the RTV we'd like, but passing
 		//    null creates a default RTV that has access to the first subresource
-		let swapBuffer = swapChain.GetBuffer(); // Adds 1 to the buffer's reference count
+		let swapBuffer = swapChain.GetBuffer(); // Also adds 1 to the buffer's reference count
 		let backBufferRTV = device.CreateRenderTargetView(swapBuffer, null);
 		swapBuffer.Release(); // Releases 1 reference to the buffer
 		

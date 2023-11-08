@@ -262,7 +262,7 @@ const DXGI_FORMAT_R32G32_FLOAT = 16;		// 64-bit, two channel float (for input la
 //const DXGI_FORMAT_R11G11B10_FLOAT = 26;
 //const DXGI_FORMAT_R8G8B8A8_TYPELESS = 27;
 const DXGI_FORMAT_R8G8B8A8_UNORM = 28;		// Default 32-bit, 8-per-channel color format
-//const DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29; // 32-bit, 8-per-channel format, using sRGB for gamma conversion
+const DXGI_FORMAT_R8G8B8A8_UNORM_SRGB = 29; // 32-bit, 8-per-channel format, using sRGB for gamma conversion
 //const DXGI_FORMAT_R8G8B8A8_UINT = 30;
 //const DXGI_FORMAT_R8G8B8A8_SNORM = 31;
 //const DXGI_FORMAT_R8G8B8A8_SINT = 32;
@@ -1872,6 +1872,12 @@ class ID3D11Device extends IUnknown
 				glFormatDetails.InternalFormat = this.#gl.RGBA8;
 				break;
 
+			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+				glFormatDetails.Type = this.#gl.UNSIGNED_BYTE;
+				glFormatDetails.Format = this.#gl.RGBA;
+				glFormatDetails.InternalFormat = this.#gl.SRGB8_ALPHA8;
+				break;
+
 			case DXGI_FORMAT_R16G16_FLOAT:
 				glFormatDetails.Type = this.#gl.FLOAT;
 				glFormatDetails.Format = this.#gl.RG;
@@ -2242,6 +2248,7 @@ class ID3D11Device extends IUnknown
 		{
 			// Basic color format is fine
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
 			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R16G16B16A16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
@@ -2321,6 +2328,7 @@ class ID3D11Device extends IUnknown
 		switch (srvDesc.Format)
 		{
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
 			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R16G16B16A16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
@@ -2444,6 +2452,7 @@ class ID3D11Device extends IUnknown
 
 			// Non-float color buffers
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
 				break;
 
 			// Float color buffers
@@ -4159,7 +4168,8 @@ class IDXGISwapChain extends IUnknown
 		// Validate the description
 		if (this.#desc.Width <= 0) throw new Error("Swap Chain width must be greater than zero");
 		if (this.#desc.Height <= 0) throw new Error("Swap Chain height must be greater than zero");
-		if (this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM) // TODO: Handle other back buffer formats (SRGB mostly)
+		if (this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM && 
+			this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
 			throw new Error("Invalid Swap Chain format");
 			
 

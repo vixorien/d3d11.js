@@ -72,7 +72,7 @@ float BurleyDiffuse(float3 N, float3 L, float3 V, float roughness)
 	float a = roughness * roughness; // Perceptual to linear
 	float NdotL = saturate(dot(N, L));
 	float NdotV = saturate(dot(N, V));
-	float VdotH = saturate(dot(V, H)); // Theta_d in the disney paper
+	float VdotH = saturate(dot(V, H)); // Theta_d in the disney paper (VdotH == LdotH, so either should work?)
 
 	float f_d90 = 0.5 + 2.0 * a * VdotH * VdotH;
 	float f_d90_minus_1 = f_d90 - 1.0;
