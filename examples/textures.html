@@ -1538,7 +1538,8 @@
 		{
 			let postprocessing = true;
 
-			let input = new Input(document.getElementById("viewport"));
+			let viewportElement = document.getElementById("viewport");
+			let input = new Input(viewportElement);
 
 			// Some quick vars
 			let float32Size = Float32Array.BYTES_PER_ELEMENT;
@@ -1550,20 +1551,16 @@
 			globalDevice = device;
 			globalContext = context;
 
-			let gl = device.GetAdapter();
-			gl.canvas.width = gl.canvas.clientWidth;
-			gl.canvas.height = gl.canvas.clientHeight;
-
 			let swapDesc = new DXGI_SWAP_CHAIN_DESC(
-				gl.canvas.clientWidth,
-				gl.canvas.clientHeight,
+				viewportElement.clientWidth,
+				viewportElement.clientHeight,
 				DXGI_FORMAT_R8G8B8A8_UNORM);
 
 			let swapChain = DXGICreateSwapChain(device, swapDesc);
 
 
 			// Set up initial viewport
-			let viewport = new D3D11_VIEWPORT(0, 0, gl.canvas.clientWidth, gl.canvas.clientHeight, 0, 1);
+			let viewport = new D3D11_VIEWPORT(0, 0, viewportElement.clientWidth, viewportElement.clientHeight, 0, 1);
 			context.RSSetViewports(viewport);
 
 			// Make an RTV of the back buffer
@@ -1573,8 +1570,8 @@
 
 			// Create a depth buffer
 			let depthDesc = new D3D11_TEXTURE2D_DESC(
-				gl.canvas.clientWidth,
-				gl.canvas.clientHeight,
+				viewportElement.clientWidth,
+				viewportElement.clientHeight,
 				1,
 				1,
 				DXGI_FORMAT_D24_UNORM_S8_UINT,
@@ -1741,7 +1738,7 @@
 			let vsCB = device.CreateBuffer(vsCBDesc, null);
 
 
-			let aspectRatio = gl.canvas.clientWidth / gl.canvas.clientHeight;
+			let aspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
 
 			// Camera
 			let cameraPosition = new Vector3(0, 0, -10);
@@ -1992,8 +1989,8 @@
 
 			// Post process resources
 			let ppTexDesc = new D3D11_TEXTURE2D_DESC(
-				gl.canvas.width,
-				gl.canvas.height,
+				viewportElement.width,
+				viewportElement.height,
 				1,
 				1,
 				DXGI_FORMAT_R32G32B32A32_FLOAT,
@@ -2045,7 +2042,7 @@
 				// Update
 				let speed = 0.2;
 				if (input.IsKeyDown(Keys.Shift)) speed *= 5;
-				if (input.IsKeyDown(Keys.Ctrl)) speed *= 0.25;
+				if (input.IsMouseDown(MouseButtons.Right)) speed *= 0.15;
 
 				let cameraMoveRelative = new Vector3();
 				let cameraMoveAbsolute = new Vector3();
@@ -2057,7 +2054,7 @@
 				if (input.IsKeyDown(Keys.Space)) { anyMove = true; cameraMoveAbsolute.y += speed; }
 				if (input.IsKeyDown(Keys.X)) { anyMove = true; cameraMoveAbsolute.y -= speed; }
 
-				if (input.IsMouseDown(MouseButtons.Left))
+				if (input.IsMouseDown(MouseButtons.Left) || input.IsMouseDown(MouseButtons.Right))
 				{
 					cameraRotation.x += input.GetMouseDeltaY() * 0.001;
 					cameraRotation.y += input.GetMouseDeltaX() * 0.001;
@@ -2082,17 +2079,17 @@
 			function checkForResize()
 			{
 				// Has the window changed size?
-				if (gl.canvas.width != gl.canvas.clientWidth ||
-					gl.canvas.height != gl.canvas.clientHeight)
+				if (viewportElement.width != viewportElement.clientWidth ||
+					viewportElement.height != viewportElement.clientHeight)
 				{
 					// Need to resize, so first release all references
 					rtv.Release(); // Back buffer
 					depthDSV.Release(); // Depth buffer
 
 					// Ask the swap chain to resize and update the canvas
-					gl.canvas.width = gl.canvas.clientWidth;
-					gl.canvas.height = gl.canvas.clientHeight;
-					swapChain.ResizeBuffers(gl.canvas.clientWidth, gl.canvas.clientHeight);
+					viewportElement.width = viewportElement.clientWidth;
+					viewportElement.height = viewportElement.clientHeight;
+					swapChain.ResizeBuffers(viewportElement.clientWidth, viewportElement.clientHeight);
 
 					// Make new RTV
 					let bb = swapChain.GetBuffer();
@@ -2101,8 +2098,8 @@
 
 					// Make new depth buffer
 					let depthDesc = new D3D11_TEXTURE2D_DESC(
-						gl.canvas.clientWidth,
-						gl.canvas.clientHeight,
+						viewportElement.clientWidth,
+						viewportElement.clientHeight,
 						1,
 						1,
 						DXGI_FORMAT_D24_UNORM_S8_UINT,
@@ -2121,21 +2118,21 @@
 					context.OMSetRenderTargets([rtv], depthDSV);
 
 					// Update aspect ratio and camera
-					aspectRatio = gl.canvas.clientWidth / gl.canvas.clientHeight;
+					aspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
 					pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, aspectRatio, 0.01, 100);
 					vsData.set(pMat, 32);
 
-					// Update  viewport, too
-					viewport.Width = gl.canvas.clientWidth;
-					viewport.Height = gl.canvas.clientHeight;
+					// Update rendering viewport, too
+					viewport.Width = viewportElement.clientWidth;
+					viewport.Height = viewportElement.clientHeight;
 					context.RSSetViewports(viewport);
 
 					// Create new post processing resource, too
 					ppSRV.Release();
 					ppRTV.Release();
 					let ppTexDesc = new D3D11_TEXTURE2D_DESC(
-						gl.canvas.width,
-						gl.canvas.height,
+						viewportElement.width,
+						viewportElement.height,
 						1,
 						1,
 						DXGI_FORMAT_R32G32B32A32_FLOAT,

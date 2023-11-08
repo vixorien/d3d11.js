@@ -20,10 +20,6 @@ class ID3D11Device extends IUnknown
 		this.#gl = gl;
 		this.#immediateContext = null;
 
-		// Resize GL's canvas to match the client size
-		gl.canvas.width = gl.canvas.clientWidth;
-		gl.canvas.height = gl.canvas.clientHeight;
-
 		// Will be deleted on release
 		this.#readbackFramebuffer = this.#gl.createFramebuffer();
 		this.#backBufferFramebuffer = this.#gl.createFramebuffer();
