@@ -1028,10 +1028,6 @@ class ID3D11Device extends IUnknown
 		this.#gl = gl;
 		this.#immediateContext = null;
 
-		// Resize GL's canvas to match the client size
-		gl.canvas.width = gl.canvas.clientWidth;
-		gl.canvas.height = gl.canvas.clientHeight;
-
 		// Will be deleted on release
 		this.#readbackFramebuffer = this.#gl.createFramebuffer();
 		this.#backBufferFramebuffer = this.#gl.createFramebuffer();
@@ -4171,7 +4167,10 @@ class IDXGISwapChain extends IUnknown
 		if (this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM && 
 			this.#desc.Format != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
 			throw new Error("Invalid Swap Chain format");
-			
+
+		// Resize GL's canvas to match the client size
+		gl.canvas.width = gl.canvas.clientWidth;
+		gl.canvas.height = gl.canvas.clientHeight;
 
 		// Create the back buffer from the description
 		this.#CreateBackBuffer();
@@ -4271,6 +4270,10 @@ class IDXGISwapChain extends IUnknown
 		if (newFormat != DXGI_FORMAT_R8G8B8A8_UNORM &&
 			newFormat != DXGI_FORMAT_R8G8B8A8_UNORM_SRGB)
 			throw new Error("Invalid Swap Chain format");
+
+		// Resize GL's canvas to match the client size
+		gl.canvas.width = gl.canvas.clientWidth;
+		gl.canvas.height = gl.canvas.clientHeight;
 
 		// All set, update the description and perform the resize
 		this.#desc.Width = width;
