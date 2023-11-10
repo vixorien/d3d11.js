@@ -336,6 +336,7 @@
 			globalIBLSpecSRV.Release();
 			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, globalIBLMipsToSkip, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
 		}
+		window.loadSixFaces = loadSixFaces; // Expose to global scope
 
 		async function readLocalFile(file)
 		{
@@ -1800,6 +1801,7 @@
 					],
 					elementsBeforeLights + i * 16);
 			}
+			context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 
 			// Cbuffer for solid color
@@ -1813,11 +1815,19 @@
 			let solidData = new Float32Array(4);
 			solidData.set([1, 1, 1], 0);
 			context.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
-			context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
-			// Set constant buffers
-			context.VSSetConstantBuffers(0, [vsCB]);
-			context.PSSetConstantBuffers(0, [psCB]);
+
+			// Cbuffer for quad UI
+			let quadCBDesc = new D3D11_BUFFER_DESC(
+				8 * Float32Array.BYTES_PER_ELEMENT,
+				D3D11_USAGE_DYNAMIC,
+				D3D11_BIND_CONSTANT_BUFFER,
+				D3D11_CPU_ACCESS_WRITE,
+				0, 0);
+			let quadCB = device.CreateBuffer(quadCBDesc, null);
+			let quadData = new Float32Array(8);
+
+
 
 			// Create an input layout
 			let inputElements = [];
@@ -1836,6 +1846,8 @@
 			let skyPS = device.CreatePixelShader(await loadText("../assets/shaders/SkyPS.hlsl"));
 			let tonemapPS = device.CreatePixelShader(await loadText("../assets/shaders/TonemapPS.hlsl"));
 			let postprocPS = device.CreatePixelShader(await loadText("../assets/shaders/BlurPS.hlsl"));
+			let quadVS = device.CreateVertexShader(await loadText("../assets/shaders/QuadVS.hlsl"));
+			let simpleTexturePS = device.CreatePixelShader(await loadText("../assets/shaders/SimpleTexturePS.hlsl"));
 			let fullscreenVS = device.CreateVertexShader(await loadText("../assets/shaders/FullscreenVS.hlsl"));
 
 			let equirectToCubePS = device.CreatePixelShader(await loadText("../assets/shaders/EquirectToCubePS.hlsl"));
@@ -2149,6 +2161,10 @@
 
 				vsData.set(vMat, 16);
 
+				// Set constant buffers for main draw
+				context.VSSetConstantBuffers(0, [vsCB]);
+				context.PSSetConstantBuffers(0, [psCB]);
+
 				// Clear the frame
 				let black = [0, 0, 0, 1];
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
@@ -2329,6 +2345,24 @@
 					context.UpdateSubresource(ppCB, 0, null, ppData, 0, 0);
 					context.Draw(3, 0);
 				}
+
+				// Draw "UI"
+				//{
+				//	quadData.set([
+				//		100, 100, // Position in pixels
+				//		100, 100, // Size in pixels
+				//		viewportElement.clientWidth, viewportElement.clientHeight // Window size
+				//	]);
+				//	context.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
+
+				//	context.VSSetShader(quadVS);
+				//	context.VSSetConstantBuffers(0, [quadCB]);
+
+				//	context.PSSetShader(simpleTexturePS);
+				//	context.PSSetShaderResources(0, [greenSRV]);
+
+				//	context.Draw(6, 0);
+				//}
 
 				// Flush the frame
 				swapChain.Present();
