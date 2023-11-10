@@ -252,6 +252,7 @@
 
 		import { Vector2, Vector3, Matrix4x4 } from "../build/d3dmath.js";
 		import { Vertex } from "../build/vertex.js";
+		import { Mesh } from "../build/mesh.js";
 
 		let globalSkySRV = null;
 		let globalIrrSRV = null;
@@ -1693,6 +1694,11 @@
 			// Common for all verts
 			let vbStride = Vertex.GetStride();
 			let vbOffset = 0;
+
+			// Attempt to load a mesh
+			let sphereMesh = await Mesh.LoadFromFile(device, "../assets/meshes/sphere.obj");
+			let helixMesh = await Mesh.LoadFromFile(device, "../assets/meshes/helix.obj");
+			let cubeMesh = await Mesh.LoadFromFile(device, "../assets/meshes/cube.obj");
 
 			// Load an .obj file and set buffers
 			let helixBuffs = await loadOBJFile(device, "../assets/meshes/helix.obj");

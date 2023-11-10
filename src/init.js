@@ -3,8 +3,12 @@
 // ----------------- API Initialization ----------------
 // -----------------------------------------------------
 
-// TODO: Determine if any actual d3d parameters are useful here
-function D3D11CreateDevice(canvas) // Canvas acts as the adapter here
+/**
+ * Creates a new ID3D11Device for using the D3D11 API
+ * 
+ * @param {any} canvas The canvas HTML element that will act as the graphics adapter
+ */
+function D3D11CreateDevice(canvas)
 {
 	// Verify and turn on WebGL
 	// Note: Attempting to match D3D defaults

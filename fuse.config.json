@@ -27,6 +27,10 @@
 			"output": "./build/input.js"
 		},
 		{
+			"input": [ "./src/utils/mesh.js" ],
+			"output": "./build/mesh.js"
+		},
+		{
 			"input": [ "./src/utils/vertex.js" ],
 			"output": "./build/vertex.js"
 		}

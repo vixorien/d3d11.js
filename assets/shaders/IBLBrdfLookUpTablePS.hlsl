@@ -2,7 +2,7 @@
 struct VertexToPixel
 {
 	float4 position		: SV_POSITION;
-	float2 uv           : TEXCOORD0;
+	float2 uv           : TEXCOORD;
 };
 
 // Specular G

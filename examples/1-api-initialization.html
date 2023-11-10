@@ -13,7 +13,7 @@
 		// Start by creating ID3D11Device object, which is in charge
 		// of creating resources (textures, buffers, etc.) for D3D11.
 		//  - It requires a canvas HTML element that will act as its "graphics adapter"
-		let device = D3D11CreateDevice(document.querySelector("#viewport"));
+		let device = D3D11CreateDevice(document.getElementById("viewport"));
 
 		// Once a device has been created, we can get an ID3D11DeviceContext
 		// object from it, which contains rendering and pipeline functions
@@ -33,7 +33,12 @@
 		let swapBuffer = swapChain.GetBuffer(); // Also adds 1 to the buffer's reference count
 		let backBufferRTV = device.CreateRenderTargetView(swapBuffer, null);
 		swapBuffer.Release(); // Releases 1 reference to the buffer
-		
+
+		// Set this RTV as our rendering context's render target
+		//  - Multiple render targets are possible, so the function takes an array of RTVs
+		//  - No depth buffer for this demo, so setting that to null
+		context.OMSetRenderTargets([backBufferRTV], null);
+
 		// Clear the back buffer to a specified color
 		let cornflowerBlue = [0.39, 0.58, 0.93, 1];
 		context.ClearRenderTargetView(backBufferRTV, cornflowerBlue);
