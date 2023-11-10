@@ -1351,54 +1351,19 @@
 			context.PSSetShaderResources(0, [albedoSRV, normalSRV, metalSRV, roughSRV]);
 
 			// Create several solid textures
-			let blackSRV = createSolidTexture(device, 2, 2, new Uint8Array([
-				0, 0, 0, 255,
-				0, 0, 0, 255,
-				0, 0, 0, 255,
-				0, 0, 0, 255]));
-
-			let whiteSRV = createSolidTexture(device, 2, 2, new Uint8Array([
-				255, 255, 255, 255,
-				255, 255, 255, 255,
-				255, 255, 255, 255,
-				255, 255, 255, 255]));
-
-			let blueSRV = createSolidTexture(device, 2, 2, new Uint8Array([
-				0, 0, 192, 255,
-				0, 0, 192, 255,
-				0, 0, 192, 255,
-				0, 0, 192, 255]));
-
-			let greenSRV = createSolidTexture(device, 2, 2, new Uint8Array([
-				0, 128, 0, 255,
-				0, 128, 0, 255,
-				0, 128, 0, 255,
-				0, 128, 0, 255]));
-
-			let redSRV = createSolidTexture(device, 2, 2, new Uint8Array([
-				255, 0, 0, 255,
-				255, 0, 0, 255,
-				255, 0, 0, 255,
-				255, 0, 0, 255]));
-
-			let flatNormalsSRV = createSolidTexture(device, 2, 2, new Uint8Array([
-				127, 127, 255, 255,
-				127, 127, 255, 255,
-				127, 127, 255, 255,
-				127, 127, 255, 255]));
+			let blackSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 0, 255);
+			let whiteSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 255, 255, 255);
+			let blueSRV  = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 192, 255);
+			let greenSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 128, 0, 255);
+			let redSRV   = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 0, 0, 255);
+			let flatNormalsSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 127, 127, 255, 255);
 
 			// Array of greyscale roughness textures
 			let solidRoughSRVs = [];
 			for (let i = 0; i < 11; i++)
 			{
 				let r = Math.floor((i / 10.0) * 255);
-				
-				let srv = createSolidTexture(device, 2, 2, new Uint8Array([
-					r, r, r, 255,
-					r, r, r, 255,
-					r, r, r, 255,
-					r, r, r, 255]));
-				solidRoughSRVs.push(srv);
+				solidRoughSRVs.push(TextureUtils.CreateSolidTexture2D(device, 2, 2, r, r, r, 255));
 			}
 
 			// Load a cube map
