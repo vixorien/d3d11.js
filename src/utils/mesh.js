@@ -199,19 +199,19 @@ export class Mesh
 		this.IndexCount = indices == null ? 0 : indices.length;
 
 		// Copy data to float array
-		const vertStride = Vertex.GetStride();
-		let vbData = new Float32Array(vertices.length * vertStride);
+		const floatsPerVert = Vertex.GetStrideInFloats();
+		let vbData = new Float32Array(vertices.length * floatsPerVert);
 		for (let v = 0; v < vertices.length; v++)
 		{
-			vbData.set(vertices[v].Position, v * vertStride + 0);
-			vbData.set(vertices[v].UV, v * vertStride + 3);
-			vbData.set(vertices[v].Normal, v * vertStride + 5);
-			vbData.set(vertices[v].Tangent, v * vertStride + 8);
+			vbData.set(vertices[v].Position, v * floatsPerVert + 0);
+			vbData.set(vertices[v].UV, v * floatsPerVert + 3);
+			vbData.set(vertices[v].Normal, v * floatsPerVert + 5);
+			vbData.set(vertices[v].Tangent, v * floatsPerVert + 8);
 		}
 
 		// Create vertex buffer
 		let vbDesc = new D3D11_BUFFER_DESC(
-			Vertex.GetStride() * vertices.length,
+			Vertex.GetStrideInBytes() * vertices.length,
 			D3D11_USAGE_IMMUTABLE,
 			D3D11_BIND_VERTEX_BUFFER,
 			0, 0, 0);

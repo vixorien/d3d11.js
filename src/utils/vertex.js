@@ -28,9 +28,15 @@ export class Vertex
 		this.Tangent = tang.slice();
 	}
 
-	static GetStride()
+	static GetStrideInFloats()
 	{
 		// pos + uv + normal + tangent = 3 + 2 + 3 + 3 = 11
-		return Float32Array.BYTES_PER_ELEMENT * 11; 
+		return 11;
+	}
+
+	static GetStrideInBytes()
+	{
+		// pos + uv + normal + tangent = 3 + 2 + 3 + 3 = 11
+		return Float32Array.BYTES_PER_ELEMENT * this.GetStrideInFloats(); 
 	}
 }
