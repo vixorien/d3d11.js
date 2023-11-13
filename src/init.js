@@ -22,7 +22,7 @@ function D3D11CreateDevice(canvas)
 		});
 	if (gl === null)
 	{
-		return false; // TODO: Throw exception?
+		throw new Error("Unable to create internal WebGL2 rendering context for d3d11.js");
 	}
 
 	return new ID3D11Device(gl);

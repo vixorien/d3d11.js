@@ -8,10 +8,10 @@ export class TextureUtils
 	 * @param {any} d3dDevice D3D Device for resource creation
 	 * @param {any} width Width of the new texture
 	 * @param {any} height Height of the new texture
-	 * @param {any} redInt 
-	 * @param {any} greenInt
-	 * @param {any} blueInt
-	 * @param {any} alphaInt
+	 * @param {any} redInt Red channel integer value [0,255]
+	 * @param {any} greenInt Green channel integer value [0,255]
+	 * @param {any} blueInt Blue channel integer value [0,255]
+	 * @param {any} alphaInt Alpha channel integer value [0,255]
 	 * 
 	 * @returns An ID3D11ShaderResourceView for the texture
 	 */

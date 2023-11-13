@@ -973,6 +973,7 @@ function D3D11CreateDevice(canvas)
 	// Full list: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext
 	const gl = canvas.getContext("webgl2",
 		{
+			alpha: false,
 			antialias: false,
 			depth: false,
 			preserveDrawingBuffer: true
@@ -4300,6 +4301,18 @@ class IDXGISwapChain extends IUnknown
 
 	#CreateBackBuffer()
 	{
+		// Fill the back buffer with all zero to start
+		let size = this.#desc.Width * this.#desc.Height * 4;
+		let black = new Uint8Array(size);
+		
+		for (let i = 0; i < size;)
+		{
+			black[i++] = 0;
+			black[i++] = 0;
+			black[i++] = 0;
+			black[i++] = 0;
+		}
+
 		// Create the "back buffer" description and texture
 		let bbDesc = new D3D11_TEXTURE2D_DESC(
 			this.#desc.Width,
@@ -4311,7 +4324,7 @@ class IDXGISwapChain extends IUnknown
 			D3D11_USAGE_DEFAULT,
 			D3D11_BIND_RENDER_TARGET,
 			0, 0);
-		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, null);
+		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, [black]);
 	}
 
 	/**
