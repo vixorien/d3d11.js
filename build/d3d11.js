@@ -974,13 +974,14 @@ function D3D11CreateDevice(canvas)
 	const gl = canvas.getContext("webgl2",
 		{
 			alpha: false,
+			premultipliedAlpha: false,
 			antialias: false,
 			depth: false,
 			preserveDrawingBuffer: true
 		});
 	if (gl === null)
 	{
-		return false; // TODO: Throw exception?
+		throw new Error("Unable to create internal WebGL2 rendering context for d3d11.js");
 	}
 
 	return new ID3D11Device(gl);
@@ -4301,18 +4302,6 @@ class IDXGISwapChain extends IUnknown
 
 	#CreateBackBuffer()
 	{
-		// Fill the back buffer with all zero to start
-		let size = this.#desc.Width * this.#desc.Height * 4;
-		let black = new Uint8Array(size);
-		
-		for (let i = 0; i < size;)
-		{
-			black[i++] = 0;
-			black[i++] = 0;
-			black[i++] = 0;
-			black[i++] = 0;
-		}
-
 		// Create the "back buffer" description and texture
 		let bbDesc = new D3D11_TEXTURE2D_DESC(
 			this.#desc.Width,
@@ -4324,7 +4313,7 @@ class IDXGISwapChain extends IUnknown
 			D3D11_USAGE_DEFAULT,
 			D3D11_BIND_RENDER_TARGET,
 			0, 0);
-		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, [black]);
+		this.#backBuffer = this.#device.CreateTexture2D(bbDesc, null);
 	}
 
 	/**

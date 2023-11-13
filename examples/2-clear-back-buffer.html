@@ -12,8 +12,8 @@
 
 		// Create/get the three API objects:
 		// - Device: For resource/state creation
-		// - Context: For changing state and issuing rendering commands
-		// - Swap Chain: For 
+		// - Context: For changing graphics state and issuing rendering commands
+		// - Swap Chain: Stores rendered data and presents finalized frames
 		let device = D3D11CreateDevice(document.getElementById("viewport"));
 		let context = device.GetImmediateContext();
 		const swapDesc = new DXGI_SWAP_CHAIN_DESC(800, 600, DXGI_FORMAT_R8G8B8A8_UNORM);
@@ -38,9 +38,6 @@
 
 		// Present the frame to the user
 		swapChain.Present();
-
-		let gl = device.GetAdapter();
-		alert(gl.isEnabled(gl.BLEND));
 
 	</script>
 </body>

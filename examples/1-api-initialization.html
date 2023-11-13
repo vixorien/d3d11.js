@@ -10,26 +10,23 @@
 
 	<script>
 
-		// Start by creating ID3D11Device object, which is in charge
-		// of creating resources (textures, buffers, etc.) for D3D11.
+		// Use a global function to create the ID3D11Device object, which is in
+		// charge of creating resources (textures, buffers, etc.) for D3D11.
 		//  - It requires a canvas HTML element that will act as its "graphics adapter"
 		let device = D3D11CreateDevice(document.getElementById("viewport"));
 
-		// Once a device has been created, we can get an ID3D11DeviceContext
+		// Once a device has been created, we can get the ID3D11DeviceContext
 		// object from it, which contains rendering and pipeline functions
 		let context = device.GetImmediateContext();
 
-		// Lastly, we create an IDXGISwapChain which houses the back buffer
-		// and allows us to finalize a single frame of rendering.
+		// Lastly, use another global function to create an IDXGISwapChain object, which
+		// houses the back buffer and allows us to finalize a single frame of rendering.
 		//  - This requires a swap chain description, which describes the
 		//    size of the back buffer for rendering and its color format
 		//  - The size will most likely be the same as the canvas, but 
 		//    doesn't have to be if you intend to render at a different resolution
 		const swapDesc = new DXGI_SWAP_CHAIN_DESC(800, 600, DXGI_FORMAT_R8G8B8A8_UNORM);
 		let swapChain = DXGICreateSwapChain(device, swapDesc);
-
-		// Present the frame to the user
-		swapChain.Present();
 
 	</script>
 </body>

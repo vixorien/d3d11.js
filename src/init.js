@@ -16,6 +16,8 @@ function D3D11CreateDevice(canvas)
 	// Full list: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext
 	const gl = canvas.getContext("webgl2",
 		{
+			alpha: false,
+			premultipliedAlpha: false,
 			antialias: false,
 			depth: false,
 			preserveDrawingBuffer: true
