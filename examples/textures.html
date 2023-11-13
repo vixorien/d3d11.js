@@ -1299,19 +1299,15 @@
 			let float32Size = Float32Array.BYTES_PER_ELEMENT;
 
 			// Init the API
-			let device = D3D11CreateDevice(document.querySelector("#viewport"));
-			let context = device.GetImmediateContext();
-
-			globalDevice = device;
-			globalContext = context;
-
-			let swapDesc = new DXGI_SWAP_CHAIN_DESC(
+			const swapChainDesc = new DXGI_SWAP_CHAIN_DESC(
 				viewportElement.clientWidth,
 				viewportElement.clientHeight,
 				DXGI_FORMAT_R8G8B8A8_UNORM);
 
-			let swapChain = DXGICreateSwapChain(device, swapDesc);
-
+			let [device, context, swapChain] =
+				D3D11CreateDeviceAndSwapChain(viewportElement, 0, swapChainDesc);                
+			globalDevice = device;
+			globalContext = context;
 
 			// Set up initial viewport
 			let viewport = new D3D11_VIEWPORT(0, 0, viewportElement.clientWidth, viewportElement.clientHeight, 0, 1);

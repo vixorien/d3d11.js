@@ -63,6 +63,10 @@ const D3D11_COMPARISON_ALWAYS = 8;
 const D3D11_CPU_ACCESS_WRITE = 0x10000;
 const D3D11_CPU_ACCESS_READ = 0x20000;
 
+// Device creation flags, which are custom for d3d11.js
+const D3D11_JS_CREATE_DEVICE_ALPHA_CANVAS = 0x1;
+const D3D11_JS_CREATE_DEVICE_PREMULTIPLIED_ALPHA = 0x2;
+
 // Indicates triangles facing a particular direction are not drawn.
 const D3D11_CULL_NONE = 1;
 const D3D11_CULL_FRONT = 2;
@@ -964,17 +968,23 @@ class ID3D11DeviceChild extends IUnknown
  * Creates a new ID3D11Device for using the D3D11 API
  * 
  * @param {any} canvas The canvas HTML element that will act as the graphics adapter
+ * @param {any} flags D3D11_JS_CREATE flags to signify canvas features
+ * 
+ * @returns The new ID3D11Device object
  */
-function D3D11CreateDevice(canvas)
+function D3D11CreateDevice(canvas, flags)
 {
+	// Check flags
+	var flagAlpha = (flags & D3D11_JS_CREATE_DEVICE_ALPHA_CANVAS) == D3D11_JS_CREATE_DEVICE_ALPHA_CANVAS;
+	var flagPremult = (flags & D3D11_JS_CREATE_DEVICE_PREMULTIPLIED_ALPHA) == D3D11_JS_CREATE_DEVICE_PREMULTIPLIED_ALPHA;
+	
 	// Verify and turn on WebGL
-	// Note: Attempting to match D3D defaults
-	//       in the options (no depth buffer, etc.)
+	// Note: Attempting to match D3D defaults in the options (no depth buffer, etc.)
 	// Full list: https://developer.mozilla.org/en-US/docs/Web/API/HTMLCanvasElement/getContext
 	const gl = canvas.getContext("webgl2",
 		{
-			alpha: false,
-			premultipliedAlpha: false,
+			alpha: flagAlpha,
+			premultipliedAlpha: flagPremult,
 			antialias: false,
 			depth: false,
 			preserveDrawingBuffer: true
@@ -987,16 +997,44 @@ function D3D11CreateDevice(canvas)
 	return new ID3D11Device(gl);
 }
 
+
+/**
+ * Creates the three objects necessary to control D3D11:
+ * - ID3D11Device
+ * - ID3D11DeviceContext
+ * - IDXGISwapChain
+ * 
+ * @param {any} canvas The canvas HTML element that will act as the graphics adapter
+ * @param {any} flags D3D11_JS_CREATE flags to signify canvas features
+ * @param {DXGI_SWAP_CHAIN_DESC} desc A description of the swap chain
+ * 
+ * @returns An array containing the three objects: ID3D11Device, ID3D11DeviceContext, IDXGISwapChain
+ */
+function D3D11CreateDeviceAndSwapChain(canvas, flags, swapChainDesc)
+{
+	// Create the device, grab its context and then create the swap chain
+	let device = D3D11CreateDevice(canvas, flags);
+	let context = device.GetImmediateContext();
+	let swapChain = DXGICreateSwapChain(device, swapChainDesc);
+
+	// Return all three as an array
+	return [device, context, swapChain];
+}
+
+
 /**
  * Creates a new DXGI Swap Chain for presenting the final frame to the user
  * 
  * @param {ID3D11Device} device The ID3D11Device for the swap chain
  * @param {DXGI_SWAP_CHAIN_DESC} desc A description of the swap chain
+ * 
+ * @returns The new IDXGISwapChain object
  */
 function DXGICreateSwapChain(device, desc)
 {
 	return new IDXGISwapChain(device, desc);
 }
+
 
 /**
  * Calculates a subresource index for a texture

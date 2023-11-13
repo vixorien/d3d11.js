@@ -63,6 +63,10 @@ const D3D11_COMPARISON_ALWAYS = 8;
 const D3D11_CPU_ACCESS_WRITE = 0x10000;
 const D3D11_CPU_ACCESS_READ = 0x20000;
 
+// Device creation flags, which are custom for d3d11.js
+const D3D11_JS_CREATE_DEVICE_ALPHA_CANVAS = 0x1;
+const D3D11_JS_CREATE_DEVICE_PREMULTIPLIED_ALPHA = 0x2;
+
 // Indicates triangles facing a particular direction are not drawn.
 const D3D11_CULL_NONE = 1;
 const D3D11_CULL_FRONT = 2;

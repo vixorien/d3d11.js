@@ -10,26 +10,27 @@
 
 	<script>
 
-		// Create/get the three API objects:
-		// - Device: For resource/state creation
-		// - Context: For changing graphics state and issuing rendering commands
-		// - Swap Chain: Stores rendered data and presents finalized frames
-		let device = D3D11CreateDevice(document.getElementById("viewport"));
-		let context = device.GetImmediateContext();
-		const swapDesc = new DXGI_SWAP_CHAIN_DESC(800, 600, DXGI_FORMAT_R8G8B8A8_UNORM);
-		let swapChain = DXGICreateSwapChain(device, swapDesc);
+		// Call the all-in-one API initialization function to create the objects
+		// that control the D3D11 API:
+		// - device - Resource and rendering state object creation
+		// - context - Pipeline and rendering commands
+		// - swapChain - Controls the rendering surface and frame finalization
+		const swapChainDesc = new DXGI_SWAP_CHAIN_DESC(800, 600, DXGI_FORMAT_R8G8B8A8_UNORM);
+		let [device, context, swapChain] =
+			D3D11CreateDeviceAndSwapChain(document.getElementById("viewport"), 0, swapChainDesc);                     
 
 		// Now that we have a swap chain, we can make a Render Target View for
 		// its internal back buffer, allowing us to render into it.
 		// - Note the null being passed to CreateRTV(), which signifies that a 
 		//   default render target view should be created
-		let swapBuffer = swapChain.GetBuffer(); // Also adds 1 to the buffer's reference count
-		let backBufferRTV = device.CreateRenderTargetView(swapBuffer, null);
-		swapBuffer.Release(); // Releases 1 reference to the buffer
+		let backBufferRef = swapChain.GetBuffer(); // Also adds 1 to the buffer's reference count
+		let backBufferRTV = device.CreateRenderTargetView(backBufferRef, null);
+		backBufferRef.Release(); // Releases 1 reference to the buffer
 
 		// Set this RTV as our rendering context's render target
 		//  - Multiple render targets are possible, so the function takes an array of RTVs
-		//  - No depth buffer for this demo, so setting that to null
+		//  - No depth buffer for this demo, so the second parameter is null
+		//  - Note: This call is not strictly necessary for this demo, but will be for future demos
 		context.OMSetRenderTargets([backBufferRTV], null);
 
 		// Clear the back buffer to a specified color
