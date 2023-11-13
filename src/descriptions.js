@@ -287,9 +287,40 @@ class D3D11_SHADER_RESOURCE_VIEW_DESC
 	}
 }
 
-// TODO: Implement this!
-// Current exists so the type can be used elsewhere
-class D3D11_TEXTURE1D_DESC { }
+
+class D3D11_TEXTURE1D_DESC
+{
+	Width;
+	MipLevels;
+	ArraySize;
+	Format;
+	Usage;
+	BindFlags;
+	CPUAccessFlags;
+	MiscFlags;
+
+	constructor(
+		width,
+		mipLevels,
+		arraySize,
+		format,
+		usage,
+		bindFlags,
+		cpuAccessFlags,
+		miscFlags
+	)
+	{
+		this.Width = width;
+		this.MipLevels = mipLevels;
+		this.ArraySize = arraySize;
+		this.Format = format;
+		this.Usage = usage;
+		this.BindFlags = bindFlags;
+		this.CPUAccessFlags = cpuAccessFlags;
+		this.MiscFlags = miscFlags;
+	}
+}
+
 
 class D3D11_TEXTURE2D_DESC
 {
@@ -330,9 +361,40 @@ class D3D11_TEXTURE2D_DESC
 	}
 }
 
-// TODO: Implement this!
-// Current exists so the type can be used elsewhere
-class D3D11_TEXTURE3D_DESC { }
+
+class D3D11_TEXTURE3D_DESC
+{
+	Width;
+	Height;
+	Depth;
+	MipLevels;
+	Format;
+	Usage;
+	BindFlags;
+	CPUAccessFlags;
+	MiscFlags;
+
+	constructor(
+		width,
+		height,
+		mipLevels,
+		format,
+		usage,
+		bindFlags,
+		cpuAccessFlags,
+		miscFlags
+	)
+	{
+		this.Width = width;
+		this.Height = height;
+		this.MipLevels = mipLevels;
+		this.Format = format;
+		this.Usage = usage;
+		this.BindFlags = bindFlags;
+		this.CPUAccessFlags = cpuAccessFlags;
+		this.MiscFlags = miscFlags;
+	}
+}
 
 
 class DXGI_SAMPLE_DESC

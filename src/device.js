@@ -214,7 +214,9 @@ class ID3D11Device extends IUnknown
 		{
 			// What's the resource type for the view dimension?
 			let viewDim = null;
-			if (resource instanceof ID3D11Texture2D)
+			if (resource instanceof ID3D11Texture1D)
+				viewDim = D3D11_DSV_DIMENSION_TEXTURE1D;
+			else if (resource instanceof ID3D11Texture2D)
 				viewDim = D3D11_DSV_DIMENSION_TEXTURE2D;
 			else
 				throw new Error("Invalid resource type for DSV");
@@ -228,6 +230,7 @@ class ID3D11Device extends IUnknown
 				0,
 				resDesc.ArraySize);
 		}
+
 		// Validate the DSV and resource combo
 		this.#ValidateDSVDesc(resource, desc);
 		return new class extends ID3D11DepthStencilView { }(this, resource, desc);
@@ -296,8 +299,12 @@ class ID3D11Device extends IUnknown
 		{
 			// What's the resource type for the view dimension?
 			let viewDim = null;
-			if (resource instanceof ID3D11Texture2D)
+			if (resource instanceof ID3D11Texture1D)
+				viewDim = D3D11_RTV_DIMENSION_TEXTURE1D;
+			else if (resource instanceof ID3D11Texture2D)
 				viewDim = D3D11_RTV_DIMENSION_TEXTURE2D;
+			else if (resource instanceof ID3D11Texture3D)
+				viewDim = D3D11_RTV_DIMENSION_TEXTURE3D;
 			else
 				throw new Error("Invalid resource type for RTV");
 
@@ -370,9 +377,14 @@ class ID3D11Device extends IUnknown
 			// What's the resource type for the view dimension?
 			let resDesc = resource.GetDesc();
 			let viewDim = null;
-			if (resource instanceof ID3D11Texture2D)
+			if (resource instanceof ID3D11Texture1D)
 			{
-				// What kind of resource?
+				// Array or not?
+				viewDim = resDesc.ArraySize > 1 ? D3D11_SRV_DIMENSION_TEXTURE1DARRAY : D3D11_SRV_DIMENSION_TEXTURE1D;
+			}
+			else if (resource instanceof ID3D11Texture2D)
+			{
+				// What kind of 2D resource?
 				// TODO: Test these in real D3D11 to see what we get back
 				if (resDesc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE != 0 &&
 					resDesc.ArraySize == 6)
@@ -387,6 +399,11 @@ class ID3D11Device extends IUnknown
 				{
 					viewDim = D3D11_SRV_DIMENSION_TEXTURE2D;
 				}
+			}
+			else if (resource instanceof ID3D11Texture3D)
+			{
+				// Only 1 option for 3D textures
+				viewDim = D3D11_SRV_DIMENSION_TEXTURE3D;
 			}
 			else
 			{
@@ -1050,6 +1067,10 @@ class ID3D11Device extends IUnknown
 				break;
 
 			case D3D11_DSV_DIMENSION_TEXTURE1D:
+				if (!(resource instanceof ID3D11Texture1D))
+					throw new Error("Specified DSV View Dimension does not match resource");
+				break;
+
 			case D3D11_DSV_DIMENSION_TEXTURE1DARRAY:
 			case D3D11_DSV_DIMENSION_TEXTURE2DARRAY:
 				throw new Error("Specified DSV View Dimension is not yet implemented!");
@@ -1264,8 +1285,14 @@ class ID3D11Device extends IUnknown
 
 			case D3D11_RTV_DIMENSION_TEXTURE1D:
 			case D3D11_RTV_DIMENSION_TEXTURE1DARRAY:
+				if (!(resource instanceof ID3D11Texture1D))
+					throw new Error("Specified RTV View Dimension does not match resource");
+				break;
+
 			case D3D11_RTV_DIMENSION_TEXTURE3D:
-				throw new Error("Specified RTV View Dimension is not yet implemented!");
+				if (!(resource instanceof ID3D11Texture3D))
+					throw new Error("Specified RTV View Dimension does not match resource");
+				break;
 
 			default:
 				throw new Error("Specified RTV View Dimension is invalid");
@@ -1291,6 +1318,8 @@ class ID3D11Device extends IUnknown
 			lastSlice < 0 ||
 			lastSlice >= resDesc.ArraySize)
 			throw new Error("Specified RTV Array Size is invalid");
+
+		// TODO: Handle 3D texture FirstWSlice param
 	}
 
 
@@ -1350,8 +1379,14 @@ class ID3D11Device extends IUnknown
 
 			case D3D11_SRV_DIMENSION_TEXTURE1D:
 			case D3D11_SRV_DIMENSION_TEXTURE1DARRAY:
+				if (!(resource instanceof ID3D11Texture1D))
+					throw new Error("Specified SRV View Dimension does not match resource");
+				break;
+
 			case D3D11_SRV_DIMENSION_TEXTURE3D:
-				throw new Error("Specified SRV View Dimension is not yet implemented!");
+				if (!(resource instanceof ID3D11Texture3D))
+					throw new Error("Specified SRV View Dimension does not match resource");
+				break;
 
 			default:
 				throw new Error("Specified SRV View Dimension is invalid");
@@ -1453,11 +1488,11 @@ class ID3D11Device extends IUnknown
 			case DXGI_FORMAT_R16G16B16A16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
 				if (this.#floatTextureExt == null)
-					throw new Error("Floating point Texture2D formats are unsupported on your device");
+					throw new Error("Floating point texture formats are unsupported on your device");
 				break;
 
 			default:
-				throw new Error("Specified Texture2D Format is invalid or not yet implemented!");
+				throw new Error("Specified texture format is invalid or not yet implemented!");
 		}
 
 		// Validate usage

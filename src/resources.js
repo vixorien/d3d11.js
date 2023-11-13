@@ -42,6 +42,7 @@ class ID3D11Resource extends ID3D11DeviceChild
 	}
 }
 
+
 class ID3D11Buffer extends ID3D11Resource
 {
 	constructor(device, desc, glTarget, glBuffer)
@@ -70,8 +71,7 @@ class ID3D11Buffer extends ID3D11Resource
 	}
 }
 
-// TODO: Actually implement 1D textures
-// - This exists currently so that I can start using the type elsewhere
+
 class ID3D11Texture1D extends ID3D11Resource
 {
 	constructor(device, desc, glTarget, glTexture)
@@ -84,10 +84,23 @@ class ID3D11Texture1D extends ID3D11Resource
 			this.Release();
 			throw new Error("Cannot instantiate ID3D11Texture1D objects - use device.CreateTexture1D() instead");
 		}
+	}
 
-		throw new Error("Texture1D is not implemented yet!");
+	Release()
+	{
+		super.Release();
+
+		// Actually remove buffer if necessary
+		// TODO: Handle distinction between texture & render buffer
+		if (this.GetRef() <= 0)
+		{
+			let dev = this.GetDevice();
+			dev.GetAdapter().deleteTexture(this.GetGLResource());
+			dev.Release();
+		}
 	}
 }
+
 
 class ID3D11Texture2D extends ID3D11Resource
 {
@@ -118,8 +131,7 @@ class ID3D11Texture2D extends ID3D11Resource
 	}
 }
 
-// TODO: Actually implement 3D textures
-// - This exists currently so that I can start using the type elsewhere
+
 class ID3D11Texture3D extends ID3D11Resource
 {
 	constructor(device, desc, glTarget, glTexture)
@@ -132,7 +144,19 @@ class ID3D11Texture3D extends ID3D11Resource
 			this.Release();
 			throw new Error("Cannot instantiate ID3D11Texture3D objects - use device.CreateTexture3D() instead");
 		}
+	}
 
-		throw new Error("Texture3D is not implemented yet!");
+	Release()
+	{
+		super.Release();
+
+		// Actually remove buffer if necessary
+		// TODO: Handle distinction between texture & render buffer
+		if (this.GetRef() <= 0)
+		{
+			let dev = this.GetDevice();
+			dev.GetAdapter().deleteTexture(this.GetGLResource());
+			dev.Release();
+		}
 	}
 }
