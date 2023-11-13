@@ -58,8 +58,8 @@
 						<div class="card-body">
 							<h5 class="card-title">Scene Selection</h5>
 
-							<label for="tonemapType" class="form-label">Scenes</label>
-							<select class="form-select" onchange="">
+							<label for="sceneSet" class="form-label">Scenes</label>
+							<select id="sceneSet" class="form-select" onchange="">
 								<option value="0" selected>Sphere</option>
 								<option value="1">Cube</option>
 								<option value="2">Helix</option>
@@ -73,8 +73,8 @@
 						<div class="card-body">
 							<h5 class="card-title">Lights</h5>
 
-							<label for="tonemapType" class="form-label">Lights</label>
-							<select class="form-select" onchange="">
+							<label for="lightSet" class="form-label">Lights</label>
+							<select id="lightSet" class="form-select" onchange="">
 								<option value="0" selected>Three directional light</option>
 								<option value="1">Eight rotating lights</option>
 							</select>
@@ -100,7 +100,7 @@
 							<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust (HDR only): ' + this.value;" />
 
 							<label for="tonemapType" class="form-label">Tonemap Type (HDR Only)</label>
-							<select class="form-select" onchange="setTonemapType(this.value);">
+							<select id="tonemapType" class="form-select" onchange="setTonemapType(this.value);">
 								<option value="0" selected>None (Linear)</option>
 								<option value="1">Reinhard</option>
 								<option value="2">Reinhard (White Point)</option>

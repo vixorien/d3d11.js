@@ -1561,8 +1561,13 @@ class HLSL
 			let samplerType;
 			switch (comb.Texture.Type)
 			{
+				case "Texture1D":
 				case "Texture2D":
 					samplerType = "sampler2D";
+					break;
+
+				case "Texture3D":
+					samplerType = "sampler3D";
 					break;
 
 				case "TextureCube":
@@ -1765,15 +1770,27 @@ class HLSL
 		// We have at least one function and we're at the right position
 		let texFuncStr = glslTextureFunc + "(" + whichTexFunc.TextureSamplerCombination.CombinedName + ", ";
 
-		// Is this a 2D texture?
+		// What type of texture?
 		// TODO: Handle other, similar texture types
-		// TODO: Do we need to do anything similar for cubes?
-		if (whichTexFunc.TextureType == "Texture2D")
+		if (whichTexFunc.TextureType == "Texture1D")
+		{
+			// 1D textures are really just 2D textures with a height of 1, so we need
+			// to wrap the single (float) value in a vec2(v, 0)
+			texFuncStr += "vec2(";
+		}
+		else if (whichTexFunc.TextureType == "Texture2D")
 		{
 			// Add in extra UV work to flip Y
 			// - What we want is: uv.y = 1 - uv.y
 			// - For that, we'll do: (0,1) + (1,-1) * uvExpression
 			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * (";
+		}
+		else if (whichTexFunc.TextureType == "Texture3D")
+		{
+			// Add in extra UV work to flip Y
+			// - What we want is: uv.y = 1 - uv.y
+			// - For that, we'll do: (0,1,0) + (1,-1,0) * uvExpression
+			texFuncStr += "vec3(0.0, 1.0, 0.0) + vec3(1.0, -1.0, 1.0) * (";
 		}
 		else if (whichTexFunc.TextureType == "TextureCube")
 		{
@@ -1803,10 +1820,23 @@ class HLSL
 			}
 
 			// Is this the UV expression (index 1)?  If so, we're flipping Y, so end the () wrapper
-			if (expressionIndex == 1 &&
-				(whichTexFunc.TextureType == "Texture2D" || whichTexFunc.TextureType == "TextureCube"))
-			{
-				texFuncStr += ")"; 
+			if (expressionIndex == 1)
+			{ 
+				// Are we ending a wrapper on coords for a particular type?
+				if (whichTexFunc.TextureType == "Texture1D")
+				{
+					// 1D textures need an extra coord since they're really just 2D textures
+					// Finish the uCoord --> vec2(uCoord, 0.0) wrapper
+					texFuncStr += ", 0.0)";
+				}
+				else if (
+					whichTexFunc.TextureType == "Texture2D" ||
+					whichTexFunc.TextureType == "Texture3D" ||
+					whichTexFunc.TextureType == "TextureCube")
+				{
+					// Finish the wrapper to flip the Y
+					texFuncStr += ")";
+				}
 			}
 
 			// Move to the next

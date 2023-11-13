@@ -6,8 +6,8 @@
 /**
  * Creates a new ID3D11Device for using the D3D11 API
  * 
- * @param {any} canvas The canvas HTML element that will act as the graphics adapter
- * @param {any} flags D3D11_JS_CREATE flags to signify canvas features
+ * @param {HTMLCanvasElement} canvas The canvas HTML element that will act as the graphics adapter
+ * @param {Number} flags D3D11_JS_CREATE flags to signify canvas features
  * 
  * @returns The new ID3D11Device object
  */
@@ -43,8 +43,8 @@ function D3D11CreateDevice(canvas, flags)
  * - ID3D11DeviceContext
  * - IDXGISwapChain
  * 
- * @param {any} canvas The canvas HTML element that will act as the graphics adapter
- * @param {any} flags D3D11_JS_CREATE flags to signify canvas features
+ * @param {HTMLCanvasElement} canvas The canvas HTML element that will act as the graphics adapter
+ * @param {Number} flags D3D11_JS_CREATE flags to signify canvas features
  * @param {DXGI_SWAP_CHAIN_DESC} desc A description of the swap chain
  * 
  * @returns An array containing the three objects: ID3D11Device, ID3D11DeviceContext, IDXGISwapChain
