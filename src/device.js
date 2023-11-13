@@ -17,6 +17,12 @@ class ID3D11Device extends IUnknown
 	{
 		super();
 
+		// Abstract check
+		if (new.target === ID3D11Device)
+		{
+			throw new Error("Cannot instantiate ID3D11Device objects directly.  Use D3D11CreateDevice() or D3D11CreateDeviceAndSwapChain() instead.");
+		}
+
 		this.#gl = gl;
 		this.#immediateContext = null;
 
@@ -92,7 +98,7 @@ class ID3D11Device extends IUnknown
 	GetImmediateContext()
 	{
 		if (this.#immediateContext == null)
-			this.#immediateContext = new ID3D11DeviceContext(this);
+			this.#immediateContext = new class extends ID3D11DeviceContext { }(this);
 		else
 			this.#immediateContext.AddRef();
 
@@ -166,8 +172,7 @@ class ID3D11Device extends IUnknown
 
 		// Restore previous buffer and return new one
 		this.#gl.bindBuffer(bufferType, prevBuffer);
-		let d3dBuffer = new ID3D11Buffer(this, bufferDesc, bufferType, glBuffer);
-		return d3dBuffer;
+		return new class extends ID3D11Buffer { }(this, bufferDesc, bufferType, glBuffer);
 	}
 
 
@@ -238,7 +243,7 @@ class ID3D11Device extends IUnknown
 		if (this.#immediateContext != null)
 			this.#immediateContext.DirtyPipeline();
 
-		return new ID3D11InputLayout(this, inputElementDescs);
+		return new class extends ID3D11InputLayout { }(this, inputElementDescs);
 	}
 
 
@@ -252,7 +257,7 @@ class ID3D11Device extends IUnknown
 		// Take the shader code, convert it and pass to GL functions
 		let ps = new HLSL(hlslCode, ShaderTypePixel);
 		let glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
-		return new ID3D11PixelShader(this, glShader, ps);
+		return new class extends ID3D11PixelShader { }(this, glShader, ps);
 	}
 
 	/**
@@ -609,7 +614,7 @@ class ID3D11Device extends IUnknown
 		let vs = new HLSL(hlslCode, ShaderTypeVertex);
 		let glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
 
-		return new ID3D11VertexShader(this, glShader, vs);
+		return new class extends ID3D11VertexShader { }(this, glShader, vs);
 	}
 
 

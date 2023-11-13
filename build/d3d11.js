@@ -917,7 +917,7 @@ class ID3D11DeviceChild extends IUnknown
 	{
 		super();
 
-		// Abstract check.
+		// Abstract check
 		if (new.target === ID3D11DeviceChild)
 		{
 			throw new Error("Cannot instantiate ID3D11DeviceChild objects directly.");
@@ -994,7 +994,7 @@ function D3D11CreateDevice(canvas, flags)
 		throw new Error("Unable to create internal WebGL2 rendering context for d3d11.js");
 	}
 
-	return new ID3D11Device(gl);
+	return new class extends ID3D11Device { }(gl);
 }
 
 
@@ -1032,7 +1032,7 @@ function D3D11CreateDeviceAndSwapChain(canvas, flags, swapChainDesc)
  */
 function DXGICreateSwapChain(device, desc)
 {
-	return new IDXGISwapChain(device, desc);
+	return new class extends IDXGISwapChain { }(device, desc);
 }
 
 
@@ -1068,6 +1068,12 @@ class ID3D11Device extends IUnknown
 	constructor(gl)
 	{
 		super();
+
+		// Abstract check
+		if (new.target === ID3D11Device)
+		{
+			throw new Error("Cannot instantiate ID3D11Device objects directly.  Use D3D11CreateDevice() or D3D11CreateDeviceAndSwapChain() instead.");
+		}
 
 		this.#gl = gl;
 		this.#immediateContext = null;
@@ -1144,7 +1150,7 @@ class ID3D11Device extends IUnknown
 	GetImmediateContext()
 	{
 		if (this.#immediateContext == null)
-			this.#immediateContext = new ID3D11DeviceContext(this);
+			this.#immediateContext = new class extends ID3D11DeviceContext { }(this);
 		else
 			this.#immediateContext.AddRef();
 
@@ -1218,8 +1224,7 @@ class ID3D11Device extends IUnknown
 
 		// Restore previous buffer and return new one
 		this.#gl.bindBuffer(bufferType, prevBuffer);
-		let d3dBuffer = new ID3D11Buffer(this, bufferDesc, bufferType, glBuffer);
-		return d3dBuffer;
+		return new class extends ID3D11Buffer { }(this, bufferDesc, bufferType, glBuffer);
 	}
 
 
@@ -1290,7 +1295,7 @@ class ID3D11Device extends IUnknown
 		if (this.#immediateContext != null)
 			this.#immediateContext.DirtyPipeline();
 
-		return new ID3D11InputLayout(this, inputElementDescs);
+		return new class extends ID3D11InputLayout { }(this, inputElementDescs);
 	}
 
 
@@ -1304,7 +1309,7 @@ class ID3D11Device extends IUnknown
 		// Take the shader code, convert it and pass to GL functions
 		let ps = new HLSL(hlslCode, ShaderTypePixel);
 		let glShader = this.#CompileGLShader(ps.GetGLSL(), this.#gl.FRAGMENT_SHADER);
-		return new ID3D11PixelShader(this, glShader, ps);
+		return new class extends ID3D11PixelShader { }(this, glShader, ps);
 	}
 
 	/**
@@ -1661,7 +1666,7 @@ class ID3D11Device extends IUnknown
 		let vs = new HLSL(hlslCode, ShaderTypeVertex);
 		let glShader = this.#CompileGLShader(vs.GetGLSL(), this.#gl.VERTEX_SHADER);
 
-		return new ID3D11VertexShader(this, glShader, vs);
+		return new class extends ID3D11VertexShader { }(this, glShader, vs);
 	}
 
 
@@ -2680,6 +2685,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	constructor(device)
 	{
 		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11DeviceContext)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11DeviceContext objects - use device.GetImmediateContext() or D3D11CreateDeviceAndSwapChain() instead");
+		}
+
 		this.#gl = device.GetAdapter();
 
 		// Set some defaults
@@ -4201,6 +4214,13 @@ class IDXGISwapChain extends IUnknown
 	constructor(device, desc)
 	{
 		super();
+
+		// Abstract check
+		if (new.target === IDXGISwapChain)
+		{
+			throw new Error("Cannot instantiate IDXGISwapChain objects directly.  Use DXGICreateSwapChain() or D3D11CreateDeviceAndSwapChain() instead.");
+		}
+
 		this.#desc = Object.assign({}, desc); // Copy
 		this.#device = device;
 		this.#gl = device.GetAdapter();
@@ -4479,6 +4499,13 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 	{
 		super(device);
 
+		// Abstract check
+		if (new.target === ID3D11InputLayout)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11InputLayout objects - use device.CreateInputLayout() instead");
+		}
+
 		// Copy array of element descs and save
 		// TODO: Throw exception if param is not an array?
 		this.#inputElementDescs = this.#CopyDescriptions(inputElementDescs);
@@ -4507,6 +4534,13 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 	constructor(device, glShader, hlsl)
 	{
 		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11PixelShader)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11PixelShader objects - use device.CreatePixelShader() instead");
+		}
 
 		this.#glShader = glShader;
 		this.#hlsl = hlsl;
@@ -4748,6 +4782,13 @@ class ID3D11VertexShader extends ID3D11DeviceChild
 	{
 		super(device);
 
+		// Abstract check
+		if (new.target === ID3D11VertexShader)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11VertexShader objects - use device.CreateVertexShader() instead");
+		}
+
 		this.#glShader = glShader;
 		this.#hlsl = hlsl;
 	}
@@ -4799,6 +4840,14 @@ class ID3D11Resource extends ID3D11DeviceChild
 	constructor(device, desc, glTarget, glResource)
 	{
 		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11Buffer)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Resource objects - use corresponding Create() functions of an ID3D11Device object instead");
+		}
+
 		this.#desc = Object.assign({}, desc); // Copy
 		this.#glTarget = glTarget;
 		this.#glResource = glResource;
@@ -4826,6 +4875,13 @@ class ID3D11Buffer extends ID3D11Resource
 	constructor(device, desc, glTarget, glBuffer)
 	{
 		super(device, desc, glTarget, glBuffer);
+
+		// Abstract check
+		if (new.target === ID3D11Buffer)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Buffer objects - use device.CreateBuffer() instead");
+		}
 	}
 
 	Release()
@@ -4849,6 +4905,13 @@ class ID3D11Texture1D extends ID3D11Resource
 	constructor(device, desc, glTarget, glTexture)
 	{
 		super(device, desc, glTarget, glTexture);
+
+		// Abstract check
+		if (new.target === ID3D11Texture1D)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Texture1D objects - use device.CreateTexture1D() instead");
+		}
 
 		throw new Error("Texture1D is not implemented yet!");
 	}
@@ -4891,7 +4954,14 @@ class ID3D11Texture3D extends ID3D11Resource
 	{
 		super(device, desc, glTarget, glTexture);
 
-		throw new Error("Texture1D is not implemented yet!");
+		// Abstract check
+		if (new.target === ID3D11Texture3D)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Texture3D objects - use device.CreateTexture3D() instead");
+		}
+
+		throw new Error("Texture3D is not implemented yet!");
 	}
 }
 
@@ -4908,6 +4978,14 @@ class ID3D11View extends ID3D11DeviceChild
 	constructor(device, resource, desc)
 	{
 		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11View)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11View objects - use corresponding Create___View() functions of an ID3D11Device object instead");
+		}
+
 		this.#resource = resource;
 		this.#desc = Object.assign({}, desc);
 
@@ -4947,6 +5025,13 @@ class ID3D11DepthStencilView extends ID3D11View
 	constructor(device, resource, desc)
 	{
 		super(device, resource, desc);
+
+		// Abstract check
+		if (new.target === ID3D11DepthStencilView)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11DepthStencilView objects - use device.CreateDepthStencilView() instead");
+		}
 
 		// Check the resource
 		let resDesc = resource.GetDesc();

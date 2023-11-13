@@ -15,6 +15,13 @@ class IDXGISwapChain extends IUnknown
 	constructor(device, desc)
 	{
 		super();
+
+		// Abstract check
+		if (new.target === IDXGISwapChain)
+		{
+			throw new Error("Cannot instantiate IDXGISwapChain objects directly.  Use DXGICreateSwapChain() or D3D11CreateDeviceAndSwapChain() instead.");
+		}
+
 		this.#desc = Object.assign({}, desc); // Copy
 		this.#device = device;
 		this.#gl = device.GetAdapter();

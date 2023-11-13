@@ -95,7 +95,7 @@ class ID3D11DeviceChild extends IUnknown
 	{
 		super();
 
-		// Abstract check.
+		// Abstract check
 		if (new.target === ID3D11DeviceChild)
 		{
 			throw new Error("Cannot instantiate ID3D11DeviceChild objects directly.");

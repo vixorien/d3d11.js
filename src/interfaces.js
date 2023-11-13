@@ -53,6 +53,13 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 	{
 		super(device);
 
+		// Abstract check
+		if (new.target === ID3D11InputLayout)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11InputLayout objects - use device.CreateInputLayout() instead");
+		}
+
 		// Copy array of element descs and save
 		// TODO: Throw exception if param is not an array?
 		this.#inputElementDescs = this.#CopyDescriptions(inputElementDescs);
@@ -81,6 +88,13 @@ class ID3D11PixelShader extends ID3D11DeviceChild
 	constructor(device, glShader, hlsl)
 	{
 		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11PixelShader)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11PixelShader objects - use device.CreatePixelShader() instead");
+		}
 
 		this.#glShader = glShader;
 		this.#hlsl = hlsl;
@@ -321,6 +335,13 @@ class ID3D11VertexShader extends ID3D11DeviceChild
 	constructor(device, glShader, hlsl)
 	{
 		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11VertexShader)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11VertexShader objects - use device.CreateVertexShader() instead");
+		}
 
 		this.#glShader = glShader;
 		this.#hlsl = hlsl;

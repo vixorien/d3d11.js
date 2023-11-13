@@ -12,6 +12,14 @@ class ID3D11Resource extends ID3D11DeviceChild
 	constructor(device, desc, glTarget, glResource)
 	{
 		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11Buffer)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Resource objects - use corresponding Create() functions of an ID3D11Device object instead");
+		}
+
 		this.#desc = Object.assign({}, desc); // Copy
 		this.#glTarget = glTarget;
 		this.#glResource = glResource;
@@ -39,6 +47,13 @@ class ID3D11Buffer extends ID3D11Resource
 	constructor(device, desc, glTarget, glBuffer)
 	{
 		super(device, desc, glTarget, glBuffer);
+
+		// Abstract check
+		if (new.target === ID3D11Buffer)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Buffer objects - use device.CreateBuffer() instead");
+		}
 	}
 
 	Release()
@@ -62,6 +77,13 @@ class ID3D11Texture1D extends ID3D11Resource
 	constructor(device, desc, glTarget, glTexture)
 	{
 		super(device, desc, glTarget, glTexture);
+
+		// Abstract check
+		if (new.target === ID3D11Texture1D)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Texture1D objects - use device.CreateTexture1D() instead");
+		}
 
 		throw new Error("Texture1D is not implemented yet!");
 	}
@@ -104,6 +126,13 @@ class ID3D11Texture3D extends ID3D11Resource
 	{
 		super(device, desc, glTarget, glTexture);
 
-		throw new Error("Texture1D is not implemented yet!");
+		// Abstract check
+		if (new.target === ID3D11Texture3D)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11Texture3D objects - use device.CreateTexture3D() instead");
+		}
+
+		throw new Error("Texture3D is not implemented yet!");
 	}
 }

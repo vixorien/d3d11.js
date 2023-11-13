@@ -69,6 +69,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	constructor(device)
 	{
 		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11DeviceContext)
+		{
+			this.Release();
+			throw new Error("Cannot instantiate ID3D11DeviceContext objects - use device.GetImmediateContext() or D3D11CreateDeviceAndSwapChain() instead");
+		}
+
 		this.#gl = device.GetAdapter();
 
 		// Set some defaults

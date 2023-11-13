@@ -33,7 +33,7 @@ function D3D11CreateDevice(canvas, flags)
 		throw new Error("Unable to create internal WebGL2 rendering context for d3d11.js");
 	}
 
-	return new ID3D11Device(gl);
+	return new class extends ID3D11Device { }(gl);
 }
 
 
@@ -71,7 +71,7 @@ function D3D11CreateDeviceAndSwapChain(canvas, flags, swapChainDesc)
  */
 function DXGICreateSwapChain(device, desc)
 {
-	return new IDXGISwapChain(device, desc);
+	return new class extends IDXGISwapChain { }(device, desc);
 }
 
 

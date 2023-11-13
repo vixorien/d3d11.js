@@ -11,6 +11,14 @@ class ID3D11View extends ID3D11DeviceChild
 	constructor(device, resource, desc)
 	{
 		super(device);
+
+		// Abstract check
+		if (new.target === ID3D11View)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11View objects - use corresponding Create___View() functions of an ID3D11Device object instead");
+		}
+
 		this.#resource = resource;
 		this.#desc = Object.assign({}, desc);
 
@@ -50,6 +58,13 @@ class ID3D11DepthStencilView extends ID3D11View
 	constructor(device, resource, desc)
 	{
 		super(device, resource, desc);
+
+		// Abstract check
+		if (new.target === ID3D11DepthStencilView)
+		{
+			device.Release();
+			throw new Error("Cannot instantiate ID3D11DepthStencilView objects - use device.CreateDepthStencilView() instead");
+		}
 
 		// Check the resource
 		let resDesc = resource.GetDesc();
