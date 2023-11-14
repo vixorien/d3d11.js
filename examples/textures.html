@@ -273,22 +273,22 @@
 		let globalTonemapType = 0;
 		let globalExposure = 0;
 
-		function setTonemapType(val)
+		window.setTonemapType = function(val)
 		{
 			globalTonemapType = val;
 		}
 
-		function setExposure(val)
+		window.setExposure = function (val)
 		{
 			globalExposure = val;
 		}
 
-		function setSkyMipPreview(val)
+		window.setSkyMipPreview = function (val)
 		{
 			globalSkyMipLevelPreview = val;
 		}
 
-		async function loadSixFaces()
+		window.loadSixFaces = async function ()
 		{
 			// Collect all input elements
 			let inputs = [
@@ -338,9 +338,9 @@
 			globalIBLSpecSRV.Release();
 			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, globalIBLMipsToSkip, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
 		}
-		window.loadSixFaces = loadSixFaces; // Expose to global scope
+		
 
-		async function readLocalFile(file)
+		window.readLocalFile = async function(file)
 		{
 			return new Promise((resolve, reject) =>
 			{
@@ -354,7 +354,7 @@
 			});
 		}
 
-		function getLineFromArrayBuffer(arrayBuffer, startPos)
+		window.getLineFromArrayBuffer = function(arrayBuffer, startPos)
 		{
 			// Create a character view into the array buffer
 			let charArray = new Uint8Array(arrayBuffer, startPos);
@@ -380,7 +380,7 @@
 		// Reads an HDR file
 		// Based on: http://www.cs.virginia.edu/~jcw5q/apps/imageview/src/libimageviewer/hdr.c
 		// Also see: https://paulbourke.net/dataformats/pic/
-		async function loadHDR()
+		window.loadHDR = async function()
 		{
 			let fileInput = document.getElementById("hdrFile");
 
@@ -780,7 +780,7 @@
 		}
 
 
-		async function loadTextureCube(device, context, faceURLs, filesAreLocal, generateMips)
+		window.loadTextureCube = async function(device, context, faceURLs, filesAreLocal, generateMips)
 		{
 			let faceTextures = [];
 			let size = -1;
@@ -856,26 +856,6 @@
 			const resp = await fetch(url);
 			const text = await resp.text();
 			return text;
-		}
-
-		function createSolidTexture(device, width, height, initialData)
-		{
-			let desc = new D3D11_TEXTURE2D_DESC(
-				width, height,
-				1, // No mips
-				1, // No array
-				DXGI_FORMAT_R8G8B8A8_UNORM,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE,
-				0,
-				0);
-			let texture = device.CreateTexture2D(desc, [initialData]);
-
-			let srv = device.CreateShaderResourceView(texture, null);
-
-			texture.Release();
-			return srv;
 		}
 
 		function createBrdfLookUpTable(device, context, size, ps, vs)
