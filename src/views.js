@@ -20,7 +20,7 @@ class ID3D11View extends ID3D11DeviceChild
 		}
 
 		this.#resource = resource;
-		this.#desc = Object.assign({}, desc);
+		this.#desc = structuredClone(desc);
 
 		// Add a reference to the resource
 		// so the view keeps it alive
@@ -31,7 +31,7 @@ class ID3D11View extends ID3D11DeviceChild
 
 	GetDesc()
 	{
-		return Object.assign({}, this.#desc);
+		return structuredClone(this.#desc);
 	}
 
 	GetResource()

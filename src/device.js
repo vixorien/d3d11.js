@@ -322,7 +322,7 @@ class ID3D11Device extends IUnknown
 
 		// Now that everything's valid, swap cube map +Y and -Y if necessary
 		// TOOD: More testing, as this feels SUUUPER dirty
-		let finalDesc = Object.assign({}, desc);
+		let finalDesc = structuredClone(desc);
 		if ((resource.GetDesc().MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE)
 		{
 			// Which face?
@@ -426,21 +426,38 @@ class ID3D11Device extends IUnknown
 	}
 
 
-	// TODO: Validate full description
-	// NOTE: Immutable textures are possible:
-	//  - https://registry.khronos.org/OpenGL/specs/es/3.0/es_spec_3.0.pdf#nameddest=subsection.3.8.4
-	//  - Using texStorage2D() makes the resource immutable
-	//  - Immutable here means it cannot be resized or mip levels be changed
-	//  - Its DATA can still change!
+	CreateTexture1D(desc, initialData)
+	{
+		return this.#CreateTexture(1, desc, initialData);
+	}
 
 	CreateTexture2D(desc, initialData)
+	{
+		return this.#CreateTexture(2, desc, initialData);
+	}
+
+	CreateTexture3D(desc, initialData)
+	{
+		return this.#CreateTexture(3, desc, initialData);
+	}
+
+	/**
+	 * Helper for creating a 1D, 2D or 3D texture given a description and optional data
+	 * 
+	 * @param {Number} dim The dimensions of the texture: 1, 2 or 3
+	 * @param {any} desc Description of the texture to create. One of D3D11_TEXTURE1D_DESC, D3D11_TEXTURE2D_DESC or D3D11_TEXTURE3D_DESC
+	 * @param {Array} initialData An array of one or more sets (typed arrays) of data
+	 * 
+	 * @returns The newly created texture
+	 */
+	#CreateTexture(dim, desc, initialData)
 	{
 		// This may change pipeline state!
 		if (this.#immediateContext != null)
 			this.#immediateContext.DirtyPipeline();
 
 		// Validate the description/initial data combo
-		this.#ValidateTexture2DDesc(desc, initialData);
+		this.#ValidateTextureDesc(dim, desc, initialData);
 
 		// Create the gl texture and bind it so we can work on it
 		const glTexture = this.#gl.createTexture();
@@ -467,7 +484,7 @@ class ID3D11Device extends IUnknown
 		const hasMipmaps = desc.MipLevels > 1;
 
 		// Grab the texture type and bind so we can reserve the resource
-		const glTextureType = this.#GetGLTextureType(desc);
+		const glTextureType = this.#GetGLTextureType(dim, desc);
 		this.#gl.bindTexture(glTextureType, glTexture);
 
 		// Which kind of texture are we creating?
@@ -497,13 +514,36 @@ class ID3D11Device extends IUnknown
 					internalFormat,
 					desc.Width,
 					desc.Height,
-					desc.ArraySize);
+					desc.ArraySize); // ArraySize desc member
+				break;
+
+			case this.#gl.TEXTURE_3D:
+
+				// For 2D arrays and 3D's
+				this.#gl.texStorage3D(
+					glTextureType,
+					desc.MipLevels,
+					internalFormat,
+					desc.Width,
+					desc.Height,
+					desc.Depth); // Depth desc member
 				break;
 		}
 
 		// Do we have any initial data?
 		if (initialData != null && initialData.length > 0)
 		{
+			// Get the proper sizes based on dimension
+			let w = 1;
+			let h = 1;
+			let d = 1;
+			switch (dim) // Explicit fallthrough!
+			{
+				case 3: d = desc.Depth;
+				case 2: h = desc.Height;
+				case 1: w = desc.Width;
+			}
+
 			// Which type of texture and how many elements?
 			switch (glTextureType)
 			{
@@ -518,8 +558,8 @@ class ID3D11Device extends IUnknown
 
 						// Calculate size of the mip
 						const div = Math.pow(2, mip);
-						const mipWidth = Math.max(1, Math.floor(desc.Width / div));
-						const mipHeight = Math.max(1, Math.floor(desc.Height / div));
+						const mipWidth = Math.max(1, Math.floor(w / div));
+						const mipHeight = Math.max(1, Math.floor(h / div));
 
 						// Save this data
 						this.#gl.texSubImage2D(
@@ -536,7 +576,7 @@ class ID3D11Device extends IUnknown
 					break;
 
 				case this.#gl.TEXTURE_CUBE_MAP:
-					
+
 					const cubeFaces = [
 						this.#gl.TEXTURE_CUBE_MAP_POSITIVE_X,
 						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_X,
@@ -546,19 +586,18 @@ class ID3D11Device extends IUnknown
 						this.#gl.TEXTURE_CUBE_MAP_NEGATIVE_Z
 					];
 
-					// TODO: Faces -> MipLevel?  MipLevel -> Face?
-					for (let mip = 0; mip < desc.MipLevels && mip < initialData.length / 6; mip++)
+					for (let face = 0; face < 6; face++)
 					{
-						for (let face = 0; face < 6; face++)
+						for (let mip = 0; mip < desc.MipLevels && mip < initialData.length / 6; mip++)
 						{
 							// Skip nulls
-							if (initialData[mip * 6 + face] == null)
+							if (initialData[mip + face * desc.MipLevels] == null)
 								continue;
 
 							// Calculate size of the mip
 							const div = Math.pow(2, mip);
-							const mipWidth = Math.max(1, Math.floor(desc.Width / div));
-							const mipHeight = Math.max(1, Math.floor(desc.Height / div));
+							const mipWidth = Math.max(1, Math.floor(w / div));
+							const mipHeight = Math.max(1, Math.floor(h / div));
 
 							// Save this data
 							this.#gl.texSubImage2D(
@@ -570,26 +609,26 @@ class ID3D11Device extends IUnknown
 								mipHeight,
 								format,
 								type,
-								initialData[mip * 6 + face]);
+								initialData[mip + face * desc.MipLevels]);
 						}
 					}
 					break;
 
 				case this.#gl.TEXTURE_2D_ARRAY:
 
-					// TODO: Array -> MipLevel?  MipLevel -> Array?
-					for (let mip = 0; mip < desc.MipLevels && mip < initialData.length / desc.ArraySize; mip++)
+					// Handle all mips of a single array slice at a time
+					for (let arraySlice = 0; arraySlice < desc.ArraySize; arraySlice++)
 					{
-						for (let index = 0; index < desc.ArraySize; index++)
+						for (let mip = 0; mip < desc.MipLevels && mip < initialData.length / desc.ArraySize; mip++)
 						{
 							// Skip nulls
-							if (initialData[mip * desc.ArraySize + face] == null)
+							if (initialData[mip + arraySlice * desc.MipLevels] == null)
 								continue;
 
 							// Calculate size of the mip
 							const div = Math.pow(2, mip);
-							const mipWidth = Math.max(1, Math.floor(desc.Width / div));
-							const mipHeight = Math.max(1, Math.floor(desc.Height / div));
+							const mipWidth = Math.max(1, Math.floor(w / div));
+							const mipHeight = Math.max(1, Math.floor(h / div));
 
 							// Save this data
 							// TODO: Test this!
@@ -598,14 +637,46 @@ class ID3D11Device extends IUnknown
 								mip,
 								0,		// X offset
 								0,		// Y offset
-								index,	// Z offset (array index here)
+								arraySlice,	// Z offset (array index here)
 								mipWidth,	// X size
 								mipHeight,	// Y size
 								1,			// Z size (or a single slice here)
 								format,
 								type,
-								initialData[mip * desc.ArraySize + index]);
+								initialData[mip + arraySlice * desc.MipLevels]);
 						}
+					}
+					break;
+
+				case this.#gl.TEXTURE_3D:
+
+					// Assuming each element of the incoming data is an entire 3D mip
+					for (let mip = 0; mip < desc.MipLevels && mip < initialData.length; mip++)
+					{
+						// Skip nulls
+						if (initialData[mip] == null)
+							continue;
+
+						// Calculate size of the mip
+						const div = Math.pow(2, mip);
+						const mipWidth = Math.max(1, Math.floor(w / div));
+						const mipHeight = Math.max(1, Math.floor(h / div));
+						const mipDepth = Math.max(1, Math.floor(d / div));
+
+						// Save this data
+						// TODO: Test this!
+						this.#gl.texSubImage3D(
+							glTextureType,
+							mip,
+							0,	// X offset
+							0,	// Y offset
+							0,	// Z offset
+							mipWidth,	// X size
+							mipHeight,	// Y size
+							mipDepth,	// Z size
+							format,
+							type,
+							initialData[mip]);
 					}
 					break;
 			}
@@ -616,7 +687,13 @@ class ID3D11Device extends IUnknown
 		this.#SetDefaultSamplerStateForBoundTexture(glTextureType, hasMipmaps);
 
 		// Create and return the new object
-		return new class extends ID3D11Texture2D { }(this, desc, glTextureType, glTexture);
+		switch (dim)
+		{
+			case 1: return new class extends ID3D11Texture1D { }(this, desc, glTextureType, glTexture);
+			case 2: return new class extends ID3D11Texture2D { }(this, desc, glTextureType, glTexture);
+			case 3: return new class extends ID3D11Texture3D { }(this, desc, glTextureType, glTexture);
+			default: throw new Error("Invalid texture dimension");
+		}
 	}
 
 
@@ -806,29 +883,27 @@ class ID3D11Device extends IUnknown
 	/**
 	 * Returns a GL Texture type enum value for the given description
 	 * 
+	 * @param {Number} dim The dimensions of the texture: 1, 2 or 3
 	 * @param {any} desc A texture description
 	 * 
 	 * @returns {GLenum} The WebGL texture type enum value
 	 * 
 	 * @throws {Error} If the given description does not match any texture types
 	 */
-	#GetGLTextureType(desc)
+	#GetGLTextureType(dim, desc)
 	{
 		let glType;
 
 		// Grab necessary data
-		const is1D = desc instanceof D3D11_TEXTURE1D_DESC;
-		const is2D = desc instanceof D3D11_TEXTURE2D_DESC;
-		const is3D = desc instanceof D3D11_TEXTURE3D_DESC;
 		const isArray = desc.ArraySize > 1;
 		const isCube = (desc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE;
 		
 		// Easy ones
-		if (is3D) return this.#gl.TEXTURE_3D;
-		if (isCube) return this.#gl.TEXTURE_CUBE_MAP;
+		if (dim == 3) return this.#gl.TEXTURE_3D;
+		if (dim == 2 && isCube) return this.#gl.TEXTURE_CUBE_MAP;
 
 		// Both 1D and 2D are just 2D textures under the hood
-		if (is1D || is2D)
+		if ((dim == 1 || dim == 2) && !isCube)
 		{
 			return isArray ? this.#gl.TEXTURE_2D_ARRAY : this.#gl.TEXTURE_2D;
 		}
@@ -1425,36 +1500,74 @@ class ID3D11Device extends IUnknown
 
 
 	/**
-	 * Validates the description for a 2D texture
+	 * Validates the description for a texture
 	 * 
-	 * @param {D3D11_TEXTURE2D_DESC} desc The description of the texture
+	 * @param {Number} dim The dimensions of the texture: 1, 2 or 3
+	 * @param {any} desc The description of the texture
 	 * @param {any} initialData The initial data, or null
 	 * 
 	 * @throws {Error} If any part of the description is invalid
 	 */
-	#ValidateTexture2DDesc(desc, initialData)
+	#ValidateTextureDesc(dim, desc, initialData)
 	{
 		// Description cannot be null
 		if (desc == null)
 			throw new Error("Description cannot be null when creating a texture");
 
+		// Validate dimension
+		if (dim < 1 || dim > 3)
+			throw new Error("Invalid texture dimension");
+
 		// Get system maximums
-		/// TODO: Need to cache this?  Probably not?
-		const maxSize = this.#gl.getParameter(this.#gl.MAX_TEXTURE_SIZE);
+		const max2DSize = this.#gl.getParameter(this.#gl.MAX_TEXTURE_SIZE);
+		const max3DSize = this.#gl.getParameter(this.#gl.MAX_3D_TEXTURE_SIZE);
 		const maxCubeSize = this.#gl.getParameter(this.#gl.MAX_CUBE_MAP_TEXTURE_SIZE);
 		const maxArraySize = this.#gl.getParameter(this.#gl.MAX_ARRAY_TEXTURE_LAYERS);
 
-		// Is this a texture cube?
+		// Details on the texture
 		const isCube = ((desc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE);
 		const genMips = ((desc.MiscFlags & D3D11_RESOURCE_MISC_GENERATE_MIPS) == D3D11_RESOURCE_MISC_GENERATE_MIPS);
 
+		// Cubes must be 2D
+		if (isCube && dim != 2)
+			throw new Error("Only 2D textures may be used as cube maps");
+
 		// Validate size, for both cubes and non-cubes
-		if (isCube && (desc.Width > maxCubeSize || desc.Height > maxCubeSize))
-			throw new Error(`Texture Cube dimensions must be less than or equal to ${maxCubeSize}`);
-		else if
-			(desc.Width <= 0 || desc.Width > maxSize ||
-			desc.Height <= 0 || desc.Height > maxSize)
-			throw new Error(`Texture dimensions must be between 1 and ${maxSize}, inclusive`);
+		if (isCube)
+		{
+			if (desc.Width <= 0 || desc.Width > maxCubeSize ||
+				desc.Height <= 0 || desc.Height > maxCubeSize)
+				throw new Error(`Texture Cube dimensions must be between 1 and ${maxCubeSize}, inclusive`);
+		}
+		else 
+		{
+			// Which size is the actual limit for this resource?
+			let maxSize = dim == 3 ? max3DSize : max2DSize;
+
+			// Allowing explicit fallthrough to handle different dimensions!
+			switch (dim)
+			{
+				case 3: // Check all three dimensions
+					if (desc.Depth <= 0 || desc.Height > maxSize)
+						throw new Error(`Texture depth must be between 1 and ${maxSize}, inclusive`);
+
+				case 2: // Just height & width
+					if (desc.Height <= 0 || desc.Height > maxSize)
+						throw new Error(`Texture height must be between 1 and ${maxSize}, inclusive`);
+
+				case 1: // Just width
+					if (desc.Width <= 0 || desc.Width > maxSize)
+						throw new Error(`Texture width must be between 1 and ${maxSize}, inclusive`);
+			}
+		}
+
+		// No arrays for 3D textures.  This combo shouldn't be possible, but it's javascript so double checking!
+		if (desc.ArraySize != 1 && dim == 3)
+			throw new Error("3D textures must have an array size of 1");
+
+		// Validate cube array size
+		if (isCube && desc.ArraySize != 6)
+			throw new Error("Invalid array size for texture cube - must be exactly 6");
 
 		// Validate array size
 		if (desc.ArraySize <= 0 || desc.ArraySize > maxArraySize)
@@ -1514,10 +1627,6 @@ class ID3D11Device extends IUnknown
 			default:
 				throw new Error("Invalid bind flags specified");
 		}
-
-		// Validate misc flags
-		if (isCube && desc.ArraySize != 6)
-			throw new Error("Invalid array size for texture cube - must be exactly 6");
 		
 		// Note: this matches spec but is not strictly necessary for WebGL
 		if (genMips && (

@@ -29,7 +29,7 @@ class ID3D11DepthStencilState extends ID3D11DeviceChild
 			throw new Error("Cannot instantiate ID3D11DepthStencilState objects - use device.CreateDepthStencilState() instead");
 		}
 
-		this.#desc = Object.assign({}, desc); // Copy
+		this.#desc = structuredClone(desc); // Copy
 	}
 
 	/**
@@ -40,7 +40,7 @@ class ID3D11DepthStencilState extends ID3D11DeviceChild
 	GetDesc()
 	{
 		// Returns a copy so that we can't alter the original
-		return Object.assign({}, this.#desc);
+		return structuredClone(this.#desc);
 	}
 }
 
@@ -69,7 +69,7 @@ class ID3D11InputLayout extends ID3D11DeviceChild
 	{
 		let descs = [];
 		for (let i = 0; i < descriptionArray.length; i++)
-			descs[i] = Object.assign({}, descriptionArray[i]);
+			descs[i] = structuredClone(descriptionArray[i]);
 		return descs;
 	}
 
@@ -159,7 +159,7 @@ class ID3D11RasterizerState extends ID3D11DeviceChild
 			throw new Error("Cannot instantiate ID3D11RasterizerState objects - use device.CreateRasterizerState() instead");
 		}
 
-		this.#desc = Object.assign({}, desc); // Copy
+		this.#desc = structuredClone(desc); // Copy
 	}
 
 	/**
@@ -170,7 +170,7 @@ class ID3D11RasterizerState extends ID3D11DeviceChild
 	GetDesc()
 	{
 		// Returns a copy so that we can't alter the original
-		return Object.assign({}, this.#desc);
+		return structuredClone(this.#desc);
 	}
 }
 
@@ -192,7 +192,7 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 			throw new Error("Cannot instantiate ID3D11SamplerState objects - use device.CreateSamplerState() instead");
 		}
 
-		this.#desc = Object.assign({}, desc); // Copy
+		this.#desc = structuredClone(desc); // Copy
 
 		// Create two GL samplers - with and without mips
 		let gl = device.GetAdapter();
@@ -207,7 +207,7 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 	GetDesc()
 	{
 		// Returns a copy so that we can't alter the original
-		return Object.assign({}, this.#desc);
+		return structuredClone(this.#desc);
 	}
 
 	GetGLSampler(withMips)

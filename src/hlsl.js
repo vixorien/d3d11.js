@@ -1826,8 +1826,8 @@ class HLSL
 				if (whichTexFunc.TextureType == "Texture1D")
 				{
 					// 1D textures need an extra coord since they're really just 2D textures
-					// Finish the uCoord --> vec2(uCoord, 0.0) wrapper
-					texFuncStr += ", 0.0)";
+					// Finish the uCoord --> vec2(uCoord, 0.5) wrapper
+					texFuncStr += ", 0.5)";
 				}
 				else if (
 					whichTexFunc.TextureType == "Texture2D" ||

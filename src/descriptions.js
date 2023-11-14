@@ -57,8 +57,8 @@ class D3D11_DEPTH_STENCIL_DESC
 		this.StencilEnable = stencilEnable;
 		this.StencilReadMask = stencilReadMask;
 		this.StencilWriteMask = stencilWriteMask;
-		this.FrontFace = Object.assign({}, frontFace);
-		this.BackFace = Object.assign({}, backFace);
+		this.FrontFace = structuredClone(frontFace);
+		this.BackFace = structuredClone(backFace);
 	}
 }
 
@@ -353,7 +353,7 @@ class D3D11_TEXTURE2D_DESC
 		this.MipLevels = mipLevels;
 		this.ArraySize = arraySize;
 		this.Format = format;
-		this.SampleDesc = Object.assign({}, sampleDesc);
+		this.SampleDesc = structuredClone(sampleDesc);
 		this.Usage = usage;
 		this.BindFlags = bindFlags;
 		this.CPUAccessFlags = cpuAccessFlags;

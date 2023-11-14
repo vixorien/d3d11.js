@@ -784,6 +784,7 @@
 		{
 			let faceTextures = [];
 			let size = -1;
+			let mips = 1;
 			for (let i = 0; i < faceURLs.length; i++)
 			{
 				// Fetch and grab the binary data, then turn into an image
@@ -791,9 +792,16 @@
 				const imageBlob = filesAreLocal ? resp : await resp.blob();
 				const bitmap = await createImageBitmap(imageBlob, { imageOrientation: "flipY" });
 
-				// Set size on first bitmap
+				// Set size and mips on first bitmap
 				if (size == -1)
+				{
 					size = bitmap.width;
+
+					if (generateMips)
+					{
+						mips = Math.floor(Math.log2(size)) + 1;
+					}
+				}
 
 				// Validate bitmap aspect ratio
 				if (bitmap.width != bitmap.height)
@@ -808,16 +816,15 @@
 					console.log("Error: Texture cube faces must all be the same size");
 				}
 
+				// Add to array of initial data
 				faceTextures.push(bitmap);
+
+				// Note: Must also add nulls for other mips of this face
+				for (let i = 1; generateMips && i < mips; i++)
+					faceTextures.push(null); // No data for this mip yet!
 			}
 
 			// Set up the texture cube
-			let mips = 1;
-			if (generateMips)
-			{
-				mips = Math.floor(Math.log2(faceTextures[0].width)) + 1;
-			}
-
 			let desc = new D3D11_TEXTURE2D_DESC(
 				faceTextures[0].width,
 				faceTextures[0].height,

@@ -660,7 +660,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	RSGetViewports()
 	{
-		return Object.assign({}, this.#viewport);
+		return structuredClone(this.#viewport);
 	}
 
 	// Note: Just taking a single viewport, though
@@ -669,7 +669,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	RSSetViewports(viewport)
 	{
 		// Copy the first element
-		this.#viewport = Object.assign({}, viewport);
+		this.#viewport = structuredClone(viewport);
 		this.#viewportDirty = true;
 	}
 

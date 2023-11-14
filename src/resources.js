@@ -20,7 +20,7 @@ class ID3D11Resource extends ID3D11DeviceChild
 			throw new Error("Cannot instantiate ID3D11Resource objects - use corresponding Create() functions of an ID3D11Device object instead");
 		}
 
-		this.#desc = Object.assign({}, desc); // Copy
+		this.#desc = structuredClone(desc); // Copy
 		this.#glTarget = glTarget;
 		this.#glResource = glResource;
 	}
@@ -28,7 +28,7 @@ class ID3D11Resource extends ID3D11DeviceChild
 	GetDesc()
 	{
 		// Returns a copy so that we can't alter the original
-		return Object.assign({}, this.#desc);
+		return structuredClone(this.#desc);
 	}
 
 	GetGLTarget()
