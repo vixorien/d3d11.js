@@ -487,6 +487,17 @@ class ID3D11Device extends IUnknown
 		const glTextureType = this.#GetGLTextureType(dim, desc);
 		this.#gl.bindTexture(glTextureType, glTexture);
 
+		// Get the proper sizes based on dimension
+		let w = 1;
+		let h = 1;
+		let d = 1;
+		switch (dim) // Explicit fallthrough!
+		{
+			case 3: d = desc.Depth;
+			case 2: h = desc.Height;
+			case 1: w = desc.Width;
+		}
+
 		// Which kind of texture are we creating?
 		//  - Using texStorage2D/3D as it initializes the entire texture
 		//    and all subresources at once.
@@ -501,8 +512,8 @@ class ID3D11Device extends IUnknown
 					glTextureType,
 					desc.MipLevels,
 					internalFormat,
-					desc.Width,
-					desc.Height);
+					w,
+					h);
 				break;
 
 			case this.#gl.TEXTURE_2D_ARRAY:
@@ -512,8 +523,8 @@ class ID3D11Device extends IUnknown
 					glTextureType,
 					desc.MipLevels,
 					internalFormat,
-					desc.Width,
-					desc.Height,
+					w,
+					h,
 					desc.ArraySize); // ArraySize desc member
 				break;
 
@@ -524,26 +535,15 @@ class ID3D11Device extends IUnknown
 					glTextureType,
 					desc.MipLevels,
 					internalFormat,
-					desc.Width,
-					desc.Height,
-					desc.Depth); // Depth desc member
+					w,
+					h,
+					d); // Depth desc member
 				break;
 		}
 
 		// Do we have any initial data?
 		if (initialData != null && initialData.length > 0)
 		{
-			// Get the proper sizes based on dimension
-			let w = 1;
-			let h = 1;
-			let d = 1;
-			switch (dim) // Explicit fallthrough!
-			{
-				case 3: d = desc.Depth;
-				case 2: h = desc.Height;
-				case 1: w = desc.Width;
-			}
-
 			// Which type of texture and how many elements?
 			switch (glTextureType)
 			{
@@ -662,7 +662,7 @@ class ID3D11Device extends IUnknown
 						const mipWidth = Math.max(1, Math.floor(w / div));
 						const mipHeight = Math.max(1, Math.floor(h / div));
 						const mipDepth = Math.max(1, Math.floor(d / div));
-
+						console.log(mipWidth + " " + mipHeight + " " + mipDepth);
 						// Save this data
 						// TODO: Test this!
 						this.#gl.texSubImage3D(
@@ -1562,8 +1562,8 @@ class ID3D11Device extends IUnknown
 		}
 
 		// No arrays for 3D textures.  This combo shouldn't be possible, but it's javascript so double checking!
-		if (desc.ArraySize != 1 && dim == 3)
-			throw new Error("3D textures must have an array size of 1");
+		if (dim == 3 && Object.hasOwn(desc, "ArraySize"))
+			throw new Error("3D textures cannot have an array size");
 
 		// Validate cube array size
 		if (isCube && desc.ArraySize != 6)

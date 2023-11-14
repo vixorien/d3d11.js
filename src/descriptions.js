@@ -377,6 +377,7 @@ class D3D11_TEXTURE3D_DESC
 	constructor(
 		width,
 		height,
+		depth,
 		mipLevels,
 		format,
 		usage,
@@ -387,6 +388,7 @@ class D3D11_TEXTURE3D_DESC
 	{
 		this.Width = width;
 		this.Height = height;
+		this.Depth = depth;
 		this.MipLevels = mipLevels;
 		this.Format = format;
 		this.Usage = usage;

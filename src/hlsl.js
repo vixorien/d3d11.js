@@ -2158,6 +2158,7 @@ class HLSL
 
 		// Append each element
 		glsl += "precision mediump float;\n\n";
+		glsl += "precision mediump sampler3D;\n\n";
 		glsl += "out vec4 " + PSOutputVariable + ";\n\n";
 		glsl += this.#GetPSVaryings(psInputs);
 		glsl += this.#GetStructsString();

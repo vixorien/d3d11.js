@@ -42,6 +42,8 @@ Texture2D brdfLUT			: register(t4);
 TextureCube iblIrradiance	: register(t5);
 TextureCube iblSpecular		: register(t6);
 
+Texture3D tex3DTest			: register(t7);
+
 SamplerState samp			: register(s0);
 SamplerState clampSamp		: register(s1);
 
@@ -240,7 +242,6 @@ float3 PointLightPBR(Light light, float3 normal, float3 worldPos, float3 camPos,
 
 float4 main(VertexToPixel input) : SV_TARGET
 {
-	//return sky.Sample(samp, input.normal);
 	float MIN_ROUGHNESS = 0.0000001f;
 
 	input.normal = normalize(input.normal);
