@@ -257,7 +257,7 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 		}
 
 		// Anisotropy
-		const anisoExt = device.GetAnisoExt();
+		const anisoExt = device.CheckFeatureSupport(D3D11_JS_FEATURE_ANISOTROPIC_FILTER_SUPPORT);
 		if (this.#IsAnisoFilter(desc.Filter) && anisoExt != null)
 		{
 			gl.samplerParameteri(glSampler, anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, desc.MaxAnisotropy);

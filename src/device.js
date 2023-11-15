@@ -61,28 +61,34 @@ class ID3D11Device extends IUnknown
 		}
 	}
 
+	/**
+	 * Gets the graphics adapter (WebGL2 Rendering Context) used by this device
+	 * 
+	 * @return The WebGL2 Rendering Context used by this device
+	 */
 	GetAdapter()
 	{
 		return this.#gl;
 	}
 
-	// TODO: Wrap these up in CheckFeatureSupport(): https://learn.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-checkfeaturesupport
-
-	// Not to spec, but I want the device to "own" thing kind of stuff
-	GetAnisoExt()
+	/**
+	 * Gets information about the features that are supported by D3D11.js
+	 * 
+	 * @param {any} feature Which feature to query for support
+	 * 
+	 * @returns The feature details (WebGL extension usually) if available, or null otherwise
+	 */
+	CheckFeatureSupport(feature)
 	{
-		return this.#anisoExt;
+		switch (feature)
+		{
+			case D3D11_JS_FEATURE_ANISOTROPIC_FILTER_SUPPORT: return this.#anisoExt;
+			case D3D11_JS_FEATURE_FLOAT_TEXTURE_SUPPORT: return this.#floatTextureExt;
+			case D3D11_JS_FEATURE_FLOAT_TEXTURE_FILTER_SUPPORT: return this.#floatTextureFilterExt;
+			default: return null;
+		}
 	}
 
-	GetFloatTextureExt()
-	{
-		return this.#floatTextureExt;
-	}
-
-	GetFloatTextureFilterExt()
-	{
-		return this.#floatTextureFilterExt;
-	}
 
 	// Not to spec, but I want ONE of these that both the context and the swapchain can use
 	GetBackBufferFramebuffer()

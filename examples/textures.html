@@ -434,9 +434,9 @@
 			let cbData = new Float32Array(4);
 
 			// Set up viewport
-			let oldVP = globalContext.RSGetViewports();
+			let oldVP = globalContext.RSGetViewports()[0];
 			let vp = new D3D11_VIEWPORT(0, 0, cubeSize, cubeSize, 0, 1);
-			globalContext.RSSetViewports(vp);
+			globalContext.RSSetViewports([vp]);
 
 			// Get existing render targets
 			let [rts, dsv] = globalContext.OMGetRenderTargets();
@@ -482,7 +482,7 @@
 			hdrSRV.Release(); // Don't need original anymore
 			hdrTexture.Release();
 			hdrCubeTexture.Release(); // SRV has ref
-			globalContext.RSSetViewports(oldVP);
+			globalContext.RSSetViewports([oldVP]);
 			globalContext.OMSetRenderTargets(rts, dsv); // Restore old targets
 
 			// Save ref
@@ -600,9 +600,9 @@
 			context.OMSetRenderTargets([rtv], null);
 
 			// Set up viewport
-			let oldVP = context.RSGetViewports();
+			let oldVP = context.RSGetViewports()[0];
 			let vp = new D3D11_VIEWPORT(0, 0, size, size, 0, 1);
-			context.RSSetViewports(vp);
+			context.RSSetViewports([vp]);
 
 			// Draw
 			context.PSSetShader(ps);
@@ -611,7 +611,7 @@
 			context.Flush();
 
 			// Finish up before returning the view
-			context.RSSetViewports(oldVP);
+			context.RSSetViewports([oldVP]);
 			lutTexture.Release();
 			rtv.Release();
 			return lutSRV;
@@ -651,9 +651,9 @@
 			let cbData = new Float32Array(4);
 
 			// Set up viewport
-			let oldVP = context.RSGetViewports();
+			let oldVP = context.RSGetViewports()[0];
 			let vp = new D3D11_VIEWPORT(0, 0, mapSize, mapSize, 0, 1);
-			context.RSSetViewports(vp);
+			context.RSSetViewports([vp]);
 
 			// Process each face
 			context.VSSetShader(vs);
@@ -692,7 +692,7 @@
 			// Release and clean up
 			cb.Release();
 			irrTexture.Release();
-			context.RSSetViewports(oldVP);
+			context.RSSetViewports([oldVP]);
 			return irrSRV;
 		}
 
@@ -734,7 +734,7 @@
 			let cbData = new Float32Array(8);
 
 			// Set up viewport
-			let oldVP = context.RSGetViewports();
+			let oldVP = context.RSGetViewports()[0];
 
 			// Prepare overall pipeline
 			context.VSSetShader(vs);
@@ -751,7 +751,7 @@
 				let mipSize = Math.pow(2, globalIBLMips + iblSpecMipsToSkip - 1 - mip);
 
 				let vp = new D3D11_VIEWPORT(0, 0, mipSize, mipSize, 0, 1);
-				context.RSSetViewports(vp);
+				context.RSSetViewports([vp]);
 
 				// After the first mip, we need to use the previous for sampling
 				if (mip > 0 && usePreviousMipForNextMip)
@@ -812,7 +812,7 @@
 			// Clean up and done
 			cb.Release();
 			specTexture.Release();
-			context.RSSetViewports(oldVP);
+			context.RSSetViewports([oldVP]);
 			return specSRV;
 		}
 
@@ -1019,7 +1019,7 @@
 
 			// Set up initial viewport
 			let viewport = new D3D11_VIEWPORT(0, 0, viewportElement.clientWidth, viewportElement.clientHeight, 0, 1);
-			context.RSSetViewports(viewport);
+			context.RSSetViewports([viewport]);
 
 			// Make an RTV of the back buffer
 			let backBuffer = swapChain.GetBuffer();

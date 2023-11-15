@@ -658,18 +658,26 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#rasterizerDirty = true;
 	}
 
+	/**
+	 * Gets the viewport currently bound to the rasterizer stage
+	 * 
+	 * @returns {Array<D3D11_VIEWPORT>} An array containing the current viewport
+	 */
 	RSGetViewports()
 	{
-		return structuredClone(this.#viewport);
+		return [structuredClone(this.#viewport)];
 	}
 
-	// Note: Just taking a single viewport, though
-	// the name suggests otherwise, as WebGL only handles
-	// a single viewport
-	RSSetViewports(viewport)
+	/**
+	 * Sets the viewport for the rasterizer.  Note that even though the function takes an array of
+	 * viewports, only the first is used in d3d11.js.  
+	 * 
+	 * @param {Array<D3D11_VIEWPORT>} viewports Array of viewports.  Note that only the first viewport is used in d3d11.js.
+	 */
+	RSSetViewports(viewports)
 	{
 		// Copy the first element
-		this.#viewport = structuredClone(viewport);
+		this.#viewport = structuredClone(viewports[0]);
 		this.#viewportDirty = true;
 	}
 

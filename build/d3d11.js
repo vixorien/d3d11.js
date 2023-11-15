@@ -94,6 +94,13 @@ const D3D11_DSV_DIMENSION_TEXTURE2DARRAY = 4;
 const D3D11_DSV_READ_ONLY_DEPTH = 0x1;
 const D3D11_DSV_READ_ONLY_STENCIL = 0x2;
 
+
+// Feature options (specifically for d3d11.js)
+const D3D11_JS_FEATURE_ANISOTROPIC_FILTER_SUPPORT = 0;
+const D3D11_JS_FEATURE_FLOAT_TEXTURE_SUPPORT = 1;
+const D3D11_JS_FEATURE_FLOAT_TEXTURE_FILTER_SUPPORT = 2;
+
+
 // Determines the fill mode to use when rendering triangles
 const D3D11_FILL_WIREFRAME = 2; // TODO: Need to somehow emulate this?  Swap to line drawing?
 const D3D11_FILL_SOLID = 3;
@@ -1177,26 +1184,34 @@ class ID3D11Device extends IUnknown
 		}
 	}
 
+	/**
+	 * Gets the graphics adapter (WebGL2 Rendering Context) used by this device
+	 * 
+	 * @return The WebGL2 Rendering Context used by this device
+	 */
 	GetAdapter()
 	{
 		return this.#gl;
 	}
 
-	// Not to spec, but I want the device to "own" thing kind of stuff
-	GetAnisoExt()
+	/**
+	 * Gets information about the features that are supported by D3D11.js
+	 * 
+	 * @param {any} feature Which feature to query for support
+	 * 
+	 * @returns The feature details (WebGL extension usually) if available, or null otherwise
+	 */
+	CheckFeatureSupport(feature)
 	{
-		return this.#anisoExt;
+		switch (feature)
+		{
+			case D3D11_JS_FEATURE_ANISOTROPIC_FILTER_SUPPORT: return this.#anisoExt;
+			case D3D11_JS_FEATURE_FLOAT_TEXTURE_SUPPORT: return this.#floatTextureExt;
+			case D3D11_JS_FEATURE_FLOAT_TEXTURE_FILTER_SUPPORT: return this.#floatTextureFilterExt;
+			default: return null;
+		}
 	}
 
-	GetFloatTextureExt()
-	{
-		return this.#floatTextureExt;
-	}
-
-	GetFloatTextureFilterExt()
-	{
-		return this.#floatTextureFilterExt;
-	}
 
 	// Not to spec, but I want ONE of these that both the context and the swapchain can use
 	GetBackBufferFramebuffer()
@@ -3482,18 +3497,26 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#rasterizerDirty = true;
 	}
 
+	/**
+	 * Gets the viewport currently bound to the rasterizer stage
+	 * 
+	 * @returns {Array<D3D11_VIEWPORT>} An array containing the current viewport
+	 */
 	RSGetViewports()
 	{
-		return structuredClone(this.#viewport);
+		return [structuredClone(this.#viewport)];
 	}
 
-	// Note: Just taking a single viewport, though
-	// the name suggests otherwise, as WebGL only handles
-	// a single viewport
-	RSSetViewports(viewport)
+	/**
+	 * Sets the viewport for the rasterizer.  Note that even though the function takes an array of
+	 * viewports, only the first is used in d3d11.js.  
+	 * 
+	 * @param {Array<D3D11_VIEWPORT>} viewports Array of viewports.  Note that only the first viewport is used in d3d11.js.
+	 */
+	RSSetViewports(viewports)
 	{
 		// Copy the first element
-		this.#viewport = structuredClone(viewport);
+		this.#viewport = structuredClone(viewports[0]);
 		this.#viewportDirty = true;
 	}
 
@@ -4911,7 +4934,7 @@ class ID3D11SamplerState extends ID3D11DeviceChild
 		}
 
 		// Anisotropy
-		const anisoExt = device.GetAnisoExt();
+		const anisoExt = device.CheckFeatureSupport(D3D11_JS_FEATURE_ANISOTROPIC_FILTER_SUPPORT);
 		if (this.#IsAnisoFilter(desc.Filter) && anisoExt != null)
 		{
 			gl.samplerParameteri(glSampler, anisoExt.TEXTURE_MAX_ANISOTROPY_EXT, desc.MaxAnisotropy);
