@@ -66,6 +66,8 @@ class ID3D11Device extends IUnknown
 		return this.#gl;
 	}
 
+	// TODO: Wrap these up in CheckFeatureSupport(): https://learn.microsoft.com/en-us/windows/win32/api/d3d11/nf-d3d11-id3d11device-checkfeaturesupport
+
 	// Not to spec, but I want the device to "own" thing kind of stuff
 	GetAnisoExt()
 	{
