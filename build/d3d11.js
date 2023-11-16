@@ -3000,7 +3000,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			this.#viewport = null;
 			this.#viewportDirty = true;
-			this.#scissorRect = null;
+			this.#scissorRect = new D3D11_RECT(0, 0, 0, 0); // D3D11 default is empty box
 			this.#scissorRectDirty = true;
 			this.#rasterizerState = null;
 			this.#rasterizerDirty = true;
@@ -4065,53 +4065,107 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		return this.#gl.TEXTURE0 + index;
 	}
 
-	// TODO: Split dirty flag into RSState and Viewport?
+
+	/**
+	 * Gets the height of the current render target and/or depth buffer
+	 * (if there is no render target currently bound)
+	 * 
+	 * @returns {number} The height of the current RTV/DSV, or zero if there are none bound
+	 */
+	#GetActiveRenderTargetHeight()
+	{
+		let rtHeight = 0;
+
+		// Any RTVs?
+		if (this.#renderTargetViews != null)
+		{
+			// Get the first render target in the RTV list (might not be zero)
+			for (let i = 0; i < this.#renderTargetViews.length; i++)
+			{
+				// Found an RTV; grab details
+				if (this.#renderTargetViews[i] != null)
+				{
+					// Height of actual target
+					let rtRes = this.#renderTargetViews[i].GetResource();
+					rtHeight = rtRes.GetDesc().Height;
+					rtRes.Release();
+
+					// Use mip level to calculate height
+					let mip = this.#renderTargetViews[i].GetDesc().MipSlice;
+					let div = Math.pow(2, mip);
+					rtHeight = Math.max(1, Math.floor(rtHeight / div));
+					break;
+				}
+			}
+		}
+
+		// If we're still zero, check depth stencil instead
+		if (rtHeight == 0 && this.#depthStencilView != null)
+		{
+			// Height of actual resource
+			let dsvRes = this.#depthStencilView.GetResource();
+			rtHeight = dsvRes.GetDesc().Height;
+			dsvRes.Release();
+
+			// Use mip level to calculate height
+			let mip = this.#depthStencilView.GetDesc().MipSlice;
+			let div = Math.pow(2, mip);
+			rtHeight = Math.max(1, Math.floor(rtHeight / div));
+		}
+
+		return rtHeight;
+	}
+
+	
 	#PrepareRasterizer()
 	{
 		// TODO: Check and change scissor rect (including Y flip!)
 
-		// Check viewport
-		if (this.#viewportDirty && this.#viewport != null)
+		// We need to flip the Y on viewports & scissor rects, so
+		// what's the actual render target height?
+		let rtHeight = 0;
+		if (this.#viewportDirty || this.#scissorRectDirty)
 		{
-			// Grab the height of the current render target (or depth buffer if no RTV)
-			let rtHeight = 0;
-			if (this.#renderTargetViews != null && this.#renderTargetViews[0] != null)
-			{
-				let rtRes = this.#renderTargetViews[0].GetResource();
-				rtHeight = rtRes.GetDesc().Height;
-				rtRes.Release();
+			rtHeight = this.#GetActiveRenderTargetHeight();
+		}
+		
+		// Need to update viewport (and we have a real height)?
+		if (this.#viewportDirty && this.#viewport != null && rtHeight > 0)
+		{
+			// Perform the invert
+			let invertY = rtHeight - this.#viewport.Height;
 
-				// Determine the actual height based on the RTV mip level
-				let mip = this.#renderTargetViews[0].GetDesc().MipSlice;
-				let div = Math.pow(2, mip);
-				rtHeight = Math.max(1, Math.floor(rtHeight / div));
-			}
-			else if (this.#depthStencilView != null)
-			{
-				let dsRes = this.#depthStencilView.GetResource();
-				rtHeight = dsRes.GetDesc().Height;
-				dsRes.Release();
-			}
+			// Set up the GL viewport first, flipping Y
+			this.#gl.viewport(
+				this.#viewport.TopLeftX,
+				invertY - this.#viewport.TopLeftY,
+				this.#viewport.Width,
+				this.#viewport.Height);
 
-			// Do we actually have a useful height?
-			if (rtHeight > 0)
-			{
-				let invertY = rtHeight - this.#viewport.Height;
+			// Next the depth range
+			this.#gl.depthRange(
+				this.#viewport.MinDepth,
+				this.#viewport.MaxDepth);
 
-				// Set up the GL viewport first, flipping Y
-				this.#gl.viewport(
-					this.#viewport.TopLeftX,
-					invertY - this.#viewport.TopLeftY,
-					this.#viewport.Width,
-					this.#viewport.Height);
+			this.#viewportDirty = false;
+		}
 
-				// Next the depth range
-				this.#gl.depthRange(
-					this.#viewport.MinDepth,
-					this.#viewport.MaxDepth);
+		// Need to update scissor rect (and we have a real height)?
+		if (this.#scissorRectDirty && this.#scissorRect != null && rtHeight > 0)
+		{
+			// Invert
+			let scissorWidth = this.#scissorRect.Right - this.#scissorRect.Left;
+			let scissorHeight = this.#scissorRect.Bottom - this.#scissorRect.Top;
+			let invertY = rtHeight - scissorHeight;
 
-				this.#viewportDirty = false;
-			}
+			// Set up the GL scissor rect
+			this.#gl.scissor(
+				this.#scissorRect.Left,
+				invertY - this.#scissorRect.Top,
+				scissorWidth,
+				scissorHeight);
+
+			this.#scissorRectDirty = false;
 		}
 
 		// Check for overall rasterizer state

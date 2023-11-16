@@ -1521,6 +1521,16 @@
 			//let srv3D = device.CreateShaderResourceView(texture3D, null);
 			//texture3D.Release();
 
+			// Test scissor rect
+			//let sciDesc = new D3D11_RASTERIZER_DESC(
+			//	D3D11_FILL_SOLID,
+			//	D3D11_CULL_NONE,
+			//	false, 0, 0, 0, true,
+			//	true); // Scissor
+			//let sciRS = device.CreateRasterizerState(sciDesc);
+			//let sciRect = new D3D11_RECT(100, 100, 300, 150);
+
+
 
 			function update(time)
 			{
@@ -1610,7 +1620,7 @@
 					// Update rendering viewport, too
 					viewport.Width = viewportElement.clientWidth;
 					viewport.Height = viewportElement.clientHeight;
-					context.RSSetViewports(viewport);
+					context.RSSetViewports([viewport]);
 
 					// Create new post processing resource, too
 					ppSRV.Release();
@@ -1643,7 +1653,6 @@
 				{
 					context.OMSetRenderTargets([ppRTV], depthDSV);
 				}
-
 
 				vMat = Matrix4x4.ViewDirectionLH(
 					cameraPosition,
