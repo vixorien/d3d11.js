@@ -826,6 +826,9 @@ class DXGI_SWAP_CHAIN_DESC
 // ------------------ Other Structures -----------------
 // -----------------------------------------------------
 
+/**
+ * Defines the dimensions of a viewport
+ */
 class D3D11_VIEWPORT
 {
 	TopLeftX;
@@ -845,6 +848,35 @@ class D3D11_VIEWPORT
 		this.MaxDepth = maxDepth;
 	}
 }
+
+
+/**
+ * Defines a 2D rectangle
+ */
+class D3D11_RECT
+{
+	Left;
+	Top;
+	Right;
+	Bottom;
+
+	/**
+	 * Creates a new 2D rectangle
+	 * 
+	 * @param {Number} left The x position of the left hand side of the box
+	 * @param {Number} top The y position of the top of the box
+	 * @param {Number} right The x position of the right hand side of the box
+	 * @param {Number} bottom The y position of the bottom of the box
+	 */
+	constructor(left, top, right, bottom)
+	{
+		this.Left = left;
+		this.Top = top;
+		this.Right = right;
+		this.Bottom = bottom;
+	}
+}
+
 
 /**
  * Defines a 3D box
@@ -2881,10 +2913,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	// Rasterizer ---
 	#viewport;
+	#scissorRect;
 	#rasterizerState;
 	#defaultRasterizerDesc;
 	#rasterizerDirty;
 	#viewportDirty;
+	#scissorRectDirty
 
 	// Pixel Shader ---
 	#pixelShader;
@@ -2966,6 +3000,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			this.#viewport = null;
 			this.#viewportDirty = true;
+			this.#scissorRect = null;
+			this.#scissorRectDirty = true;
 			this.#rasterizerState = null;
 			this.#rasterizerDirty = true;
 
@@ -3498,6 +3534,30 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	}
 
 	/**
+	 * Gets the scissor rectangle currently bound to the rasterizer stage
+	 * 
+	 * @returns {Array<D3D11_RECT>} An array containing the current scissor rect
+	 */
+	RSGetScissorRects()
+	{
+		return [structuredClone(this.#scissorRect)];
+	}
+
+	/**
+	 * Sets the scissor rectangle for the rasterizer.
+	 * Note that even though the function takes an array of
+	 * rectangles, only the first is used in d3d11.js.  
+	 * 
+	 * @param {Array<D3D11_RECT>} rects Array of scissor rects.  Note that only the first viewport is used in d3d11.js.
+	 */
+	RSSetScissorRects(rects)
+	{
+		// Copy the first element
+		this.#scissorRect = structuredClone(rects[0]);
+		this.#scissorRectDirty = true;
+	}
+
+	/**
 	 * Gets the viewport currently bound to the rasterizer stage
 	 * 
 	 * @returns {Array<D3D11_VIEWPORT>} An array containing the current viewport
@@ -3508,7 +3568,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	}
 
 	/**
-	 * Sets the viewport for the rasterizer.  Note that even though the function takes an array of
+	 * Sets the viewport for the rasterizer.  
+	 * Note that even though the function takes an array of
 	 * viewports, only the first is used in d3d11.js.  
 	 * 
 	 * @param {Array<D3D11_VIEWPORT>} viewports Array of viewports.  Note that only the first viewport is used in d3d11.js.
@@ -4007,6 +4068,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	// TODO: Split dirty flag into RSState and Viewport?
 	#PrepareRasterizer()
 	{
+		// TODO: Check and change scissor rect (including Y flip!)
+
 		// Check viewport
 		if (this.#viewportDirty && this.#viewport != null)
 		{

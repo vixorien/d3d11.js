@@ -3,6 +3,9 @@
 // ------------------ Other Structures -----------------
 // -----------------------------------------------------
 
+/**
+ * Defines the dimensions of a viewport
+ */
 class D3D11_VIEWPORT
 {
 	TopLeftX;
@@ -22,6 +25,35 @@ class D3D11_VIEWPORT
 		this.MaxDepth = maxDepth;
 	}
 }
+
+
+/**
+ * Defines a 2D rectangle
+ */
+class D3D11_RECT
+{
+	Left;
+	Top;
+	Right;
+	Bottom;
+
+	/**
+	 * Creates a new 2D rectangle
+	 * 
+	 * @param {Number} left The x position of the left hand side of the box
+	 * @param {Number} top The y position of the top of the box
+	 * @param {Number} right The x position of the right hand side of the box
+	 * @param {Number} bottom The y position of the bottom of the box
+	 */
+	constructor(left, top, right, bottom)
+	{
+		this.Left = left;
+		this.Top = top;
+		this.Right = right;
+		this.Bottom = bottom;
+	}
+}
+
 
 /**
  * Defines a 3D box
