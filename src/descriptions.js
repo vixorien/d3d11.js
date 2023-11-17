@@ -119,7 +119,9 @@ class D3D11_DEPTH_STENCIL_VIEW_DESC
 	}
 }
 
-
+/**
+ * A description of a single element for the input-assembler stage
+ */
 class D3D11_INPUT_ELEMENT_DESC 
 {
 	SemanticName;
@@ -130,6 +132,17 @@ class D3D11_INPUT_ELEMENT_DESC
 	InputSlotClass;
 	InstanceDataStepRate;
 
+	/**
+	 * Creates a new Input Element description
+	 * 
+	 * @param {string} semanticName The HLSL semantic associated with this element in a shader input-signature
+	 * @param {number} semanticIndex The semantic index for the element. A semantic index modifies a semantic, with an integer index number.
+	 * @param {any} format The data type of the element data
+	 * @param {number} inputSlot An integer value that identifies the input-assembler slot
+	 * @param {number} alignedByteOffset Offset (in bytes) from the start of the vertex. Use D3D11_APPEND_ALIGNED_ELEMENT for convenience to define the current element directly after the previous one, including any packing if necessary.
+	 * @param {any} inputSlotClass Identifies the input data class (per vertex or per instance) for a single input slot
+	 * @param {number} instanceDataStepRate The number of instances to draw using the same per-instance data before advancing in the buffer by one element. This value must be 0 for an element that contains per-vertex data.
+	 */
 	constructor(
 		semanticName,
 		semanticIndex,
@@ -149,6 +162,10 @@ class D3D11_INPUT_ELEMENT_DESC
 	}
 }
 
+
+/**
+ * Describes a rasterizer state
+ */
 class D3D11_RASTERIZER_DESC
 {
 	FillMode;
@@ -162,6 +179,20 @@ class D3D11_RASTERIZER_DESC
 	MultisampleEnable;
 	AntiasliasedLineEnable;
 
+	/**
+	 * Creates a new Rasterizer State description
+	 * 
+	 * @param {any} fillMode Determines the fill mode to use when rendering
+	 * @param {any} cullMode Indicates triangles facing the specified direction are not drawn
+	 * @param {boolean} frontCounterClockwise Determines if a triangle is front- or back-facing. If this parameter is TRUE, a triangle will be considered front-facing if its vertices are counter-clockwise on the render target and considered back-facing if they are clockwise. If this parameter is FALSE, the opposite is true.
+	 * @param {number} depthBias Depth value added to a given pixel
+	 * @param {number} depthBiasClamp Maximum depth bias of a pixel
+	 * @param {number} slopeScaledDepthBias Scalar on a given pixel's slope
+	 * @param {boolean} depthClipEnable Enable clipping based on distance
+	 * @param {boolean} scissorEnable Enable scissor-rectangle culling. All pixels outside an active scissor rectangle are culled.
+	 * @param {boolean} multisampleEnable Enable multi-sampling
+	 * @param {boolean} antialiasedLineEnable Specifies whether to enable line antialiasing
+	 */
 	constructor(
 		fillMode,
 		cullMode,
@@ -187,7 +218,9 @@ class D3D11_RASTERIZER_DESC
 	}
 }
 
-
+/**
+ * Specifies the subresources from a resource that are accessible using a render-target view
+ */
 class D3D11_RENDER_TARGET_VIEW_DESC
 {
 	Format; // NO typeless, if DXGI_FORMAT_UNKNOWN then resource type is used
@@ -198,6 +231,15 @@ class D3D11_RENDER_TARGET_VIEW_DESC
 	FirstArraySlice;	// Or FirstWSlice for 3D textures
 	ArraySize;			// Or WSize for 3D textures
 
+	/**
+	 * Creates a new Render Target View description
+	 * 
+	 * @param {any} format The data format
+	 * @param {any} viewDimension The resource type which specifies how the render-target resource will be accessed
+	 * @param {number} mipSlice The index of the mipmap level to use
+	 * @param {number} firstArraySlice The index of the first texture to use in an array of textures
+	 * @param {number} arraySize Number of textures in the array to use in the render target view, starting with FirstArraySlice
+	 */
 	constructor(
 		format,
 		viewDimension,
@@ -213,7 +255,9 @@ class D3D11_RENDER_TARGET_VIEW_DESC
 	}
 }
 
-// Describes a sampler state
+/**
+ * Describes a sampler state
+ */
 class D3D11_SAMPLER_DESC
 {
 	Filter;
@@ -227,6 +271,20 @@ class D3D11_SAMPLER_DESC
 	MinLOD;
 	MaxLOD;
 
+	/**
+	 * Creates a new Sampler State description 
+	 * 
+	 * @param {any} filter Filtering method to use when sampling a texture
+	 * @param {any} addressU Method to use for resolving a u texture coordinate that is outside the 0 to 1 range
+	 * @param {any} addressV Method to use for resolving a v texture coordinate that is outside the 0 to 1 range
+	 * @param {any} addressW Method to use for resolving a w texture coordinate that is outside the 0 to 1 range
+	 * @param {number} mipLODBias Offset from the calculated mipmap level
+	 * @param {number} maxAnisotropy Clamping value used if filter is anisotropic. Valid values are between 1 and 16.
+	 * @param {any} comparisonFunc A function that compares sampled data against existing sampled data
+	 * @param {Array<number>} borderColor Border color to use if D3D11_TEXTURE_ADDRESS_BORDER is specified for AddressU, AddressV, or AddressW (unsupported in WebGL?)
+	 * @param {number} minLOD Lower end of the mipmap range to clamp access to
+	 * @param {number} maxLOD Upper end of the mipmap range to clamp access to. To have no upper limit on LOD set this to a large value such as D3D11_FLOAT32_MAX.
+	 */
 	constructor(
 		filter,
 		addressU,
@@ -252,7 +310,9 @@ class D3D11_SAMPLER_DESC
 	}
 }
 
-
+/**
+ * Describes a shader-resource view
+ */
 class D3D11_SHADER_RESOURCE_VIEW_DESC 
 {
 	Format;
@@ -267,9 +327,17 @@ class D3D11_SHADER_RESOURCE_VIEW_DESC
 	MipLevels;
 	FirstArraySlice;	// Or First2DArrayFace for tex cube arrays
 	ArraySize;			// Or NumCubes for tex cube arrays
-	// TODO: Remove array slice/size stuff?  WebGL doesn't seem to handle it
-	//       Or just keep but rRequire to match resource?
 
+	/**
+	 * Creates a new Shader Resource View description
+	 * 
+	 * @param {any} format The viewing format
+	 * @param {any} viewDimension The resource type of the view
+	 * @param {any} mostDetailedMip Index of the most detailed mipmap level to use
+	 * @param {any} mipLevels The maximum number of mipmap levels for the view of the texture
+	 * @param {any} firstArraySlice The index of the first texture to use in an array of textures
+	 * @param {any} arraySize Number of textures in the array
+	 */
 	constructor(
 		format,
 		viewDimension,
@@ -288,6 +356,9 @@ class D3D11_SHADER_RESOURCE_VIEW_DESC
 }
 
 
+/**
+ * Describes a 1D texture
+ */
 class D3D11_TEXTURE1D_DESC
 {
 	Width;
@@ -299,6 +370,18 @@ class D3D11_TEXTURE1D_DESC
 	CPUAccessFlags;
 	MiscFlags;
 
+	/**
+	 * Creates a new Texture1D description
+	 * 
+	 * @param {number} width Texture width (in texels)
+	 * @param {number} mipLevels The maximum number of mipmap levels in the texture
+	 * @param {number} arraySize Number of textures in the texture array (use 1 is no array is desired)
+	 * @param {any} format Texture format
+	 * @param {any} usage Value that identifies how the texture is to be read from and written to
+	 * @param {any} bindFlags Flags for binding to pipeline stages
+	 * @param {any} cpuAccessFlags Specify the types of CPU access allowed (use 0 if CPU access is not required)
+	 * @param {any} miscFlags Identify other, less common resource options (use 0 if none of these flags apply)
+	 */
 	constructor(
 		width,
 		mipLevels,
@@ -322,6 +405,9 @@ class D3D11_TEXTURE1D_DESC
 }
 
 
+/**
+ * Describes a 2D texture
+ */
 class D3D11_TEXTURE2D_DESC
 {
 	Width;
@@ -335,6 +421,20 @@ class D3D11_TEXTURE2D_DESC
 	CPUAccessFlags;
 	MiscFlags;
 
+	/**
+	 * Creates a new Texture2D description
+	 * 
+	 * @param {number} width Texture width (in texels)
+	 * @param {number} height Texture height (in texels)
+	 * @param {number} mipLevels The maximum number of mipmap levels in the texture
+	 * @param {number} arraySize Number of textures in the texture array (use 1 is no array is desired)
+	 * @param {any} format Texture format
+	 * @param {DXGI_SAMPLE_DESC} sampleDesc Specifies multisampling parameters for the texture
+	 * @param {any} usage Value that identifies how the texture is to be read from and written to
+	 * @param {any} bindFlags Flags for binding to pipeline stages
+	 * @param {any} cpuAccessFlags Specify the types of CPU access allowed (use 0 if CPU access is not required)
+	 * @param {any} miscFlags Identify other, less common resource options (use 0 if none of these flags apply)
+	 */
 	constructor(
 		width,
 		height,
@@ -361,7 +461,9 @@ class D3D11_TEXTURE2D_DESC
 	}
 }
 
-
+/**
+ * Describes a 3D texture
+ */
 class D3D11_TEXTURE3D_DESC
 {
 	Width;
@@ -374,6 +476,19 @@ class D3D11_TEXTURE3D_DESC
 	CPUAccessFlags;
 	MiscFlags;
 
+	/**
+	 * Creates a new Texture3D description
+	 * 
+	 * @param {number} width Texture width (in texels)
+	 * @param {number} height Texture height (in texels)
+	 * @param {number} depth Texture depth (in texels)
+	 * @param {number} mipLevels The maximum number of mipmap levels in the texture
+	 * @param {any} format Texture format
+	 * @param {any} usage Value that identifies how the texture is to be read from and written to
+	 * @param {any} bindFlags Flags for binding to pipeline stages
+	 * @param {any} cpuAccessFlags Specify the types of CPU access allowed (use 0 if CPU access is not required)
+	 * @param {any} miscFlags Identify other, less common resource options (use 0 if none of these flags apply)
+	 */
 	constructor(
 		width,
 		height,
@@ -398,13 +513,20 @@ class D3D11_TEXTURE3D_DESC
 	}
 }
 
-
+/**
+ * Describes multi-sampling parameters for a resource
+ */
 class DXGI_SAMPLE_DESC
 {
 	Count;
 	Quality;
 
-	constructor(count, quality)
+	/**
+	 * Creates a new DXGI Sample description of multi-sampling parameters
+	 * @param {number} count The number of multisamples per pixel
+	 * @param {number} quality The image quality level (unused in WebGL?)
+	 */
+	constructor(count = 1, quality = 0)
 	{
 		this.Count = count;
 		this.Quality = quality;
