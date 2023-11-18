@@ -1248,8 +1248,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	
 	#PrepareRasterizer()
 	{
-		// TODO: Check and change scissor rect (including Y flip!)
-
 		// We need to flip the Y on viewports & scissor rects, so
 		// what's the actual render target height?
 		let rtHeight = 0;

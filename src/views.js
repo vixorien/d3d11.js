@@ -20,7 +20,7 @@ class ID3D11View extends ID3D11DeviceChild
 		}
 
 		this.#resource = resource;
-		this.#desc = structuredClone(desc);
+		this.#desc = desc.Copy();
 
 		// Add a reference to the resource
 		// so the view keeps it alive
@@ -31,7 +31,7 @@ class ID3D11View extends ID3D11DeviceChild
 
 	GetDesc()
 	{
-		return structuredClone(this.#desc);
+		return this.#desc.Copy();
 	}
 
 	GetResource()
@@ -64,33 +64,6 @@ class ID3D11DepthStencilView extends ID3D11View
 		{
 			device.Release();
 			throw new Error("Cannot instantiate ID3D11DepthStencilView objects - use device.CreateDepthStencilView() instead");
-		}
-
-		// Check the resource
-		let resDesc = resource.GetDesc();
-
-		// Has to have the correct bind flag
-		if ((resDesc.BindFlags & D3D11_BIND_DEPTH_STENCIL) == 0)
-			throw new Error("Resource not set for depth stencil binding");
-
-		// Must be the right dimension!
-		// TODO: Handle the rest of the types
-		switch (desc.ViewDimension)
-		{
-			//case D3D11_DSV_DIMENSION_TEXTURE1D:
-			//case D3D11_DSV_DIMENSION_TEXTURE1DARRAY: break;
-			//case D3D11_DSV_DIMENSION_TEXTURE2DARRAY: break;
-
-			case D3D11_DSV_DIMENSION_TEXTURE2D:
-
-				// Has to actually be a texture2d
-				if (!(resource instanceof ID3D11Texture2D))
-					throw new Error("Resource type does not match view description");
-
-				break;
-
-			default:
-				throw new Error("Invalid view dimension for depth stencil view");
 		}
 	}
 }

@@ -42,8 +42,6 @@ Texture2D brdfLUT			: register(t4);
 TextureCube iblIrradiance	: register(t5);
 TextureCube iblSpecular		: register(t6);
 
-Texture3D tex3DTest			: register(t7);
-
 SamplerState samp			: register(s0);
 SamplerState clampSamp		: register(s1);
 

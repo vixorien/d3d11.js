@@ -3,7 +3,9 @@
 // ------------------- Descriptions --------------------
 // -----------------------------------------------------
 
-
+/**
+ * Describes a buffer resource
+ */
 class D3D11_BUFFER_DESC
 {
 	ByteWidth;
@@ -13,13 +15,23 @@ class D3D11_BUFFER_DESC
 	MiscFlags;
 	StructureByteStride;
 
+	/**
+	 * Creates a new Buffer description
+	 * 
+	 * @param {number} byteWidth Size of the buffer in bytes
+	 * @param {any} usage Identify how the buffer is expected to be read from and written to
+	 * @param {any} bindFlags Identify how the buffer will be bound to the pipeline
+	 * @param {any} cpuAccessFlags CPU access flags or 0 if no CPU access is necessary
+	 * @param {any} miscFlags Miscellaneous flags or 0 if unused
+	 * @param {number} structureByteStride The size of each element in the buffer structure (in bytes) when the buffer represents a structured buffer
+	 */
 	constructor(
 		byteWidth,
 		usage,
 		bindFlags,
-		cpuAccessFlags,
-		miscFlags,
-		structureByteStride)
+		cpuAccessFlags = 0,
+		miscFlags = 0,
+		structureByteStride = 0)
 	{
 		this.ByteWidth = byteWidth;
 		this.Usage = usage;
@@ -28,8 +40,28 @@ class D3D11_BUFFER_DESC
 		this.MiscFlags = miscFlags;
 		this.StructureByteStride = structureByteStride;
 	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_BUFFER_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_BUFFER_DESC(
+			this.ByteWidth,
+			this.Usage,
+			this.BindFlags,
+			this.CPUAccessFlags,
+			this.MiscFlags,
+			this.StructureByteStride);
+	}
 }
 
+
+/**
+ * Describes depth-stencil state
+ */
 class D3D11_DEPTH_STENCIL_DESC
 {
 	DepthEnable;
@@ -41,6 +73,18 @@ class D3D11_DEPTH_STENCIL_DESC
 	FrontFace;
 	BackFace;
 
+	/**
+	 * Creates a new Depth-Stencil State description
+	 * 
+	 * @param {boolean} depthEnable Enable depth testing
+	 * @param {any} depthWriteMask Identify a portion of the depth-stencil buffer that can be modified by depth data
+	 * @param {any} depthFunc A function that compares depth data against existing depth data
+	 * @param {boolean} stencilEnable Enable stencil testing
+	 * @param {any} stencilReadMask Identify a portion of the depth-stencil buffer for reading stencil data
+	 * @param {any} stencilWriteMask Identify a portion of the depth-stencil buffer for writing stencil data
+	 * @param {D3D11_DEPTH_STENCILOP_DESC} frontFace Identify how to use the results of the depth test and the stencil test for pixels whose surface normal is facing towards the camera
+	 * @param {D3D11_DEPTH_STENCILOP_DESC} backFace Identify how to use the results of the depth test and the stencil test for pixels whose surface normal is facing away from the camera
+	 */
 	constructor(
 		depthEnable = true,
 		depthWriteMask = D3D11_DEPTH_WRITE_MASK_ALL,
@@ -57,11 +101,33 @@ class D3D11_DEPTH_STENCIL_DESC
 		this.StencilEnable = stencilEnable;
 		this.StencilReadMask = stencilReadMask;
 		this.StencilWriteMask = stencilWriteMask;
-		this.FrontFace = structuredClone(frontFace);
-		this.BackFace = structuredClone(backFace);
+		this.FrontFace = frontFace.Copy();
+		this.BackFace = backFace.Copy();
+	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_DEPTH_STENCIL_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_DEPTH_STENCIL_DESC(
+			this.DepthEnable,
+			this.DepthWriteMask,
+			this.DepthFunc,
+			this.StencilEnable,
+			this.StencilReadMask,
+			this.StencilWriteMask,
+			this.FrontFace.Copy(),
+			this.BackFace.Copy());
 	}
 }
 
+
+/**
+ * Stencil operations that can be performed based on the results of stencil test
+ */
 class D3D11_DEPTH_STENCILOP_DESC
 {
 	StencilFailOp;
@@ -69,6 +135,14 @@ class D3D11_DEPTH_STENCILOP_DESC
 	StencilPassOp;
 	StencilFunc;
 
+	/**
+	 * Creates a new Depth-Stencil Operation description
+	 * 
+	 * @param {any} stencilFailOp The stencil operation to perform when stencil testing fails
+	 * @param {any} stencilDepthFailOp The stencil operation to perform when stencil testing passes and depth testing fails
+	 * @param {any} stencilPassOp The stencil operation to perform when stencil testing and depth testing both pass
+	 * @param {any} stencilFunc A function that compares stencil data against existing stencil data
+	 */
 	constructor(
 		stencilFailOp = D3D11_STENCIL_OP_KEEP,
 		stencilDepthFailOp = D3D11_STENCIL_OP_KEEP,
@@ -80,8 +154,26 @@ class D3D11_DEPTH_STENCILOP_DESC
 		this.StencilPassOp = stencilPassOp;
 		this.StencilFunc = stencilFunc;
 	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_DEPTH_STENCILOP_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_DEPTH_STENCILOP_DESC(
+			this.StencilFailOp,
+			this.StencilDepthFailOp,
+			this.StencilPassOp,
+			this.StencilFunc);
+	}
 }
 
+
+/**
+ * Specifies the subresources of a texture that are accessible from a depth-stencil view
+ */
 class D3D11_DEPTH_STENCIL_VIEW_DESC
 {
 	Format;
@@ -101,7 +193,16 @@ class D3D11_DEPTH_STENCIL_VIEW_DESC
 	// Texture2DMS;
 	// Texture2DMSArray;
 
-
+	/**
+	 * Creates a new Depth-Stencil View description
+	 * 
+	 * @param {any} format Resource data format
+	 * @param {any} viewDimension Type of resource
+	 * @param {any} flags A value that describes whether the texture is read only
+	 * @param {number} mipSlice The index of the first mipmap level to use
+	 * @param {number} firstArraySlice The index of the first texture to use in an array of textures
+	 * @param {number} arraySize Number of textures to use
+	 */
 	constructor(
 		format,
 		viewDimension,
@@ -117,7 +218,24 @@ class D3D11_DEPTH_STENCIL_VIEW_DESC
 		this.FirstArraySlice = firstArraySlice;
 		this.ArraySize = arraySize;
 	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_DEPTH_STENCIL_VIEW_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_DEPTH_STENCIL_VIEW_DESC(
+			this.Format,
+			this.ViewDimension,
+			this.Flags,
+			this.MipSlice,
+			this.FirstArraySlice,
+			this.ArraySize);
+	}
 }
+
 
 /**
  * A description of a single element for the input-assembler stage
@@ -160,11 +278,28 @@ class D3D11_INPUT_ELEMENT_DESC
 		this.InputSlotClass = inputSlotClass;
 		this.InstanceDataStepRate = instanceDataStepRate;
 	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_INPUT_ELEMENT_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_INPUT_ELEMENT_DESC(
+			this.SemanticName,
+			this.SemanticIndex,
+			this.Format,
+			this.InputSlot,
+			this.AlignedByteOffset,
+			this.InputSlotClass,
+			this.InstanceDataStepRate);
+	}
 }
 
 
 /**
- * Describes a rasterizer state
+ * Describes rasterizer state
  */
 class D3D11_RASTERIZER_DESC
 {
@@ -216,6 +351,26 @@ class D3D11_RASTERIZER_DESC
 		this.MultisampleEnable = multisampleEnable;
 		this.AntiasliasedLineEnable = antialiasedLineEnable;
 	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_RASTERIZER_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_RASTERIZER_DESC(
+			this.FillMode,
+			this.CullMode,
+			this.FrontCounterClockwise,
+			this.DepthBias,
+			this.DepthBiasClamp,
+			this.SlopeScaledDepthBias,
+			this.DepthClipEnable,
+			this.ScissorEnable,
+			this.MultisampleEnable,
+			this.AntiasliasedLineEnable);
+	}
 }
 
 /**
@@ -252,6 +407,21 @@ class D3D11_RENDER_TARGET_VIEW_DESC
 		this.MipSlice = mipSlice;
 		this.FirstArraySlice = firstArraySlice;
 		this.ArraySize = arraySize;
+	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_RENDER_TARGET_VIEW_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_RENDER_TARGET_VIEW_DESC(
+			this.Format,
+			this.ViewDimension,
+			this.MipSlice,
+			this.FirstArraySlice,
+			this.ArraySize);
 	}
 }
 
@@ -308,7 +478,28 @@ class D3D11_SAMPLER_DESC
 		this.MinLOD = minLOD;
 		this.MaxLOD = maxLOD;
 	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_SAMPLER_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_SAMPLER_DESC(
+			this.Filter,
+			this.AddressU,
+			this.AddressV,
+			this.AddressW,
+			this.MipLODBias,
+			this.MaxAnisotropy,
+			this.ComparisonFunc,
+			this.BorderColor,
+			this.MinLOD,
+			this.MaxLOD);
+	}
 }
+
 
 /**
  * Describes a shader-resource view
@@ -352,6 +543,22 @@ class D3D11_SHADER_RESOURCE_VIEW_DESC
 		this.MipLevels = mipLevels;
 		this.FirstArraySlice = firstArraySlice;
 		this.ArraySize = arraySize;
+	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_SHADER_RESOURCE_VIEW_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_SHADER_RESOURCE_VIEW_DESC(
+			this.Format,
+			this.ViewDimension,
+			this.MostDetailedMip,
+			this.MipLevels,
+			this.FirstArraySlice,
+			this.ArraySize);
 	}
 }
 
@@ -401,6 +608,24 @@ class D3D11_TEXTURE1D_DESC
 		this.BindFlags = bindFlags;
 		this.CPUAccessFlags = cpuAccessFlags;
 		this.MiscFlags = miscFlags;
+	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_TEXTURE1D_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_TEXTURE1D_DESC(
+			this.Width,
+			this.MipLevels,
+			this.ArraySize,
+			this.Format,
+			this.Usage,
+			this.BindFlags,
+			this.CPUAccessFlags,
+			this.MiscFlags);
 	}
 }
 
@@ -453,11 +678,31 @@ class D3D11_TEXTURE2D_DESC
 		this.MipLevels = mipLevels;
 		this.ArraySize = arraySize;
 		this.Format = format;
-		this.SampleDesc = structuredClone(sampleDesc);
+		this.SampleDesc = sampleDesc.Copy();
 		this.Usage = usage;
 		this.BindFlags = bindFlags;
 		this.CPUAccessFlags = cpuAccessFlags;
 		this.MiscFlags = miscFlags;
+	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_TEXTURE2D_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_TEXTURE2D_DESC(
+			this.Width,
+			this.Height,
+			this.MipLevels,
+			this.ArraySize,
+			this.Format,
+			this.SampleDesc.Copy(),
+			this.Usage,
+			this.BindFlags,
+			this.CPUAccessFlags,
+			this.MiscFlags);
 	}
 }
 
@@ -511,6 +756,25 @@ class D3D11_TEXTURE3D_DESC
 		this.CPUAccessFlags = cpuAccessFlags;
 		this.MiscFlags = miscFlags;
 	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {D3D11_TEXTURE3D_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new D3D11_TEXTURE3D_DESC(
+			this.Width,
+			this.Height,
+			this.Depth,
+			this.MipLevels,
+			this.Format,
+			this.Usage,
+			this.BindFlags,
+			this.CPUAccessFlags,
+			this.MiscFlags);
+	}
 }
 
 /**
@@ -530,6 +794,18 @@ class DXGI_SAMPLE_DESC
 	{
 		this.Count = count;
 		this.Quality = quality;
+	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {DXGI_SAMPLE_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new DXGI_SAMPLE_DESC(
+			this.Count,
+			this.Quality);
 	}
 }
 
@@ -555,5 +831,18 @@ class DXGI_SWAP_CHAIN_DESC
 		this.Width = width;
 		this.Height = height;
 		this.Format = format;
+	}
+
+	/**
+	 * Creates a copy of this description
+	 * 
+	 * @returns {DXGI_SWAP_CHAIN_DESC} A copy of this description
+	 * */
+	Copy()
+	{
+		return new DXGI_SWAP_CHAIN_DESC(
+			this.Width,
+			this.Height,
+			this.Format);
 	}
 }

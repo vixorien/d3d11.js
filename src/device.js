@@ -330,7 +330,7 @@ class ID3D11Device extends IUnknown
 
 		// Now that everything's valid, swap cube map +Y and -Y if necessary
 		// TOOD: More testing, as this feels SUUUPER dirty
-		let finalDesc = structuredClone(desc);
+		let finalDesc = desc.Copy();
 		if ((resource.GetDesc().MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE)
 		{
 			// Which face?

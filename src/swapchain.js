@@ -22,7 +22,7 @@ class IDXGISwapChain extends IUnknown
 			throw new Error("Cannot instantiate IDXGISwapChain objects directly.  Use DXGICreateSwapChain() or D3D11CreateDeviceAndSwapChain() instead.");
 		}
 
-		this.#desc = structuredClone(desc); // Copy
+		this.#desc = desc.Copy();
 		this.#device = device;
 		this.#gl = device.GetAdapter();
 
