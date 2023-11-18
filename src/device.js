@@ -348,6 +348,13 @@ class ID3D11Device extends IUnknown
 	}
 
 
+	/**
+	 * Creates a new sampler state from a given description
+	 * 
+	 * @param {D3D11_SAMPLER_DESC} samplerDesc The description of the new sampler
+	 * 
+	 * @throws {Error} If the description is null or it contains invalid values
+	 */
 	CreateSamplerState(samplerDesc)
 	{
 		// Description is not optional
