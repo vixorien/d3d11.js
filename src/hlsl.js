@@ -992,6 +992,9 @@ class HLSL
 	}
 
 	// EXPRESSION PARSING IDEAS
+	// - Resources:
+	//   - https://craftinginterpreters.com/parsing-expressions.html
+	//   - https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm
 	//
 	// - Need to denote all expressions so we can convert ints to floats where necessary
 	// - ALMOST all ints can be changed into floats, except...
