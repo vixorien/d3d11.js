@@ -69,9 +69,9 @@
 		var float32Size = Float32Array.BYTES_PER_ELEMENT;
 	
 		// Init the API
-		var device = D3D11CreateDevice(document.querySelector("#viewport"));
-		var context = device.GetImmediateContext();
-		var swapChain = DXGICreateSwapChain(device);
+		const swapChainDesc = new DXGI_SWAP_CHAIN_DESC(800, 600, DXGI_FORMAT_R8G8B8A8_UNORM);
+		let [device, context, swapChain] =
+			D3D11CreateDeviceAndSwapChain(document.getElementById("viewport"), 0, swapChainDesc);                 
 
 		// Make an RTV of the back buffer
 		var rtv = device.CreateRenderTargetView(swapChain.GetBuffer());
@@ -114,7 +114,7 @@
 		// Create constant buffer
 		var elementCount = 1;
 		var vsCBDesc = new D3D11_BUFFER_DESC(
-			elementCount * floatSize,
+			Math.ceil((elementCount * floatSize) / 16) * 16,
 			D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
 			D3D11_BIND_CONSTANT_BUFFER,
 			0, 0, 0);
@@ -131,7 +131,7 @@
 
 		// Cbuffer for pixel shader
 		var psCBDesc = new D3D11_BUFFER_DESC(
-			3 * floatSize,
+			Math.ceil((3 * floatSize)/16)*16,
 			D3D11_USAGE_DEFAULT, // Note: This is generally dynamic in C++, but with no Map/Unmap in WebGL, we've got to use UpdateSubresource
 			D3D11_BIND_CONSTANT_BUFFER,
 			0, 0, 0);

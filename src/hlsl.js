@@ -932,8 +932,112 @@ class HLSL
 			// Next should be open scope
 			let scopeLevel = 1;
 			this.#Require(it, TokenScopeLeft);
+
+			// TESTING
+			const ExpTypeUnknown = 0;
+			const ExpTypeStatement = 1;
+			const ExpTypeIf = 2;
+			const ExpTypeWhile = 3;
+			const ExpTypeForA = 4;
+			const ExpTypeForB = 5;
+			const ExpTypeForC = 6;
+			const ExpTypeReturn = 7;
+
+			let currentExpression = "";
+			let expressionBlockDepth = 0;
+			let expressionParenDepth = 0;
+			let expType = ExpTypeUnknown;
+
+
 			do
 			{
+				// TODO: Test expression parsing here!
+				switch (it.Current().Text)
+				{
+					case "{":
+						expType = ExpTypeUnknown;
+						expressionBlockDepth++;
+						break;
+
+					case "}":
+						expType = ExpTypeUnknown;
+						expressionBlockDepth--;
+						break;
+
+					case "if":
+						expType = ExpTypeIf;
+						break;
+
+					case "while":
+						expType = ExpTypeWhile;
+						break;
+
+					case "for":
+						expType = ExpTypeForA;
+						break;
+
+					case "return":
+						expType = ExpTypeReturn;
+						break;
+
+					case ";":
+						console.log("--> " + currentExpression);
+						currentExpression = "";
+
+						// Are we moving ahead in a for loop?  Or finishing up?
+						if (expType == ExpTypeForA)
+							expType == ExpTypeForB;
+						else if (expType == ExpTypeForB)
+							expType == ExpTypeForC;
+						else
+							expType = ExpTypeUnknown; // Finished this one
+
+						break;
+
+					default:
+						// Check type coming in
+						let skip = false;
+						if (expType == ExpTypeIf ||
+							expType == ExpTypeWhile ||
+							expType == ExpTypeForA ||
+							expType == ExpTypeForB ||
+							expType == ExpTypeForC)
+						{
+							// Are we starting the expression?
+							if (it.Current().Text == "(")
+							{
+								expressionParenDepth++;
+								skip = true;
+							}
+							else if (it.Current().Text == ")")
+							{
+								expressionParenDepth--;
+								skip = true;
+
+								// Did we finish up?
+								if (expressionParenDepth == 0)
+								{
+									expType == ExpTypeStatement;
+
+									
+									console.log("--> " + currentExpression);
+									currentExpression = "";
+								}
+							}
+
+						}
+						else
+						{
+							expType = ExpTypeStatement;
+						}
+
+						if(!skip)
+							currentExpression += it.Current().Text + " ";
+						
+						break;
+				}
+
+
 				// Check for texture object function call, which occurs
 				// when a texture identifier is followed immediately by a period
 				this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
@@ -1002,10 +1106,12 @@ class HLSL
 	//   - Integer division
 	//   - Bitwise operations on ints
 	// - Expression locations:
-	//   - After assignment operator: x = EXPRESSION;
-	//   - Inside ()'s: x = (EXPRESSION), funcCall(EXPRESSION), etc.
+	//   - Full lines (without control flow or loop)
+	//   - Inside ()'s: funcCall(EXPRESSION), etc.
 	//   - Between commas: funcCall(EXPRESSION, EXPRESSION, etc.)
 	//   - For loop statements: for(EXPRESSION; EXPRESSION; EXPRESSION) - Note: also supports commas!
+	//   - If: if(EXPRESSION)
+	//   - While: while(EXPRESSION), do { } while(EXPRESSION)
 	//   - return statement: return EXPRESSION;
 
 	// Levels:
@@ -2175,4 +2281,5 @@ class HLSL
 
 		return glsl;
 	}
+
 }
