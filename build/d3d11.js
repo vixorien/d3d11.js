@@ -6801,6 +6801,16 @@ class HLSL
 			const ExpTypeForC = 6;
 			const ExpTypeReturn = 7;
 
+			let expStrings = [];
+			expStrings[ExpTypeUnknown] = "Unknown";
+			expStrings[ExpTypeStatement] = "Statement";
+			expStrings[ExpTypeIf] = "If";
+			expStrings[ExpTypeWhile] = "While";
+			expStrings[ExpTypeForA] = "ForA";
+			expStrings[ExpTypeForB] = "ForB";
+			expStrings[ExpTypeForC] = "ForC";
+			expStrings[ExpTypeReturn] = "Return";
+
 			let currentExpression = "";
 			let expressionBlockDepth = 0;
 			let expressionParenDepth = 0;
@@ -6839,14 +6849,14 @@ class HLSL
 						break;
 
 					case ";":
-						console.log("--> " + currentExpression);
+						console.log(expStrings[expType] + " --> " + currentExpression);
 						currentExpression = "";
 
 						// Are we moving ahead in a for loop?  Or finishing up?
 						if (expType == ExpTypeForA)
-							expType == ExpTypeForB;
+							expType = ExpTypeForB;
 						else if (expType == ExpTypeForB)
-							expType == ExpTypeForC;
+							expType = ExpTypeForC;
 						else
 							expType = ExpTypeUnknown; // Finished this one
 
@@ -6864,27 +6874,32 @@ class HLSL
 							// Are we starting the expression?
 							if (it.Current().Text == "(")
 							{
+								// Skip first open paren after control flow statement
+								if (expressionParenDepth == 0)
+									skip = true;
+
 								expressionParenDepth++;
-								skip = true;
+
 							}
 							else if (it.Current().Text == ")")
 							{
 								expressionParenDepth--;
-								skip = true;
 
 								// Did we finish up?
 								if (expressionParenDepth == 0)
 								{
+									// Skip last close paren after control flow statement
+									skip = true;
+
 									expType == ExpTypeStatement;
 
-									
-									console.log("--> " + currentExpression);
+									console.log(expStrings[expType] + " --> " + currentExpression);
 									currentExpression = "";
 								}
 							}
 
 						}
-						else
+						else if (expType == ExpTypeUnknown)
 						{
 							expType = ExpTypeStatement;
 						}
