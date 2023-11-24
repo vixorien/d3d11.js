@@ -5989,7 +5989,7 @@ class HLSL
 		},
 		{
 			Type: TokenOperator, // Doubles
-			Pattern: /^((\+=)|(-=)|(\*=)|(\/=)|(%=)|(<<)|(>>)|(&=)|(\|=)|(^=)|(&&)|(\|\|)|(==)|(!=)|(<=)|(>=)|(\+\+)|(--))/
+			Pattern: /^((\+=)|(-=)|(\*=)|(\/=)|(%=)|(<<)|(>>)|(&=)|(\|=)|(\^=)|(&&)|(\|\|)|(==)|(!=)|(<=)|(>=)|(\+\+)|(--))/
 		},
 		{
 			Type: TokenOperator, // Singles
@@ -6264,6 +6264,11 @@ class HLSL
 							Line: lineNum
 						};
 						this.#tokens.push(t);
+
+						if (t.Text == "==")
+							console.log("FOUND ==");
+						else if (t.Text == "=")
+							console.log("FOUND =");
 					}
 
 					// Update string
@@ -6819,6 +6824,17 @@ class HLSL
 
 			do
 			{
+				// Current idea:
+				// - Add data to each token to denote its "expression type"?
+				//   - OverallType (statement, if, etc.)
+				//   - OpType: Start, Internal, End, StartAndEnd?
+				//   - IsTextureFunction? (To optimize search later when writing GLSL functions)
+				//
+				// - Then, when writing GLSL, we know exactly which tokens are expressions
+				//   - Whenever we hit a "Start" type, we parse the expression differently
+				//   - We're done when we hit an "End"
+
+
 				// TODO: Test expression parsing here!
 				switch (it.Current().Text)
 				{
