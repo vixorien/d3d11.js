@@ -284,6 +284,13 @@ VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 	if(x == 6)
 		x = 4;
 
+	do
+	{
+		int aaa = 10;
+	}
+	while(x < 10);
+
+
 	return float4(posIn, 1.0f);
 }
 `;
