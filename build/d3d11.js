@@ -6264,11 +6264,6 @@ class HLSL
 							Line: lineNum
 						};
 						this.#tokens.push(t);
-
-						if (t.Text == "==")
-							console.log("FOUND ==");
-						else if (t.Text == "=")
-							console.log("FOUND =");
 					}
 
 					// Update string
@@ -6907,10 +6902,10 @@ class HLSL
 									// Skip last close paren after control flow statement
 									skip = true;
 
-									expType == ExpTypeStatement;
-
 									console.log(expStrings[expType] + " --> " + currentExpression);
 									currentExpression = "";
+
+									expType = ExpTypeStatement;
 								}
 							}
 

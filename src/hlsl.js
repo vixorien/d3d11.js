@@ -1044,10 +1044,10 @@ class HLSL
 									// Skip last close paren after control flow statement
 									skip = true;
 
-									expType == ExpTypeStatement;
-
 									console.log(expStrings[expType] + " --> " + currentExpression);
 									currentExpression = "";
+
+									expType = ExpTypeStatement;
 								}
 							}
 
