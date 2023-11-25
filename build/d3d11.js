@@ -5971,7 +5971,7 @@ class HLSL
 
 	// Statement classification
 	#StatementTypeNone = 0;
-	#StatementTypeStatement = 1;
+	#StatementTypeExpression = 1;
 	#StatementTypeIf = 2;
 	#StatementTypeWhile = 3;
 	#StatementTypeForA = 4;
@@ -6284,7 +6284,9 @@ class HLSL
 						let t = {
 							Type: this.Rules[r].Type,
 							Text: matches[0],
-							Line: lineNum
+							Line: lineNum,
+							IsExpression: false,
+							StatementType: this.#StatementTypeNone
 						};
 						this.#tokens.push(t);
 					}
@@ -6897,7 +6899,7 @@ class HLSL
 						// statement or scope change), then assume we're a statement
 						if (statementType == this.#StatementTypeNone)
 						{
-							statementType = this.#StatementTypeStatement;
+							statementType = this.#StatementTypeExpression;
 
 						}
 
@@ -6935,6 +6937,12 @@ class HLSL
 				if (startPos < endPos)
 				{
 					// Need to update all
+					let range = it.GetRange(startPos, endPos);
+					for (let i = 0; i < range.length; i++)
+					{
+						range[i].IsExpression = true;
+						range[i].StatementType = this.#StatementTypeExpression;
+					}
 				}
 
 
@@ -6967,6 +6975,12 @@ class HLSL
 			{
 				// Just a helper function
 				this.#functions.push(f);
+			}
+
+			// Testing
+			for (let i = 0; i < f.BodyTokens.length; i++)
+			{
+				console.log(f.BodyTokens[i].Text + ": " + f.BodyTokens[i].IsExpression);
 			}
 
 			// Found something useful
