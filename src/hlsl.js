@@ -111,36 +111,28 @@ class HLSL
 	#functions;
 	#main;
 
-	// Expression categorization
-	#ExpTypeNone = 0;
-	#ExpTypeStatement = 1;
-	#ExpTypeIf = 2;
-	#ExpTypeWhile = 3;
-	#ExpTypeForA = 4;
-	#ExpTypeForB = 5;
-	#ExpTypeForC = 6;
-	#ExpTypeReturn = 7;
-	#ExpTypeDo = 8;
+	// Statement classification
+	#StatementTypeNone = 0;
+	#StatementTypeStatement = 1;
+	#StatementTypeIf = 2;
+	#StatementTypeWhile = 3;
+	#StatementTypeForA = 4;
+	#StatementTypeForB = 5;
+	#StatementTypeForC = 6;
+	#StatementTypeReturn = 7;
+	#StatementTypeDo = 8;
 
-	#IsControlExpression(expType)
+	#IsControlStatement(statementType)
 	{
 		// Note: MUST have character after return BEFORE new line!
 		return (
-			expType == this.#ExpTypeIf ||
-			expType == this.#ExpTypeWhile ||
-			expType == this.#ExpTypeForA ||
-			expType == this.#ExpTypeForB ||
-			expType == this.#ExpTypeForC
+			statementType == this.#StatementTypeIf ||
+			statementType == this.#StatementTypeWhile ||
+			statementType == this.#StatementTypeForA ||
+			statementType == this.#StatementTypeForB ||
+			statementType == this.#StatementTypeForC
 		);
 	}
-
-	// Position of a token within an expression
-	#ExpPosNone = 0;
-	#ExpPosStart = 1;
-	#ExpPosInner = 2;
-	#ExpPosEnd = 3;
-	#ExpPosSingular = 4;
-
 
 	// Define lexical rules
 	Rules = [
@@ -965,123 +957,79 @@ class HLSL
 			let scopeLevel = 1;
 			this.#Require(it, TokenScopeLeft);
 
-			// TESTING
-			let expStrings = [];
-			expStrings[this.#ExpTypeNone] = "None";
-			expStrings[this.#ExpTypeStatement] = "Statement";
-			expStrings[this.#ExpTypeIf] = "If";
-			expStrings[this.#ExpTypeWhile] = "While";
-			expStrings[this.#ExpTypeForA] = "ForA";
-			expStrings[this.#ExpTypeForB] = "ForB";
-			expStrings[this.#ExpTypeForC] = "ForC";
-			expStrings[this.#ExpTypeReturn] = "Return";
-			expStrings[this.#ExpTypeDo] = "Do";
-
-			let posStrings = [];
-			posStrings[this.#ExpPosNone] = "None";
-			posStrings[this.#ExpPosStart] = "Start";
-			posStrings[this.#ExpPosEnd] = "End";
-			posStrings[this.#ExpPosInner] = "Inner";
-			posStrings[this.#ExpPosSingular] = "Singular";
-
-			let currentExpression = "";
-			let expressionBlockDepth = 0;
-			let expressionParenDepth = 0;
-			let expType = this.#ExpTypeNone;
-			let expPos = this.#ExpPosNone;
+			// Statement classification
+			let statementBlockDepth = 0;
+			let statementParenDepth = 0;
+			let statementType = this.#StatementTypeNone;
 
 			do
 			{
-				// Current idea:
-				// - Add data to each token to denote its "expression type"?
-				//   - OverallType (statement, if, etc.)
-				//   - OpType: Start, Internal, End, StartAndEnd?
-				//   - IsTextureFunction? (To optimize search later when writing GLSL functions)
-				//
-				// - Then, when writing GLSL, we know exactly which tokens are expressions
-				//   - Whenever we hit a "Start" type, we parse the expression differently
-				//   - We're done when we hit an "End"
-
-
-				// TODO: Test expression parsing here!
-
-				// First, determine if we're part of a control statement
-				let isControl = this.#IsControlExpression(expType);
+				// Tracking data for this token
+				let isControl = this.#IsControlStatement(statementType);
 				let isEndOfControl = false;
-				let isEndOfExp = false;
-				let prevIsEndPosition = false;
-
-				let isExpressionPiece = false;
+				let isExpression = false;
 
 				switch (it.Current().Text)
 				{
 					case "{":
-						expType = this.#ExpTypeNone;
-						expPos = this.#ExpPosNone;
-						expressionBlockDepth++;
+						statementType = this.#StatementTypeNone;
+						statementBlockDepth++;
 						break;
 
 					case "}":
-						expType = this.#ExpTypeNone;
-						expPos = this.#ExpPosNone;
-						expressionBlockDepth--;
+						statementType = this.#StatementTypeNone;
+						statementBlockDepth--;
 						break;
 
 					case "if":
-						expType = this.#ExpTypeIf;
-						expPos = this.#ExpPosNone;
+						statementType = this.#StatementTypeIf;
 						break;
 
 					case "do":
-						expType = this.#ExpTypeDo;
-						expPos = this.#ExpPosNone;
+						statementType = this.#StatementTypeDo;
 						break;
 
 					case "while":
-						expType = this.#ExpTypeWhile;
-						expPos = this.#ExpPosNone;
+						statementType = this.#StatementTypeWhile;
 						break;
 
 					case "for":
-						expType = this.#ExpTypeForA;
-						expPos = this.#ExpPosNone;
+						statementType = this.#StatementTypeForA;
 						break;
 
 					case "return":
-						expType = this.#ExpTypeReturn;
-						expPos = this.#ExpPosNone;
+						statementType = this.#StatementTypeReturn;
 						break;
 
 					case ";":
-						isEndOfExp = true;
-						prevIsEndPosition = true;
-						expPos = this.#ExpPosNone;
 						break;
 
 					case "(":
 						// Are we starting a control expression?
-						if (isControl && expressionParenDepth == 0)
+						if (!isControl || (isControl && statementParenDepth > 0))
 						{
-							
+							isExpression = true;
 						}
 
 						// Depth increment either way
-						expressionParenDepth++;
+						statementParenDepth++;
 
 						break;
 
 					case ")":
 						// Depth decrement either way
-						expressionParenDepth--;
+						statementParenDepth--;
 
 						// Ending a control statement
-						if (isControl && expressionParenDepth == 0)
+						if (isControl && statementParenDepth == 0)
 						{
 							// We're done with this expression and this control statement
-							isEndOfExp = true;
 							isEndOfControl = true;
-							prevIsEndPosition = true;
-							expPos = this.#ExpPosNone;
+						}
+						else if (!isControl || (isControl && statementParenDepth > 0))
+						{
+							// Not a control statement, or it is but we're within the expression
+							isExpression = true;
 						}
 
 						break;
@@ -1089,104 +1037,48 @@ class HLSL
 					default:
 						// If we're current set as none (presumably by a previously ended control
 						// statement or scope change), then assume we're a statement
-						if (expType == this.#ExpTypeNone)
+						if (statementType == this.#StatementTypeNone)
 						{
-							expType = this.#ExpTypeStatement;
+							statementType = this.#StatementTypeStatement;
 
 						}
 
-						// If we're a statement, assume we're inner for now
-						expPos = this.#ExpPosInner;
-
-						
+						// Everything else is an expression
+						isExpression = true;
 						break;
 				}
 
-
-				// Afterwards, record the expression type
-				it.Current().ExpressionType = expType;
-				let outputTest = (expStrings[expType] + " >>> " + it.Current().Text);
+				// Afterwards, record the statement type
+				it.Current().StatementType = statementType;
 
 				// If we've ended a control statement, reset type AFTER recording
 				if (isEndOfControl)
 				{
-					expType = this.#ExpTypeNone;
+					statementType = this.#StatementTypeNone;
 				}
 				else if (it.Current().Type == TokenSemicolon)
 				{
 					// If we're a semicolon in a for loop, move ahead AFTER classification
-					if (expType == this.#ExpTypeForA ||
-						expType == this.#ExpTypeForB)
-						expType++; // Move to the next "for" type
+					if (statementType == this.#StatementTypeForA ||
+						statementType == this.#StatementTypeForB)
+						statementType++; // Move to the next "for" type
 				}
 
-				//// Grab previous token for positioning
-				//let prevToken = it.PeekPrev();
-
-				//// Determine if WE'RE a starting point
-				//if ((prevToken.Type == TokenParenLeft && isControl && prevToken.ExpressionPosition == this.#ExpPosNone) ||
-				//	prevToken.Type == TokenSemicolon ||
-				//	prevToken.Type == TokenScopeLeft ||
-				//	prevToken.Text == "return")
-				//{
-				//	// We've just entered a control expression
-				//	expPos = this.#ExpPosStart;
-				//	currentExpression = "START: " + it.Current().Text; // TESTING
-				//}
-
-				//// Record expression position, too
-				//it.Current().ExpressionPosition = expPos;
-
-				//// TESTING
-				//if (expPos == this.#ExpPosInner)
-				//	currentExpression += " " + it.Current().Text;
-
-				//// Look at the next token to decide how we handle end positions
-				//if (it.More())
-				//{
-				//	if (it.PeekNext().Type == TokenSemicolon ||
-				//		(isControl && it.PeekNext().Type == TokenParenRight && expressionParenDepth == 1))
-				//	{
-				//		// We should really be an end!  Which kind?
-				//		if (expPos == this.#ExpPosStart)
-				//			it.Current().ExpressionPosition = this.#ExpPosSingular;
-				//		else
-				//			it.Current().ExpressionPosition = this.#ExpPosEnd;
-
-				//		console.log("EXPRESSION: " + currentExpression);
-				//		currentExpression = "";
-				//	}
-				//}
-
-
-				// OLD?
-				// Look at the previous token to decide how we handle end positions
-				//if (prevIsEndPosition)
-				//{
-				//	// If this is the end of an expression and the previous is not a semicolon,
-				//	// then we should denote the previous token as an end (or "singular")
-
-				//	// If it was a start token then it becomes singular (a one element expression)
-				//	if (prevToken.ExpressionPosition == this.#ExpPosStart)
-				//		prevToken.ExpressionPosition = this.#ExpPosSingular;
-				//	else
-				//		prevToken.ExpressionPosition = this.#ExpPosEnd;
-
-				//	//console.log("   ^ ACTUALLY END or singular");
-
-				//	// TESTING
-				//	console.log("EXPRESSION: " + currentExpression);
-				//	currentExpression = "";
-				//}
-
-				console.log(outputTest);
-				//console.log("   ^ " + posStrings[it.Current().ExpressionPosition]);
-			
-
+				// Record the expression status
+				it.Current().IsExpression = isExpression;
 
 				// Check for texture object function call, which occurs
 				// when a texture identifier is followed immediately by a period
+				let startPos = it.Position();
 				this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
+				let endPos = it.Position();
+
+				// Did we find a texture
+				if (startPos < endPos)
+				{
+					// Need to update all
+				}
+
 
 				// Check for scope change and skip everything else
 				if (this.#Allow(it, TokenScopeLeft))
