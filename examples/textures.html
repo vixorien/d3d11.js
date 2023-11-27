@@ -197,6 +197,10 @@
 
 										<button type="button" class="btn btn-primary mt-2" onclick="loadHDR()">Load</button>
 
+										<label for="hdrExposure" class="form-label">Exposure Adjust: 0</label>
+										<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="hdrExposure" oninput="setHDRExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust: ' + this.value;" />
+
+
 									</div>
 								</div>
 							</div>
@@ -271,7 +275,7 @@
 		let globalFullscreenVS = null;
 
 		let globalTonemapType = 0;
-		let globalExposure = 0;
+		let globalTonemapExposure = 0;
 
 		window.setTonemapType = function(val)
 		{
@@ -280,12 +284,18 @@
 
 		window.setExposure = function (val)
 		{
-			globalExposure = val;
+			globalTonemapExposure = val;
 		}
 
 		window.setSkyMipPreview = function (val)
 		{
 			globalSkyMipLevelPreview = val;
+		}
+
+		window.setHDRExposure = function (val)
+		{
+			// Adjust exposure and re-create all PBR assets
+
 		}
 
 		window.loadSixFaces = async function ()
@@ -1825,7 +1835,7 @@
 					context.PSSetConstantBuffers(0, [ppCB]);
 					ppData.set([
 						globalTonemapType, // Tonemap type
-						globalExposure // Exposure
+						globalTonemapExposure // Exposure
 					], 0);
 					context.UpdateSubresource(ppCB, 0, null, ppData, 0, 0);
 					context.Draw(3, 0);
