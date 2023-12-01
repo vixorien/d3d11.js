@@ -1118,6 +1118,10 @@ class HLSL
 				this.#functions.push(f);
 			}
 
+			// Now that we're done, go back and build all expression trees
+			// for the expressions within this function
+			this.#BuildAllExpressionTrees(f.BodyTokens);
+
 			// Found something useful
 			return true;
 		}
@@ -1158,6 +1162,64 @@ class HLSL
 	//   - If: if(EXPRESSION)
 	//   - While: while(EXPRESSION), do { } while(EXPRESSION)
 	//   - return statement: return EXPRESSION;
+
+	#BuildAllExpressionTrees(tokens)
+	{
+		// Loop through all the given tokens and build expression trees
+		let expStart = -1;
+		for (let i = 0; i < tokens.length; i++)
+		{
+			// If we're not in an expression and one begins, save the start position
+			if (expStart == -1 && tokens[i].IsExpression)
+				expStart = i;
+
+			// If we have an expression but this token is NOT one, we found the end
+			if (expStart >= 0 && !tokens[i].IsExpression)
+			{
+				this.#BuildExpressionTree(tokens, expStart, i - 1);
+				expStart = -1; // Reset expression
+			}
+		}
+
+	}
+
+	#BuildExpressionTree(tokens, start, end)
+	{
+		// TOOD: Set up operator priority (should match C)
+		// 1: postfix: ++ --, function call: ( ), array: [ ], member access: .
+		// 2: prefix: ++ --, unary: + -, not: ! ~, cast: (type)
+		//    - Note: Right-to-left associativity
+		// 3: * / %
+		// 4: + - (regular add/subtract)
+		// 5: << >>
+		// 6: < <= > >=
+		// 7: == !=
+		// 8: &
+		// 9: ^
+		// 10: |
+		// 11: &&
+		// 12: ||
+		// 13: ?: (ternary)
+		//    - Note: Right-to-left associativity
+		// 14: Assignments:
+		//      =
+		//      += -=
+		//      *= /= %=
+		//      <<= >>=
+		//      &= ^= |=
+		//    - Note: Right-to-left associativity
+		// 15: Comma (between function params)
+
+
+		// Stacks for shunting
+		let opStack = [];
+		let varStack = [];
+
+		for (let i = start; i <= end; i++)
+		{
+
+		}
+	}
 
 	// Levels:
 	// - ParseBlock()
