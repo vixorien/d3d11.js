@@ -1201,7 +1201,7 @@ class HLSL
 		// 12: ||
 		// 13: ?: (ternary)
 		//    - Note: Right-to-left associativity
-		// 14: Assignments:
+		// 14: Assignments (are these all the same?)
 		//      =
 		//      += -=
 		//      *= /= %=
@@ -1209,6 +1209,7 @@ class HLSL
 		//      &= ^= |=
 		//    - Note: Right-to-left associativity
 		// 15: Comma (between function params)
+
 
 
 		// Stacks for shunting
