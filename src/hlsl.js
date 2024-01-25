@@ -1100,17 +1100,27 @@ class HLSL
 							statementType = this.#StatementTypeExpression;
 						}
 
-						// TODO: Determine if we're a variable identifier and add to the current scope stack
-						// Possible syntax to look for:
-						// int x;
-						// int x, y;
-						// int x = 1;
-						// int x = 1, y;
-						// int x = 1, y = 2;
-						// int x, y = 1;
-						// Etc.
-						// Also: int x = 1, y = x; // Should work!
+						// Is this the start of a variable delcaration?
+						// - Must be a data type
+						// - Cannot be followed by end parens, as that is for casting: (type)
+						if (this.#IsDataType(it.Current().Text) && it.PeekNext().Type != TokenParenRight)
+						{
+							// TODO:
+							// - Track that this is a variable declaration expression ?
+							// - Track the data type
+							// - Add any variables (and their types) to the current scope stack
 
+							// Possible syntax to look for:
+							// int x;
+							// int x, y;
+							// int x = 1;
+							// int x = 1, y;
+							// int x = 1, y = 2;
+							// int x, y = 1;
+							// Etc.
+							// Also: int x = 1, y = x; // Should work!
+						}
+						
 						// Everything else is an expression
 						isExpression = true;
 						break;

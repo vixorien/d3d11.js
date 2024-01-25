@@ -6817,6 +6817,23 @@ class HLSL
 			let scopeLevel = 1;
 			this.#Require(it, TokenScopeLeft);
 
+			// Grab the basic data of the parameters
+			let params = [];
+			for (let i = 0; i < f.Parameters.length; i++)
+			{
+				params.push({
+					Name: f.Parameters[i].Name,
+					DataType: f.Parameters[i].DataType
+				});
+			}
+
+			// Add to the stack of variables in the current scope
+			let scopeStack = [];
+			scopeStack.push({
+				Type: "function",
+				Vars: params
+			});
+
 			// Statement classification
 			let statementBlockDepth = 0;
 			let statementParenDepth = 0;
@@ -6834,27 +6851,58 @@ class HLSL
 					case "{":
 						statementType = this.#StatementTypeNone;
 						statementBlockDepth++;
+
+						// Also push a new scope stack for variables
+						scopeStack.push({
+							Type: "{",
+							Vars: []
+						});
 						break;
 
 					case "}":
 						statementType = this.#StatementTypeNone;
 						statementBlockDepth--;
+
+						// Verify that we're within the right scope
+						if (scopeStack[scopeStack.length - 1].Type == "{")
+						{
+							// Yup, so end this scope
+							scopeStack.pop();
+
+							// Also end any relevant (non-do) control scope
+							// to handle nested control statements with mixed {}'s
+							let t = scopeStack[scopeStack.length - 1].Type;
+							while (t == "if" || t == "while"  || t == "for")
+							{
+								scopeStack.pop();
+								t = scopeStack[scopeStack.length - 1].Type;
+							}
+						}
+						else
+						{
+							// TODO: Error due to imbalanced scope?
+						}
 						break;
 
 					case "if":
 						statementType = this.#StatementTypeIf;
+						scopeStack.push({ Type: "if", Vars: [] });
 						break;
 
 					case "do":
 						statementType = this.#StatementTypeDo;
+						scopeStack.push({ Type: "do", Vars: [] });
 						break;
 
 					case "while":
 						statementType = this.#StatementTypeWhile;
+						scopeStack.push({ Type: "while", Vars: [] });
+						// TODO: Handle do/while vs. while differently?  Needs some testing
 						break;
 
 					case "for":
 						statementType = this.#StatementTypeForA;
+						scopeStack.push({ Type: "for", Vars: [] });
 						break;
 
 					case "return":
@@ -6862,6 +6910,14 @@ class HLSL
 						break;
 
 					case ";":
+						// Potentially pop any control scope we run into
+						// to handled nested control blocks without {}'s
+						let t = scopeStack[scopeStack.length - 1].Type;
+						while (t == "if" || t == "do" || t == "while" || t == "for")
+						{
+							scopeStack.pop();
+							t = scopeStack[scopeStack.length - 1].Type;
+						}
 						break;
 
 					case "(":
@@ -6900,9 +6956,29 @@ class HLSL
 						if (statementType == this.#StatementTypeNone)
 						{
 							statementType = this.#StatementTypeExpression;
-
 						}
 
+						// Is this the start of a variable delcaration?
+						// - Must be a data type
+						// - Cannot be followed by end parens, as that is for casting: (type)
+						if (this.#IsDataType(it.Current().Text) && it.PeekNext().Type != TokenParenRight)
+						{
+							// TODO:
+							// - Track that this is a variable declaration expression ?
+							// - Track the data type
+							// - Add any variables (and their types) to the current scope stack
+
+							// Possible syntax to look for:
+							// int x;
+							// int x, y;
+							// int x = 1;
+							// int x = 1, y;
+							// int x = 1, y = 2;
+							// int x, y = 1;
+							// Etc.
+							// Also: int x = 1, y = x; // Should work!
+						}
+						
 						// Everything else is an expression
 						isExpression = true;
 						break;
@@ -7059,7 +7135,7 @@ class HLSL
 		// 12: ||
 		// 13: ?: (ternary)
 		//    - Note: Right-to-left associativity
-		// 14: Assignments:
+		// 14: Assignments (are these all the same?)
 		//      =
 		//      += -=
 		//      *= /= %=
@@ -7067,6 +7143,7 @@ class HLSL
 		//      &= ^= |=
 		//    - Note: Right-to-left associativity
 		// 15: Comma (between function params)
+
 
 
 		// Stacks for shunting
