@@ -121,6 +121,7 @@ class HLSL
 	#StatementTypeForC = 6;
 	#StatementTypeReturn = 7;
 	#StatementTypeDo = 8;
+	#StatementTypeVarDec = 9;
 
 	#IsControlStatement(statementType)
 	{
@@ -901,7 +902,51 @@ class HLSL
 		return s;
 	}
 
+	#DoesIdentifierExistInScope(ident, scopeStack)
+	{
+		// Go through stack
+		for (let i = 0; i < scopeStack.length; i++)
+		{
+			// Check this scope's variables
+			let currScope = scopeStack[i];
+			for (let v = 0; v < currScope.Vars.length; v++)
+			{
+				// Found it?
+				if (ident == currScope.Vars[v].Name)
+					return true;
+			}
+		}
 
+		// Nothing!
+		return false;
+	}
+
+	#ProcessVarDecIdentifier(token, varDecType, scopeStack)
+	{
+		// Is it really an identifier?
+		if (token.Type != TokenIdentifier)
+		{
+			// ERROR!
+			// TODO: Throw
+			console.log("ERROR - Expected identifier for variable declaration.  Found: " + token.Text);
+			return false;
+		}
+
+		if (this.#DoesIdentifierExistInScope(token.Text, scopeStack))
+		{
+			// ERROR!
+			// TODO: Throw
+			console.log("ERROR - Identifier redeclaration: " + token.Text);
+			return false;
+		}
+
+		// Identifier is valid, add to scope stack
+		scopeStack[scopeStack.length - 1].Vars.push({
+			Name: token.Text,
+			DataType: varDecType
+		});
+		return true;
+	}
 
 	// TODO: Skip const globals in the global CB - will now handle in main parse loop
 	// TODO: Handle casting differences between hlsl and glsl
@@ -980,6 +1025,7 @@ class HLSL
 			let statementBlockDepth = 0;
 			let statementParenDepth = 0;
 			let statementType = this.#StatementTypeNone;
+			let currentVarDecType = null;
 
 			do
 			{
@@ -1060,6 +1106,23 @@ class HLSL
 							scopeStack.pop();
 							t = scopeStack[scopeStack.length - 1].Type;
 						}
+
+						// No more var type regardless of anything else
+						// TODO: Verify this
+						currentVarDecType = null;
+						break;
+
+					case ",":
+						// If we're not in a function call, this should be between var declarations with a single type
+						if (statementParenDepth == 0 && statementType == this.#StatementTypeVarDec)
+						{
+							// Validate the actual identifier associated with this variable decl
+							if (!this.#ProcessVarDecIdentifier(it.PeekNext(), currentVarDecType, scopeStack))
+							{
+								// ERROR!
+							}
+						}
+
 						break;
 
 					case "(":
@@ -1102,13 +1165,20 @@ class HLSL
 
 						// Is this the start of a variable delcaration?
 						// - Must be a data type
+						// - Cannot be followed by start parens, which is for init: float4(1,2,3,4)
 						// - Cannot be followed by end parens, as that is for casting: (type)
-						if (this.#IsDataType(it.Current().Text) && it.PeekNext().Type != TokenParenRight)
+						if (this.#IsDataType(it.Current().Text) && it.PeekNext().Type != TokenParenLeft && it.PeekNext().Type != TokenParenRight)
 						{
-							// TODO:
-							// - Track that this is a variable declaration expression ?
-							// - Track the data type
-							// - Add any variables (and their types) to the current scope stack
+							// This IS an expression, it's a var dec and this is its type
+							isExpression = true;
+							statementType = this.#StatementTypeVarDec;
+							currentVarDecType = it.Current().Text;
+
+							// Validate the actual identifier associated with this variable decl
+							if (!this.#ProcessVarDecIdentifier(it.PeekNext(), currentVarDecType, scopeStack))
+							{
+								// ERROR!
+							}
 
 							// Possible syntax to look for:
 							// int x;
@@ -1117,10 +1187,14 @@ class HLSL
 							// int x = 1, y;
 							// int x = 1, y = 2;
 							// int x, y = 1;
+							// int x = func();
+							// int x = func(), y = func();
 							// Etc.
 							// Also: int x = 1, y = x; // Should work!
+
+							//console.log("DATA TYPE: " + it.Current().Text);
 						}
-						
+
 						// Everything else is an expression
 						isExpression = true;
 						break;
