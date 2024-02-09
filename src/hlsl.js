@@ -1361,13 +1361,34 @@ class HLSL
 		// 15: Comma (between function params)
 
 
+		// https://leetcode.ca/2020-04-14-1597-Build-Binary-Expression-Tree-From-Infix-Expression/
 
 		// Stacks for shunting
-		let opStack = [];
-		let varStack = [];
+		let symbolStack = [];
+		let nodeStack = [];
 
 		for (let i = start; i <= end; i++)
 		{
+			// Grab the current token
+			let t = tokens[i];
+
+			// Check type
+			if (t.Type == TokenParenLeft)
+			{
+				symbolStack.push(t);
+			}
+			else if (t.Type == TokenNumericLiteral || t.Type == TokenIdentifier)
+			{
+				
+			}
+			else if (t.Type == TokenParenRight)
+			{
+
+			}
+			else if (t.Type == TokenOperator)
+			{
+
+			}
 
 		}
 	}
