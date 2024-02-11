@@ -610,6 +610,18 @@ class HLSL
 		throw new Error("Error parsing HLSL on line " + it.Current().Line);
 	}
 
+	#RequireDataType(it)
+	{
+		let t = it.Current();
+		if (this.#IsDataType(t.Text))
+		{
+			it.MoveNext();
+			return true;
+		}
+
+		throw new Error("Error parsing HLSL on line " + it.Current().Line);
+	}
+
 	#IsStruct(type)
 	{
 		// Check each struct's name
@@ -1661,25 +1673,83 @@ class HLSL
 
 	#ParseMulDivMod(it)
 	{
+		// Grab starting expression
+		let exp = this.#ParseUnaryOrCast(it);
 
+		// Keep going while we have shift ops
+		while (this.#AllowOperator(it, "*", "/", "%"))
+		{
+			exp = new ExpBinary(
+				exp,
+				it.PeekPrev(),
+				this.#ParseUnaryOrCast(it));
+		}
+
+		return exp;
 	}
 
-	// TODO: Handle postfix, prefix, etc.
-
-	#ParseUnary(it)
+	#ParseUnaryOrCast(it)
 	{
 		// Check for possible unary operators
-		if (this.#AllowOperator(it, "+", "-", "!", "~"))
+		if (this.#AllowOperator(it, "+", "-", "!", "~", "++", "--"))
 		{
 			return new ExpUnary(
 				it.PeekPrev(), // Token we just allowed
-				this.#ParseUnary(it)); // Next parse, which could be another unary or, operand, or grouping
+				this.#ParseUnaryOrCast(it)); // Next parse, which could be another unary or operand or grouping
+		}
+
+		// Check for cast
+		if (this.#Allow(it, TokenParenLeft))
+		{
+			// Next must be a data type
+			this.#RequireDataType(it);
+			let typeToken = it.PeekPrev();
+
+			// Followed by a right paren
+			this.#Require(it, TokenParenRight);
+
+			// Successfully found a cast
+			return new ExpCast(
+				typeToken,
+				this.#ParseUnaryOrCast(it));
 		}
 
 		// Not a unary, so check operand or grouping
 		return this.#ParseOperandOrGrouping(it);
 	}
 
+	#ParsePostfixCallArrayOrMember(it)
+	{
+		// Grab an operand first
+		let exp = this.#ParseOperandOrGrouping(it);
+
+		// Handle multiple postfix type symbols
+		while (true)
+		{
+			if (this.#AllowOperator(it, "++", "--")) // Postfix operators
+			{
+
+			}
+			if (this.#Allow(it, TokenParenLeft)) // Left paren --> function call
+			{
+
+			}
+			else if (this.#Allow(it, TokenBracketLeft)) // Left bracket --> array access
+			{
+
+			}
+			else if (this.#Allow(it, TokenPeriod)) // Period --> member access
+			{
+
+			}
+			else // Nothing useful left
+			{
+				break;
+			}
+		}
+
+		return exp;
+	}
 
 	#ParseOperandOrGrouping(it)
 	{
@@ -3021,6 +3091,18 @@ class ExpBitwise extends Expression
 	}
 }
 
+class ExpCast extends Expression
+{
+	TypeToken;
+	Exp;
+
+	constructor(typeToken, exp)
+	{
+		this.TypeToken = typeToken;
+		this.Exp = exp;
+	}
+}
+
 class ExpLiteral extends Expression
 {
 	LiteralToken;
@@ -3052,6 +3134,18 @@ class ExpGroup extends Expression
 	constructor(exp)
 	{
 		this.Exp = exp;
+	}
+}
+
+class ExpPostfix extends Expression
+{
+	ExpLeft;
+	OperatorToken;
+
+	constructor(expLeft, opToken)
+	{
+		this.ExpLeft = expLeft;
+		this.OperatorToken = opToken;
 	}
 }
 
