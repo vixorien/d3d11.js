@@ -6405,66 +6405,41 @@ class HLSL
 		this.#ResolveImplicitRegisters(this.#textures, 999);
 	}
 
-	#Allow(it, tokenType)
-	{
-		if (it.Current().Type == tokenType)
-		{
-			it.MoveNext();
-			return true;
-		}
-
-		return false;
-	}
-
-	#AllowAny(it, ...types)
+	#Allow(it, ...tokenTypes)
 	{
 		// Check each type
-		for (const t of types)
-			if (this.#Allow(it, t))
+		for(const t of tokenTypes)
+			if (it.Current().Type == t)
+			{
+				it.MoveNext();
 				return true;
-
-		// None found
-		return false;
-	}
-
-	#AllowIdentifier(it, ident)
-	{
-		if (it.Current().Type == TokenIdentifier &&
-			it.Current().Text == ident)
-		{
-			it.MoveNext();
-			return true;
-		}
+			}
 
 		return false;
 	}
 
-	#AllowAnyIdentifier(it, ...idents)
+	#AllowIdentifier(it, ...idents)
 	{
 		for (const i of idents)
-			if (this.#AllowIdentifier(it, i))
+			if (it.Current().Type == TokenIdentifier &&
+				it.Current().Text == i)
+			{
+				it.MoveNext();
 				return true;
+			}
 
 		return false;
 	}
 
-	#AllowOperator(it, operator)
+	#AllowOperator(it, ...operators)
 	{
-		if (it.Current().Type == TokenOperator &&
-			it.Current().Text == operator)
-		{
-			it.MoveNext();
-			return true;
-		}
-
-		return false;
-	}
-
-	#AllowAnyOperator(it, ...ops)
-	{
-		for (const o of ops)
-			if (this.#AllowOperator(it, o))
+		for (const o of operators)
+			if (it.Current().Type == TokenOperator &&
+				it.Current().Text == o)
+			{
+				it.MoveNext();
 				return true;
+			}
 
 		return false;
 	}
@@ -7339,7 +7314,7 @@ class HLSL
 		let exp = this.#ParseTernary(it);
 
 		// Now look for assignment
-		if (this.#AllowAnyOperator(it, "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="))
+		if (this.#AllowOperator(it, "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="))
 		{
 			// Was the expression above a variable?
 			if (!(exp instanceof ExpVariable))
@@ -7363,13 +7338,13 @@ class HLSL
 		let exp = this.#ParseLogicalOr(it);
 
 		// Check for "?" operator
-		if (this.#AllowOperator("?"))
+		if (this.#AllowOperator(it, "?"))
 		{
 			// The next piece should be the "if" expression
 			let expIf = this.#ParseTernary(it);
 
 			// Now we must have a ":"
-			if (this.#RequireOperator(":"))
+			if (this.#RequireOperator(it, ":"))
 			{
 				// Last is the "else" expression
 				let expElse = this.#ParseTernary(it);
@@ -7395,7 +7370,7 @@ class HLSL
 		let exp = this.#ParseLogicalAnd(it);
 
 		// Keep going while we have ORs
-		while (this.#AllowOperator("||"))
+		while (this.#AllowOperator(it, "||"))
 		{
 			exp = new ExpLogical(
 				exp,
@@ -7412,7 +7387,7 @@ class HLSL
 		let exp = this.#ParseBitwiseOr(it);
 
 		// Keep going while we have ANDs
-		while (this.#AllowOperator("&&"))
+		while (this.#AllowOperator(it, "&&"))
 		{
 			exp = new ExpLogical(
 				exp,
@@ -7425,37 +7400,121 @@ class HLSL
 
 	#ParseBitwiseOr(it)
 	{
+		// Grab starting expression
+		let exp = this.#ParseBitwiseXor(it);
 
+		// Keep going while we have ORs
+		while (this.#AllowOperator(it, "|"))
+		{
+			exp = new ExpBitwise(
+				exp,
+				it.PeekPrev(),
+				this.#ParseBitwiseXor(it));
+		}
+
+		return exp;
 	}
 
 	#ParseBitwiseXor(it)
 	{
+		// Grab starting expression
+		let exp = this.#ParseBitwiseAnd(it);
 
+		// Keep going while we have XORs
+		while (this.#AllowOperator(it, "^"))
+		{
+			exp = new ExpBitwise(
+				exp,
+				it.PeekPrev(),
+				this.#ParseBitwiseAnd(it));
+		}
+
+		return exp;
 	}
 
 	#ParseBitwiseAnd(it)
 	{
+		// Grab starting expression
+		let exp = this.#ParseEquality(it);
 
+		// Keep going while we have ANDs
+		while (this.#AllowOperator(it, "&"))
+		{
+			exp = new ExpBitwise(
+				exp,
+				it.PeekPrev(),
+				this.#ParseEquality(it));
+		}
+
+		return exp;
 	}
 
 	#ParseEquality(it)
 	{
+		// Grab starting expression
+		let exp = this.#ParseComparison(it);
 
+		// Keep going while we have comparisons
+		while (this.#AllowOperator(it, "==", "!="))
+		{
+			exp = new ExpBinary(
+				exp,
+				it.PeekPrev(),
+				this.#ParseComparison(it));
+		}
+
+		return exp;
 	}
 
 	#ParseComparison(it)
 	{
+		// Grab starting expression
+		let exp = this.#ParseShift(it);
 
+		// Keep going while we have comparisons
+		while (this.#AllowOperator(it, "<", "<=", ">", ">="))
+		{
+			exp = new ExpBinary(
+				exp,
+				it.PeekPrev(),
+				this.#ParseShift(it));
+		}
+
+		return exp;
 	}
 
 	#ParseShift(it)
 	{
+		// Grab starting expression
+		let exp = this.#ParseAddSubtract(it);
 
+		// Keep going while we have shift ops
+		while (this.#AllowOperator(it, "<<", ">>"))
+		{
+			exp = new ExpBinary(
+				exp,
+				it.PeekPrev(),
+				this.#ParseAddSubtract(it));
+		}
+
+		return exp;
 	}
 
 	#ParseAddSubtract(it)
 	{
+		// Grab starting expression
+		let exp = this.#ParseMulDivMod(it);
 
+		// Keep going while we have shift ops
+		while (this.#AllowOperator(it, "+", "-"))
+		{
+			exp = new ExpBinary(
+				exp,
+				it.PeekPrev(),
+				this.#ParseMulDivMod(it));
+		}
+
+		return exp;
 	}
 
 	#ParseMulDivMod(it)
@@ -7468,7 +7527,7 @@ class HLSL
 	#ParseUnary(it)
 	{
 		// Check for possible unary operators
-		if (this.#AllowAnyOperator(it, "+", "-", "!", "~"))
+		if (this.#AllowOperator(it, "+", "-", "!", "~"))
 		{
 			return new ExpUnary(
 				it.PeekPrev(), // Token we just allowed
@@ -7485,7 +7544,7 @@ class HLSL
 		let t = it.Current();
 
 		// Check for true, false or numbers
-		if (this.#AllowAnyIdentifier(it, "true", "false") ||
+		if (this.#AllowIdentifier(it, "true", "false") ||
 			this.#Allow(it, TokenNumericLiteral))
 		{
 			return new ExpLiteral(it.PeekPrev());
@@ -8789,6 +8848,20 @@ class ExpAssignment extends Expression
 	{
 		this.VarToken = varToken;
 		this.Exp = exp;
+	}
+}
+
+class ExpBinary extends Expression
+{
+	ExpLeft;
+	OperatorToken;
+	ExpRight;
+
+	constructor(expLeft, opToken, expRight)
+	{
+		this.ExpLeft = expLeft;
+		this.OperatorToken = opToken;
+		this.ExpRight = expRight;
 	}
 }
 
