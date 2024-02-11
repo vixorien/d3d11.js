@@ -558,6 +558,17 @@ class HLSL
 		return false;
 	}
 
+	#AllowAny(it, ...types)
+	{
+		// Check each type
+		for (const t of types)
+			if (this.#Allow(it, t))
+				return true;
+
+		// None found
+		return false;
+	}
+
 	#AllowIdentifier(it, ident)
 	{
 		if (it.Current().Type == TokenIdentifier &&
@@ -570,9 +581,47 @@ class HLSL
 		return false;
 	}
 
+	#AllowAnyIdentifier(it, ...idents)
+	{
+		for (const i of idents)
+			if (this.#AllowIdentifier(it, i))
+				return true;
+
+		return false;
+	}
+
+	#AllowOperator(it, operator)
+	{
+		if (it.Current().Type == TokenOperator &&
+			it.Current().Text == operator)
+		{
+			it.MoveNext();
+			return true;
+		}
+
+		return false;
+	}
+
+	#AllowAnyOperator(it, ...ops)
+	{
+		for (const o of ops)
+			if (this.#AllowOperator(it, o))
+				return true;
+
+		return false;
+	}
+
 	#Require(it, tokenType)
 	{
 		if (this.#Allow(it, tokenType))
+			return true;
+
+		throw new Error("Error parsing HLSL on line " + it.Current().Line);
+	}
+
+	#RequireOperator(it, op)
+	{
+		if (this.#AllowOperator(it, op))
 			return true;
 
 		throw new Error("Error parsing HLSL on line " + it.Current().Line);
@@ -1294,6 +1343,8 @@ class HLSL
 		return false;
 	}
 
+
+
 	// EXPRESSION PARSING IDEAS
 	// - Resources:
 	//   - https://craftinginterpreters.com/parsing-expressions.html
@@ -1312,6 +1363,311 @@ class HLSL
 	//   - If: if(EXPRESSION)
 	//   - While: while(EXPRESSION), do { } while(EXPRESSION)
 	//   - return statement: return EXPRESSION;
+
+	// Expression object details
+	// {
+	//   Type --> One of:
+	//     - Assignment
+	//     - Binary
+	//     - FunctionCall
+	//     - Grouping
+	//     - Literal
+	//     - Logical
+	//     - Unary
+	//     - Variable
+	//
+	//   Data --> Depends on Type:
+	//     - Assignment
+	//       - Var: Token of variable being assigned
+	//       - Exp: Expression on right side of assignment
+	//     - Binary
+	//       - Left: Expression
+	//       - Operator: The token itself
+	//       - Right: Expression
+	//     - FunctionCall
+	//       - Func: Expression
+	//       - Args: Array of expressions
+	//     - Grouping
+	//       - Exp: Expression inside grouping
+	//     - Literal
+	//       - Token: The token itself
+	//     - Logical
+	//       - Left: Expression
+	//       - Operator: The token itself
+	//       - Right: Expression
+	//     - Unary
+	//       - Operator: The token itself
+	//       - Right: Expression
+	//     - Variable
+	//       - Var: Token of variable being assigned
+	// }
+	//
+	// Statement object details
+	// {
+	//   Type --> One of:
+	//     - Block
+	//     - DoWhile
+	//     - Expression
+	//     - For
+	//     - If
+	//     - Return
+	//     - VariableDeclaration
+	//     - While
+	//
+	//   Data --> Depends on Type:
+	//     - Block
+	//       - Statements: Array of statements
+	//     - DoWhile
+	//       - Body: Statement
+	//       - Condition: Expression
+	//     - Expression
+	//       - Exp: Expression
+	//     - For
+	//       - Init: Expression (or array?)
+	//       - Condition: Expression
+	//       - Iterator: Expression (or array?)
+	//       - Body: Statement
+	//     - If
+	//       - Condition: Expression
+	//       - If: Statement
+	//       - Else: Statement
+	//     - Return
+	//       - Return: Token of return keyword
+	//       - Exp: Expression for return
+	//     - VariableDeclaration
+	//       - DataType: Token
+	//       - Var: Token
+	//       - Exp: Expression on right side of assignment (if any)
+	//     - While
+	//       - Condition: Expression
+	//       - Body: Statement
+	// }
+
+
+	// Expression precedence (reverse order)
+	//  15: Comma (between function params)
+	//  14: Assignments (are these all the same?)
+	//       =
+	//       += -=
+	//       *= /= %=
+	//       <<= >>=
+	//       &= ^= |=
+	//     - Note: Right-to-left associativity
+	//  13: ?: (ternary)
+	//     - Note: Right-to-left associativity
+	//  12: ||
+	//  11: &&
+	//  10: |
+	//  9: ^
+	//  8: &
+	//  7: == !=
+	//  6: < <= > >=
+	//  5: << >>
+	//  4: + - (regular add/subtract)
+	//  3: * / %
+	//  2: prefix: ++ --, unary: + -, not: ! ~, cast: (type)
+	//     - Note: Right-to-left associativity
+	//  1: postfix: ++ --, function call: ( ), array: [ ], member access: .
+	//  0: literals/variables/grouping
+
+	#ParseExpression(it)
+	{
+		return this.#ParseAssignment(it);
+	}
+
+	#ParseAssignment(it)
+	{
+		// Look for next expression precedence first (OR)
+		let exp = this.#ParseTernary(it);
+
+		// Now look for assignment
+		if (this.#AllowAnyOperator(it, "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="))
+		{
+			// Was the expression above a variable?
+			if (!(exp instanceof ExpVariable))
+			{
+				throw new Error("Expected variable for assignment");
+			}
+
+			// Previous token is a variable, so parse the assignment
+			return new ExpAssignment(
+				exp.VarToken, // Grab token from variable expression
+				this.#ParseAssignment(it));
+		}
+
+		// No assignment operator found
+		return exp;
+	}
+
+	#ParseTernary(it)
+	{
+		// Grab the expression first
+		let exp = this.#ParseLogicalOr(it);
+
+		// Check for "?" operator
+		if (this.#AllowOperator("?"))
+		{
+			// The next piece should be the "if" expression
+			let expIf = this.#ParseTernary(it);
+
+			// Now we must have a ":"
+			if (this.#RequireOperator(":"))
+			{
+				// Last is the "else" expression
+				let expElse = this.#ParseTernary(it);
+
+				return new ExpTernary(
+					exp,
+					expIf,
+					expElse);
+			}
+			else
+			{
+				throw new Error("Expected ':' ternary operator");
+			}
+		}
+
+		// No ternary
+		return exp;
+	}
+
+	#ParseLogicalOr(it)
+	{
+		// Grab starting expression
+		let exp = this.#ParseLogicalAnd(it);
+
+		// Keep going while we have ORs
+		while (this.#AllowOperator("||"))
+		{
+			exp = new ExpLogical(
+				exp,
+				it.PeekPrev(),
+				this.#ParseLogicalAnd(it));
+		}
+
+		return exp;
+	}
+
+	#ParseLogicalAnd(it)
+	{
+		// Grab starting expression
+		let exp = this.#ParseBitwiseOr(it);
+
+		// Keep going while we have ANDs
+		while (this.#AllowOperator("&&"))
+		{
+			exp = new ExpLogical(
+				exp,
+				it.PeekPrev(),
+				this.#ParseBitwiseOr(it));
+		}
+
+		return exp;
+	}
+
+	#ParseBitwiseOr(it)
+	{
+
+	}
+
+	#ParseBitwiseXor(it)
+	{
+
+	}
+
+	#ParseBitwiseAnd(it)
+	{
+
+	}
+
+	#ParseEquality(it)
+	{
+
+	}
+
+	#ParseComparison(it)
+	{
+
+	}
+
+	#ParseShift(it)
+	{
+
+	}
+
+	#ParseAddSubtract(it)
+	{
+
+	}
+
+	#ParseMulDivMod(it)
+	{
+
+	}
+
+	// TODO: Handle postfix, prefix, etc.
+
+	#ParseUnary(it)
+	{
+		// Check for possible unary operators
+		if (this.#AllowAnyOperator(it, "+", "-", "!", "~"))
+		{
+			return new ExpUnary(
+				it.PeekPrev(), // Token we just allowed
+				this.#ParseUnary(it)); // Next parse, which could be another unary or, operand, or grouping
+		}
+
+		// Not a unary, so check operand or grouping
+		return this.#ParseOperandOrGrouping(it);
+	}
+
+
+	#ParseOperandOrGrouping(it)
+	{
+		let t = it.Current();
+
+		// Check for true, false or numbers
+		if (this.#AllowAnyIdentifier(it, "true", "false") ||
+			this.#Allow(it, TokenNumericLiteral))
+		{
+			return new ExpLiteral(it.PeekPrev());
+		}
+
+		// Check for variables
+		if (this.#Allow(it, TokenIdentifier))
+		{
+			return new ExpVariable(it.PeekPrev());
+		}
+
+		// Check for grouping symbols
+		if (this.#Allow(it, TokenParenLeft))
+		{
+			// Grab expression
+			let exp = this.#ParseExpression(it);
+
+			// Must be followed by a right parens
+			this.#Require(TokenParenRight);
+
+			// Create a grouping expression
+			return new ExpGroup(exp);
+		}
+
+		// Problem! TODO: Better error details
+		throw new Error("Invalid token detected");
+	}
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 	#BuildAllExpressionTrees(tokens)
 	{
@@ -2561,4 +2917,103 @@ class HLSL
 		return glsl;
 	}
 
+}
+
+
+class Expression { }
+
+class ExpAssignment extends Expression
+{
+	VarToken;
+	Exp;
+
+	constructor(varToken, exp)
+	{
+		this.VarToken = varToken;
+		this.Exp = exp;
+	}
+}
+
+class ExpBitwise extends Expression
+{
+	ExpLeft;
+	OperatorToken;
+	ExpRight;
+
+	constructor(expLeft, opToken, expRight)
+	{
+		this.ExpLeft = expLeft;
+		this.OperatorToken = opToken;
+		this.ExpRight = expRight;
+	}
+}
+
+class ExpLiteral extends Expression
+{
+	LiteralToken;
+
+	constructor(litToken)
+	{
+		this.LiteralToken = litToken;
+	}
+}
+
+class ExpLogical extends Expression
+{
+	ExpLeft;
+	OperatorToken;
+	ExpRight;
+
+	constructor(expLeft, opToken, expRight)
+	{
+		this.ExpLeft = expLeft;
+		this.OperatorToken = opToken;
+		this.ExpRight = expRight;
+	}
+}
+
+class ExpGroup extends Expression
+{
+	Exp;
+
+	constructor(exp)
+	{
+		this.Exp = exp;
+	}
+}
+
+class ExpTernary extends Expression
+{
+	ExpCondition
+	ExpIf;
+	ExpElse;
+
+	constructor(expCondition, expIf, expElse)
+	{
+		this.ExpCondition = expCondition;
+		this.ExpIf = expIf;
+		this.ExpElse = expElse;
+	}
+}
+
+class ExpUnary extends Expression
+{
+	OperatorToken;
+	ExpRight;
+
+	constructor(opToken, expRight)
+	{
+		this.OperatorToken = opToken;
+		this.ExpRight = expRight;
+	}
+}
+
+class ExpVariable extends Expression
+{
+	VarToken;
+
+	constructor(varToken)
+	{
+		this.VarToken = varToken;
+	}
 }
