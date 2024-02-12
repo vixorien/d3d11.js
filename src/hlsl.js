@@ -586,6 +586,18 @@ class HLSL
 		return false;
 	}
 
+	#AllowDataType(it)
+	{
+		let t = it.Current();
+		if (this.#IsDataType(t.Text))
+		{
+			it.MoveNext();
+			return true;
+		}
+
+		return false;
+	}
+
 	#Require(it, tokenType)
 	{
 		if (this.#Allow(it, tokenType))
@@ -1430,6 +1442,48 @@ class HLSL
 	//       - Body: Statement
 	// }
 
+
+	#ParseFunctionBody(it)
+	{
+		let statements = [];
+
+		// Go until we find the final end scope
+		// TODO: Verify this works with nested blocks
+		while (it.Current().Type != TokenScopeRight)
+		{
+			statement.push(this.#ParseStatement(it));
+		}
+
+		return statements;
+	}
+
+	#ParseStatement(it)
+	{
+		// Check for possible statement types
+		// Block
+		// Do/While
+		// For
+		// If
+		// Return
+		// Var
+		// While
+
+		if (this.#Allow(it, TokenScopeLeft));
+		if (this.#AllowIdentifier(it, "do"));
+		if (this.#AllowIdentifier(it, "for"));
+		if (this.#AllowIdentifier(it, "if"));
+		if (this.#AllowIdentifier(it, "return"));
+		if (this.#IsDataType(it.Current().Text)); // Var
+		if (this.#AllowIdentifier(it, "while"));
+
+		// No matches?  Try an expression
+		return this.#ParseExpressionStatement(it);
+	}
+
+	#ParseExpressionStatement(it)
+	{
+
+	}
 
 	// Expression precedence (reverse order)
 	//  15: Comma (between function params)
