@@ -3178,6 +3178,18 @@ class StatementWhile extends Statement
 	}
 }
 
+class StatementVar extends Statement
+{
+	DataType;
+	Vars;
+
+	constructor(dataType, vars)
+	{
+		this.DataType = dataType;
+		this.Vars = vars;
+	}
+}
+
 
 class Expression { }
 
