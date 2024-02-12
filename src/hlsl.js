@@ -1729,7 +1729,6 @@ class HLSL
 		return this.#ParsePostfixCallArrayOrMember(it);
 	}
 
-	// TODO: Should this be broken up to make functions separate?
 	#ParsePostfixCallArrayOrMember(it)
 	{
 		// Grab an operand first
@@ -1738,16 +1737,14 @@ class HLSL
 		// Handle multiple postfix type symbols
 		while (true)
 		{
-			// TODO: Handle postfix on function call being invalid!
-			if (this.#AllowOperator(it, "++", "--")) // Postfix operators
+			if (!(exp instanceof ExpFunctionCall) && this.#AllowOperator(it, "++", "--")) // Postfix operators (not valid after function calls)
 			{
-
 				// Terminal, nothing can follow
 				return new ExpPostfix(
 					exp,
 					it.PeekPrev());
 			}
-			else if (this.#Allow(it, TokenParenLeft)) // Left paren --> function call
+			else if (!(exp instanceof ExpFunctionCall) && this.#Allow(it, TokenParenLeft)) // Left paren --> function call (not valid after another function call)
 			{
 				// Track all params
 				let params = [];
@@ -1781,10 +1778,13 @@ class HLSL
 			}
 			else if (this.#Allow(it, TokenPeriod)) // Period --> member access
 			{
-				//exp = new ExpArray(
-				//	exp, // Left side of "."
-				//	this.#Parse
+				// Very next token must be an identifier!
+				if (it.PeekNext().Type != TokenIdentifier)
+					throw new Error("Invalid token after member access operator '.'");
 
+				exp = new ExpMember(
+					exp, // Left side of "."
+					this.#ParsePostfixCallArrayOrMember(it)); // right side of "."
 			}
 			else // Nothing useful left
 			{
@@ -1794,43 +1794,6 @@ class HLSL
 
 		return exp;
 	}
-
-	//#ParseFunctionCall(it)
-	//{
-	//	let exp = this.#ParseOperandOrGrouping(it);
-
-	//	while (true)
-	//	{
-	//		if (this.#Allow(it, TokenParenLeft)) // Left paren --> function call
-	//		{
-	//			// Track all params
-	//			let params = [];
-
-	//			// Is this a right paren?
-	//			if (it.Current().Type != TokenParenRight)
-	//			{
-	//				// Loop and grab comma-separated expressions for parameters
-	//				do
-	//				{
-	//					params.push(this.#ParseExpression(it));
-	//				}
-	//				while (this.#Allow(it, TokenComma));
-	//			}
-
-	//			// Now require the right paren and finish function expression
-	//			this.#Require(it, TokenParenRight);
-	//			exp = new ExpFunctionCall(
-	//				exp,
-	//				params);
-	//		}
-	//		else
-	//		{
-	//			break;
-	//		}
-	//	}
-
-	//	return exp;
-	//}
 
 	#ParseOperandOrGrouping(it)
 	{
@@ -3127,6 +3090,92 @@ class HLSL
 		return glsl;
 	}
 
+}
+
+class Statement { }
+
+class StatementBlock extends Statement
+{
+	Statements;
+
+	constructor(statements)
+	{
+		this.Statements = statements;
+	}
+}
+
+class StatementDoWhile extends Statement
+{
+	Body;
+	Condition;
+
+	constructor(body, cond)
+	{
+		this.Body = body;
+		this.Condition = cond;
+	}
+}
+
+class StatementExpression extends Statement
+{
+	Exp;
+
+	constructor(exp)
+	{
+		this.Exp = exp;
+	}
+}
+
+class StatementFor extends Statement
+{
+	Init;
+	Condition;
+	Iterate;
+	Body;
+
+	constructor(init, cond, iter, body)
+	{
+		this.Init = init;
+		this.Condition = cond;
+		this.Iterate = iter;
+		this.Body = body;
+	}
+}
+
+class StatementIf extends Statement
+{
+	Condition;
+	If;
+	Else;
+
+	constructor(cond, ifBlock, elseBlock)
+	{
+		this.Condition = cond;
+		this.If = ifBlock;
+		this.Else = elseBlock;
+	}
+}
+
+class StatementReturn extends Statement
+{
+	Expression;
+
+	constructor(exp)
+	{
+		this.Expression = exp;
+	}
+}
+
+class StatementWhile extends Statement
+{
+	Condition;
+	Body;
+
+	constructor(cond, body)
+	{
+		this.Condition = cond;
+		this.Body = body;
+	}
 }
 
 
