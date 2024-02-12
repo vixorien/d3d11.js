@@ -1714,10 +1714,11 @@ class HLSL
 				this.#ParseUnaryOrCast(it));
 		}
 
-		// Not a unary, so check operand or grouping
-		return this.#ParseOperandOrGrouping(it);
+		// Not a unary, so check next level
+		return this.#ParsePostfixCallArrayOrMember(it);
 	}
 
+	// TODO: Should this be broken up to make functions separate?
 	#ParsePostfixCallArrayOrMember(it)
 	{
 		// Grab an operand first
@@ -1726,20 +1727,50 @@ class HLSL
 		// Handle multiple postfix type symbols
 		while (true)
 		{
+			// TODO: Handle postfix on function call being invalid!
 			if (this.#AllowOperator(it, "++", "--")) // Postfix operators
 			{
-
+				exp = new ExpPostfix(
+					exp,
+					it.PeekPrev());
 			}
-			if (this.#Allow(it, TokenParenLeft)) // Left paren --> function call
+			else if (this.#Allow(it, TokenParenLeft)) // Left paren --> function call
 			{
+				// Track all params
+				let params = [];
 
+				// Is this a right paren?
+				if (it.Current().Type != TokenParenRight)
+				{
+					// Loop and grab comma-separated expressions for parameters
+					do
+					{
+						params.push(this.#ParseExpression(it));
+					}
+					while (this.#Allow(it, TokenComma));
+				}
+
+				// Now require the right paren and finish function expression
+				this.#Require(it, TokenParenRight);
+				exp = new ExpFunctionCall(
+					exp,
+					params);
 			}
 			else if (this.#Allow(it, TokenBracketLeft)) // Left bracket --> array access
 			{
+				// Index could be an entire expression
+				exp = new ExpArray(
+					exp, // Array itself
+					this.#ParseExpression(it)); // Index inside [ ]'s
 
+				// Require a right bracket
+				this.#Require(it, TokenBracketRight);
 			}
 			else if (this.#Allow(it, TokenPeriod)) // Period --> member access
 			{
+				//exp = new ExpArray(
+				//	exp, // Left side of "."
+				//	this.#Parse
 
 			}
 			else // Nothing useful left
@@ -1750,6 +1781,43 @@ class HLSL
 
 		return exp;
 	}
+
+	//#ParseFunctionCall(it)
+	//{
+	//	let exp = this.#ParseOperandOrGrouping(it);
+
+	//	while (true)
+	//	{
+	//		if (this.#Allow(it, TokenParenLeft)) // Left paren --> function call
+	//		{
+	//			// Track all params
+	//			let params = [];
+
+	//			// Is this a right paren?
+	//			if (it.Current().Type != TokenParenRight)
+	//			{
+	//				// Loop and grab comma-separated expressions for parameters
+	//				do
+	//				{
+	//					params.push(this.#ParseExpression(it));
+	//				}
+	//				while (this.#Allow(it, TokenComma));
+	//			}
+
+	//			// Now require the right paren and finish function expression
+	//			this.#Require(it, TokenParenRight);
+	//			exp = new ExpFunctionCall(
+	//				exp,
+	//				params);
+	//		}
+	//		else
+	//		{
+	//			break;
+	//		}
+	//	}
+
+	//	return exp;
+	//}
 
 	#ParseOperandOrGrouping(it)
 	{
@@ -3051,6 +3119,18 @@ class HLSL
 
 class Expression { }
 
+class ExpArray extends Expression
+{
+	ExpArray;
+	ExpIndex;
+
+	constructor(expArray, expIndex)
+	{
+		this.ExpArray = expArray;
+		this.ExpIndex = expIndex;
+	}
+}
+
 class ExpAssignment extends Expression
 {
 	VarToken;
@@ -3103,6 +3183,28 @@ class ExpCast extends Expression
 	}
 }
 
+class ExpFunctionCall extends Expression
+{
+	FuncExp;
+	Parameters;
+
+	constructor(funcExp, params)
+	{
+		this.FuncExp = funcExp;
+		this.Parameters = params;
+	}
+}
+
+class ExpGroup extends Expression
+{
+	Exp;
+
+	constructor(exp)
+	{
+		this.Exp = exp;
+	}
+}
+
 class ExpLiteral extends Expression
 {
 	LiteralToken;
@@ -3127,13 +3229,15 @@ class ExpLogical extends Expression
 	}
 }
 
-class ExpGroup extends Expression
+class ExpMember extends Expression
 {
-	Exp;
+	ExpLeft;
+	ExpRight;
 
-	constructor(exp)
+	constructor(expLeft, expRight)
 	{
-		this.Exp = exp;
+		this.ExpLeft = expLeft;
+		this.ExpRight = expRight;
 	}
 }
 
