@@ -1455,6 +1455,17 @@ class HLSL
 	//  2: prefix: ++ --, unary: + -, not: ! ~, cast: (type)
 	//     - Note: Right-to-left associativity
 	//  1: postfix: ++ --, function call: ( ), array: [ ], member access: .
+	//
+	//     x++			y()			z[]			w.a
+	//
+	//     x++++ NO		y()++ NO 	z[]++ YES	w.a++ YES
+	//	   x++() NO		y()() NO	z[]() YES	w.a() YES
+	//     x++[] NO		y()[] YES	z[][] YES	w.a[] YES
+	//     x++.a NO		y().a YES	z[].a YES	w.a.a YES
+	//
+	//     ++ is terminal
+	//     () cannot have ++ or () after
+	//
 	//  0: literals/variables/grouping
 
 	#ParseExpression(it)
@@ -1730,7 +1741,9 @@ class HLSL
 			// TODO: Handle postfix on function call being invalid!
 			if (this.#AllowOperator(it, "++", "--")) // Postfix operators
 			{
-				exp = new ExpPostfix(
+
+				// Terminal, nothing can follow
+				return new ExpPostfix(
 					exp,
 					it.PeekPrev());
 			}
