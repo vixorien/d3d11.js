@@ -1460,29 +1460,138 @@ class HLSL
 	#ParseStatement(it)
 	{
 		// Check for possible statement types
-		// Block
-		// Do/While
-		// For
-		// If
-		// Return
-		// Var
-		// While
-
-		if (this.#Allow(it, TokenScopeLeft));
-		if (this.#AllowIdentifier(it, "do"));
-		if (this.#AllowIdentifier(it, "for"));
-		if (this.#AllowIdentifier(it, "if"));
-		if (this.#AllowIdentifier(it, "return"));
-		if (this.#IsDataType(it.Current().Text)); // Var
-		if (this.#AllowIdentifier(it, "while"));
+		if (this.#Allow(it, TokenScopeLeft)) return this.#ParseBlock(it);
+		if (this.#AllowIdentifier(it, "do")) return this.#ParseDoWhile(it);
+		if (this.#AllowIdentifier(it, "for")) return this.#ParseFor(it);
+		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it);
+		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it);
+		if (this.#IsDataType(it.Current().Text)) return this.#ParseVarDec(it);
+		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it);
 
 		// No matches?  Try an expression
 		return this.#ParseExpressionStatement(it);
 	}
 
-	#ParseExpressionStatement(it)
+	#ParseBlock(it)
+	{
+		// Assuming open scope already found, loop until matching end scope
+		let statements = [];
+		while (it.Current().Type != TokenScopeRight)
+		{
+			statements.push(this.#ParseStatement(it));
+		}
+
+		this.#Require(it, TokenScopeRight);
+
+		return new StatementBlock(statements);
+	}
+
+	#ParseDoWhile(it)
+	{
+		// Assuming "do" already found
+		let body = this.#ParseStatement(it);
+
+		// Look for: while(EXPRESSION);
+		this.#RequireIdentifier(it, "while");
+		this.#Require(it, TokenParenLeft);
+		let condition = this.#ParseExpression(it);
+		this.#Require(it, TokenParenRight);
+		this.#Require(it, TokenSemicolon);
+
+		return new StatementDoWhile(body, condition);
+	}
+
+	#ParseFor(it)
 	{
 
+	}
+
+	#ParseIf(it)
+	{
+
+	}
+
+	#ParseReturn(it)
+	{
+		// Assuming "return" already found
+
+		// Check for immediate semicolon (for return;)
+		if (this.#Allow(it, TokenSemicolon))
+		{
+			return new StatementReturn(null);
+		}
+
+		// Parse the expression
+		let exp = this.#ParseExpression(it);
+		this.#Require(it, TokenSemicolon);
+		return new StatementReturn(exp);
+	}
+
+	#ParseVarDec(it)
+	{
+		// Possible syntax to look for:
+		// int x;
+		// int x, y;
+		// int x = 1;
+		// int x = 1, y;
+		// int x = 1, y = 2;
+		// int x, y = 1;
+		// int x = func();
+		// int x = func(), y = func();
+		// Etc.
+		// Also: int x = 1, y = x; // Should work!
+
+		// Initial token (data type) not yet used up!
+		this.#Require(it, TokenIdentifier);
+		let dataTypeToken = it.PeekPrev();
+
+		let varDecs = [];
+
+		do
+		{
+			// Grab name
+			this.#Require(it, TokenIdentifier);
+			let varNameToken = it.PeekPrev();
+
+			// Any definition?
+			let def = null;
+			if (this.#AllowOperator(it, "="))
+				def = this.#ParseExpression(it);
+
+			// Add to var
+			varDecs.push(new VarDec(dataTypeToken, varNameToken, def));
+		}
+		while (this.#Allow(it, TokenComma));
+
+		// Must have at least one var dec
+		if (varDecs.length == 0)
+			throw new Error("Variable name expected");
+
+		// Semicolon at end
+		this.#Require(it, TokenSemicolon);
+		return new StatementVar(dataTypeToken, varDecs);
+	}
+
+	#ParseWhile(it)
+	{
+		// Assuming "while" already found
+		// Look for: (EXPRESSION) STATEMENT
+		this.#Require(it, TokenParenLeft);
+		let condition = this.#ParseExpression(it);
+		this.#Require(it, TokenParenRight);
+		let body = this.#ParseStatement(it);
+
+		return new StatementWhile(condition, body);
+	}
+
+	#ParseExpressionStatement(it)
+	{
+		let exp = this.#ParseExpression(it);
+
+		// Require a semicolon after an expression statement
+		this.#Require(it, TokenSemicolon);
+
+		return new StatementExpression(exp);
 	}
 
 	// Expression precedence (reverse order)
@@ -3234,13 +3343,27 @@ class StatementWhile extends Statement
 
 class StatementVar extends Statement
 {
-	DataType;
-	Vars;
+	DataTypeToken
+	VarDecs; // Array
 
-	constructor(dataType, vars)
+	constructor(dataTypeToken, varDecs)
 	{
-		this.DataType = dataType;
-		this.Vars = vars;
+		this.DataTypeToken = dataTypeToken;
+		this.VarDecs = varDecs;
+	}
+}
+
+class VarDec
+{
+	DataTypeToken;
+	NameToken;
+	DefinitionExpression;
+
+	constructor(dataTypeToken, nameToken, defExp)
+	{
+		this.DataTypeToken = dataTypeToken;
+		this.NameToken = nameToken;
+		this.DefinitionExpression = defExp;
 	}
 }
 
