@@ -6444,6 +6444,18 @@ class HLSL
 		return false;
 	}
 
+	#AllowDataType(it)
+	{
+		let t = it.Current();
+		if (this.#IsDataType(t.Text))
+		{
+			it.MoveNext();
+			return true;
+		}
+
+		return false;
+	}
+
 	#Require(it, tokenType)
 	{
 		if (this.#Allow(it, tokenType))
@@ -6915,6 +6927,11 @@ class HLSL
 				Vars: params
 			});
 
+			// TESTING: Attempt a parse
+			//let statements = this.#ParseFunctionBody(it);
+			//console.log(statements);
+			//throw new Error("STOPPING NOW");
+
 			// Statement classification
 			let statementBlockDepth = 0;
 			let statementParenDepth = 0;
@@ -7289,6 +7306,219 @@ class HLSL
 	// }
 
 
+	#ParseFunctionBody(it)
+	{
+		let statements = [];
+
+		// Go until we find the final end scope
+		// TODO: Verify this works with nested blocks
+		while (it.Current().Type != TokenScopeRight)
+		{
+			statements.push(this.#ParseStatement(it));
+		}
+
+		return statements;
+	}
+
+	#ParseStatement(it)
+	{
+		// Check for possible statement types
+		if (this.#Allow(it, TokenScopeLeft)) return this.#ParseBlock(it);
+		if (this.#AllowIdentifier(it, "do")) return this.#ParseDoWhile(it);
+		if (this.#AllowIdentifier(it, "for")) return this.#ParseFor(it);
+		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it);
+		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it);
+		if (this.#IsDataType(it.Current().Text)) return this.#ParseVarDec(it);
+		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it);
+
+		// No matches?  Try an expression
+		return this.#ParseExpressionStatement(it);
+	}
+
+	#ParseBlock(it)
+	{
+		// Assuming open scope already found, loop until matching end scope
+		let statements = [];
+		while (it.Current().Type != TokenScopeRight)
+		{
+			statements.push(this.#ParseStatement(it));
+		}
+
+		this.#Require(it, TokenScopeRight);
+
+		return new StatementBlock(statements);
+	}
+
+	#ParseDoWhile(it)
+	{
+		// Assuming "do" already found
+		let body = this.#ParseStatement(it);
+
+		// Look for: while(EXPRESSION);
+		this.#RequireIdentifier(it, "while");
+		this.#Require(it, TokenParenLeft);
+		let condition = this.#ParseExpression(it);
+		this.#Require(it, TokenParenRight);
+		this.#Require(it, TokenSemicolon);
+
+		return new StatementDoWhile(body, condition);
+	}
+
+	#ParseFor(it)
+	{
+		// Any piece could be empty: for(;;)
+		let init = null; // Statement
+		let cond = null; // Expression
+		let iter = null; // Expression
+		let body = null; // Statement
+
+		// Assuming "for" already found
+		this.#Require(it, TokenParenLeft);
+
+		// TODO: Handle the comma operator!
+
+		// Init could be a var declaration, or just assignment
+		if (this.#IsDataType(it.Current().Text))
+		{
+			init = this.#ParseVarDec(it);
+		}
+		else
+		{
+			init = this.#ParseExpressionStatement(it);
+		}
+
+		// Semicolon to end init
+		this.#Require(it, TokenSemicolon);
+
+		// Move on to condition, if necessary
+		if (it.Current().Type != TokenSemicolon)
+		{
+			cond = this.#ParseExpression(it);
+		}
+
+		// Semicolon to end cond
+		this.#Require(it, TokenSemicolon);
+
+		// Move on to iteration, if necessary
+		if (it.Current().Type != TokenParenRight)
+		{
+			iter = this.#ParseExpression(it);
+		}
+
+		// Require end paren
+		this.#Require(it, TokenParenRight);
+
+		// Parse the body
+		body = this.#ParseStatement(it);
+
+		// All done
+		return new StatementFor(init, cond, iter, body);
+	}
+
+	#ParseIf(it)
+	{
+		// Assuming "if" already found
+		this.#Require(it, TokenParenLeft);
+		let cond = this.#ParseExpression(it);
+		this.#Require(it, TokenParenRight);
+
+		// Grab the if block
+		let ifBlock = this.#ParseStatement(it);
+		let elseBlock = null;
+
+		// Do we have an else?
+		if (this.#AllowIdentifier(it, "else"))
+		{
+			// Note, the else's block might be a whole if/else again!
+			elseBlock = this.#ParseStatement(it);
+		}
+
+		return new StatementIf(cond, ifBlock, elseBlock);
+	}
+
+	#ParseReturn(it)
+	{
+		// Assuming "return" already found
+
+		// Check for immediate semicolon (for return;)
+		if (this.#Allow(it, TokenSemicolon))
+		{
+			return new StatementReturn(null);
+		}
+
+		// Parse the expression
+		let exp = this.#ParseExpression(it);
+		this.#Require(it, TokenSemicolon);
+		return new StatementReturn(exp);
+	}
+
+	#ParseVarDec(it)
+	{
+		// Possible syntax to look for:
+		// int x;
+		// int x, y;
+		// int x = 1;
+		// int x = 1, y;
+		// int x = 1, y = 2;
+		// int x, y = 1;
+		// int x = func();
+		// int x = func(), y = func();
+		// Etc.
+		// Also: int x = 1, y = x; // Should work!
+
+		// Initial token (data type) not yet used up!
+		this.#Require(it, TokenIdentifier);
+		let dataTypeToken = it.PeekPrev();
+
+		let varDecs = [];
+
+		do
+		{
+			// Grab name
+			this.#Require(it, TokenIdentifier);
+			let varNameToken = it.PeekPrev();
+
+			// Any definition?
+			let def = null;
+			if (this.#AllowOperator(it, "="))
+				def = this.#ParseExpression(it);
+
+			// Add to var
+			varDecs.push(new VarDec(dataTypeToken, varNameToken, def));
+		}
+		while (this.#Allow(it, TokenComma));
+
+		// Must have at least one var dec
+		if (varDecs.length == 0)
+			throw new Error("Variable name expected");
+
+		// Semicolon at end
+		this.#Require(it, TokenSemicolon);
+		return new StatementVar(dataTypeToken, varDecs);
+	}
+
+	#ParseWhile(it)
+	{
+		// Assuming "while" already found
+		// Look for: (EXPRESSION) STATEMENT
+		this.#Require(it, TokenParenLeft);
+		let condition = this.#ParseExpression(it);
+		this.#Require(it, TokenParenRight);
+		let body = this.#ParseStatement(it);
+
+		return new StatementWhile(condition, body);
+	}
+
+	#ParseExpressionStatement(it)
+	{
+		let exp = this.#ParseExpression(it);
+
+		// Require a semicolon after an expression statement
+		this.#Require(it, TokenSemicolon);
+
+		return new StatementExpression(exp);
+	}
+
 	// Expression precedence (reverse order)
 	//  15: Comma (between function params)
 	//  14: Assignments (are these all the same?)
@@ -7313,6 +7543,17 @@ class HLSL
 	//  2: prefix: ++ --, unary: + -, not: ! ~, cast: (type)
 	//     - Note: Right-to-left associativity
 	//  1: postfix: ++ --, function call: ( ), array: [ ], member access: .
+	//
+	//     x++			y()			z[]			w.a
+	//
+	//     x++++ NO		y()++ NO 	z[]++ YES	w.a++ YES
+	//	   x++() NO		y()() NO	z[]() YES	w.a() YES
+	//     x++[] NO		y()[] YES	z[][] YES	w.a[] YES
+	//     x++.a NO		y().a YES	z[].a YES	w.a.a YES
+	//
+	//     ++ is terminal
+	//     () cannot have ++ or () after
+	//
 	//  0: literals/variables/grouping
 
 	#ParseExpression(it)
@@ -7329,9 +7570,19 @@ class HLSL
 		if (this.#AllowOperator(it, "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="))
 		{
 			// Was the expression above a variable?
-			if (!(exp instanceof ExpVariable))
+			let expIsVar = exp instanceof ExpVariable;
+
+			// Not a variable, but maybe part of a member access pattern: obj.member
+			if (!expIsVar && exp instanceof ExpMember)
 			{
-				throw new Error("Expected variable for assignment");
+				expIsVar = exp.RightmostChildIsVariable();
+			}
+
+			// Validate variable
+			if (!expIsVar)
+			{
+				console.log(JSON.stringify(exp));
+				throw new Error("Expected variable for assignment.");
 			}
 
 			// Previous token is a variable, so parse the assignment
@@ -7576,7 +7827,6 @@ class HLSL
 		return this.#ParsePostfixCallArrayOrMember(it);
 	}
 
-	// TODO: Should this be broken up to make functions separate?
 	#ParsePostfixCallArrayOrMember(it)
 	{
 		// Grab an operand first
@@ -7585,14 +7835,14 @@ class HLSL
 		// Handle multiple postfix type symbols
 		while (true)
 		{
-			// TODO: Handle postfix on function call being invalid!
-			if (this.#AllowOperator(it, "++", "--")) // Postfix operators
+			if (!(exp instanceof ExpFunctionCall) && this.#AllowOperator(it, "++", "--")) // Postfix operators (not valid after function calls)
 			{
-				exp = new ExpPostfix(
+				// Terminal, nothing can follow
+				return new ExpPostfix(
 					exp,
 					it.PeekPrev());
 			}
-			else if (this.#Allow(it, TokenParenLeft)) // Left paren --> function call
+			else if (!(exp instanceof ExpFunctionCall) && this.#Allow(it, TokenParenLeft)) // Left paren --> function call (not valid after another function call)
 			{
 				// Track all params
 				let params = [];
@@ -7626,10 +7876,13 @@ class HLSL
 			}
 			else if (this.#Allow(it, TokenPeriod)) // Period --> member access
 			{
-				//exp = new ExpArray(
-				//	exp, // Left side of "."
-				//	this.#Parse
+				// Very next token must be an identifier!
+				if (it.Current().Type != TokenIdentifier)
+					throw new Error("Invalid token after member access operator '.': " + it.Current().Text);
 
+				exp = new ExpMember(
+					exp, // Left side of "."
+					this.#ParsePostfixCallArrayOrMember(it)); // right side of "."
 			}
 			else // Nothing useful left
 			{
@@ -7639,43 +7892,6 @@ class HLSL
 
 		return exp;
 	}
-
-	//#ParseFunctionCall(it)
-	//{
-	//	let exp = this.#ParseOperandOrGrouping(it);
-
-	//	while (true)
-	//	{
-	//		if (this.#Allow(it, TokenParenLeft)) // Left paren --> function call
-	//		{
-	//			// Track all params
-	//			let params = [];
-
-	//			// Is this a right paren?
-	//			if (it.Current().Type != TokenParenRight)
-	//			{
-	//				// Loop and grab comma-separated expressions for parameters
-	//				do
-	//				{
-	//					params.push(this.#ParseExpression(it));
-	//				}
-	//				while (this.#Allow(it, TokenComma));
-	//			}
-
-	//			// Now require the right paren and finish function expression
-	//			this.#Require(it, TokenParenRight);
-	//			exp = new ExpFunctionCall(
-	//				exp,
-	//				params);
-	//		}
-	//		else
-	//		{
-	//			break;
-	//		}
-	//	}
-
-	//	return exp;
-	//}
 
 	#ParseOperandOrGrouping(it)
 	{
@@ -8974,6 +9190,127 @@ class HLSL
 
 }
 
+class Statement { }
+
+class StatementBlock extends Statement
+{
+	Statements;
+
+	constructor(statements)
+	{
+		super();
+		this.Statements = statements;
+	}
+}
+
+class StatementDoWhile extends Statement
+{
+	Body;
+	Condition;
+
+	constructor(body, cond)
+	{
+		super();
+		this.Body = body;
+		this.Condition = cond;
+	}
+}
+
+class StatementExpression extends Statement
+{
+	Exp;
+
+	constructor(exp)
+	{
+		super();
+		this.Exp = exp;
+	}
+}
+
+class StatementFor extends Statement
+{
+	Init;
+	Condition;
+	Iterate;
+	Body;
+
+	constructor(init, cond, iter, body)
+	{
+		super();
+		this.Init = init;
+		this.Condition = cond;
+		this.Iterate = iter;
+		this.Body = body;
+	}
+}
+
+class StatementIf extends Statement
+{
+	Condition;
+	If;
+	Else;
+
+	constructor(cond, ifBlock, elseBlock)
+	{
+		super();
+		this.Condition = cond;
+		this.If = ifBlock;
+		this.Else = elseBlock;
+	}
+}
+
+class StatementReturn extends Statement
+{
+	Expression;
+
+	constructor(exp)
+	{
+		super();
+		this.Expression = exp;
+	}
+}
+
+class StatementWhile extends Statement
+{
+	Condition;
+	Body;
+
+	constructor(cond, body)
+	{
+		super();
+		this.Condition = cond;
+		this.Body = body;
+	}
+}
+
+class StatementVar extends Statement
+{
+	DataTypeToken
+	VarDecs; // Array
+
+	constructor(dataTypeToken, varDecs)
+	{
+		super();
+		this.DataTypeToken = dataTypeToken;
+		this.VarDecs = varDecs;
+	}
+}
+
+class VarDec extends Statement
+{
+	DataTypeToken;
+	NameToken;
+	DefinitionExpression;
+
+	constructor(dataTypeToken, nameToken, defExp)
+	{
+		super();
+		this.DataTypeToken = dataTypeToken;
+		this.NameToken = nameToken;
+		this.DefinitionExpression = defExp;
+	}
+}
+
 
 class Expression { }
 
@@ -8984,6 +9321,7 @@ class ExpArray extends Expression
 
 	constructor(expArray, expIndex)
 	{
+		super();
 		this.ExpArray = expArray;
 		this.ExpIndex = expIndex;
 	}
@@ -8996,6 +9334,7 @@ class ExpAssignment extends Expression
 
 	constructor(varToken, exp)
 	{
+		super();
 		this.VarToken = varToken;
 		this.Exp = exp;
 	}
@@ -9009,6 +9348,7 @@ class ExpBinary extends Expression
 
 	constructor(expLeft, opToken, expRight)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
@@ -9023,6 +9363,7 @@ class ExpBitwise extends Expression
 
 	constructor(expLeft, opToken, expRight)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
@@ -9036,6 +9377,7 @@ class ExpCast extends Expression
 
 	constructor(typeToken, exp)
 	{
+		super();
 		this.TypeToken = typeToken;
 		this.Exp = exp;
 	}
@@ -9048,6 +9390,7 @@ class ExpFunctionCall extends Expression
 
 	constructor(funcExp, params)
 	{
+		super();
 		this.FuncExp = funcExp;
 		this.Parameters = params;
 	}
@@ -9059,6 +9402,7 @@ class ExpGroup extends Expression
 
 	constructor(exp)
 	{
+		super();
 		this.Exp = exp;
 	}
 }
@@ -9069,6 +9413,7 @@ class ExpLiteral extends Expression
 
 	constructor(litToken)
 	{
+		super();
 		this.LiteralToken = litToken;
 	}
 }
@@ -9081,6 +9426,7 @@ class ExpLogical extends Expression
 
 	constructor(expLeft, opToken, expRight)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
@@ -9094,8 +9440,21 @@ class ExpMember extends Expression
 
 	constructor(expLeft, expRight)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.ExpRight = expRight;
+	}
+
+	RightmostChildIsVariable()
+	{
+		let current = this.ExpRight;
+
+		while (current instanceof ExpMember)
+		{
+			current = current.ExpRight;
+		}
+
+		return (current instanceof ExpVariable);
 	}
 }
 
@@ -9106,6 +9465,7 @@ class ExpPostfix extends Expression
 
 	constructor(expLeft, opToken)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 	}
@@ -9119,6 +9479,7 @@ class ExpTernary extends Expression
 
 	constructor(expCondition, expIf, expElse)
 	{
+		super();
 		this.ExpCondition = expCondition;
 		this.ExpIf = expIf;
 		this.ExpElse = expElse;
@@ -9132,6 +9493,7 @@ class ExpUnary extends Expression
 
 	constructor(opToken, expRight)
 	{
+		super();
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
 	}
@@ -9143,6 +9505,7 @@ class ExpVariable extends Expression
 
 	constructor(varToken)
 	{
+		super();
 		this.VarToken = varToken;
 	}
 }

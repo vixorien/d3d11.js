@@ -1069,6 +1069,11 @@ class HLSL
 				Vars: params
 			});
 
+			// TESTING: Attempt a parse
+			//let statements = this.#ParseFunctionBody(it);
+			//console.log(statements);
+			//throw new Error("STOPPING NOW");
+
 			// Statement classification
 			let statementBlockDepth = 0;
 			let statementParenDepth = 0;
@@ -1451,7 +1456,7 @@ class HLSL
 		// TODO: Verify this works with nested blocks
 		while (it.Current().Type != TokenScopeRight)
 		{
-			statement.push(this.#ParseStatement(it));
+			statements.push(this.#ParseStatement(it));
 		}
 
 		return statements;
@@ -1707,9 +1712,19 @@ class HLSL
 		if (this.#AllowOperator(it, "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="))
 		{
 			// Was the expression above a variable?
-			if (!(exp instanceof ExpVariable))
+			let expIsVar = exp instanceof ExpVariable;
+
+			// Not a variable, but maybe part of a member access pattern: obj.member
+			if (!expIsVar && exp instanceof ExpMember)
 			{
-				throw new Error("Expected variable for assignment");
+				expIsVar = exp.RightmostChildIsVariable();
+			}
+
+			// Validate variable
+			if (!expIsVar)
+			{
+				console.log(JSON.stringify(exp));
+				throw new Error("Expected variable for assignment.");
 			}
 
 			// Previous token is a variable, so parse the assignment
@@ -2004,8 +2019,8 @@ class HLSL
 			else if (this.#Allow(it, TokenPeriod)) // Period --> member access
 			{
 				// Very next token must be an identifier!
-				if (it.PeekNext().Type != TokenIdentifier)
-					throw new Error("Invalid token after member access operator '.'");
+				if (it.Current().Type != TokenIdentifier)
+					throw new Error("Invalid token after member access operator '.': " + it.Current().Text);
 
 				exp = new ExpMember(
 					exp, // Left side of "."
@@ -3325,6 +3340,7 @@ class StatementBlock extends Statement
 
 	constructor(statements)
 	{
+		super();
 		this.Statements = statements;
 	}
 }
@@ -3336,6 +3352,7 @@ class StatementDoWhile extends Statement
 
 	constructor(body, cond)
 	{
+		super();
 		this.Body = body;
 		this.Condition = cond;
 	}
@@ -3347,6 +3364,7 @@ class StatementExpression extends Statement
 
 	constructor(exp)
 	{
+		super();
 		this.Exp = exp;
 	}
 }
@@ -3360,6 +3378,7 @@ class StatementFor extends Statement
 
 	constructor(init, cond, iter, body)
 	{
+		super();
 		this.Init = init;
 		this.Condition = cond;
 		this.Iterate = iter;
@@ -3375,6 +3394,7 @@ class StatementIf extends Statement
 
 	constructor(cond, ifBlock, elseBlock)
 	{
+		super();
 		this.Condition = cond;
 		this.If = ifBlock;
 		this.Else = elseBlock;
@@ -3387,6 +3407,7 @@ class StatementReturn extends Statement
 
 	constructor(exp)
 	{
+		super();
 		this.Expression = exp;
 	}
 }
@@ -3398,6 +3419,7 @@ class StatementWhile extends Statement
 
 	constructor(cond, body)
 	{
+		super();
 		this.Condition = cond;
 		this.Body = body;
 	}
@@ -3410,12 +3432,13 @@ class StatementVar extends Statement
 
 	constructor(dataTypeToken, varDecs)
 	{
+		super();
 		this.DataTypeToken = dataTypeToken;
 		this.VarDecs = varDecs;
 	}
 }
 
-class VarDec
+class VarDec extends Statement
 {
 	DataTypeToken;
 	NameToken;
@@ -3423,6 +3446,7 @@ class VarDec
 
 	constructor(dataTypeToken, nameToken, defExp)
 	{
+		super();
 		this.DataTypeToken = dataTypeToken;
 		this.NameToken = nameToken;
 		this.DefinitionExpression = defExp;
@@ -3439,6 +3463,7 @@ class ExpArray extends Expression
 
 	constructor(expArray, expIndex)
 	{
+		super();
 		this.ExpArray = expArray;
 		this.ExpIndex = expIndex;
 	}
@@ -3451,6 +3476,7 @@ class ExpAssignment extends Expression
 
 	constructor(varToken, exp)
 	{
+		super();
 		this.VarToken = varToken;
 		this.Exp = exp;
 	}
@@ -3464,6 +3490,7 @@ class ExpBinary extends Expression
 
 	constructor(expLeft, opToken, expRight)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
@@ -3478,6 +3505,7 @@ class ExpBitwise extends Expression
 
 	constructor(expLeft, opToken, expRight)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
@@ -3491,6 +3519,7 @@ class ExpCast extends Expression
 
 	constructor(typeToken, exp)
 	{
+		super();
 		this.TypeToken = typeToken;
 		this.Exp = exp;
 	}
@@ -3503,6 +3532,7 @@ class ExpFunctionCall extends Expression
 
 	constructor(funcExp, params)
 	{
+		super();
 		this.FuncExp = funcExp;
 		this.Parameters = params;
 	}
@@ -3514,6 +3544,7 @@ class ExpGroup extends Expression
 
 	constructor(exp)
 	{
+		super();
 		this.Exp = exp;
 	}
 }
@@ -3524,6 +3555,7 @@ class ExpLiteral extends Expression
 
 	constructor(litToken)
 	{
+		super();
 		this.LiteralToken = litToken;
 	}
 }
@@ -3536,6 +3568,7 @@ class ExpLogical extends Expression
 
 	constructor(expLeft, opToken, expRight)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
@@ -3549,8 +3582,21 @@ class ExpMember extends Expression
 
 	constructor(expLeft, expRight)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.ExpRight = expRight;
+	}
+
+	RightmostChildIsVariable()
+	{
+		let current = this.ExpRight;
+
+		while (current instanceof ExpMember)
+		{
+			current = current.ExpRight;
+		}
+
+		return (current instanceof ExpVariable);
 	}
 }
 
@@ -3561,6 +3607,7 @@ class ExpPostfix extends Expression
 
 	constructor(expLeft, opToken)
 	{
+		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 	}
@@ -3574,6 +3621,7 @@ class ExpTernary extends Expression
 
 	constructor(expCondition, expIf, expElse)
 	{
+		super();
 		this.ExpCondition = expCondition;
 		this.ExpIf = expIf;
 		this.ExpElse = expElse;
@@ -3587,6 +3635,7 @@ class ExpUnary extends Expression
 
 	constructor(opToken, expRight)
 	{
+		super();
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
 	}
@@ -3598,6 +3647,7 @@ class ExpVariable extends Expression
 
 	constructor(varToken)
 	{
+		super();
 		this.VarToken = varToken;
 	}
 }
