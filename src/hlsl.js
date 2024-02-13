@@ -1503,12 +1503,74 @@ class HLSL
 
 	#ParseFor(it)
 	{
+		// Any piece could be empty: for(;;)
+		let init = null; // Statement
+		let cond = null; // Expression
+		let iter = null; // Expression
+		let body = null; // Statement
 
+		// Assuming "for" already found
+		this.#Require(it, TokenParenLeft);
+
+		// TODO: Handle the comma operator!
+
+		// Init could be a var declaration, or just assignment
+		if (this.#IsDataType(it.Current().Text))
+		{
+			init = this.#ParseVarDec(it);
+		}
+		else
+		{
+			init = this.#ParseExpressionStatement(it);
+		}
+
+		// Semicolon to end init
+		this.#Require(it, TokenSemicolon);
+
+		// Move on to condition, if necessary
+		if (it.Current().Type != TokenSemicolon)
+		{
+			cond = this.#ParseExpression(it);
+		}
+
+		// Semicolon to end cond
+		this.#Require(it, TokenSemicolon);
+
+		// Move on to iteration, if necessary
+		if (it.Current().Type != TokenParenRight)
+		{
+			iter = this.#ParseExpression(it);
+		}
+
+		// Require end paren
+		this.#Require(it, TokenParenRight);
+
+		// Parse the body
+		body = this.#ParseStatement(it);
+
+		// All done
+		return new StatementFor(init, cond, iter, body);
 	}
 
 	#ParseIf(it)
 	{
+		// Assuming "if" already found
+		this.#Require(it, TokenParenLeft);
+		let cond = this.#ParseExpression(it);
+		this.#Require(it, TokenParenRight);
 
+		// Grab the if block
+		let ifBlock = this.#ParseStatement(it);
+		let elseBlock = null;
+
+		// Do we have an else?
+		if (this.#AllowIdentifier(it, "else"))
+		{
+			// Note, the else's block might be a whole if/else again!
+			elseBlock = this.#ParseStatement(it);
+		}
+
+		return new StatementIf(cond, ifBlock, elseBlock);
 	}
 
 	#ParseReturn(it)
