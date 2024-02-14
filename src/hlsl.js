@@ -167,8 +167,8 @@ class HLSL
 		},
 		{
 			Type: TokenNumericLiteral,
-			//Pattern: /^[+-]?([0-9]*[.])?[0-9]+[f]?/	// Note: this didn't handle "1.f"
-			Pattern: /^[+-]?[0-9]+([.]?[0-9]?[f]?)?/	// Might be overkill, but seems to work
+			Pattern: /^[+-]?(([0-9]*[.][0-9]+[f]?)|([0-9]+[.][f])|([0-9]+[.]?[0-9]*))/ // Oh god - this should properly handle ints, doubles and floats now!
+			// TODO: Handle other numeric literals, like 16u or 0x0001b
 		},
 		{
 			Type: TokenScopeLeft,
@@ -441,7 +441,7 @@ class HLSL
 			}
 
 			// Any matches?
-			if (!anyMatch)
+			if (anyMatch == false)
 			{
 				// None, which means we're probably missing a necessary rule
 				alert("problem");
@@ -1635,6 +1635,7 @@ class HLSL
 			throw new Error("Variable name expected");
 
 		// Semicolon at end
+		console.log(it.Current().Text);
 		this.#Require(it, TokenSemicolon);
 		return new StatementVar(dataTypeToken, varDecs);
 	}

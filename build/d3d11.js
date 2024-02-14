@@ -6025,8 +6025,10 @@ class HLSL
 		},
 		{
 			Type: TokenNumericLiteral,
+			Pattern: /^[+-]?(([0-9]*[.][0-9]+[f]?)|([0-9]+[.][f])|([0-9]+[.]?[0-9]*))/ // Oh god
 			//Pattern: /^[+-]?([0-9]*[.])?[0-9]+[f]?/	// Note: this didn't handle "1.f"
-			Pattern: /^[+-]?[0-9]+([.]?[0-9]?[f]?)?/	// Might be overkill, but seems to work
+			//Pattern: /^[+-]?([0-9]*[.])?[0-9]*[f]?/	// SHOULD work, but is problematic right now
+			//Pattern: /^[+-]?[0-9]+([.]?[0-9]?[f]?)?/    // Might be overkill, but seems to work.  NOTE: Breaks on more than one number after decimal
 		},
 		{
 			Type: TokenScopeLeft,
@@ -6299,7 +6301,7 @@ class HLSL
 			}
 
 			// Any matches?
-			if (!anyMatch)
+			if (anyMatch == false)
 			{
 				// None, which means we're probably missing a necessary rule
 				alert("problem");
@@ -7493,6 +7495,7 @@ class HLSL
 			throw new Error("Variable name expected");
 
 		// Semicolon at end
+		console.log(it.Current().Text);
 		this.#Require(it, TokenSemicolon);
 		return new StatementVar(dataTypeToken, varDecs);
 	}
