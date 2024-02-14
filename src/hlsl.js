@@ -166,9 +166,11 @@ class HLSL
 			Pattern: /^[_A-Za-z][_A-Za-z0-9]*/
 		},
 		{
+			// Basic integers, floats, doubles and halfs, including exponent notation, hex and octal
+			// See here for full grammar: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-appendix-grammar
 			Type: TokenNumericLiteral,
-			Pattern: /^[+-]?(([0-9]*[.][0-9]+[f]?)|([0-9]+[.][f])|([0-9]+[.]?[0-9]*))/ // Oh god - this should properly handle ints, doubles and floats now!
-			// TODO: Handle other numeric literals, like 16u or 0x0001b
+			Pattern: /^[+-]?(([0][x][a-fA-F0-9]+([uU][lL])?([lL][uU])?[uU]?[lL]?)|(([0-9]*[.][0-9]+([eE][+-]?[0-9]+)?[fFlLhH]?)|([0-9]+[.]([eE][+-]?[0-9]+)?[fFlLhH])|([0-9]+[.])|([0-9]+([uU][lL])?([lL][uU])?[uU]?[lL]?)))/
+			// What in the good god damn is this monstrosity? Testing in out live here: https://regex101.com/r/DmHHRu/1
 		},
 		{
 			Type: TokenScopeLeft,
@@ -1470,7 +1472,7 @@ class HLSL
 		if (this.#AllowIdentifier(it, "for")) return this.#ParseFor(it);
 		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it);
 		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it);
-		if (this.#IsDataType(it.Current().Text)) return this.#ParseVarDec(it);
+		if (this.#IsDataType(it.Current().Text) || this.#AllowIdentifier(it, "const")) return this.#ParseVarDec(it);
 		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it);
 
 		// No matches?  Try an expression
@@ -1608,6 +1610,9 @@ class HLSL
 		// Etc.
 		// Also: int x = 1, y = x; // Should work!
 
+		// Might be const
+		let isConst = this.#AllowIdentifier(it, "const");
+
 		// Initial token (data type) not yet used up!
 		this.#Require(it, TokenIdentifier);
 		let dataTypeToken = it.PeekPrev();
@@ -1620,13 +1625,21 @@ class HLSL
 			this.#Require(it, TokenIdentifier);
 			let varNameToken = it.PeekPrev();
 
+			// Potentially an array?
+			let arrayExp = null;
+			if (this.#Allow(it, TokenBracketLeft))
+			{
+				arrayExp = this.#ParseExpression(it);
+				this.#Require(it, TokenBracketRight);
+			}
+
 			// Any definition?
 			let def = null;
 			if (this.#AllowOperator(it, "="))
 				def = this.#ParseExpression(it);
 
 			// Add to var
-			varDecs.push(new VarDec(dataTypeToken, varNameToken, def));
+			varDecs.push(new VarDec(isConst, dataTypeToken, varNameToken, arrayExp, def));
 		}
 		while (this.#Allow(it, TokenComma));
 
@@ -1637,7 +1650,7 @@ class HLSL
 		// Semicolon at end
 		console.log(it.Current().Text);
 		this.#Require(it, TokenSemicolon);
-		return new StatementVar(dataTypeToken, varDecs);
+		return new StatementVar(isConst, dataTypeToken, varDecs);
 	}
 
 	#ParseWhile(it)
@@ -2060,7 +2073,7 @@ class HLSL
 		{
 			// Grab expression
 			let exp = this.#ParseExpression(it);
-
+			
 			// Must be followed by a right parens
 			this.#Require(it, TokenParenRight);
 
@@ -3415,6 +3428,12 @@ class StatementReturn extends Statement
 	}
 }
 
+// TODO: Handle switches!
+class StatementSwitch extends Statement
+{
+
+}
+
 class StatementWhile extends Statement
 {
 	Condition;
@@ -3430,12 +3449,14 @@ class StatementWhile extends Statement
 
 class StatementVar extends Statement
 {
+	IsConst;
 	DataTypeToken
-	VarDecs; // Array
+	VarDecs; // Array of possible declarations, separated by commas
 
-	constructor(dataTypeToken, varDecs)
+	constructor(isConst, dataTypeToken, varDecs)
 	{
 		super();
+		this.IsConst = isConst;
 		this.DataTypeToken = dataTypeToken;
 		this.VarDecs = varDecs;
 	}
@@ -3443,15 +3464,19 @@ class StatementVar extends Statement
 
 class VarDec extends Statement
 {
+	IsConst;
 	DataTypeToken;
 	NameToken;
+	ArrayExpression;
 	DefinitionExpression;
 
-	constructor(dataTypeToken, nameToken, defExp)
+	constructor(isConst, dataTypeToken, nameToken, arrayExp, defExp)
 	{
 		super();
+		this.IsConst = isConst;
 		this.DataTypeToken = dataTypeToken;
 		this.NameToken = nameToken;
+		this.ArrayExpression = arrayExp;
 		this.DefinitionExpression = defExp;
 	}
 }
