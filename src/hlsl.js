@@ -1949,10 +1949,12 @@ class HLSL
 				this.#ParseUnaryOrCast(it)); // Next parse, which could be another unary or operand or grouping
 		}
 
-		// Check for cast
-		if (this.#Allow(it, TokenParenLeft))
+		// Check for cast, which starts with '(' followed by a data type
+		if (it.Current().Type == TokenParenLeft &&
+			this.#IsDataType(it.PeekNext().Text))
 		{
-			// Next must be a data type
+			// Move ahead
+			this.#Require(it, TokenParenLeft);
 			this.#RequireDataType(it);
 			let typeToken = it.PeekPrev();
 
@@ -2059,7 +2061,7 @@ class HLSL
 			let exp = this.#ParseExpression(it);
 
 			// Must be followed by a right parens
-			this.#Require(TokenParenRight);
+			this.#Require(it, TokenParenRight);
 
 			// Create a grouping expression
 			return new ExpGroup(exp);
