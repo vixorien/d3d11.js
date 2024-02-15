@@ -111,30 +111,6 @@ class HLSL
 	#functions;
 	#main;
 
-	// Statement classification
-	#StatementTypeNone = 0;
-	#StatementTypeExpression = 1;
-	#StatementTypeIf = 2;
-	#StatementTypeWhile = 3;
-	#StatementTypeForA = 4;
-	#StatementTypeForB = 5;
-	#StatementTypeForC = 6;
-	#StatementTypeReturn = 7;
-	#StatementTypeDo = 8;
-	#StatementTypeVarDec = 9;
-
-	#IsControlStatement(statementType)
-	{
-		// Note: MUST have character after return BEFORE new line!
-		return (
-			statementType == this.#StatementTypeIf ||
-			statementType == this.#StatementTypeWhile ||
-			statementType == this.#StatementTypeForA ||
-			statementType == this.#StatementTypeForB ||
-			statementType == this.#StatementTypeForC
-		);
-	}
-
 	// Define lexical rules
 	Rules = [
 		{
@@ -429,9 +405,7 @@ class HLSL
 						let t = {
 							Type: this.Rules[r].Type,
 							Text: matches[0],
-							Line: lineNum,
-							IsExpression: false,
-							StatementType: this.#StatementTypeNone
+							Line: lineNum
 						};
 						this.#tokens.push(t);
 					}
@@ -952,51 +926,51 @@ class HLSL
 		return s;
 	}
 
-	#DoesIdentifierExistInScope(ident, scopeStack)
-	{
-		// Go through stack
-		for (let i = 0; i < scopeStack.length; i++)
-		{
-			// Check this scope's variables
-			let currScope = scopeStack[i];
-			for (let v = 0; v < currScope.Vars.length; v++)
-			{
-				// Found it?
-				if (ident == currScope.Vars[v].Name)
-					return true;
-			}
-		}
+	//#DoesIdentifierExistInScope(ident, scopeStack)
+	//{
+	//	// Go through stack
+	//	for (let i = 0; i < scopeStack.length; i++)
+	//	{
+	//		// Check this scope's variables
+	//		let currScope = scopeStack[i];
+	//		for (let v = 0; v < currScope.Vars.length; v++)
+	//		{
+	//			// Found it?
+	//			if (ident == currScope.Vars[v].Name)
+	//				return true;
+	//		}
+	//	}
 
-		// Nothing!
-		return false;
-	}
+	//	// Nothing!
+	//	return false;
+	//}
 
-	#ProcessVarDecIdentifier(token, varDecType, scopeStack)
-	{
-		// Is it really an identifier?
-		if (token.Type != TokenIdentifier)
-		{
-			// ERROR!
-			// TODO: Throw
-			console.log("ERROR - Expected identifier for variable declaration.  Found: " + token.Text);
-			return false;
-		}
+	//#ProcessVarDecIdentifier(token, varDecType, scopeStack)
+	//{
+	//	// Is it really an identifier?
+	//	if (token.Type != TokenIdentifier)
+	//	{
+	//		// ERROR!
+	//		// TODO: Throw
+	//		console.log("ERROR - Expected identifier for variable declaration.  Found: " + token.Text);
+	//		return false;
+	//	}
 
-		if (this.#DoesIdentifierExistInScope(token.Text, scopeStack))
-		{
-			// ERROR!
-			// TODO: Throw
-			console.log("ERROR - Identifier redeclaration: " + token.Text);
-			return false;
-		}
+	//	if (this.#DoesIdentifierExistInScope(token.Text, scopeStack))
+	//	{
+	//		// ERROR!
+	//		// TODO: Throw
+	//		console.log("ERROR - Identifier redeclaration: " + token.Text);
+	//		return false;
+	//	}
 
-		// Identifier is valid, add to scope stack
-		scopeStack[scopeStack.length - 1].Vars.push({
-			Name: token.Text,
-			DataType: varDecType
-		});
-		return true;
-	}
+	//	// Identifier is valid, add to scope stack
+	//	scopeStack[scopeStack.length - 1].Vars.push({
+	//		Name: token.Text,
+	//		DataType: varDecType
+	//	});
+	//	return true;
+	//}
 
 	// TODO: Skip const globals in the global CB - will now handle in main parse loop
 	// TODO: Handle casting differences between hlsl and glsl
@@ -1054,243 +1028,9 @@ class HLSL
 			let scopeLevel = 1;
 			this.#Require(it, TokenScopeLeft);
 
-			// Grab the basic data of the parameters
-			let params = [];
-			for (let i = 0; i < f.Parameters.length; i++)
-			{
-				params.push({
-					Name: f.Parameters[i].Name,
-					DataType: f.Parameters[i].DataType
-				});
-			}
-
-			// Add to the stack of variables in the current scope
-			let scopeStack = [];
-			scopeStack.push({
-				Type: "function",
-				Vars: params
-			});
-
-			// TESTING: Attempt a parse
-			//let statements = this.#ParseFunctionBody(it);
-			//console.log(statements);
-			//throw new Error("STOPPING NOW");
-
-			// Statement classification
-			let statementBlockDepth = 0;
-			let statementParenDepth = 0;
-			let statementType = this.#StatementTypeNone;
-			let currentVarDecType = null;
-
 			do
 			{
-				// Tracking data for this token
-				let isControl = this.#IsControlStatement(statementType);
-				let isEndOfControl = false;
-				let isExpression = false;
-
-				switch (it.Current().Text)
-				{
-					case "{":
-						statementType = this.#StatementTypeNone;
-						statementBlockDepth++;
-
-						// Also push a new scope stack for variables
-						scopeStack.push({
-							Type: "{",
-							Vars: []
-						});
-						break;
-
-					case "}":
-						statementType = this.#StatementTypeNone;
-						statementBlockDepth--;
-
-						// Verify that we're within the right scope
-						if (scopeStack[scopeStack.length - 1].Type == "{")
-						{
-							// Yup, so end this scope
-							scopeStack.pop();
-
-							// Also end any relevant (non-do) control scope
-							// to handle nested control statements with mixed {}'s
-							let t = scopeStack[scopeStack.length - 1].Type;
-							while (t == "if" || t == "while"  || t == "for")
-							{
-								scopeStack.pop();
-								t = scopeStack[scopeStack.length - 1].Type;
-							}
-						}
-						else
-						{
-							// TODO: Error due to imbalanced scope?
-						}
-						break;
-
-					case "if":
-						statementType = this.#StatementTypeIf;
-						scopeStack.push({ Type: "if", Vars: [] });
-						break;
-
-					case "do":
-						statementType = this.#StatementTypeDo;
-						scopeStack.push({ Type: "do", Vars: [] });
-						break;
-
-					case "while":
-						statementType = this.#StatementTypeWhile;
-						scopeStack.push({ Type: "while", Vars: [] });
-						// TODO: Handle do/while vs. while differently?  Needs some testing
-						break;
-
-					case "for":
-						statementType = this.#StatementTypeForA;
-						scopeStack.push({ Type: "for", Vars: [] });
-						break;
-
-					case "return":
-						statementType = this.#StatementTypeReturn;
-						break;
-
-					case ";":
-						// Potentially pop any control scope we run into
-						// to handled nested control blocks without {}'s
-						let t = scopeStack[scopeStack.length - 1].Type;
-						while (t == "if" || t == "do" || t == "while" || t == "for")
-						{
-							scopeStack.pop();
-							t = scopeStack[scopeStack.length - 1].Type;
-						}
-
-						// No more var type regardless of anything else
-						// TODO: Verify this
-						currentVarDecType = null;
-						break;
-
-					case ",":
-						// If we're not in a function call, this should be between var declarations with a single type
-						if (statementParenDepth == 0 && statementType == this.#StatementTypeVarDec)
-						{
-							// Validate the actual identifier associated with this variable decl
-							if (!this.#ProcessVarDecIdentifier(it.PeekNext(), currentVarDecType, scopeStack))
-							{
-								// ERROR!
-							}
-						}
-
-						break;
-
-					case "(":
-						// Are we starting a control expression?
-						if (!isControl || (isControl && statementParenDepth > 0))
-						{
-							isExpression = true;
-						}
-
-						// Depth increment either way
-						statementParenDepth++;
-
-						break;
-
-					case ")":
-						// Depth decrement either way
-						statementParenDepth--;
-
-						// Ending a control statement
-						if (isControl && statementParenDepth == 0)
-						{
-							// We're done with this expression and this control statement
-							isEndOfControl = true;
-						}
-						else if (!isControl || (isControl && statementParenDepth > 0))
-						{
-							// Not a control statement, or it is but we're within the expression
-							isExpression = true;
-						}
-
-						break;
-
-					default:
-						// If we're current set as none (presumably by a previously ended control
-						// statement or scope change), then assume we're a statement
-						if (statementType == this.#StatementTypeNone)
-						{
-							statementType = this.#StatementTypeExpression;
-						}
-
-						// Is this the start of a variable delcaration?
-						// - Must be a data type
-						// - Cannot be followed by start parens, which is for init: float4(1,2,3,4)
-						// - Cannot be followed by end parens, as that is for casting: (type)
-						if (this.#IsDataType(it.Current().Text) && it.PeekNext().Type != TokenParenLeft && it.PeekNext().Type != TokenParenRight)
-						{
-							// This IS an expression, it's a var dec and this is its type
-							isExpression = true;
-							statementType = this.#StatementTypeVarDec;
-							currentVarDecType = it.Current().Text;
-
-							// Validate the actual identifier associated with this variable decl
-							if (!this.#ProcessVarDecIdentifier(it.PeekNext(), currentVarDecType, scopeStack))
-							{
-								// ERROR!
-							}
-
-							// Possible syntax to look for:
-							// int x;
-							// int x, y;
-							// int x = 1;
-							// int x = 1, y;
-							// int x = 1, y = 2;
-							// int x, y = 1;
-							// int x = func();
-							// int x = func(), y = func();
-							// Etc.
-							// Also: int x = 1, y = x; // Should work!
-
-							//console.log("DATA TYPE: " + it.Current().Text);
-						}
-
-						// Everything else is an expression
-						isExpression = true;
-						break;
-				}
-
-				// Afterwards, record the statement type
-				it.Current().StatementType = statementType;
-
-				// If we've ended a control statement, reset type AFTER recording
-				if (isEndOfControl)
-				{
-					statementType = this.#StatementTypeNone;
-				}
-				else if (it.Current().Type == TokenSemicolon)
-				{
-					// If we're a semicolon in a for loop, move ahead AFTER classification
-					if (statementType == this.#StatementTypeForA ||
-						statementType == this.#StatementTypeForB)
-						statementType++; // Move to the next "for" type
-				}
-
-				// Record the expression status
-				it.Current().IsExpression = isExpression;
-
-				// Check for texture object function call, which occurs
-				// when a texture identifier is followed immediately by a period
-				let startPos = it.Position();
 				this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
-				let endPos = it.Position();
-
-				// Did we find a texture
-				if (startPos < endPos)
-				{
-					// Need to update all
-					let range = it.GetRange(startPos, endPos);
-					for (let i = 0; i < range.length; i++)
-					{
-						range[i].IsExpression = true;
-						range[i].StatementType = this.#StatementTypeExpression;
-					}
-				}
 
 				// Check for scope change and skip everything else
 				if (this.#Allow(it, TokenScopeLeft))
@@ -1323,10 +1063,6 @@ class HLSL
 				this.#functions.push(f);
 			}
 
-			// Now that we're done, go back and build all expression trees
-			// for the expressions within this function
-			this.#BuildAllExpressionTrees(f.BodyTokens);
-
 			// Found something useful
 			return true;
 		}
@@ -1348,106 +1084,6 @@ class HLSL
 		// Unsuccessful parse
 		return false;
 	}
-
-
-
-	// EXPRESSION PARSING IDEAS
-	// - Resources:
-	//   - https://craftinginterpreters.com/parsing-expressions.html
-	//   - https://www.engr.mun.ca/~theo/Misc/exp_parsing.htm
-	//
-	// - Need to denote all expressions so we can convert ints to floats where necessary
-	// - ALMOST all ints can be changed into floats, except...
-	//   - When a function requires an int (SampleLevel? Custom helpers (UGH))
-	//   - Integer division
-	//   - Bitwise operations on ints
-	// - Expression locations:
-	//   - Full lines (without control flow or loop)
-	//   - Inside ()'s: funcCall(EXPRESSION), etc.
-	//   - Between commas: funcCall(EXPRESSION, EXPRESSION, etc.)
-	//   - For loop statements: for(EXPRESSION; EXPRESSION; EXPRESSION) - Note: also supports commas!
-	//   - If: if(EXPRESSION)
-	//   - While: while(EXPRESSION), do { } while(EXPRESSION)
-	//   - return statement: return EXPRESSION;
-
-	// Expression object details
-	// {
-	//   Type --> One of:
-	//     - Assignment
-	//     - Binary
-	//     - FunctionCall
-	//     - Grouping
-	//     - Literal
-	//     - Logical
-	//     - Unary
-	//     - Variable
-	//
-	//   Data --> Depends on Type:
-	//     - Assignment
-	//       - Var: Token of variable being assigned
-	//       - Exp: Expression on right side of assignment
-	//     - Binary
-	//       - Left: Expression
-	//       - Operator: The token itself
-	//       - Right: Expression
-	//     - FunctionCall
-	//       - Func: Expression
-	//       - Args: Array of expressions
-	//     - Grouping
-	//       - Exp: Expression inside grouping
-	//     - Literal
-	//       - Token: The token itself
-	//     - Logical
-	//       - Left: Expression
-	//       - Operator: The token itself
-	//       - Right: Expression
-	//     - Unary
-	//       - Operator: The token itself
-	//       - Right: Expression
-	//     - Variable
-	//       - Var: Token of variable being assigned
-	// }
-	//
-	// Statement object details
-	// {
-	//   Type --> One of:
-	//     - Block
-	//     - DoWhile
-	//     - Expression
-	//     - For
-	//     - If
-	//     - Return
-	//     - VariableDeclaration
-	//     - While
-	//
-	//   Data --> Depends on Type:
-	//     - Block
-	//       - Statements: Array of statements
-	//     - DoWhile
-	//       - Body: Statement
-	//       - Condition: Expression
-	//     - Expression
-	//       - Exp: Expression
-	//     - For
-	//       - Init: Expression (or array?)
-	//       - Condition: Expression
-	//       - Iterator: Expression (or array?)
-	//       - Body: Statement
-	//     - If
-	//       - Condition: Expression
-	//       - If: Statement
-	//       - Else: Statement
-	//     - Return
-	//       - Return: Token of return keyword
-	//       - Exp: Expression for return
-	//     - VariableDeclaration
-	//       - DataType: Token
-	//       - Var: Token
-	//       - Exp: Expression on right side of assignment (if any)
-	//     - While
-	//       - Condition: Expression
-	//       - Body: Statement
-	// }
 
 
 	#ParseFunctionBody(it)
@@ -2168,116 +1804,6 @@ class HLSL
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-	#BuildAllExpressionTrees(tokens)
-	{
-		// Loop through all the given tokens and build expression trees
-		let expStart = -1;
-		for (let i = 0; i < tokens.length; i++)
-		{
-			// If we're not in an expression and one begins, save the start position
-			if (expStart == -1 && tokens[i].IsExpression)
-				expStart = i;
-
-			// If we have an expression but this token is NOT one, we found the end
-			if (expStart >= 0 && !tokens[i].IsExpression)
-			{
-				this.#BuildExpressionTree(tokens, expStart, i - 1);
-				expStart = -1; // Reset expression
-			}
-		}
-
-	}
-
-	#BuildExpressionTree(tokens, start, end)
-	{
-		// TOOD: Set up operator priority (should match C)
-		// 1: postfix: ++ --, function call: ( ), array: [ ], member access: .
-		// 2: prefix: ++ --, unary: + -, not: ! ~, cast: (type)
-		//    - Note: Right-to-left associativity
-		// 3: * / %
-		// 4: + - (regular add/subtract)
-		// 5: << >>
-		// 6: < <= > >=
-		// 7: == !=
-		// 8: &
-		// 9: ^
-		// 10: |
-		// 11: &&
-		// 12: ||
-		// 13: ?: (ternary)
-		//    - Note: Right-to-left associativity
-		// 14: Assignments (are these all the same?)
-		//      =
-		//      += -=
-		//      *= /= %=
-		//      <<= >>=
-		//      &= ^= |=
-		//    - Note: Right-to-left associativity
-		// 15: Comma (between function params)
-
-
-		// https://leetcode.ca/2020-04-14-1597-Build-Binary-Expression-Tree-From-Infix-Expression/
-
-		// Stacks for shunting
-		let symbolStack = [];
-		let nodeStack = [];
-
-		for (let i = start; i <= end; i++)
-		{
-			// Grab the current token
-			let t = tokens[i];
-
-			// Check type
-			if (t.Type == TokenParenLeft)
-			{
-				symbolStack.push(t);
-			}
-			else if (t.Type == TokenNumericLiteral || t.Type == TokenIdentifier)
-			{
-				
-			}
-			else if (t.Type == TokenParenRight)
-			{
-
-			}
-			else if (t.Type == TokenOperator)
-			{
-
-			}
-
-		}
-	}
-
-	// Levels:
-	// - ParseBlock()
-	//   - Could be { }'s
-	//   - Could be a single statement
-	//
-	// - ParseStatement()
-	//   - Could be single line of code ending with ;
-	//   - Could be if/elseif/else, do, while, for, switch
-	//   - Could be a single ; (as a typo probably?)
-	//
-	// - ParseExpression()
-	//   - Optional prefix operator (+, -, ++, --, !, ~, etc.)
-	//   - Optional grouping: ( )
-	//   - At least one operand: literal, variable, function call
-	//   - Optionally followed by an operator
-	//     - If so, more of grouping/prefix/operand
-	//   - Optionally more operators, etc.
-
-
 	// Check the current token to see if we're at the beginning of a texture
 	// object function call, and if so, store that info
 	//
@@ -2367,7 +1893,7 @@ class HLSL
 		// coords, including another texture sample!
 		//let uvExpressionStartPos = it.Position() - relativePosOffset;
 		let parenDepth = 1;
-
+		
 		do
 		{
 			// Check for a sub-texture function
