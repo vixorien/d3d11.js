@@ -1472,8 +1472,21 @@ class HLSL
 		if (this.#AllowIdentifier(it, "for")) return this.#ParseFor(it);
 		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it);
 		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it);
+		if (this.#AllowIdentifier(it, "switch")) return this.#ParseSwitch(it);
 		if (this.#IsDataType(it.Current().Text) || this.#AllowIdentifier(it, "const")) return this.#ParseVarDec(it);
 		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it);
+
+		// Check for simple jump statements here
+		if (this.#AllowIdentifier(it, "break") ||
+			this.#AllowIdentifier(it, "continue") ||
+			this.#AllowIdentifier(it, "discard"))
+		{
+			// Grab the token, then require a semicolon immediately
+			let jumpToken = it.PeekPrev();
+			this.#Require(it, TokenSemicolon);
+
+			return new StatementJump(jumpToken);
+		}
 
 		// No matches?  Try an expression
 		return this.#ParseExpressionStatement(it);
@@ -1594,6 +1607,74 @@ class HLSL
 		let exp = this.#ParseExpression(it);
 		this.#Require(it, TokenSemicolon);
 		return new StatementReturn(exp);
+	}
+
+	#ParseSwitch(it)
+	{
+		// Assuming "switch" already found
+		let selectorExpression = null;
+		let cases = [];
+
+		// Need a variable inside ( )'s
+		this.#Require(it, TokenParenLeft);
+		selectorExpression = this.#ParseExpression(it);
+		this.#Require(it, TokenParenRight);
+
+		// Require { to start body
+		this.#Require(it, TokenScopeLeft);
+
+		// Loop until we hit a matching }
+		let defaultFound = false;
+		while (it.Current().Type != TokenScopeRight)
+		{
+			let caseValue = null; // null -> default, non-null -> case
+
+			// Look for a case or default
+			if (this.#AllowIdentifier(it, "case"))
+			{
+				// Grab the expression for the value
+				caseValue = this.#ParseExpression(it);
+			}
+			else if (this.#AllowIdentifier(it, "default"))
+			{
+				// Duplicate defaults?
+				if (defaultFound)
+					throw new Error("More than one 'default' found in switch statement");
+
+				defaultFound = true;
+			}
+			else // If it's not case and it's not default
+			{
+				throw new Error("Invalid token in switch statement: " + it.Current().Text);
+			}
+
+			// Must be followed by a colon
+			this.#Require(it, TokenColon);
+
+			// Grab statements until we hit case, default or end
+			let statements = [];
+			while (
+				it.Current().Text != "case" &&
+				it.Current().Text != "default" &&
+				it.Current().Type != TokenScopeRight)
+			{
+				statements.push(this.#ParseStatement(it));
+			}
+
+			// Finished this case or default
+			if (caseValue == null)
+			{
+				cases.push(new StatementDefault(statements));
+			}
+			else
+			{
+				cases.push(new StatementCase(caseValue, statements));
+			}
+		}
+
+		// Need an end scope and we're done
+		this.#Require(it, TokenScopeRight);
+		return new StatementSwitch(selectorExpression, cases);
 	}
 
 	#ParseVarDec(it)
@@ -3361,6 +3442,30 @@ class StatementBlock extends Statement
 	}
 }
 
+class StatementCase extends Statement
+{
+	CaseValueExpression;
+	Statements;
+
+	constructor(caseValueExp, statements)
+	{
+		super();
+		this.CaseValueExpression = caseValueExp;
+		this.Statements = statements;
+	}
+}
+
+class StatementDefault extends Statement
+{
+	Statements;
+
+	constructor(statements)
+	{
+		super();
+		this.Statements = statements;
+	}
+}
+
 class StatementDoWhile extends Statement
 {
 	Body;
@@ -3417,6 +3522,17 @@ class StatementIf extends Statement
 	}
 }
 
+class StatementJump extends Statement
+{
+	JumpToken;
+
+	constructor(jumpToken)
+	{
+		super();
+		this.JumpToken = jumpToken;
+	}
+}
+
 class StatementReturn extends Statement
 {
 	Expression;
@@ -3428,10 +3544,17 @@ class StatementReturn extends Statement
 	}
 }
 
-// TODO: Handle switches!
 class StatementSwitch extends Statement
 {
+	SelectorExpression;
+	Cases;
 
+	constructor(selectorExp, cases)
+	{
+		super();
+		this.SelectorExpression = selectorExp;
+		this.Cases = cases;
+	}
 }
 
 class StatementWhile extends Statement
@@ -3450,7 +3573,7 @@ class StatementWhile extends Statement
 class StatementVar extends Statement
 {
 	IsConst;
-	DataTypeToken
+	DataTypeToken;
 	VarDecs; // Array of possible declarations, separated by commas
 
 	constructor(isConst, dataTypeToken, varDecs)
