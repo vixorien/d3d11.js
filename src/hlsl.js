@@ -1028,6 +1028,13 @@ class HLSL
 			let scopeLevel = 1;
 			this.#Require(it, TokenScopeLeft);
 
+			// TESTING: Attempt a parse
+			//let statements = this.#ParseFunctionBody(it);
+			//console.log(statements);
+			//for (let i = 0; i < statements.length; i++)
+			//	console.log(statements[i].ToHLSL());
+			//throw new Error("STOPPING NOW");
+
 			do
 			{
 				this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
@@ -1436,7 +1443,7 @@ class HLSL
 
 	#ParseAssignment(it)
 	{
-		// Look for next expression precedence first (OR)
+		// Look for next expression precedence first
 		let exp = this.#ParseTernary(it);
 
 		// Now look for assignment
@@ -1454,13 +1461,12 @@ class HLSL
 			// Validate variable
 			if (!expIsVar)
 			{
-				console.log(JSON.stringify(exp));
 				throw new Error("Expected variable for assignment.");
 			}
 
 			// Previous token is a variable, so parse the assignment
 			return new ExpAssignment(
-				exp.VarToken, // Grab token from variable expression
+				exp, // Need whole expression since it might be a member, like: pos.x = 5;
 				this.#ParseAssignment(it));
 		}
 
@@ -2966,6 +2972,17 @@ class StatementBlock extends Statement
 		super();
 		this.Statements = statements;
 	}
+
+	ToHLSL()
+	{
+		let s = "{\n";
+
+		for (let i = 0; i < this.Statements.length; i++)
+			s += this.Statements.ToHLSL() + "\n";
+
+		s += "}";
+		return s;
+	}
 }
 
 class StatementCase extends Statement
@@ -3014,6 +3031,11 @@ class StatementExpression extends Statement
 		super();
 		this.Exp = exp;
 	}
+
+	ToHLSL()
+	{
+		return this.Exp.ToHLSL() + ";";
+	}
 }
 
 class StatementFor extends Statement
@@ -3057,6 +3079,11 @@ class StatementJump extends Statement
 		super();
 		this.JumpToken = jumpToken;
 	}
+
+	ToHLSL()
+	{
+		return this.JumpToken.Text + ";";
+	}
 }
 
 class StatementReturn extends Statement
@@ -3067,6 +3094,11 @@ class StatementReturn extends Statement
 	{
 		super();
 		this.Expression = exp;
+	}
+
+	ToHLSL()
+	{
+		return "return " + this.Expression.ToHLSL() + ";";
 	}
 }
 
@@ -3109,6 +3141,24 @@ class StatementVar extends Statement
 		this.DataTypeToken = dataTypeToken;
 		this.VarDecs = varDecs;
 	}
+
+	ToHLSL()
+	{
+		let s = "";
+
+		if (this.IsConst) s += "const ";
+
+		s += this.DataTypeToken.Text + " ";
+
+		for (let v = 0; v < this.VarDecs.length; v++)
+		{
+			if (v > 0) s += ", ";
+			s += this.VarDecs[v].ToHLSL();
+		}
+
+		s += ";";
+		return s;
+	}
 }
 
 class VarDec extends Statement
@@ -3128,6 +3178,20 @@ class VarDec extends Statement
 		this.ArrayExpression = arrayExp;
 		this.DefinitionExpression = defExp;
 	}
+
+	ToHLSL()
+	{
+		// Note: Const AND data type will be added at the StatementVar level!
+		let s = this.NameToken.Text;
+
+		if (this.ArrayExpression != null)
+			s += "[" + this.ArrayExpression.ToHLSL() + "]";
+
+		if (this.DefinitionExpression != null)
+			s += " = " + this.DefinitionExpression.ToHLSL();
+
+		return s;
+	}
 }
 
 
@@ -3144,18 +3208,28 @@ class ExpArray extends Expression
 		this.ExpArray = expArray;
 		this.ExpIndex = expIndex;
 	}
+
+	ToHLSL()
+	{
+		return this.ExpArray.ToHLSL() + "[" + this.ExpIndex.ToHLSL() + "]";
+	}
 }
 
 class ExpAssignment extends Expression
 {
-	VarToken;
-	Exp;
+	VarExp;
+	AssignExp;
 
-	constructor(varToken, exp)
+	constructor(varExp, assignExp)
 	{
 		super();
-		this.VarToken = varToken;
-		this.Exp = exp;
+		this.VarExp = varExp;
+		this.AssignExp = assignExp;
+	}
+
+	ToHLSL()
+	{
+		return this.VarExp.ToHLSL() + " = " + this.AssignExp.ToHLSL();
 	}
 }
 
@@ -3172,6 +3246,13 @@ class ExpBinary extends Expression
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
 	}
+
+	ToHLSL()
+	{
+		return this.ExpLeft.ToHLSL() + " " +
+			this.OperatorToken.Text + " " +
+			this.ExpRight.ToHLSL();
+	}
 }
 
 class ExpBitwise extends Expression
@@ -3187,6 +3268,13 @@ class ExpBitwise extends Expression
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
 	}
+
+	ToHLSL()
+	{
+		return this.ExpLeft.ToHLSL() + " " +
+			this.OperatorToken.Text + " " +
+			this.ExpRight.ToHLSL();
+	}
 }
 
 class ExpCast extends Expression
@@ -3199,6 +3287,11 @@ class ExpCast extends Expression
 		super();
 		this.TypeToken = typeToken;
 		this.Exp = exp;
+	}
+
+	ToHLSL()
+	{
+		return "(" + this.TypeToken.Text + ")" + this.Exp.ToHLSL();
 	}
 }
 
@@ -3213,6 +3306,22 @@ class ExpFunctionCall extends Expression
 		this.FuncExp = funcExp;
 		this.Parameters = params;
 	}
+
+	ToHLSL()
+	{
+		let s = this.FuncExp.ToHLSL() + "(";
+
+		for (let p = 0; p < this.Parameters.length; p++)
+		{
+			if (p > 0)
+				s += ", ";
+
+			s += this.Parameters[p].ToHLSL();
+		}
+
+		s += ")";
+		return s;
+	}
 }
 
 class ExpGroup extends Expression
@@ -3224,6 +3333,11 @@ class ExpGroup extends Expression
 		super();
 		this.Exp = exp;
 	}
+
+	ToHLSL()
+	{
+		return "(" + this.Exp.ToHLSL() + ")";
+	}
 }
 
 class ExpLiteral extends Expression
@@ -3234,6 +3348,11 @@ class ExpLiteral extends Expression
 	{
 		super();
 		this.LiteralToken = litToken;
+	}
+
+	ToHLSL()
+	{
+		return this.LiteralToken.Text;
 	}
 }
 
@@ -3249,6 +3368,13 @@ class ExpLogical extends Expression
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
+	}
+
+	ToHLSL()
+	{
+		return this.ExpLeft.ToHLSL() + " " +
+			this.OperatorToken.Text + " " +
+			this.ExpRight.ToHLSL();
 	}
 }
 
@@ -3275,6 +3401,11 @@ class ExpMember extends Expression
 
 		return (current instanceof ExpVariable);
 	}
+
+	ToHLSL()
+	{
+		return this.ExpLeft.ToHLSL() + "." + this.ExpRight.ToHLSL();
+	}
 }
 
 class ExpPostfix extends Expression
@@ -3287,6 +3418,11 @@ class ExpPostfix extends Expression
 		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
+	}
+
+	ToHLSL()
+	{
+		return ExpLeft.ToHLSL() + this.OperatorToken.Text;
 	}
 }
 
@@ -3303,6 +3439,13 @@ class ExpTernary extends Expression
 		this.ExpIf = expIf;
 		this.ExpElse = expElse;
 	}
+
+	ToHLSL()
+	{
+		return this.ExpCondition.ToHLSL() + " ? " +
+			this.ExpIf.ToHLSL() + " : " +
+			this.ExpElse.ToHLSL();
+	}
 }
 
 class ExpUnary extends Expression
@@ -3316,6 +3459,11 @@ class ExpUnary extends Expression
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
 	}
+
+	ToHLSL()
+	{
+		return this.OperatorToken.Text + ExpRight.ToHLSL();
+	}
 }
 
 class ExpVariable extends Expression
@@ -3326,5 +3474,10 @@ class ExpVariable extends Expression
 	{
 		super();
 		this.VarToken = varToken;
+	}
+
+	ToHLSL()
+	{
+		return this.VarToken.Text;
 	}
 }
