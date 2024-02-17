@@ -6890,7 +6890,7 @@ class HLSL
 			let statements = this.#ParseFunctionBody(it);
 			console.log(statements);
 			for (let i = 0; i < statements.length; i++)
-				console.log(statements[i].ToHLSL());
+				console.log(statements[i].ToHLSL(""));
 			throw new Error("STOPPING NOW");
 
 			do
@@ -6974,7 +6974,7 @@ class HLSL
 		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it);
 		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it);
 		if (this.#AllowIdentifier(it, "switch")) return this.#ParseSwitch(it);
-		if (this.#IsDataType(it.Current().Text) || this.#AllowIdentifier(it, "const")) return this.#ParseVarDec(it);
+		if (this.#IsDataType(it.Current().Text) || it.Current().Text == "const") return this.#ParseVarDec(it);
 		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it);
 
 		// Check for simple jump statements here
@@ -7025,10 +7025,10 @@ class HLSL
 	#ParseFor(it)
 	{
 		// Any piece could be empty: for(;;)
-		let init = null; // Statement
-		let cond = null; // Expression
-		let iter = null; // Expression
-		let body = null; // Statement
+		let initStatement = null; // Statement
+		let condExp = null; // Expression
+		let iterExp = null; // Expression
+		let bodyStatement = null; // Statement
 
 		// Assuming "for" already found
 		this.#Require(it, TokenParenLeft);
@@ -7038,20 +7038,19 @@ class HLSL
 		// Init could be a var declaration, or just assignment
 		if (this.#IsDataType(it.Current().Text))
 		{
-			init = this.#ParseVarDec(it);
+			initStatement = this.#ParseVarDec(it); // Already handles semicolon
 		}
 		else
 		{
-			init = this.#ParseExpressionStatement(it);
+			// Expression + semicolon
+			initStatement = this.#ParseExpressionStatement(it);
+			this.#Require(it, TokenSemicolon);
 		}
-
-		// Semicolon to end init
-		this.#Require(it, TokenSemicolon);
 
 		// Move on to condition, if necessary
 		if (it.Current().Type != TokenSemicolon)
 		{
-			cond = this.#ParseExpression(it);
+			condExp = this.#ParseExpression(it);
 		}
 
 		// Semicolon to end cond
@@ -7060,17 +7059,17 @@ class HLSL
 		// Move on to iteration, if necessary
 		if (it.Current().Type != TokenParenRight)
 		{
-			iter = this.#ParseExpression(it);
+			iterExp = this.#ParseExpression(it);
 		}
 
 		// Require end paren
 		this.#Require(it, TokenParenRight);
 
 		// Parse the body
-		body = this.#ParseStatement(it);
+		bodyStatement = this.#ParseStatement(it);
 
 		// All done
-		return new StatementFor(init, cond, iter, body);
+		return new StatementFor(initStatement, condExp, iterExp, bodyStatement);
 	}
 
 	#ParseIf(it)
@@ -7191,10 +7190,10 @@ class HLSL
 		// int x = func(), y = func();
 		// Etc.
 		// Also: int x = 1, y = x; // Should work!
-
+		
 		// Might be const
 		let isConst = this.#AllowIdentifier(it, "const");
-
+		
 		// Initial token (data type) not yet used up!
 		this.#Require(it, TokenIdentifier);
 		let dataTypeToken = it.PeekPrev();
@@ -7230,7 +7229,6 @@ class HLSL
 			throw new Error("Variable name expected");
 
 		// Semicolon at end
-		console.log(it.Current().Text);
 		this.#Require(it, TokenSemicolon);
 		return new StatementVar(isConst, dataTypeToken, varDecs);
 	}
@@ -8831,14 +8829,14 @@ class StatementBlock extends Statement
 		this.Statements = statements;
 	}
 
-	ToHLSL()
+	ToHLSL(indent)
 	{
-		let s = "{\n";
+		let s = indent + "{\n";
 
 		for (let i = 0; i < this.Statements.length; i++)
-			s += this.Statements.ToHLSL() + "\n";
+			s += this.Statements[i].ToHLSL(indent + "\t") + "\n";
 
-		s += "}";
+		s += indent + "}";
 		return s;
 	}
 }
@@ -8854,6 +8852,16 @@ class StatementCase extends Statement
 		this.CaseValueExpression = caseValueExp;
 		this.Statements = statements;
 	}
+
+	ToHLSL(indent)
+	{
+		let s = indent + "case " + this.CaseValueExpression.ToHLSL() + ":\n";
+
+		for (let i = 0; i < this.Statements.length; i++)
+			s += this.Statements[i].ToHLSL(indent + "\t") + "\n";
+
+		return s;
+	}
 }
 
 class StatementDefault extends Statement
@@ -8864,6 +8872,16 @@ class StatementDefault extends Statement
 	{
 		super();
 		this.Statements = statements;
+	}
+
+	ToHLSL(indent)
+	{
+		let s = indent + "default:\n";
+
+		for (let i = 0; i < this.Statements.length; i++)
+			s += this.Statements[i].ToHLSL(indent + "\t") + "\n";
+
+		return s;
 	}
 }
 
@@ -8878,6 +8896,14 @@ class StatementDoWhile extends Statement
 		this.Body = body;
 		this.Condition = cond;
 	}
+
+	ToHLSL(indent)
+	{
+		let s = indent + "do\n";
+		s += this.Body.ToHLSL(indent + "\t");
+		s += indent + "while(" + this.Condition.ToHLSL() + ");\n";
+		return s;
+	}
 }
 
 class StatementExpression extends Statement
@@ -8890,26 +8916,37 @@ class StatementExpression extends Statement
 		this.Exp = exp;
 	}
 
-	ToHLSL()
+	ToHLSL(indent)
 	{
-		return this.Exp.ToHLSL() + ";";
+		return indent + this.Exp.ToHLSL() + ";";
 	}
 }
 
 class StatementFor extends Statement
 {
-	Init;
-	Condition;
-	Iterate;
-	Body;
+	InitStatement;
+	ConditionExpression;
+	IterateExpression;
+	BodyStatement;
 
-	constructor(init, cond, iter, body)
+	constructor(initStatement, condExp, iterExp, bodyStatement)
 	{
 		super();
-		this.Init = init;
-		this.Condition = cond;
-		this.Iterate = iter;
-		this.Body = body;
+		this.InitStatement = initStatement;
+		this.ConditionExpression = condExp;
+		this.IterateExpression = iterExp;
+		this.BodyStatement = bodyStatement;
+	}
+
+	ToHLSL(indent)
+	{
+		let s = indent + "for(";
+		s += this.InitStatement.ToHLSL("") + " ";
+		s += this.ConditionExpression.ToHLSL() + "; ";
+		s += this.IterateExpression.ToHLSL() + ")\n";
+
+		s += this.BodyStatement.ToHLSL(indent + "\t");
+		return s;
 	}
 }
 
@@ -8926,6 +8963,21 @@ class StatementIf extends Statement
 		this.If = ifBlock;
 		this.Else = elseBlock;
 	}
+
+	ToHLSL(indent)
+	{
+		let s = indent + "if(" + this.Condition.ToHLSL() + ")\n";
+
+		s += this.If.ToHLSL(indent + "\t") + "\n";
+
+		if (this.Else != null)
+		{
+			s += indent + "else\n";
+			s += this.Else.ToHLSL(indent + "\t") + "\n";
+		}
+		
+		return s;
+	}
 }
 
 class StatementJump extends Statement
@@ -8938,9 +8990,9 @@ class StatementJump extends Statement
 		this.JumpToken = jumpToken;
 	}
 
-	ToHLSL()
+	ToHLSL(indent)
 	{
-		return this.JumpToken.Text + ";";
+		return indent + this.JumpToken.Text + ";";
 	}
 }
 
@@ -8954,9 +9006,9 @@ class StatementReturn extends Statement
 		this.Expression = exp;
 	}
 
-	ToHLSL()
+	ToHLSL(indent)
 	{
-		return "return " + this.Expression.ToHLSL() + ";";
+		return indent + "return " + this.Expression.ToHLSL() + ";";
 	}
 }
 
@@ -8971,6 +9023,18 @@ class StatementSwitch extends Statement
 		this.SelectorExpression = selectorExp;
 		this.Cases = cases;
 	}
+
+	ToHLSL(indent)
+	{
+		let s = indent + "switch(" + this.SelectorExpression.ToHLSL() + ")\n";
+		s += indent + "{\n";
+
+		for (let c = 0; c < this.Cases.length; c++)
+			s += this.Cases[c].ToHLSL(indent + "\t");
+
+		s += indent + "}";
+		return s;
+	}
 }
 
 class StatementWhile extends Statement
@@ -8983,6 +9047,13 @@ class StatementWhile extends Statement
 		super();
 		this.Condition = cond;
 		this.Body = body;
+	}
+
+	ToHLSL(indent)
+	{
+		let s = indent + "while(" + this.Condition.ToHLSL() + ")\n";
+		s += this.Body.ToHLSL(indent + "\t");
+		return s;
 	}
 }
 
@@ -9000,11 +9071,12 @@ class StatementVar extends Statement
 		this.VarDecs = varDecs;
 	}
 
-	ToHLSL()
+	ToHLSL(indent)
 	{
-		let s = "";
+		let s = indent;
 
-		if (this.IsConst) s += "const ";
+		if (this.IsConst)
+			s += "const ";
 
 		s += this.DataTypeToken.Text + " ";
 
@@ -9280,7 +9352,7 @@ class ExpPostfix extends Expression
 
 	ToHLSL()
 	{
-		return ExpLeft.ToHLSL() + this.OperatorToken.Text;
+		return this.ExpLeft.ToHLSL() + this.OperatorToken.Text;
 	}
 }
 
@@ -9320,7 +9392,7 @@ class ExpUnary extends Expression
 
 	ToHLSL()
 	{
-		return this.OperatorToken.Text + ExpRight.ToHLSL();
+		return this.OperatorToken.Text + this.ExpRight.ToHLSL();
 	}
 }
 

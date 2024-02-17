@@ -62,7 +62,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	const int TONEMAP_LINEAR = 0;
 	const int TONEMAP_REINHARD = 1;
 	const int TONEMAP_REINHARD_WHITE_POINT = 2;
-;	const int TONEMAP_EXPOSURE = 3;
+	const int TONEMAP_EXPOSURE = 3;
 	const int TONEMAP_UNCHARTED = 4;
 	const int TONEMAP_ACES = 5;
 
