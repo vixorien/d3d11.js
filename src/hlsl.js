@@ -1029,11 +1029,11 @@ class HLSL
 			this.#Require(it, TokenScopeLeft);
 
 			// TESTING: Attempt a parse
-			let statements = this.#ParseFunctionBody(it);
-			console.log(statements);
-			for (let i = 0; i < statements.length; i++)
-				console.log(statements[i].ToHLSL(""));
-			throw new Error("STOPPING NOW");
+			//let statements = this.#ParseFunctionBody(it);
+			//console.log(statements);
+			//for (let i = 0; i < statements.length; i++)
+			//	console.log(statements[i].ToHLSL(""));
+			//throw new Error("STOPPING NOW");
 
 			do
 			{
