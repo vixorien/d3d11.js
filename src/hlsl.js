@@ -926,51 +926,6 @@ class HLSL
 		return s;
 	}
 
-	//#DoesIdentifierExistInScope(ident, scopeStack)
-	//{
-	//	// Go through stack
-	//	for (let i = 0; i < scopeStack.length; i++)
-	//	{
-	//		// Check this scope's variables
-	//		let currScope = scopeStack[i];
-	//		for (let v = 0; v < currScope.Vars.length; v++)
-	//		{
-	//			// Found it?
-	//			if (ident == currScope.Vars[v].Name)
-	//				return true;
-	//		}
-	//	}
-
-	//	// Nothing!
-	//	return false;
-	//}
-
-	//#ProcessVarDecIdentifier(token, varDecType, scopeStack)
-	//{
-	//	// Is it really an identifier?
-	//	if (token.Type != TokenIdentifier)
-	//	{
-	//		// ERROR!
-	//		// TODO: Throw
-	//		console.log("ERROR - Expected identifier for variable declaration.  Found: " + token.Text);
-	//		return false;
-	//	}
-
-	//	if (this.#DoesIdentifierExistInScope(token.Text, scopeStack))
-	//	{
-	//		// ERROR!
-	//		// TODO: Throw
-	//		console.log("ERROR - Identifier redeclaration: " + token.Text);
-	//		return false;
-	//	}
-
-	//	// Identifier is valid, add to scope stack
-	//	scopeStack[scopeStack.length - 1].Vars.push({
-	//		Name: token.Text,
-	//		DataType: varDecType
-	//	});
-	//	return true;
-	//}
 
 	// TODO: Skip const globals in the global CB - will now handle in main parse loop
 	// TODO: Handle casting differences between hlsl and glsl
