@@ -32,6 +32,9 @@ const PrefixPSInput = "_ps_input_";
 const PrefixPSOutput = "_ps_output_";
 const PSOutputVariable = "_sv_target_";
 
+const LanguageHLSL = 0;
+const LanguageGLSL = 1;
+
 class TokenIterator
 {
 	#tokens;
@@ -987,7 +990,7 @@ class HLSL
 			//let statements = this.#ParseFunctionBody(it);
 			//console.log(statements);
 			//for (let i = 0; i < statements.length; i++)
-			//	console.log(statements[i].ToHLSL(""));
+			//	console.log(statements[i].ToString(LanguageHLSL, ""));
 			//throw new Error("STOPPING NOW");
 
 			do
@@ -2914,6 +2917,101 @@ class HLSL
 
 }
 
+class ShaderElement { }
+
+// TODO: What is the type for "variables" here?  Standard statements?
+class ShaderElementCBuffer extends ShaderElement
+{
+	Name;
+	RegisterIndex;
+	ExplicitRegister;
+	Variables;
+
+	constructor(name, regIndex, explicitReg, vars)
+	{
+		super();
+
+		this.Name = name;
+		this.RegisterIndex = regIndex;
+		this.ExplicitRegister = explicitReg;
+		this.Variables = vars;
+	}
+}
+
+class ShaderElementFunction extends ShaderElement
+{
+	ReturnType;
+	Name;
+	Semantic;
+	Parameters;
+	Statements;
+	TextureFunctions; // TODO: Is this needed?  I think this can go away once statements & expressions properly write their own GLSL
+
+	constructor(returnType, name, semantic, params, statements, textureFuncs)
+	{
+		super();
+
+		this.ReturnType = returnType;
+		this.Name = name;
+		this.Semantic = semantic;
+		this.Parameters = params;
+		this.Statements = statements;
+		this.TextureFunctions = textureFuncs;
+	}
+}
+
+class ShaderElementSampler extends ShaderElement
+{
+	Type;
+	Name;
+	RegisterIndex;
+	ExplicitRegister;
+
+	constructor(type, name, regIndex, explicitReg)
+	{
+		super();
+
+		this.Type = type;
+		this.Name = name;
+		this.RegisterIndex = regIndex;
+		this.ExplicitRegister = explicitReg;
+	}
+}
+
+// TODO: Shader element struct member?  Each can have interpolation mod, data type, array size, name, semantic
+class ShaderElementStruct extends ShaderElement
+{
+	Name;
+	Variables;
+
+	constructor(name, vars)
+	{
+		super();
+
+		this.Name = name;
+		this.Variables = vars;
+	}
+}
+
+class ShaderElementTexture extends ShaderElement
+{
+	Type;
+	Name;
+	RegisterIndex;
+	ExplicitRegister;
+
+	constructor(type, name, regIndex, explicitReg)
+	{
+		super();
+
+		this.Type = type;
+		this.Name = name;
+		this.RegisterIndex = regIndex;
+		this.ExplicitRegister = explicitReg;
+	}
+}
+
+
 class Statement { }
 
 class StatementBlock extends Statement
@@ -2926,12 +3024,12 @@ class StatementBlock extends Statement
 		this.Statements = statements;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
 		let s = indent + "{\n";
 
 		for (let i = 0; i < this.Statements.length; i++)
-			s += this.Statements[i].ToHLSL(indent + "\t") + "\n";
+			s += this.Statements[i].ToString(lang, indent + "\t") + "\n";
 
 		s += indent + "}";
 		return s;
@@ -2950,12 +3048,12 @@ class StatementCase extends Statement
 		this.Statements = statements;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
-		let s = indent + "case " + this.CaseValueExpression.ToHLSL() + ":\n";
+		let s = indent + "case " + this.CaseValueExpression.ToString(lang) + ":\n";
 
 		for (let i = 0; i < this.Statements.length; i++)
-			s += this.Statements[i].ToHLSL(indent + "\t") + "\n";
+			s += this.Statements[i].ToString(lang, indent + "\t") + "\n";
 
 		return s;
 	}
@@ -2971,12 +3069,12 @@ class StatementDefault extends Statement
 		this.Statements = statements;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
 		let s = indent + "default:\n";
 
 		for (let i = 0; i < this.Statements.length; i++)
-			s += this.Statements[i].ToHLSL(indent + "\t") + "\n";
+			s += this.Statements[i].ToString(lang, indent + "\t") + "\n";
 
 		return s;
 	}
@@ -2994,11 +3092,11 @@ class StatementDoWhile extends Statement
 		this.Condition = cond;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
 		let s = indent + "do\n";
-		s += this.Body.ToHLSL(indent + "\t");
-		s += indent + "while(" + this.Condition.ToHLSL() + ");\n";
+		s += this.Body.ToString(lang, indent + "\t");
+		s += indent + "while(" + this.Condition.ToString(lang) + ");\n";
 		return s;
 	}
 }
@@ -3013,9 +3111,9 @@ class StatementExpression extends Statement
 		this.Exp = exp;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
-		return indent + this.Exp.ToHLSL() + ";";
+		return indent + this.Exp.ToString(lang) + ";";
 	}
 }
 
@@ -3035,14 +3133,14 @@ class StatementFor extends Statement
 		this.BodyStatement = bodyStatement;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
 		let s = indent + "for(";
-		s += this.InitStatement.ToHLSL("") + " ";
-		s += this.ConditionExpression.ToHLSL() + "; ";
-		s += this.IterateExpression.ToHLSL() + ")\n";
+		s += this.InitStatement.ToString(lang, "") + " ";
+		s += this.ConditionExpression.ToString(lang) + "; ";
+		s += this.IterateExpression.ToString(lang) + ")\n";
 
-		s += this.BodyStatement.ToHLSL(indent + "\t");
+		s += this.BodyStatement.ToString(lang, indent + "\t");
 		return s;
 	}
 }
@@ -3061,16 +3159,16 @@ class StatementIf extends Statement
 		this.Else = elseBlock;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
-		let s = indent + "if(" + this.Condition.ToHLSL() + ")\n";
+		let s = indent + "if(" + this.Condition.ToString(lang) + ")\n";
 
-		s += this.If.ToHLSL(indent + "\t") + "\n";
+		s += this.If.ToString(lang, indent + "\t") + "\n";
 
 		if (this.Else != null)
 		{
 			s += indent + "else\n";
-			s += this.Else.ToHLSL(indent + "\t") + "\n";
+			s += this.Else.ToString(lang, indent + "\t") + "\n";
 		}
 		
 		return s;
@@ -3087,7 +3185,7 @@ class StatementJump extends Statement
 		this.JumpToken = jumpToken;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
 		return indent + this.JumpToken.Text + ";";
 	}
@@ -3103,9 +3201,9 @@ class StatementReturn extends Statement
 		this.Expression = exp;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
-		return indent + "return " + this.Expression.ToHLSL() + ";";
+		return indent + "return " + this.Expression.ToString(lang) + ";";
 	}
 }
 
@@ -3121,13 +3219,13 @@ class StatementSwitch extends Statement
 		this.Cases = cases;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
-		let s = indent + "switch(" + this.SelectorExpression.ToHLSL() + ")\n";
+		let s = indent + "switch(" + this.SelectorExpression.ToString(lang) + ")\n";
 		s += indent + "{\n";
 
 		for (let c = 0; c < this.Cases.length; c++)
-			s += this.Cases[c].ToHLSL(indent + "\t");
+			s += this.Cases[c].ToString(lang, indent + "\t");
 
 		s += indent + "}";
 		return s;
@@ -3146,10 +3244,10 @@ class StatementWhile extends Statement
 		this.Body = body;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
-		let s = indent + "while(" + this.Condition.ToHLSL() + ")\n";
-		s += this.Body.ToHLSL(indent + "\t");
+		let s = indent + "while(" + this.Condition.ToString(lang) + ")\n";
+		s += this.Body.ToString(lang, indent + "\t");
 		return s;
 	}
 }
@@ -3168,7 +3266,7 @@ class StatementVar extends Statement
 		this.VarDecs = varDecs;
 	}
 
-	ToHLSL(indent)
+	ToString(lang, indent)
 	{
 		let s = indent;
 
@@ -3180,7 +3278,7 @@ class StatementVar extends Statement
 		for (let v = 0; v < this.VarDecs.length; v++)
 		{
 			if (v > 0) s += ", ";
-			s += this.VarDecs[v].ToHLSL();
+			s += this.VarDecs[v].ToString(lang);
 		}
 
 		s += ";";
@@ -3206,16 +3304,16 @@ class VarDec extends Statement
 		this.DefinitionExpression = defExp;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
 		// Note: Const AND data type will be added at the StatementVar level!
 		let s = this.NameToken.Text;
 
 		if (this.ArrayExpression != null)
-			s += "[" + this.ArrayExpression.ToHLSL() + "]";
+			s += "[" + this.ArrayExpression.ToString(lang) + "]";
 
 		if (this.DefinitionExpression != null)
-			s += " = " + this.DefinitionExpression.ToHLSL();
+			s += " = " + this.DefinitionExpression.ToString(lang);
 
 		return s;
 	}
@@ -3236,9 +3334,9 @@ class ExpArray extends Expression
 		this.ExpIndex = expIndex;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return this.ExpArray.ToHLSL() + "[" + this.ExpIndex.ToHLSL() + "]";
+		return this.ExpArray.ToString(lang) + "[" + this.ExpIndex.ToString(lang) + "]";
 	}
 }
 
@@ -3254,9 +3352,9 @@ class ExpAssignment extends Expression
 		this.AssignExp = assignExp;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return this.VarExp.ToHLSL() + " = " + this.AssignExp.ToHLSL();
+		return this.VarExp.ToString(lang) + " = " + this.AssignExp.ToString(lang);
 	}
 }
 
@@ -3274,11 +3372,11 @@ class ExpBinary extends Expression
 		this.ExpRight = expRight;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return this.ExpLeft.ToHLSL() + " " +
+		return this.ExpLeft.ToString(lang) + " " +
 			this.OperatorToken.Text + " " +
-			this.ExpRight.ToHLSL();
+			this.ExpRight.ToString(lang);
 	}
 }
 
@@ -3296,11 +3394,11 @@ class ExpBitwise extends Expression
 		this.ExpRight = expRight;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return this.ExpLeft.ToHLSL() + " " +
+		return this.ExpLeft.ToString(lang) + " " +
 			this.OperatorToken.Text + " " +
-			this.ExpRight.ToHLSL();
+			this.ExpRight.ToString(lang);
 	}
 }
 
@@ -3316,9 +3414,14 @@ class ExpCast extends Expression
 		this.Exp = exp;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return "(" + this.TypeToken.Text + ")" + this.Exp.ToHLSL();
+		switch (lang)
+		{
+			default:
+			case LanguageHLSL: return "(" + this.TypeToken.Text + ")" + this.Exp.ToString(lang); // (int)thing
+			case LanguageGLSL: return this.TypeToken.Text + "(" + this.Exp.ToString(lang) + ")"; // int(thing)
+		}
 	}
 }
 
@@ -3334,16 +3437,16 @@ class ExpFunctionCall extends Expression
 		this.Parameters = params;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		let s = this.FuncExp.ToHLSL() + "(";
+		let s = this.FuncExp.ToString() + "(";
 
 		for (let p = 0; p < this.Parameters.length; p++)
 		{
 			if (p > 0)
 				s += ", ";
 
-			s += this.Parameters[p].ToHLSL();
+			s += this.Parameters[p].ToString(lang);
 		}
 
 		s += ")";
@@ -3361,9 +3464,9 @@ class ExpGroup extends Expression
 		this.Exp = exp;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return "(" + this.Exp.ToHLSL() + ")";
+		return "(" + this.Exp.ToString() + ")";
 	}
 }
 
@@ -3377,7 +3480,7 @@ class ExpLiteral extends Expression
 		this.LiteralToken = litToken;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
 		return this.LiteralToken.Text;
 	}
@@ -3397,11 +3500,11 @@ class ExpLogical extends Expression
 		this.ExpRight = expRight;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return this.ExpLeft.ToHLSL() + " " +
+		return this.ExpLeft.ToString(lang) + " " +
 			this.OperatorToken.Text + " " +
-			this.ExpRight.ToHLSL();
+			this.ExpRight.ToString(lang);
 	}
 }
 
@@ -3429,9 +3532,9 @@ class ExpMember extends Expression
 		return (current instanceof ExpVariable);
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return this.ExpLeft.ToHLSL() + "." + this.ExpRight.ToHLSL();
+		return this.ExpLeft.ToString(lang) + "." + this.ExpRight.ToString(lang);
 	}
 }
 
@@ -3447,9 +3550,9 @@ class ExpPostfix extends Expression
 		this.OperatorToken = opToken;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return this.ExpLeft.ToHLSL() + this.OperatorToken.Text;
+		return this.ExpLeft.ToString(lang) + this.OperatorToken.Text;
 	}
 }
 
@@ -3467,11 +3570,11 @@ class ExpTernary extends Expression
 		this.ExpElse = expElse;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return this.ExpCondition.ToHLSL() + " ? " +
-			this.ExpIf.ToHLSL() + " : " +
-			this.ExpElse.ToHLSL();
+		return this.ExpCondition.ToString(lang) + " ? " +
+			this.ExpIf.ToString(lang) + " : " +
+			this.ExpElse.ToString(lang);
 	}
 }
 
@@ -3487,9 +3590,9 @@ class ExpUnary extends Expression
 		this.ExpRight = expRight;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
-		return this.OperatorToken.Text + this.ExpRight.ToHLSL();
+		return this.OperatorToken.Text + this.ExpRight.ToString(lang);
 	}
 }
 
@@ -3503,7 +3606,7 @@ class ExpVariable extends Expression
 		this.VarToken = varToken;
 	}
 
-	ToHLSL()
+	ToString(lang)
 	{
 		return this.VarToken.Text;
 	}
