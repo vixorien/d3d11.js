@@ -447,7 +447,6 @@ class HLSL
 		let globalCB = {
 			Name: "$Global",
 			RegisterIndex: -1,
-			ExplicitRegister: false,
 			Variables: []
 		};
 
@@ -753,18 +752,15 @@ class HLSL
 
 	#ParseStruct(it)
 	{
-		// Make the struct
-		let s = {
-			Name: null,
-			Variables: []
-		};
+		let name = null;
+		let vars = [];
 
-		// Ensure we start with "struct", followed by another identifier
+		// Ensure we start with "struct"
 		this.#RequireIdentifier(it, "struct");
-		this.#Require(it, TokenIdentifier);
 
-		// We have the identifiers, so grab the name
-		s.Name = it.PeekPrev().Text;
+		// Next is the name
+		this.#Require(it, TokenIdentifier);
+		name = it.PeekPrev().Text;
 
 		// Scope
 		this.#Require(it, TokenScopeLeft);
@@ -775,7 +771,7 @@ class HLSL
 			let v = this.#ParseVariable(it, true, true, false);
 			if (v != null)
 			{
-				s.Variables.push(v);
+				vars.push(v);
 			}
 		}
 		while (this.#Allow(it, TokenSemicolon));
@@ -784,8 +780,9 @@ class HLSL
 		this.#Require(it, TokenScopeRight);
 		this.#Require(it, TokenSemicolon);
 
-		return s;
+		return new ShaderElementStruct(name, vars);
 	}
+
 
 	#ParseRegisterIndex(it, registerLabel) // "b", "s" or "t"
 	{
@@ -819,25 +816,19 @@ class HLSL
 
 	#ParseCBuffer(it)
 	{
-		// Make the cbuffer
-		let cb = {
-			Name: null,
-			RegisterIndex: -1,
-			ExplicitRegister: false,
-			Variables: []
-		};
+		let name = null;
+		let regIndex = -1;
+		let vars = [];
 
 		// Verify identifiers
 		this.#RequireIdentifier(it, "cbuffer");
-		this.#Require(it, TokenIdentifier);
 
-		// Success, save the name
-		cb.Name = it.PeekPrev().Text;
+		// Next is name
+		this.#Require(it, TokenIdentifier);
+		name = it.PeekPrev().Text;
 
 		// Scan for register
-		cb.RegisterIndex = this.#ParseRegisterIndex(it, "b");
-		if (cb.RegisterIndex >= 0)
-			cb.ExplicitRegister = true;
+		regIndex = this.#ParseRegisterIndex(it, "b");
 
 		// Should be scope at this point
 		this.#Require(it, TokenScopeLeft);
@@ -848,85 +839,75 @@ class HLSL
 			let v = this.#ParseVariable(it, false, false, false);
 			if (v != null)
 			{
-				cb.Variables.push(v);
+				vars.push(v);
 			}
 		}
 		while (this.#Allow(it, TokenSemicolon));
 
 		// End scope
 		this.#Require(it, TokenScopeRight);
-		return cb;
+		return new ShaderElementCBuffer(name, regIndex, vars);
 	}
 
 
+	// TODO: Handle typed textures
 	#ParseTexture(it)
 	{
-		let t = {
-			Type: null,
-			Name: null,
-			RegisterIndex: -1,
-			ExplicitRegister: false,
-		};
+		let type = null;
+		let name = null
+		let regIndex = -1;
 
 		// Texture type
-		// TODO: Handle typed textures?
 		this.#Require(it, TokenIdentifier);
-		t.Type = it.PeekPrev().Text;
+		type = it.PeekPrev().Text;
 
 		// Identifier
 		this.#Require(it, TokenIdentifier);
-		t.Name = it.PeekPrev().Text;
+		name = it.PeekPrev().Text;
 
 		// Scan for register
-		t.RegisterIndex = this.#ParseRegisterIndex(it, "t");
-		if (t.RegisterIndex >= 0)
+		regIndex = this.#ParseRegisterIndex(it, "t");
+		if (regIndex >= 0)
 		{
 			// Have we found this register already?
 			for (let i = 0; i < this.#textures.length; i++)
-				if (this.#textures[i].RegisterIndex == t.RegisterIndex)
-					throw new Error("Duplicate texture register: t" + t.RegisterIndex);
-
-			t.ExplicitRegister = true;
+				if (this.#textures[i].RegisterIndex == regIndex)
+					throw new Error("Duplicate texture register: t" + regIndex);
 		}
 
 		// Semicolon to end
 		this.#Require(it, TokenSemicolon);
-		return t;
+		return new ShaderElementTexture(type, name, regIndex);
 	}
 
 
 	#ParseSampler(it)
 	{
-		let s = {
-			Type: null,
-			Name: null,
-			RegisterIndex: -1,
-			ExplicitRegister: false,
-		};
+		let type = null;
+		let name = null
+		let regIndex = -1;
 
 		// Sampler type
 		this.#Require(it, TokenIdentifier);
-		s.Type = it.PeekPrev().Text;
+		type = it.PeekPrev().Text;
 
 		// Name
 		this.#Require(it, TokenIdentifier);
-		s.Name = it.PeekPrev().Text;
+		name = it.PeekPrev().Text;
 
 		// Scan for register
-		s.RegisterIndex = this.#ParseRegisterIndex(it, "s");
-		if (s.RegisterIndex >= 0)
+		regIndex = this.#ParseRegisterIndex(it, "s");
+		if (regIndex >= 0)
 		{
 			// Have we found this register already?
 			for (let i = 0; i < this.#samplers.length; i++)
-				if (this.#samplers[i].RegisterIndex == s.RegisterIndex)
-					throw new Error("Duplicate sampler register: s" + s.RegisterIndex);
-
-			s.ExplicitRegister = true;
+				if (this.#samplers[i].RegisterIndex == regIndex)
+					throw new Error("Duplicate sampler register: s" + regIndex);
 		}
 
 		// Semicolon to end
 		this.#Require(it, TokenSemicolon);
-		return s;
+		return new ShaderElementSampler(type, name, regIndex);
 	}
 
 
@@ -2924,16 +2905,14 @@ class ShaderElementCBuffer extends ShaderElement
 {
 	Name;
 	RegisterIndex;
-	ExplicitRegister;
 	Variables;
 
-	constructor(name, regIndex, explicitReg, vars)
+	constructor(name, regIndex, vars)
 	{
 		super();
 
 		this.Name = name;
 		this.RegisterIndex = regIndex;
-		this.ExplicitRegister = explicitReg;
 		this.Variables = vars;
 	}
 }
@@ -2965,16 +2944,14 @@ class ShaderElementSampler extends ShaderElement
 	Type;
 	Name;
 	RegisterIndex;
-	ExplicitRegister;
 
-	constructor(type, name, regIndex, explicitReg)
+	constructor(type, name, regIndex)
 	{
 		super();
 
 		this.Type = type;
 		this.Name = name;
 		this.RegisterIndex = regIndex;
-		this.ExplicitRegister = explicitReg;
 	}
 }
 
@@ -2998,17 +2975,36 @@ class ShaderElementTexture extends ShaderElement
 	Type;
 	Name;
 	RegisterIndex;
-	ExplicitRegister;
 
-	constructor(type, name, regIndex, explicitReg)
+	constructor(type, name, regIndex)
 	{
 		super();
 
 		this.Type = type;
 		this.Name = name;
 		this.RegisterIndex = regIndex;
-		this.ExplicitRegister = explicitReg;
 	}
+}
+
+// Function param modifiers
+//  - in
+//  - inout
+//  - out
+//  - uniform
+//
+// Semantics: (float4 x : SV_POSITION)
+//
+// Initializers: (int x = 5)
+//
+// Interpolation modifiers: Func(float4 x : linear) OR struct Z { linear float2 x; }
+//  - linear
+//  - centroid
+//  - nointerpolation (only option for int/uint)
+//  - noperspective
+//  - sample
+class ShaderElementMemberVar
+{
+
 }
 
 
