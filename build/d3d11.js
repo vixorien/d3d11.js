@@ -6525,83 +6525,83 @@ class HLSL
 	}
 
 
-	#ParseVariable(it, interpModAllowed, semanticAllowed, inoutAllowed)
-	{
-		let variable = {
-			InterpMod: null,
-			DataType: null,
-			ArraySize: null,
-			Name: null,
-			Semantic: null,
-			InOut: null
-		};
+	//#ParseVariable(it, interpModAllowed, semanticAllowed, inoutAllowed)
+	//{
+	//	let variable = {
+	//		InterpMod: null,
+	//		DataType: null,
+	//		ArraySize: null,
+	//		Name: null,
+	//		Semantic: null,
+	//		InputModifier: null
+	//	};
 
-		// Check for interpolation modifiers
-		if (this.InterpolationModifiers.indexOf(it.Current().Text) != -1)
-		{
-			// Interpolation modifiers allowed?
-			if (!interpModAllowed)
-				throw new Error("Error parsing HLSL on line " + it.Current().Line + ": interpolation modifier not allowed here.");
+	//	// Check for interpolation modifiers
+	//	if (this.InterpolationModifiers.indexOf(it.Current().Text) != -1)
+	//	{
+	//		// Interpolation modifiers allowed?
+	//		if (!interpModAllowed)
+	//			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": interpolation modifier not allowed here.");
 
-			// This is an interpolation modifier
-			this.#Require(it, TokenIdentifier);
-			variable.InterpMod = it.PeekPrev().Text;
-		}
+	//		// This is an interpolation modifier
+	//		this.#Require(it, TokenIdentifier);
+	//		variable.InterpMod = it.PeekPrev().Text;
+	//	}
 
-		// Check for in/out status
-		if (it.Current().Text == "in" ||
-			it.Current().Text == "out" ||
-			it.Current().Text == "inout")
-		{
-			if (!inoutAllowed)
-				throw new Error("Error parsing HLSL on line " + it.Current().Line + ": in/out/inout modifier not allowed here.");
+	//	// Check for in/out status
+	//	if (it.Current().Text == "in" ||
+	//		it.Current().Text == "out" ||
+	//		it.Current().Text == "inout")
+	//	{
+	//		if (!inoutAllowed)
+	//			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": in/out/inout modifier not allowed here.");
 
-			// This is an in/out modifier
-			this.#Require(it, TokenIdentifier);
-			variable.InOut = it.PeekPrev().Text;
-		}
+	//		// This is an in/out modifier
+	//		this.#Require(it, TokenIdentifier);
+	//		variable.InputModifier = it.PeekPrev().Text;
+	//	}
 
-		// If this isn't actually a variable, we should exit early
-		if (it.Current().Type != TokenIdentifier)
-			return null;
+	//	// If this isn't actually a variable, we should exit early
+	//	if (it.Current().Type != TokenIdentifier)
+	//		return null;
 
-		// It's a data type, so presumably a variable
-		this.#Require(it, TokenIdentifier);
-		variable.DataType = it.PeekPrev().Text;
+	//	// It's a data type, so presumably a variable
+	//	this.#Require(it, TokenIdentifier);
+	//	variable.DataType = it.PeekPrev().Text;
 
-		if (!this.#IsDataType(variable.DataType))
-			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": unknown data type found.");
+	//	if (!this.#IsDataType(variable.DataType))
+	//		throw new Error("Error parsing HLSL on line " + it.Current().Line + ": unknown data type found.");
 
-		// Identifier
-		this.#Require(it, TokenIdentifier);
-		variable.Name = it.PeekPrev().Text;
+	//	// Identifier
+	//	this.#Require(it, TokenIdentifier);
+	//	variable.Name = it.PeekPrev().Text;
 
-		// Check for semantic
-		if (this.#Allow(it, TokenColon))
-		{
-			// Presumably a semantic - allowed?
-			if (!semanticAllowed)
-				throw new Error("Error parsing HLSL on line " + it.Current().Line + ": semantic not allowed here.");
+	//	// Check for semantic
+	//	if (this.#Allow(it, TokenColon))
+	//	{
+	//		// Presumably a semantic - allowed?
+	//		if (!semanticAllowed)
+	//			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": semantic not allowed here.");
 
-			this.#Require(it, TokenIdentifier);
-			variable.Semantic = it.PeekPrev().Text;
-		}
+	//		this.#Require(it, TokenIdentifier);
+	//		variable.Semantic = it.PeekPrev().Text;
+	//	}
 
-		// Check for array
-		if (this.#Allow(it, TokenBracketLeft))
-		{
-			// TODO: Handle a whole expression?
-			if (!this.#Allow(it, TokenNumericLiteral) &&
-				!this.#Allow(it, TokenIdentifier))
-				throw new Error("Error parsing HLSL on line " + it.Current().Line + ": invalid array size.");
+	//	// Check for array
+	//	if (this.#Allow(it, TokenBracketLeft))
+	//	{
+	//		// TODO: Handle a whole expression?
+	//		if (!this.#Allow(it, TokenNumericLiteral) &&
+	//			!this.#Allow(it, TokenIdentifier))
+	//			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": invalid array size.");
 
-			// Grab the array details
-			variable.ArraySize = it.PeekPrev().Text;
-			this.#Require(it, TokenBracketRight);
-		}
+	//		// Grab the array details
+	//		variable.ArraySize = it.PeekPrev().Text;
+	//		this.#Require(it, TokenBracketRight);
+	//	}
 
-		return variable;
-	}
+	//	return variable;
+	//}
 
 
 	#ParseStruct(it)
@@ -6622,11 +6622,10 @@ class HLSL
 		// Some number of variables
 		do
 		{
-			let v = this.#ParseVariable(it, true, true, false);
-			if (v != null)
-			{
-				vars.push(v);
-			}
+			if (it.Current().Type == TokenScopeRight)
+				break;
+
+			vars.push(this.#ParseMemberVariableOrFunctionParam(it, false, true, true, false));
 		}
 		while (this.#Allow(it, TokenSemicolon));
 
@@ -6686,11 +6685,10 @@ class HLSL
 		// Process any variables
 		do
 		{
-			let v = this.#ParseVariable(it, false, false, false);
-			if (v != null)
-			{
-				vars.push(v);
-			}
+			if (it.Current().Type == TokenScopeRight)
+				break;
+
+			vars.push(this.#ParseMemberVariableOrFunctionParam(it, false, false, false, false))
 		}
 		while (this.#Allow(it, TokenSemicolon));
 
@@ -6701,10 +6699,11 @@ class HLSL
 
 	// Structs: Interpmod(s), type, name, arraysize, semantic
 	// CBuffer: type, name, arraysize
-	#ParseMemberVariableOrFunctionParam(allowInputMod, allowInterpMod, allowSemantic, allowInit)
+	// Function Param: interpmod(s), type, name, arraysize, semantic, init
+	#ParseMemberVariableOrFunctionParam(it, allowInputMod, allowInterpMod, allowSemantic, allowInit)
 	{
 		let interpMods = [];
-		let inputMod = null;
+		let inputMods = [];
 		let dataType = null;
 		let name = null;
 		let semantic = null;
@@ -6719,10 +6718,10 @@ class HLSL
 			modFound = false;
 
 			// Check input modifiers (only 1)
-			if (this.#AllowIdentifier(it, "in") && inputMod == null) { inputMod = "in"; modFound = true; } else throw new Error("Multiple input modifiers found");
-			if (this.#AllowIdentifier(it, "inout") && inputMod == null) { inputMod = "inout"; modFound = true; } else throw new Error("Multiple input modifiers found");
-			if (this.#AllowIdentifier(it, "out") && inputMod == null) { inputMod = "out"; modFound = true; } else throw new Error("Multiple input modifiers found");
-			if (this.#AllowIdentifier(it, "uniform") && inputMod == null) { inputMod = "uniform"; modFound = true; } else throw new Error("Multiple input modifiers found");
+			if (this.#AllowIdentifier(it, "in")) { inputMods.push("in"); modFound = true; }
+			if (this.#AllowIdentifier(it, "inout")) { inputMods.push("inout"); modFound = true; }
+			if (this.#AllowIdentifier(it, "out")) { inputMods.push("out"); modFound = true; }
+			if (this.#AllowIdentifier(it, "uniform")) { inputMods.push("uniform"); modFound = true; }
 
 			// Check interp mods (some combinations allowed)
 			if (this.#AllowIdentifier(it, "linear")) { interpMods.push("linear"); modFound = true; }
@@ -6736,8 +6735,11 @@ class HLSL
 		// TODO: Validate interpolation mod combinations
 
 		// Validate allowable modifiers
-		if (!allowInputMod && inputMod != null)
+		if (!allowInputMod && inputMods.length > 0)
 			throw new Error("Input modifier not allowed here");
+
+		if (inputMods.length > 1)
+			throw new Error("Multiple input modifiers found.");
 
 		if (!allowInterpMod && interpMods.length > 0)
 			throw new Error("Interpolation modifier not allowed here");
@@ -6779,7 +6781,14 @@ class HLSL
 			initExp = this.#ParseExpression(it);
 		}
 
-		return new ShaderElementMemberVar(dataType, name, inputMod, interpMods, arrayExp, semantic, initExp);
+		return new ShaderElementMemberVar(
+			dataType,
+			name,
+			inputMods.length == 1 ? inputMods[0] : null,
+			interpMods,
+			arrayExp,
+			semantic,
+			initExp);
 	}
 
 
@@ -6874,11 +6883,16 @@ class HLSL
 			// It's a function, so it may have parameters
 			do
 			{
-				let v = this.#ParseVariable(it, true, true, true);
-				if (v != null)
-				{
-					f.Parameters.push(v);
-				}
+				if (it.Current().Type == TokenParenRight)
+					break;
+
+				f.Parameters.push(this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true));
+
+				//let v = this.#ParseVariable(it, true, true, true);
+				//if (v != null)
+				//{
+				//	f.Parameters.push(v);
+				//}
 			}
 			while (this.#Allow(it, TokenComma));
 
@@ -8161,6 +8175,7 @@ class HLSL
 
 	// Note: Using the same variable name in uniform blocks in VS/PS seems to throw a webgl error
 	// TODO: Handle this by prepending ALL cbuffer variables with "vs_" or "ps_" perhaps?
+	// TODO: Parameterize language!!
 	#GetCBuffersString()
 	{
 		let cbStr = "";
@@ -8180,9 +8195,9 @@ class HLSL
 				cbStr += " " + this.#Translate(variable.Name); // Identifier
 
 				// Array?
-				if (variable.ArraySize != null)
+				if (variable.ArrayExpression != null)
 				{
-					cbStr += "[" + variable.ArraySize + "]";
+					cbStr += "[" + variable.ArrayExpression.ToString(LanguageGLSL, "") + "]"; // MUST PARAMETERIZE THIS
 				}
 				cbStr += ";\n"; // Finished
 			}
@@ -8252,8 +8267,8 @@ class HLSL
 			let param = func.Parameters[p];
 
 			// Any in/out?
-			if (param.InOut != null)
-				funcStr += param.InOut + " ";
+			if (param.InputModifier != null)
+				funcStr += param.InputModifier + " ";
 
 			funcStr += this.#Translate(param.DataType); // Data type
 			funcStr += " " + this.#Translate(param.Name); // Identifier
