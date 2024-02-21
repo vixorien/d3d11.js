@@ -5970,6 +5970,7 @@ class HLSL
 	#samplers;
 	#textureSamplerCombinations;
 	#functions;
+	#globalConstants;
 	#main;
 
 	// Define lexical rules
@@ -6296,6 +6297,7 @@ class HLSL
 		this.#samplers = [];
 		this.#textureSamplerCombinations = [];
 		this.#functions = [];
+		this.#globalConstants = [];
 		this.#main = null;
 
 		// Create the iterator
@@ -6315,7 +6317,8 @@ class HLSL
 			{
 				// TODO: Handle global constants here
 				case "const":
-					throw new Error("Global constants not yet implemented");
+					this.#globalConstants.push(this.#ParseVarDec(it));
+					break;
 
 				// Skip extra end statements
 				case ";":
@@ -6523,85 +6526,6 @@ class HLSL
 	{
 		return this.ReservedWords.indexOf(text) >= 0;
 	}
-
-
-	//#ParseVariable(it, interpModAllowed, semanticAllowed, inoutAllowed)
-	//{
-	//	let variable = {
-	//		InterpMod: null,
-	//		DataType: null,
-	//		ArraySize: null,
-	//		Name: null,
-	//		Semantic: null,
-	//		InputModifier: null
-	//	};
-
-	//	// Check for interpolation modifiers
-	//	if (this.InterpolationModifiers.indexOf(it.Current().Text) != -1)
-	//	{
-	//		// Interpolation modifiers allowed?
-	//		if (!interpModAllowed)
-	//			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": interpolation modifier not allowed here.");
-
-	//		// This is an interpolation modifier
-	//		this.#Require(it, TokenIdentifier);
-	//		variable.InterpMod = it.PeekPrev().Text;
-	//	}
-
-	//	// Check for in/out status
-	//	if (it.Current().Text == "in" ||
-	//		it.Current().Text == "out" ||
-	//		it.Current().Text == "inout")
-	//	{
-	//		if (!inoutAllowed)
-	//			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": in/out/inout modifier not allowed here.");
-
-	//		// This is an in/out modifier
-	//		this.#Require(it, TokenIdentifier);
-	//		variable.InputModifier = it.PeekPrev().Text;
-	//	}
-
-	//	// If this isn't actually a variable, we should exit early
-	//	if (it.Current().Type != TokenIdentifier)
-	//		return null;
-
-	//	// It's a data type, so presumably a variable
-	//	this.#Require(it, TokenIdentifier);
-	//	variable.DataType = it.PeekPrev().Text;
-
-	//	if (!this.#IsDataType(variable.DataType))
-	//		throw new Error("Error parsing HLSL on line " + it.Current().Line + ": unknown data type found.");
-
-	//	// Identifier
-	//	this.#Require(it, TokenIdentifier);
-	//	variable.Name = it.PeekPrev().Text;
-
-	//	// Check for semantic
-	//	if (this.#Allow(it, TokenColon))
-	//	{
-	//		// Presumably a semantic - allowed?
-	//		if (!semanticAllowed)
-	//			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": semantic not allowed here.");
-
-	//		this.#Require(it, TokenIdentifier);
-	//		variable.Semantic = it.PeekPrev().Text;
-	//	}
-
-	//	// Check for array
-	//	if (this.#Allow(it, TokenBracketLeft))
-	//	{
-	//		// TODO: Handle a whole expression?
-	//		if (!this.#Allow(it, TokenNumericLiteral) &&
-	//			!this.#Allow(it, TokenIdentifier))
-	//			throw new Error("Error parsing HLSL on line " + it.Current().Line + ": invalid array size.");
-
-	//		// Grab the array details
-	//		variable.ArraySize = it.PeekPrev().Text;
-	//		this.#Require(it, TokenBracketRight);
-	//	}
-
-	//	return variable;
-	//}
 
 
 	#ParseStruct(it)
@@ -6852,10 +6776,6 @@ class HLSL
 		return new ShaderElementSampler(type, name, regIndex);
 	}
 
-
-	// TODO: Skip const globals in the global CB - will now handle in main parse loop
-	// TODO: Handle casting differences between hlsl and glsl
-	//       (float3x3)thing --> float3x3(thing)
 	// TODO: Handle swizzling of non-vector types (variable.xxx)
 	// TODO: auto "casting" ints to floats - maybe just make "int" versions of all functions?  UGH
 	#ParseGlobalVarOrFunction(it, globalCB)
@@ -6887,12 +6807,6 @@ class HLSL
 					break;
 
 				f.Parameters.push(this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true));
-
-				//let v = this.#ParseVariable(it, true, true, true);
-				//if (v != null)
-				//{
-				//	f.Parameters.push(v);
-				//}
 			}
 			while (this.#Allow(it, TokenComma));
 
@@ -8054,6 +7968,7 @@ class HLSL
 		glsl += this.#GetHLSLOnlyFunctions();
 		glsl += this.#GetMatrixConstructors();
 		glsl += this.#GetTextureSamplerString();
+		glsl += this.#GetGlobalConstantsString();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildVertexShaderMain(vsInputs);
@@ -8251,6 +8166,18 @@ class HLSL
 		return glsl;
 	}
 
+	#GetGlobalConstantsString()
+	{
+		let glsl = "";
+
+		for (let i = 0; i < this.#globalConstants.length; i++)
+		{
+			glsl += this.#globalConstants[i].ToString(LanguageGLSL, "") + "\n";
+		}
+
+		glsl += "\n";
+		return glsl;
+	}
 
 	#GetFunctionString(func, prependName = "")
 	{
@@ -8831,10 +8758,11 @@ class HLSL
 		glsl += this.#GetHLSLOnlyFunctions();
 		glsl += this.#GetMatrixConstructors();
 		glsl += this.#GetTextureSamplerString();
+		glsl += this.#GetGlobalConstantsString();
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
-
+		
 		return glsl;
 	}
 
@@ -8897,7 +8825,7 @@ class ShaderElementSampler extends ShaderElement
 	}
 }
 
-// TODO: Shader element struct member?  Each can have interpolation mod, data type, array size, name, semantic
+
 class ShaderElementStruct extends ShaderElement
 {
 	Name;
@@ -8909,6 +8837,20 @@ class ShaderElementStruct extends ShaderElement
 
 		this.Name = name;
 		this.Members = members;
+	}
+
+	ToString(lang)
+	{
+		let s = "struct " + this.Name + "\n";
+		s += "{\n";
+
+		for (let m = 0; m < this.Members.length; m++)
+		{
+			s += this.Members[m].ToString(lang, "\t");
+		}
+
+		s += "}\n";
+		return s;
 	}
 }
 
@@ -8972,7 +8914,56 @@ class ShaderElementMemberVar
 		this.ArrayExpression = arrayExp;
 		this.Semantic = semantic;
 		this.InitializerExp = initExp;
-		
+	}
+
+	ToString(lang, indent)
+	{
+		let s = indent;
+
+		switch (lang)
+		{
+			default:
+			case LanguageHLSL:
+
+				for (let i = 0; i < this.InterpModifiers.length; i++)
+					s += this.InterpModifiers[i] + " ";
+
+				if (this.InputModifier != null)
+					s += this.InputModifier + " ";
+
+				s += this.DataType + " ";
+				s += this.Name;
+
+				if (this.ArrayExpression != null)
+					s += " [" + this.ArrayExpression.ToString(lang) + "]";
+
+				if (this.Semantic != null)
+					s += " : " + this.Semantic;
+
+				if (this.InitializerExp != null)
+					s += " " + this.InitializerExp.ToString(lang);
+
+				break;
+
+			case LanguageGLSL: // No semantics (or interpolation modifiers?)
+
+				if (this.InputModifier != null)
+					s += this.InputModifier + " ";
+
+				s += this.DataType + " ";
+				s += this.Name;
+
+				if (this.ArrayExpression != null)
+					s += " [" + this.ArrayExpression.ToString(lang) + "]";
+
+				if (this.InitializerExp != null)
+					s += " " + this.InitializerExp.ToString(lang);
+
+				break;
+		}
+
+		return s;
+
 	}
 }
 

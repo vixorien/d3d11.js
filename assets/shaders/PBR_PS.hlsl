@@ -237,10 +237,11 @@ float3 PointLightPBR(Light light, float3 normal, float3 worldPos, float3 camPos,
 	return (balancedDiff * surfaceColor + spec) * atten * light.intensity * light.color;
 }
 
+const float MIN_ROUGHNESS = 0.0000001f;
 
 float4 main(VertexToPixel input) : SV_TARGET
 {
-	float MIN_ROUGHNESS = 0.0000001f;
+	//float MIN_ROUGHNESS = 0.0000001f;
 
 	input.normal = normalize(input.normal);
 	input.tangent = normalize(input.tangent);
