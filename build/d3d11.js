@@ -6302,11 +6302,7 @@ class HLSL
 		let it = new TokenIterator(this.#tokens);
 
 		// Possible global cbuffer
-		let globalCB = {
-			Name: "$Global",
-			RegisterIndex: -1,
-			Variables: []
-		};
+		let globalCB = new ShaderElementCBuffer("$Global", -1);
 
 		// Work through tokens
 		it.MoveNext();
@@ -6371,7 +6367,7 @@ class HLSL
 		}
 
 		// Add global cbuffer if necessary
-		if (globalCB.Variables.length > 0)
+		if (globalCB.Members.length > 0)
 		{
 			this.#cbuffers.push(globalCB);
 		}
@@ -6641,33 +6637,30 @@ class HLSL
 		return new ShaderElementStruct(name, vars);
 	}
 
+
 	#ParseRegisterIndex(it, registerLabel) // "b", "s" or "t"
 	{
-		// Should be on ":" character
-		if (it.Current().Text == ":" &&
-			it.MoveNext() && it.Current().Text == "register" &&
-			it.MoveNext() && it.Current().Type == TokenParenLeft &&
-			it.MoveNext() && // current is now register index
-			it.PeekNext().Type == TokenParenRight) // Next is end parens
-		{
-			// Validate register
-			let regText = it.Current().Text;
-			if (!regText.startsWith(registerLabel))
-				return -1;
+		// If it's not a colon, skip
+		if (!this.#Allow(it, TokenColon))
+			return -1;
 
-			// Get index
-			let index = parseInt(regText.substring(1));
-			if (isNaN(index))
-				return -1;
+		// Must be followed by pattern: register(bN)
+		this.#RequireIdentifier(it, "register");
+		this.#Require(it, TokenParenLeft);
 
-			// Skip the register index and end parens
-			it.MoveNext();
-			it.MoveNext();
-			return index;
-		}
+		// Validate register type
+		this.#Require(it, TokenIdentifier);
+		let regText = it.PeekPrev().Text;
+		if (!regText.startsWith(registerLabel))
+			throw new Error("Invalid register type");
+		
+		// Get index
+		let index = parseInt(regText.substring(1));
+		if (isNaN(index))
+			throw new Error("Invalid register index");
 
-		// No register, or malformed syntax
-		return -1;
+		this.#Require(it, TokenParenRight);
+		return index;
 	}
 
 
@@ -6703,8 +6696,90 @@ class HLSL
 
 		// End scope
 		this.#Require(it, TokenScopeRight);
-
 		return new ShaderElementCBuffer(name, regIndex, vars);
+	}
+
+	// Structs: Interpmod(s), type, name, arraysize, semantic
+	// CBuffer: type, name, arraysize
+	#ParseMemberVariableOrFunctionParam(allowInputMod, allowInterpMod, allowSemantic, allowInit)
+	{
+		let interpMods = [];
+		let inputMod = null;
+		let dataType = null;
+		let name = null;
+		let semantic = null;
+		let arrayExp = null;
+		let initExp = null;
+
+		// Check for interpolation and/or input modifiers
+		let modFound = false;
+		do
+		{
+			// Reset
+			modFound = false;
+
+			// Check input modifiers (only 1)
+			if (this.#AllowIdentifier(it, "in") && inputMod == null) { inputMod = "in"; modFound = true; } else throw new Error("Multiple input modifiers found");
+			if (this.#AllowIdentifier(it, "inout") && inputMod == null) { inputMod = "inout"; modFound = true; } else throw new Error("Multiple input modifiers found");
+			if (this.#AllowIdentifier(it, "out") && inputMod == null) { inputMod = "out"; modFound = true; } else throw new Error("Multiple input modifiers found");
+			if (this.#AllowIdentifier(it, "uniform") && inputMod == null) { inputMod = "uniform"; modFound = true; } else throw new Error("Multiple input modifiers found");
+
+			// Check interp mods (some combinations allowed)
+			if (this.#AllowIdentifier(it, "linear")) { interpMods.push("linear"); modFound = true; }
+			if (this.#AllowIdentifier(it, "centroid")) { interpMods.push("centroid"); modFound = true; }
+			if (this.#AllowIdentifier(it, "nointerpolation")) { interpMods.push("nointerpolation"); modFound = true; }
+			if (this.#AllowIdentifier(it, "noperspective")) { interpMods.push("noperspective"); modFound = true; }
+			if (this.#AllowIdentifier(it, "sample")) { interpMods.push("sample"); modFound = true; }
+
+		} while (modFound);
+
+		// TODO: Validate interpolation mod combinations
+
+		// Validate allowable modifiers
+		if (!allowInputMod && inputMod != null)
+			throw new Error("Input modifier not allowed here");
+
+		if (!allowInterpMod && interpMods.length > 0)
+			throw new Error("Interpolation modifier not allowed here");
+
+		// Grab the data type
+		this.#RequireDataType(it);
+		dataType = it.PeekPrev().Text;
+
+		// Identifier
+		this.#Require(it, TokenIdentifier);
+		name = it.PeekPrev().Text;
+
+		// Check for array
+		if (this.#Allow(it, TokenBracketLeft))
+		{
+			// Grab the array expression
+			arrayExp = this.#ParseExpression(it);
+			this.#Require(it, TokenBracketRight);
+		}
+
+		// Check for semantic
+		if(this.#Allow(it, TokenColon))
+		{
+			// Do we allow semantics?
+			if (!allowSemantic)
+				throw new Error("Semantic not allowed here.");
+
+			this.#Require(it, TokenIdentifier);
+			semantic = it.PeekPrev().Text;
+		}
+
+		// Check for initialization
+		if (this.#AllowOperator(it, "="))
+		{
+			// Allow an initialization?
+			if (!allowInit)
+				throw new Error("Initialization not allowed here.");
+
+			initExp = this.#ParseExpression(it);
+		}
+
+		return new ShaderElementMemberVar(dataType, name, inputMod, interpMods, arrayExp, semantic, initExp);
 	}
 
 
@@ -6741,33 +6816,31 @@ class HLSL
 
 	#ParseSampler(it)
 	{
-		let s = {
-			Type: null,
-			Name: null,
-			RegisterIndex: -1
-		};
+		let type = null;
+		let name = null
+		let regIndex = -1;
 
 		// Sampler type
 		this.#Require(it, TokenIdentifier);
-		s.Type = it.PeekPrev().Text;
+		type = it.PeekPrev().Text;
 
 		// Name
 		this.#Require(it, TokenIdentifier);
-		s.Name = it.PeekPrev().Text;
+		name = it.PeekPrev().Text;
 
 		// Scan for register
-		s.RegisterIndex = this.#ParseRegisterIndex(it, "s");
-		if (s.RegisterIndex >= 0)
+		regIndex = this.#ParseRegisterIndex(it, "s");
+		if (regIndex >= 0)
 		{
 			// Have we found this register already?
 			for (let i = 0; i < this.#samplers.length; i++)
-				if (this.#samplers[i].RegisterIndex == s.RegisterIndex)
-					throw new Error("Duplicate sampler register: s" + s.RegisterIndex);
+				if (this.#samplers[i].RegisterIndex == regIndex)
+					throw new Error("Duplicate sampler register: s" + regIndex);
 		}
 
 		// Semicolon to end
 		this.#Require(it, TokenSemicolon);
-		return s;
+		return new ShaderElementSampler(type, name, regIndex);
 	}
 
 
@@ -6875,13 +6948,7 @@ class HLSL
 		else if (this.#Allow(it, TokenSemicolon))
 		{
 			// Should be end of a variable, so add to the global cbuffer
-			let v = {
-				InterpMod: null,
-				DataType: type,
-				Name: name,
-				Semantic: null
-			};
-			globalCB.Variables.push(v); // Note: main loop will do MoveNext
+			globalCB.Members.push(new ShaderElementMemberVar(type, name)); // Note: main loop will do MoveNext
 
 			// Found a global variable
 			return true;
@@ -8000,9 +8067,9 @@ class HLSL
 					throw new Error("Invalid data type in vertex shader input");
 
 				// Add each struct member to the VS input
-				for (let v = 0; v < struct.Variables.length; v++)
+				for (let v = 0; v < struct.Members.length; v++)
 				{
-					vsInputs.push(struct.Variables[v]);
+					vsInputs.push(struct.Members[v]);
 				}
 			}
 			else
@@ -8042,9 +8109,9 @@ class HLSL
 		let struct = this.#GetStructByName(this.#main.ReturnType);
 		let vary = "";
 
-		for (let v = 0; v < struct.Variables.length; v++)
+		for (let v = 0; v < struct.Members.length; v++)
 		{
-			let member = struct.Variables[v];
+			let member = struct.Members[v];
 
 			// Skip SV_POSITION
 			if (member.Semantic != null &&
@@ -8071,9 +8138,9 @@ class HLSL
 			str += "{\n";
 
 			// Handle each variable (no semantics)
-			for (let v = 0; v < struct.Variables.length; v++)
+			for (let v = 0; v < struct.Members.length; v++)
 			{
-				let variable = struct.Variables[v];
+				let variable = struct.Members[v];
 				str += "\t" + this.#Translate(variable.DataType); // Datatype
 				str += " " + this.#Translate(variable.Name); // Identifier
 
@@ -8106,9 +8173,9 @@ class HLSL
 			cbStr += "{\n";
 
 			// Handle each variable (no semantics)
-			for (let v = 0; v < cb.Variables.length; v++)
+			for (let v = 0; v < cb.Members.length; v++)
 			{
-				let variable = cb.Variables[v];
+				let variable = cb.Members[v];
 				cbStr += "\t" + this.#Translate(variable.DataType); // Datatype
 				cbStr += " " + this.#Translate(variable.Name); // Identifier
 
@@ -8480,9 +8547,9 @@ class HLSL
 
 				// Handle each struct member
 				let struct = this.#GetStructByName(param.DataType);
-				for (let v = 0; v < struct.Variables.length; v++)
+				for (let v = 0; v < struct.Members.length; v++)
 				{
-					let member = struct.Variables[v];
+					let member = struct.Members[v];
 					main += "\t" + newParamName + "." + this.#Translate(member.Name) + " = ";
 
 					// NOTE: Assumption here is that the struct member name is identical to the
@@ -8514,9 +8581,9 @@ class HLSL
 			// SV_POSITION is part of a struct - handle all that data
 			let posName = null;
 			let struct = this.#GetStructByName(this.#main.ReturnType);
-			for (let v = 0; v < struct.Variables.length; v++)
+			for (let v = 0; v < struct.Members.length; v++)
 			{
-				let member = struct.Variables[v];
+				let member = struct.Members[v];
 
 				// Is this our SV_Position?
 				if (member.Semantic != null &&
@@ -8562,9 +8629,9 @@ class HLSL
 					throw new Error("Invalid data type in pixel shader input");
 
 				// Add each struct member to the VS input
-				for (let v = 0; v < struct.Variables.length; v++)
+				for (let v = 0; v < struct.Members.length; v++)
 				{
-					psInputs.push(struct.Variables[v]);
+					psInputs.push(struct.Members[v]);
 				}
 			}
 			else
@@ -8594,9 +8661,9 @@ class HLSL
 				// This param is an entire struct, so make a varying for each member
 				// Note: Using semantic as varying identifiers!
 				let struct = this.#GetStructByName(param.DataType);
-				for (let v = 0; v < struct.Variables.length; v++)
+				for (let v = 0; v < struct.Members.length; v++)
 				{
-					let member = struct.Variables[v];
+					let member = struct.Members[v];
 
 					// Skip SV_POSITION
 					if (member.Semantic != null &&
@@ -8669,9 +8736,9 @@ class HLSL
 
 				// Handle each struct member
 				let struct = this.#GetStructByName(param.DataType);
-				for (let v = 0; v < struct.Variables.length; v++)
+				for (let v = 0; v < struct.Members.length; v++)
 				{
-					let member = struct.Variables[v];
+					let member = struct.Members[v];
 					main += "\t" + newParamName + "." + this.#Translate(member.Name) + " = ";
 
 					// NOTE: Assumption here is that the struct member name is identical to the
@@ -8706,9 +8773,9 @@ class HLSL
 
 			let targetName = null;
 			let struct = this.#GetStructByName(this.#main.ReturnType);
-			for (let v = 0; v < struct.Variables.length; v++)
+			for (let v = 0; v < struct.Members.length; v++)
 			{
-				let member = struct.Variables[v];
+				let member = struct.Members[v];
 
 				// Is this our SV_Position?
 				if (member.Semantic != null &&
@@ -8765,15 +8832,15 @@ class ShaderElementCBuffer extends ShaderElement
 {
 	Name;
 	RegisterIndex;
-	Variables;
+	Members;
 
-	constructor(name, regIndex, vars)
+	constructor(name, regIndex, members = [])
 	{
 		super();
 
 		this.Name = name;
 		this.RegisterIndex = regIndex;
-		this.Variables = vars;
+		this.Members = members;
 	}
 }
 
@@ -8782,7 +8849,7 @@ class ShaderElementFunction extends ShaderElement
 	ReturnType;
 	Name;
 	Semantic;
-	Parameters;
+	Parameters; // ShaderElementMemberVar objects
 	Statements;
 	TextureFunctions; // TODO: Is this needed?  I think this can go away once statements & expressions properly write their own GLSL
 
@@ -8819,14 +8886,14 @@ class ShaderElementSampler extends ShaderElement
 class ShaderElementStruct extends ShaderElement
 {
 	Name;
-	Variables;
+	Members;
 
-	constructor(name, vars)
+	constructor(name, members)
 	{
 		super();
 
 		this.Name = name;
-		this.Variables = vars;
+		this.Members = members;
 	}
 }
 
@@ -8843,6 +8910,54 @@ class ShaderElementTexture extends ShaderElement
 		this.Type = type;
 		this.Name = name;
 		this.RegisterIndex = regIndex;
+	}
+}
+
+// Function param modifiers
+//  - in
+//  - inout
+//  - out
+//  - uniform
+//
+// Semantics: (float4 x : SV_POSITION)
+//
+// Initializers: (int x = 5)
+//
+// Interpolation modifiers: Func(float4 x : linear) OR struct Z { linear float2 x; }
+//  - linear
+//  - centroid
+//  - nointerpolation (only option for int/uint)
+//  - noperspective
+//  - sample
+class ShaderElementMemberVar
+{
+	DataType;
+	Name;
+
+	InputModifier;
+	InterpModifiers;
+	ArrayExpression;
+	Semantic;
+	InitializerExp;
+
+	constructor(
+		dataType,
+		name,
+		inputMod = null,
+		interpMods = [],
+		arrayExp = null,
+		semantic = null,
+		initExp = null,
+		)
+	{
+		this.DataType = dataType;
+		this.Name = name;
+		this.InputModifier = inputMod;
+		this.InterpModifiers = interpMods;
+		this.ArrayExpression = arrayExp;
+		this.Semantic = semantic;
+		this.InitializerExp = initExp;
+		
 	}
 }
 
