@@ -5890,8 +5890,105 @@ const PrefixPSInput = "_ps_input_";
 const PrefixPSOutput = "_ps_output_";
 const PSOutputVariable = "_sv_target_";
 
-const LanguageHLSL = 0;
-const LanguageGLSL = 1;
+const ShaderLanguageHLSL = 0;
+const ShaderLanguageGLSL = 1;
+
+// TODO: missing a few matrix permutations (1xN, Nx1) and matrices of non-floats
+const HLSLDataTypeConversion = {
+	"void": "void",
+
+	"bool": "bool",
+	"bool2": "bvec2",
+	"bool3": "bvec3",
+	"bool4": "bvec4",
+
+	"int": "int",
+	"int2": "ivec2",
+	"int3": "ivec3",
+	"int4": "ivec4",
+
+	"uint": "uint",
+	"uint2": "uvec2",
+	"uint3": "uvec3",
+	"uint4": "uvec4",
+
+	"dword": "uint",
+	"dword2": "uvec2",
+	"dword3": "uvec3",
+	"dword4": "uvec4",
+
+	"half": "float",
+	"half2": "vec2",
+	"half3": "vec3",
+	"half4": "vec4",
+
+	"float": "float",
+	"float2": "vec2",
+	"float3": "vec3",
+	"float4": "vec4",
+
+	"double": "float",
+	"double2": "vec2",
+	"double3": "vec3",
+	"double4": "vec4",
+
+	"float2x2": "mat2x2",
+	"float2x3": "mat2x3",
+	"float2x4": "mat2x4",
+
+	"float3x2": "mat3x2",
+	"float3x3": "mat3x3",
+	"float3x4": "mat3x4",
+
+	"float4x2": "mat4x2",
+	"float4x3": "mat4x3",
+	"float4x4": "mat4x4",
+
+	"matrix": "mat4x4"
+};
+
+const HLSLMatrixElementConversion = {
+	"_m00": "[0][0]",
+	"_m01": "[1][0]",
+	"_m02": "[2][0]",
+	"_m03": "[3][0]",
+	"_m10": "[0][1]",
+	"_m11": "[1][1]",
+	"_m12": "[2][1]",
+	"_m13": "[3][1]",
+	"_m20": "[0][2]",
+	"_m21": "[1][2]",
+	"_m22": "[2][2]",
+	"_m23": "[3][2]",
+	"_m30": "[0][3]",
+	"_m31": "[1][3]",
+	"_m32": "[2][3]",
+	"_m33": "[3][3]",
+
+	"_11": "[0][0]",
+	"_12": "[1][0]",
+	"_13": "[2][0]",
+	"_14": "[3][0]",
+	"_21": "[0][1]",
+	"_22": "[1][1]",
+	"_23": "[2][1]",
+	"_24": "[3][1]",
+	"_31": "[0][2]",
+	"_32": "[1][2]",
+	"_33": "[2][2]",
+	"_34": "[3][2]",
+	"_41": "[0][3]",
+	"_42": "[1][3]",
+	"_43": "[2][3]",
+	"_44": "[3][3]"
+};
+
+const HLSLReservedWordConversion = {
+	"$Global": "_global_cbuffer",
+	"input": "_input",
+	"output": "_output",
+	"pow": "pow_hlsl"
+};
 
 class TokenIterator
 {
@@ -6056,24 +6153,6 @@ class HLSL
 		}
 	];
 
-	// Note: possibly missing a few matrix permutations (1xN, Nx1)?
-	DataTypes = [
-		"void",
-
-		"bool", "bool2", "bool3", "bool4",
-		"int", "int2", "int3", "int4",
-		"uint", "uint2", "uint3", "uint4",
-		"dword", "dword2", "dword3", "dword4",
-		"half", "half2", "half3", "half4",
-		"float", "float2", "float3", "float4",
-		"double", "double2", "double3", "double4",
-
-		"float2x2", "float2x3", "float2x4",
-		"float3x2", "float3x3", "float3x4",
-		"float4x2", "float4x3", "float4x4",
-		"matrix"
-	];
-
 	InterpolationModifiers = [
 		"linear",
 		"centroid",
@@ -6081,125 +6160,6 @@ class HLSL
 		"noperspective",
 		"sample"
 	];
-
-	DataTypeConversion = {
-		"void": "void",
-
-		"bool": "bool",
-		"bool2": "bvec2",
-		"bool3": "bvec3",
-		"bool4": "bvec4",
-
-		"int": "int",
-		"int2": "ivec2",
-		"int3": "ivec3",
-		"int4": "ivec4",
-
-		"uint": "uint",
-		"uint2": "uvec2",
-		"uint3": "uvec3",
-		"uint4": "uvec4",
-
-		"dword": "uint",
-		"dword2": "uvec2",
-		"dword3": "uvec3",
-		"dword4": "uvec4",
-
-		"half": "float",
-		"half2": "vec2",
-		"half3": "vec3",
-		"half4": "vec4",
-
-		"float": "float",
-		"float2": "vec2",
-		"float3": "vec3",
-		"float4": "vec4",
-
-		"double": "float",
-		"double2": "vec2",
-		"double3": "vec3",
-		"double4": "vec4",
-
-		"float2x2": "mat2x2",
-		"float2x3": "mat2x3",
-		"float2x4": "mat2x4",
-
-		"float3x2": "mat3x2",
-		"float3x3": "mat3x3",
-		"float3x4": "mat3x4",
-
-		"float4x2": "mat4x2",
-		"float4x3": "mat4x3",
-		"float4x4": "mat4x4",
-
-		"matrix": "mat4x4"
-	};
-
-	// Words that may cause problems when used as identifiers / intrinsic functions
-	ReservedWords = [
-		"$Global", // "Global" constant buffer name
-		"input",
-		"output",
-		"pow"
-	];
-
-	ReservedWordConversion = {
-		"$Global": "_global_cbuffer",
-		"input": "_input",
-		"output": "_output",
-		"pow": "pow_hlsl"
-	};
-
-	// Matrix element access
-	MatrixElements = [
-		"_m00", "_m01", "_m02", "_m03",
-		"_m10", "_m11", "_m12", "_m13",
-		"_m20", "_m21", "_m22", "_m23",
-		"_m30", "_m31", "_m32", "_m33",
-
-		"_11", "_12", "_13", "_14",
-		"_21", "_22", "_23", "_24",
-		"_31", "_32", "_33", "_34",
-		"_41", "_42", "_43", "_44"
-	];
-
-	// Conversions for matrix elements
-	// - Note that HLSL is row-col and GLSL is col-row
-	MatrixElementConversion = {
-		"_m00": "[0][0]",
-		"_m01": "[1][0]",
-		"_m02": "[2][0]",
-		"_m03": "[3][0]",
-		"_m10": "[0][1]",
-		"_m11": "[1][1]",
-		"_m12": "[2][1]",
-		"_m13": "[3][1]",
-		"_m20": "[0][2]",
-		"_m21": "[1][2]",
-		"_m22": "[2][2]",
-		"_m23": "[3][2]",
-		"_m30": "[0][3]",
-		"_m31": "[1][3]",
-		"_m32": "[2][3]",
-		"_m33": "[3][3]",
-
-		"_11": "[0][0]",
-		"_12": "[1][0]",
-		"_13": "[2][0]",
-		"_14": "[3][0]",
-		"_21": "[0][1]",
-		"_22": "[1][1]",
-		"_23": "[2][1]",
-		"_24": "[3][1]",
-		"_31": "[0][2]",
-		"_32": "[1][2]",
-		"_33": "[2][2]",
-		"_34": "[3][2]",
-		"_41": "[0][3]",
-		"_42": "[1][3]",
-		"_43": "[2][3]",
-		"_44": "[3][3]"
-	}
 
 	constructor(hlslCode, shaderType)
 	{
@@ -6518,13 +6478,13 @@ class HLSL
 	#IsDataType(text)
 	{
 		let isStructType = this.#IsStruct(text);
-		let isDataType = this.DataTypes.indexOf(text) >= 0;
+		let isDataType = HLSLDataTypeConversion.hasOwnProperty(text);
 		return isStructType || isDataType;
 	}
 
 	#IsReservedWord(text)
 	{
-		return this.ReservedWords.indexOf(text) >= 0;
+		return HLSLReservedWordConversion.hasOwnProperty(text);
 	}
 
 
@@ -6832,7 +6792,7 @@ class HLSL
 			//let statements = this.#ParseFunctionBody(it);
 			//console.log(statements);
 			//for (let i = 0; i < statements.length; i++)
-			//	console.log(statements[i].ToString(LanguageHLSL, ""));
+			//	console.log(statements[i].ToString(ShaderLanguageHLSL, ""));
 			//throw new Error("STOPPING NOW");
 
 			do
@@ -7861,9 +7821,9 @@ class HLSL
 	#Translate(identifier)
 	{
 		if (this.#IsDataType(identifier) && !this.#IsStruct(identifier))
-			return this.DataTypeConversion[identifier];
+			return HLSLDataTypeConversion[identifier];
 		else if (this.#IsReservedWord(identifier))
-			return this.ReservedWordConversion[identifier];
+			return HLSLReservedWordConversion[identifier];
 		else
 			return identifier;
 	}
@@ -8112,7 +8072,7 @@ class HLSL
 				// Array?
 				if (variable.ArrayExpression != null)
 				{
-					cbStr += "[" + variable.ArrayExpression.ToString(LanguageGLSL, "") + "]"; // MUST PARAMETERIZE THIS
+					cbStr += "[" + variable.ArrayExpression.ToString(ShaderLanguageGLSL, "") + "]"; // MUST PARAMETERIZE THIS
 				}
 				cbStr += ";\n"; // Finished
 			}
@@ -8172,7 +8132,7 @@ class HLSL
 
 		for (let i = 0; i < this.#globalConstants.length; i++)
 		{
-			glsl += this.#globalConstants[i].ToString(LanguageGLSL, "") + "\n";
+			glsl += this.#globalConstants[i].ToString(ShaderLanguageGLSL, "") + "\n";
 		}
 
 		glsl += "\n";
@@ -8319,12 +8279,11 @@ class HLSL
 
 		// We have the ".ident" pattern, check for matrix elements
 		const elementText = it.PeekNext().Text;
-		const elementIndex = this.MatrixElements.indexOf(elementText);
-		if (elementIndex == -1)
+		if (!HLSLMatrixElementConversion.hasOwnProperty(elementText))
 			return ""; // Not a matrix element
 
 		// It definitely is a matrix element, so return the replacement
-		return this.MatrixElementConversion[elementText];
+		return HLSLMatrixElementConversion[elementText];
 	}
 
 	#GetTextureFunctionString(it, baseFunc)
@@ -8945,7 +8904,7 @@ class ShaderElementMemberVar
 
 				break;
 
-			case LanguageGLSL: // No semantics (or interpolation modifiers?)
+			case ShaderLanguageGLSL: // No semantics (or interpolation modifiers?)
 
 				if (this.InputModifier != null)
 					s += this.InputModifier + " ";
@@ -9376,7 +9335,7 @@ class ExpCast extends Expression
 		{
 			default:
 			case LanguageHLSL: return "(" + this.TypeToken.Text + ")" + this.Exp.ToString(lang); // (int)thing
-			case LanguageGLSL: return this.TypeToken.Text + "(" + this.Exp.ToString(lang) + ")"; // int(thing)
+			case ShaderLanguageGLSL: return this.TypeToken.Text + "(" + this.Exp.ToString(lang) + ")"; // int(thing)
 		}
 	}
 }
