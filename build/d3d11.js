@@ -8909,7 +8909,7 @@ class ShaderElementMemberVar
 				if (this.InputModifier != null)
 					s += this.InputModifier + " ";
 
-				s += this.DataType + " ";
+				s += this.DataType + " "; // TODO: Translate data type in GLSL
 				s += this.Name;
 
 				if (this.ArrayExpression != null)
@@ -9188,7 +9188,13 @@ class StatementVar extends Statement
 		if (this.IsConst)
 			s += "const ";
 
-		s += this.DataTypeToken.Text + " ";
+		// Translate data type if GLSL
+		switch (lang)
+		{
+			default:
+			case LanguageHLSL: s += this.DataTypeToken.Text + " "; break;
+			case LanguageGLSL: s += this.DataTypeToken.Text + " "; break; // TODO: Need to translate data type
+		}
 
 		for (let v = 0; v < this.VarDecs.length; v++)
 		{
@@ -9329,6 +9335,7 @@ class ExpCast extends Expression
 		this.Exp = exp;
 	}
 
+	// TODO: Need to translate data type in GLSL
 	ToString(lang)
 	{
 		switch (lang)
