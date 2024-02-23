@@ -6153,13 +6153,36 @@ class HLSL
 		}
 	];
 
-	InterpolationModifiers = [
-		"linear",
-		"centroid",
-		"nointerpolation",
-		"noperspective",
-		"sample"
-	];
+	static TranslateToGLSL(identifier)
+	{
+		if (HLSLDataTypeConversion.hasOwnProperty(identifier))
+			return HLSLDataTypeConversion[identifier];
+		else if (HLSLReservedWordConversion.hasOwnProperty(identifier))
+			return HLSLReservedWordConversion[identifier];
+		else
+			return identifier;
+	}
+
+	// Note: This can probably go away once we move to the new parser stuff (and can convert types)
+	static TranslateTokenToGLSL(token)
+	{
+		// Check for numbers - need to remove the "f"
+		if (token.Type == TokenNumericLiteral &&
+			token.Text.charAt(token.Text.length - 1) == "f")
+		{
+			// Might be left with a "." at the end, in the case of "1.f"
+			let stripSize = 1;
+			if (token.Text.charAt(token.Text.length - 2) == ".")
+				stripSize = 2;
+
+			return token.Text.substring(0, token.Text.length - stripSize);
+		}
+		else
+		{
+			return HLSL.TranslateToGLSL(token.Text);
+		}
+	}
+
 
 	constructor(hlslCode, shaderType)
 	{
@@ -6789,11 +6812,11 @@ class HLSL
 			this.#Require(it, TokenScopeLeft);
 
 			// TESTING: Attempt a parse
-			//let statements = this.#ParseFunctionBody(it);
-			//console.log(statements);
-			//for (let i = 0; i < statements.length; i++)
-			//	console.log(statements[i].ToString(ShaderLanguageHLSL, ""));
-			//throw new Error("STOPPING NOW");
+			let statements = this.#ParseFunctionBody(it);
+			console.log(statements);
+			for (let i = 0; i < statements.length; i++)
+				console.log(statements[i].ToString(ShaderLanguageGLSL, ""));
+			throw new Error("STOPPING NOW");
 
 			do
 			{
@@ -7818,34 +7841,6 @@ class HLSL
 		return null;
 	}
 
-	#Translate(identifier)
-	{
-		if (this.#IsDataType(identifier) && !this.#IsStruct(identifier))
-			return HLSLDataTypeConversion[identifier];
-		else if (this.#IsReservedWord(identifier))
-			return HLSLReservedWordConversion[identifier];
-		else
-			return identifier;
-	}
-
-	#TranslateToken(token)
-	{
-		// Check for numbers - need to remove the "f"
-		if (token.Type == TokenNumericLiteral &&
-			token.Text.charAt(token.Text.length - 1) == "f")
-		{
-			// Might be left with a "." at the end, in the case of "1.f"
-			let stripSize = 1;
-			if (token.Text.charAt(token.Text.length - 2) == ".")
-				stripSize = 2;
-
-			return token.Text.substring(0, token.Text.length - stripSize);
-		}
-		else
-		{
-			return this.#Translate(token.Text);
-		}
-	}
 
 	#GetHLSLOnlyFunctions()
 	{
@@ -7979,7 +7974,7 @@ class HLSL
 		{
 			attribs +=
 				"in " + // Note: Changes from "attribute" to "in" for GLSL 3
-				this.#Translate(vsInputs[i].DataType) + " " +
+				HLSL.TranslateToGLSL(vsInputs[i].DataType) + " " +
 				PrefixAttribute + vsInputs[i].Name + ";\n";
 		}
 
@@ -8007,7 +8002,7 @@ class HLSL
 				member.Semantic.toUpperCase() == "SV_POSITION")
 				continue;
 
-			vary += "out " + this.#Translate(member.DataType);	// Data type - Note: "varying" to "out" for GLSL 3
+			vary += "out " + HLSL.TranslateToGLSL(member.DataType);	// Data type - Note: "varying" to "out" for GLSL 3
 			vary += " " + PrefixVarying + member.Semantic + ";\n";	// Identifier is semantic!
 		}
 
@@ -8023,15 +8018,15 @@ class HLSL
 		{
 			// Start the struct
 			let struct = this.#structs[s];
-			str += "struct " + this.#Translate(struct.Name) + "\n";
+			str += "struct " + HLSL.TranslateToGLSL(struct.Name) + "\n";
 			str += "{\n";
 
 			// Handle each variable (no semantics)
 			for (let v = 0; v < struct.Members.length; v++)
 			{
 				let variable = struct.Members[v];
-				str += "\t" + this.#Translate(variable.DataType); // Datatype
-				str += " " + this.#Translate(variable.Name); // Identifier
+				str += "\t" + HLSL.TranslateToGLSL(variable.DataType); // Datatype
+				str += " " + HLSL.TranslateToGLSL(variable.Name); // Identifier
 
 				// Array?
 				if (variable.ArraySize != null)
@@ -8059,15 +8054,15 @@ class HLSL
 		{
 			// Start the uniform block
 			let cb = this.#cbuffers[c];
-			cbStr += "layout(std140) uniform " + this.#Translate(cb.Name) + "\n";
+			cbStr += "layout(std140) uniform " + HLSL.TranslateToGLSL(cb.Name) + "\n";
 			cbStr += "{\n";
 
 			// Handle each variable (no semantics)
 			for (let v = 0; v < cb.Members.length; v++)
 			{
 				let variable = cb.Members[v];
-				cbStr += "\t" + this.#Translate(variable.DataType); // Datatype
-				cbStr += " " + this.#Translate(variable.Name); // Identifier
+				cbStr += "\t" + HLSL.TranslateToGLSL(variable.DataType); // Datatype
+				cbStr += " " + HLSL.TranslateToGLSL(variable.Name); // Identifier
 
 				// Array?
 				if (variable.ArrayExpression != null)
@@ -8145,8 +8140,8 @@ class HLSL
 		let funcStr = "";
 
 		// Start the function
-		funcStr += this.#Translate(func.ReturnType); // Data type
-		funcStr += " " + this.#Translate(newFuncName) + "("; // Identifier
+		funcStr += HLSL.TranslateToGLSL(func.ReturnType); // Data type
+		funcStr += " " + HLSL.TranslateToGLSL(newFuncName) + "("; // Identifier
 
 		// Parameters
 		for (let p = 0; p < func.Parameters.length; p++)
@@ -8157,8 +8152,8 @@ class HLSL
 			if (param.InputModifier != null)
 				funcStr += param.InputModifier + " ";
 
-			funcStr += this.#Translate(param.DataType); // Data type
-			funcStr += " " + this.#Translate(param.Name); // Identifier
+			funcStr += HLSL.TranslateToGLSL(param.DataType); // Data type
+			funcStr += " " + HLSL.TranslateToGLSL(param.Name); // Identifier
 
 			if (p < func.Parameters.length - 1)
 				funcStr += ", ";
@@ -8221,7 +8216,7 @@ class HLSL
 			else
 			{
 				// Add the token
-				funcStr += this.#TranslateToken(t);
+				funcStr += HLSL.TranslateTokenToGLSL(t);
 			}
 
 			// Extra spaces?
@@ -8364,7 +8359,7 @@ class HLSL
 				texFuncStr += this.#GetTextureFunctionString(it, baseFunc);
 
 				// Handle the remaining tokens
-				texFuncStr += this.#TranslateToken(it.Current());
+				texFuncStr += HLSL.TranslateTokenToGLSL(it.Current());
 
 				// Skip ahead
 				it.MoveNext();
@@ -8430,7 +8425,7 @@ class HLSL
 			}
 			else
 			{
-				main += "\t" + this.#Translate(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
+				main += "\t" + HLSL.TranslateToGLSL(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
 				main += PrefixAttribute + vsInputs[v].Name + ";\n";
 			}
 		}
@@ -8442,7 +8437,7 @@ class HLSL
 			if (this.#IsStruct(param.DataType))
 			{
 				// Yes, so build a struct object and "hook up" vsInputs
-				let newParamName = this.#Translate(param.Name);
+				let newParamName = HLSL.TranslateToGLSL(param.Name);
 				main += "\n\t" + param.DataType;
 				main += " " + newParamName + ";\n";
 
@@ -8451,20 +8446,20 @@ class HLSL
 				for (let v = 0; v < struct.Members.length; v++)
 				{
 					let member = struct.Members[v];
-					main += "\t" + newParamName + "." + this.#Translate(member.Name) + " = ";
+					main += "\t" + newParamName + "." + HLSL.TranslateToGLSL(member.Name) + " = ";
 
 					// NOTE: Assumption here is that the struct member name is identical to the
 					//       vsInput identifier used throughout the rest of the function
-					main += this.#Translate(member.Name) + ";\n";
+					main += HLSL.TranslateToGLSL(member.Name) + ";\n";
 				}
 			}
 		}
 
 		// Call the function and capture the return value
-		main += "\n\t" + this.#Translate(this.#main.ReturnType) + " " + PrefixVSOutput + " = hlsl_main(";
+		main += "\n\t" + HLSL.TranslateToGLSL(this.#main.ReturnType) + " " + PrefixVSOutput + " = hlsl_main(";
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
-			main += this.#Translate(this.#main.Parameters[p].Name);
+			main += HLSL.TranslateToGLSL(this.#main.Parameters[p].Name);
 			if (p < this.#main.Parameters.length - 1)
 				main += ", ";
 		}
@@ -8574,7 +8569,7 @@ class HLSL
 						continue;
 					}
 
-					vary += "in " + this.#Translate(member.DataType); // Data type - Note: "varying" to "in" for GLSL 3
+					vary += "in " + HLSL.TranslateToGLSL(member.DataType); // Data type - Note: "varying" to "in" for GLSL 3
 					vary += " " + PrefixVarying + member.Semantic + ";\n"; // Identifier is semantic!
 				}
 
@@ -8586,7 +8581,7 @@ class HLSL
 			else
 			{
 				// This is a normal variable, so just one varying
-				vary += "in " + this.#Translate(param.DataType); // Data type
+				vary += "in " + HLSL.TranslateToGLSL(param.DataType); // Data type
 				vary += " " + PrefixVarying + param.Semantic + ";\n"; // Identifier is semantic!
 			}
 		}
@@ -8615,7 +8610,7 @@ class HLSL
 		//       directly set to the variables/structs below
 		for (let v = 0; v < psInputs.length; v++)
 		{
-			main += "\t" + this.#Translate(psInputs[v].DataType) + " " + psInputs[v].Name + " = ";
+			main += "\t" + HLSL.TranslateToGLSL(psInputs[v].DataType) + " " + psInputs[v].Name + " = ";
 
 			// SV_POSITION is really just gl_FragCoord
 			if (psInputs[v].Semantic.toUpperCase() == "SV_POSITION")
@@ -8631,7 +8626,7 @@ class HLSL
 			if (this.#IsStruct(param.DataType))
 			{
 				// Yes, so build a struct object and "hook up" psInputs
-				let newParamName = this.#Translate(param.Name);
+				let newParamName = HLSL.TranslateToGLSL(param.Name);
 				main += "\n\t" + param.DataType;
 				main += " " + newParamName + ";\n";
 
@@ -8640,20 +8635,20 @@ class HLSL
 				for (let v = 0; v < struct.Members.length; v++)
 				{
 					let member = struct.Members[v];
-					main += "\t" + newParamName + "." + this.#Translate(member.Name) + " = ";
+					main += "\t" + newParamName + "." + HLSL.TranslateToGLSL(member.Name) + " = ";
 
 					// NOTE: Assumption here is that the struct member name is identical to the
 					//       psInput identifier used throughout the rest of the function
-					main += this.#Translate(member.Name) + ";\n";
+					main += HLSL.TranslateToGLSL(member.Name) + ";\n";
 				}
 			}
 		}
 
 		// Call the function and capture the return value
-		main += "\n\t" + this.#Translate(this.#main.ReturnType) + " " + PrefixPSOutput + " = hlsl_main(";
+		main += "\n\t" + HLSL.TranslateToGLSL(this.#main.ReturnType) + " " + PrefixPSOutput + " = hlsl_main(";
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
-			main += this.#Translate(this.#main.Parameters[p].Name);
+			main += HLSL.TranslateToGLSL(this.#main.Parameters[p].Name);
 			if (p < this.#main.Parameters.length - 1)
 				main += ", ";
 		}
@@ -8882,7 +8877,7 @@ class ShaderElementMemberVar
 		switch (lang)
 		{
 			default:
-			case LanguageHLSL:
+			case ShaderLanguageHLSL:
 
 				for (let i = 0; i < this.InterpModifiers.length; i++)
 					s += this.InterpModifiers[i] + " ";
@@ -8904,13 +8899,13 @@ class ShaderElementMemberVar
 
 				break;
 
-			case ShaderLanguageGLSL: // No semantics (or interpolation modifiers?)
+			case ShaderLanguageGLSL: // No semantics (or interpolation modifiers?) 
 
 				if (this.InputModifier != null)
 					s += this.InputModifier + " ";
 
-				s += this.DataType + " "; // TODO: Translate data type in GLSL
-				s += this.Name;
+				s += HLSL.TranslateToGLSL(this.DataType) + " ";
+				s += HLSL.TranslateToGLSL(this.Name);
 
 				if (this.ArrayExpression != null)
 					s += " [" + this.ArrayExpression.ToString(lang) + "]";
@@ -9192,8 +9187,8 @@ class StatementVar extends Statement
 		switch (lang)
 		{
 			default:
-			case LanguageHLSL: s += this.DataTypeToken.Text + " "; break;
-			case LanguageGLSL: s += this.DataTypeToken.Text + " "; break; // TODO: Need to translate data type
+			case ShaderLanguageHLSL: s += this.DataTypeToken.Text + " "; break;
+			case ShaderLanguageGLSL: s += HLSL.TranslateToGLSL(this.DataTypeToken.Text) + " "; break;
 		}
 
 		for (let v = 0; v < this.VarDecs.length; v++)
@@ -9228,7 +9223,15 @@ class VarDec extends Statement
 	ToString(lang)
 	{
 		// Note: Const AND data type will be added at the StatementVar level!
-		let s = this.NameToken.Text;
+
+		let s = "";
+
+		switch (lang)
+		{
+			default:
+			case ShaderLanguageHLSL: s += this.NameToken.Text; break;
+			case ShaderLanguageGLSL: s += HLSL.TranslateToGLSL(this.NameToken.Text); break;
+		}
 
 		if (this.ArrayExpression != null)
 			s += "[" + this.ArrayExpression.ToString(lang) + "]";
@@ -9335,14 +9338,13 @@ class ExpCast extends Expression
 		this.Exp = exp;
 	}
 
-	// TODO: Need to translate data type in GLSL
 	ToString(lang)
 	{
 		switch (lang)
 		{
 			default:
-			case LanguageHLSL: return "(" + this.TypeToken.Text + ")" + this.Exp.ToString(lang); // (int)thing
-			case ShaderLanguageGLSL: return this.TypeToken.Text + "(" + this.Exp.ToString(lang) + ")"; // int(thing)
+			case ShaderLanguageHLSL: return "(" + this.TypeToken.Text + ")" + this.Exp.ToString(lang); // (int)thing
+			case ShaderLanguageGLSL: return HLSL.TranslateToGLSL(this.TypeToken.Text) + "(" + this.Exp.ToString(lang) + ")"; // int(thing)
 		}
 	}
 }
@@ -9361,7 +9363,7 @@ class ExpFunctionCall extends Expression
 
 	ToString(lang)
 	{
-		let s = this.FuncExp.ToString() + "(";
+		let s = this.FuncExp.ToString(lang) + "(";
 
 		for (let p = 0; p < this.Parameters.length; p++)
 		{
@@ -9388,7 +9390,7 @@ class ExpGroup extends Expression
 
 	ToString(lang)
 	{
-		return "(" + this.Exp.ToString() + ")";
+		return "(" + this.Exp.ToString(lang) + ")";
 	}
 }
 
@@ -9530,7 +9532,12 @@ class ExpVariable extends Expression
 
 	ToString(lang)
 	{
-		return this.VarToken.Text;
+		switch (lang)
+		{
+			default:
+			case ShaderLanguageHLSL: return this.VarToken.Text;
+			case ShaderLanguageGLSL: return HLSL.TranslateToGLSL(this.VarToken.Text);
+		}
 	}
 }
 
