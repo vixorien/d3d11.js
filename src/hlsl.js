@@ -132,6 +132,11 @@ const HLSLReservedWordConversion = {
 	"pow": "pow_hlsl"
 };
 
+const HLSLTextureSampleConversion = {
+	"Sample": "texture",
+	"SampleLevel": "textureLod"
+};
+
 class TokenIterator
 {
 	#tokens;
@@ -916,22 +921,23 @@ class HLSL
 		// Check for parens, which means function
 		if (this.#Allow(it, TokenParenLeft))
 		{
-			let f = {
-				ReturnType: type,
-				Name: name,
-				Semantic: null,
-				Parameters: [],
-				BodyTokens: [],
-				TextureFunctions: []
-			};
+			//let f = {
+			//	ReturnType: type,
+			//	Name: name,
+			//	Semantic: null,
+			//	Parameters: [],
+			//	BodyTokens: [],
+			//	TextureFunctions: []
+			//};
 
 			// It's a function, so it may have parameters
+			let params = [];
 			do
 			{
 				if (it.Current().Type == TokenParenRight)
 					break;
 
-				f.Parameters.push(this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true));
+				/*f.Parameters*/ params.push(this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true));
 			}
 			while (this.#Allow(it, TokenComma));
 
@@ -939,48 +945,61 @@ class HLSL
 			this.#Require(it, TokenParenRight);
 
 			// Might have a semantic!
+			let semantic = null;
 			if (this.#Allow(it, TokenColon))
 			{
 				// Verify identifier and save
 				this.#Require(it, TokenIdentifier);
-				f.Semantic = it.PeekPrev().Text;
+				//f.Semantic = it.PeekPrev().Text;
+				semantic = it.PeekPrev().Text;
 			}
 
 			// Where are we in the iterator?
 			let funcStartPos = it.Position();
 
 			// Next should be open scope
-			let scopeLevel = 1;
+			//let scopeLevel = 1;
 			this.#Require(it, TokenScopeLeft);
 
-			// TESTING: Attempt a parse
-			//let statements = this.#ParseFunctionBody(it);
+			//// TESTING: Attempt a parse
+			let statements = this.#ParseFunctionBody(it);
+
+			this.#Require(it, TokenScopeRight);
 			//console.log(statements);
 			//for (let i = 0; i < statements.length; i++)
 			//	console.log(statements[i].ToString(ShaderLanguageGLSL, ""));
+			//console.log(this.#textureSamplerCombinations);
 			//throw new Error("STOPPING NOW");
 
-			do
-			{
-				this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
+			//do
+			//{
+			//	this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
 
-				// Check for scope change and skip everything else
-				if (this.#Allow(it, TokenScopeLeft))
-					scopeLevel++;
-				else if (this.#Allow(it, TokenScopeRight))
-					scopeLevel--;
-				else
-					it.MoveNext();
-			}
-			while (scopeLevel >= 1);
+			//	// Check for scope change and skip everything else
+			//	if (this.#Allow(it, TokenScopeLeft))
+			//		scopeLevel++;
+			//	else if (this.#Allow(it, TokenScopeRight))
+			//		scopeLevel--;
+			//	else
+			//		it.MoveNext();
+			//}
+			//while (scopeLevel >= 1);
 
 			// Function is over, where did we end up?
 			// Add all of the tokens to the function body
-			let funcEndPos = it.Position();
-			f.BodyTokens = it.GetRange(funcStartPos, funcEndPos);
+			//let funcEndPos = it.Position();
+			//f.BodyTokens = it.GetRange(funcStartPos, funcEndPos);
+
+			let f = new ShaderElementFunction(
+				type,
+				name,
+				semantic,
+				params,
+				statements,
+				null);
 
 			// Is this main?
-			if (f.Name == "main")
+			if (/*f.Name*/ name == "main")
 			{
 				// Too many mains?
 				if (this.#main != null)
@@ -1681,6 +1700,9 @@ class HLSL
 				exp = new ExpMember(
 					exp, // Left side of "."
 					this.#ParsePostfixCallArrayOrMember(it)); // right side of "."
+
+				// If this is a texture sample call, we need to created a combined version for GLSL
+				this.#CheckForTextureSampleCall(exp);
 			}
 			else // Nothing useful left
 			{
@@ -1689,6 +1711,79 @@ class HLSL
 		}
 
 		return exp;
+	}
+
+	#CheckForTextureSampleCall(memberExp)
+	{
+		// Left must be variable and right must be function call
+		if (!(memberExp.ExpLeft instanceof ExpVariable) || !(memberExp.ExpRight instanceof ExpFunctionCall))
+			return;
+
+		// Left is a variable!  Must be a texture
+		let texName = memberExp.ExpLeft.VarToken.Text;
+		if (!this.#IsTexture(texName))
+			return;
+
+		// Right must be a function call with a variable expression as its function expression
+		if (!(memberExp.ExpRight.FuncExp instanceof ExpVariable))
+			return; // TODO: Throw since this is probably invalid?
+
+		// Right must have a sampler as its first parameter
+		if (memberExp.ExpRight.Parameters.length <= 1 || !(memberExp.ExpRight.Parameters[0] instanceof ExpVariable))
+			return; // TODO: Throw since this is probably invalid?  Or can functions return samplers?
+
+		// Grab the function call name
+		let funcName = memberExp.ExpRight.FuncExp.VarToken.Text;
+		switch (funcName)
+		{
+			case "Sample":
+				// Pixel shaders only!
+				if (this.#shaderType != ShaderTypePixel)
+					throw new Error("Sample() only available in pixel shaders");
+				break;
+
+			case "SampleLevel": break; // Valid in either type
+
+			default:
+				throw new Error("Invalid (or not implemented) texture member function found.");
+		}
+
+		// Get the sampler name
+		let sampName = memberExp.ExpRight.Parameters[0].VarToken.Text;
+		if (!this.#IsSampler(sampName))
+			return; // TODO: Throw since this is definitely invalid?
+
+		// This is definitely a texture sample, so record that
+		memberExp.IsTextureSample = true;
+
+		// Does this combination already exist?
+		let combined = null;
+		for (let i = 0; i < this.#textureSamplerCombinations.length; i++)
+		{
+			if (this.#textureSamplerCombinations[i].TextureName == texName &&
+				this.#textureSamplerCombinations[i].SamplerName == sampName)
+			{
+				combined = this.#textureSamplerCombinations[i];
+				break;
+			}
+		}
+
+		// Did we find anything?
+		if (combined == null)
+		{
+			// This is new, so create and add the texture sampler combination
+			combined = new ShaderElementCombinedTextureAndSampler(
+				texName,
+				sampName,
+				this.#GetTexture(texName),
+				this.#GetSampler(sampName));
+
+			this.#textureSamplerCombinations.push(combined);
+		}
+
+		// Track this data in the expression (for ease of ToString() later)
+		memberExp.IsTextureSample = true;
+		memberExp.CombinedTextureAndSampler = combined;
 	}
 
 	#ParseOperandOrGrouping(it)
@@ -2067,9 +2162,9 @@ class HLSL
 		glsl += this.#GetTextureSamplerString();
 		glsl += this.#GetGlobalConstantsString();
 		glsl += this.#GetHelperFunctionsString();
-		glsl += this.#GetFunctionString(this.#main, "hlsl_");
+		glsl += this.#main.ToString(ShaderLanguageGLSL, "hlsl_") + "\n\n";//this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildVertexShaderMain(vsInputs);
-
+		
 		return glsl;
 	}
 
@@ -2542,7 +2637,9 @@ class HLSL
 	{
 		let functions = "";
 		for (let f = 0; f < this.#functions.length; f++)
-			functions += this.#GetFunctionString(this.#functions[f]);
+		{
+			functions += this.#functions[f].ToString(ShaderLanguageGLSL) + "\n\n";// this.#GetFunctionString(this.#functions[f]);
+		}
 		return functions;
 	}
 
@@ -2856,9 +2953,9 @@ class HLSL
 		glsl += this.#GetTextureSamplerString();
 		glsl += this.#GetGlobalConstantsString();
 		glsl += this.#GetHelperFunctionsString();
-		glsl += this.#GetFunctionString(this.#main, "hlsl_");
+		glsl += this.#main.ToString(ShaderLanguageGLSL, "hlsl_") + "\n\n";//this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
-		
+		console.log(glsl);
 		return glsl;
 	}
 
@@ -2902,6 +2999,41 @@ class ShaderElementFunction extends ShaderElement
 		this.Parameters = params;
 		this.Statements = statements;
 		this.TextureFunctions = textureFuncs;
+	}
+
+	ToString(lang, prependName = "")
+	{
+		let s = "";
+		switch (lang)
+		{
+			default:
+			case ShaderLanguageHLSL: throw new Error("IMPLEMENT ME"); // TODO: Implement
+			case ShaderLanguageGLSL:
+
+				s += HLSL.TranslateToGLSL(this.ReturnType) + " " + HLSL.TranslateToGLSL(prependName + this.Name) + "(";
+
+				for (let p = 0; p < this.Parameters.length; p++)
+				{
+					s += this.Parameters[p].ToString(lang);
+
+					if (p < this.Parameters.length - 1)
+						s += ", ";
+				}
+
+				s += ")\n";
+				s += "{\n";
+
+				for (let i = 0; i < this.Statements.length; i++)
+				{
+					s += this.Statements[i].ToString(lang, "\t") + "\n";
+				}
+
+				s += "}";
+
+				break;
+		}
+
+		return s;
 	}
 }
 
@@ -2966,6 +3098,27 @@ class ShaderElementTexture extends ShaderElement
 	}
 }
 
+class ShaderElementCombinedTextureAndSampler extends ShaderElement
+{
+	TextureName;
+	SamplerName;
+	CombinedName;
+	Texture;
+	Sampler;
+
+	constructor(textureName, samplerName, textureObject, samplerObject)
+	{
+		super();
+
+		this.TextureName = textureName;
+		this.SamplerName = samplerName;
+		this.CombinedName = "combined_" + textureName + "_" + samplerName;
+
+		this.Texture = textureObject;
+		this.Sampler = samplerObject;
+	}
+}
+
 // Function param modifiers
 //  - in
 //  - inout
@@ -3012,7 +3165,7 @@ class ShaderElementMemberVar
 		this.InitializerExp = initExp;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent;
 
@@ -3054,7 +3207,7 @@ class ShaderElementMemberVar
 
 				if (this.InitializerExp != null)
 					s += " " + this.InitializerExp.ToString(lang);
-
+				
 				break;
 		}
 
@@ -3076,7 +3229,7 @@ class StatementBlock extends Statement
 		this.Statements = statements;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent + "{\n";
 
@@ -3100,7 +3253,7 @@ class StatementCase extends Statement
 		this.Statements = statements;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent + "case " + this.CaseValueExpression.ToString(lang) + ":\n";
 
@@ -3121,7 +3274,7 @@ class StatementDefault extends Statement
 		this.Statements = statements;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent + "default:\n";
 
@@ -3144,7 +3297,7 @@ class StatementDoWhile extends Statement
 		this.Condition = cond;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent + "do\n";
 		s += this.Body.ToString(lang, indent + "\t");
@@ -3163,7 +3316,7 @@ class StatementExpression extends Statement
 		this.Exp = exp;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		return indent + this.Exp.ToString(lang) + ";";
 	}
@@ -3185,7 +3338,7 @@ class StatementFor extends Statement
 		this.BodyStatement = bodyStatement;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent + "for(";
 		s += this.InitStatement.ToString(lang, "") + " ";
@@ -3211,7 +3364,7 @@ class StatementIf extends Statement
 		this.Else = elseBlock;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent + "if(" + this.Condition.ToString(lang) + ")\n";
 
@@ -3237,7 +3390,7 @@ class StatementJump extends Statement
 		this.JumpToken = jumpToken;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		return indent + this.JumpToken.Text + ";";
 	}
@@ -3253,7 +3406,7 @@ class StatementReturn extends Statement
 		this.Expression = exp;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		return indent + "return " + this.Expression.ToString(lang) + ";";
 	}
@@ -3271,7 +3424,7 @@ class StatementSwitch extends Statement
 		this.Cases = cases;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent + "switch(" + this.SelectorExpression.ToString(lang) + ")\n";
 		s += indent + "{\n";
@@ -3296,7 +3449,7 @@ class StatementWhile extends Statement
 		this.Body = body;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent + "while(" + this.Condition.ToString(lang) + ")\n";
 		s += this.Body.ToString(lang, indent + "\t");
@@ -3318,7 +3471,7 @@ class StatementVar extends Statement
 		this.VarDecs = varDecs;
 	}
 
-	ToString(lang, indent)
+	ToString(lang, indent = "")
 	{
 		let s = indent;
 
@@ -3578,12 +3731,18 @@ class ExpMember extends Expression
 {
 	ExpLeft;
 	ExpRight;
+	IsTextureSample;
+	CombinedTextureAndSampler;
 
 	constructor(expLeft, expRight)
 	{
 		super();
+
 		this.ExpLeft = expLeft;
 		this.ExpRight = expRight;
+
+		this.IsTextureSample = false;
+		this.CombinedTextureAndSampler = null;
 	}
 
 	RightmostChildIsVariable()
@@ -3600,7 +3759,65 @@ class ExpMember extends Expression
 
 	ToString(lang)
 	{
-		return this.ExpLeft.ToString(lang) + "." + this.ExpRight.ToString(lang);
+		switch (lang)
+		{
+			default:
+			case ShaderLanguageHLSL: return this.ExpLeft.ToString(lang) + "." + this.ExpRight.ToString(lang);
+
+			case ShaderLanguageGLSL:
+
+				// If this is not a texture sample, just use the normal result
+				if (!this.IsTextureSample)
+					return this.ExpLeft.ToString(lang) + "." + this.ExpRight.ToString(lang);
+
+				// This IS a texture sample, so we need to manually build the string with replacements/augments
+
+				// What's the exact Sample function name?
+				let hlslTextureFunc = this.ExpRight.FuncExp.VarToken.Text;
+				if (!HLSLTextureSampleConversion.hasOwnProperty(hlslTextureFunc))
+					throw new Error("Sample function type not yet implemented!");
+
+				// Grab the glsl equivalent to start the string
+				// This replaces the 'texture.Sample(sampler, ' pattern
+				let s = HLSLTextureSampleConversion[hlslTextureFunc] + "(" + this.CombinedTextureAndSampler.CombinedName + ", ";
+
+				// The second parameter of the function is the texture coordinate
+				// This must be wrapped to flip the Y coord
+				let uv = this.ExpRight.Parameters[1].ToString(lang);
+				switch (this.CombinedTextureAndSampler.Texture.Type)
+				{
+					// 1D textures are really just 2D textures with a height of 1, so we need
+					// to wrap the single (float) value in a vec2(v, 0)
+					case "Texture1D": uv = "vec2(" + uv + ", 0.5)"; break;
+
+					// Add in extra UV work to flip Y
+					// - What we want is: uv.y = 1 - uv.y
+					// - For that, we'll do: (0,1) + (1,-1) * uvExpression
+					case "Texture2D": uv = "vec2(0.0, 1.0) + vec2(1.0, -1.0) * (" + uv + ")"; break;
+
+					// Add in extra UV work to flip Y
+					// - What we want is: uv.y = 1 - uv.y
+					// - For that, we'll do: (0,1,0) + (1,-1,0) * uvExpression
+					case "Texture3D": uv = "vec3(0.0, 1.0, 0.0) + vec3(1.0, -1.0, 1.0) * (" + uv + ")"; break;
+
+					// Just flip the Y for the cube direction
+					case "TextureCube": uv = "vec3(1.0, -1.0, 1.0) * (" + uv + ")"; break;
+
+					default:
+						throw new Error("Invalid texture type or not yet implemented");
+				}
+				s += uv;
+
+				// Include any other parameters
+				for (let i = 2; i < this.ExpRight.Parameters.length; i++)
+				{
+					s += ", " + this.ExpRight.Parameters[i].ToString(lang);
+				}
+
+				// Finalize call
+				s += ")";
+				return s;
+		}
 	}
 }
 
