@@ -6176,6 +6176,63 @@ class HLSL
 			return identifier;
 	}
 
+	static async LoadTextFromURL(url, allowIncludes = true)
+	{
+		// Grab the URL
+		let resp = await fetch(url);
+		let text = await resp.text();
+
+		// Should we also load includes?
+		if (!allowIncludes)
+			return text;
+
+		// Track the included paths
+		let includedURLs = {};
+
+		// Check for an initial "#include"
+		let includeToken = "#include";
+		while(true)
+		{
+			// Check for include token
+			let includePos = text.indexOf(includeToken);
+			if (includePos == -1)
+				break;
+
+			let q1 = -1;
+			let q2 = -1;
+
+			// First quote
+			q1 = text.indexOf("\"", includePos + includeToken.length);
+			if (q1 == -1)
+				throw new Error("Error with #include; expected start quote");
+
+			// Second quote
+			q2 = text.indexOf("\"", q1 + 1);
+			if (q2 == -1)
+				throw new Error("Error with #include; expected end quote");
+
+			// Grab the path and verify we haven't seen it before
+			let url = text.substring(q1 + 1, q2);
+			if (includedURLs.hasOwnProperty(url))
+				continue;
+			else
+				includedURLs[url] = true;
+
+			// Actually fetch
+			const resp = await fetch(url);
+			const newText = await resp.text();
+
+			// Replace the include with the new text
+			text =
+				text.substring(0, includePos) +
+				newText +
+				text.substring(q2 + 1);
+		}
+
+		return text;
+	}
+
+
 	constructor(hlslCode, shaderType)
 	{
 		// Validate shader type
@@ -6204,6 +6261,7 @@ class HLSL
 		return this.#textureSamplerCombinations.slice();
 	}
 
+	
 	// Read the code and tokenize
 	#Tokenize()
 	{
@@ -7831,8 +7889,7 @@ class HLSL
 		glsl += this.#GetMatrixConstructors();
 		glsl += this.#GetTextureSamplerString();
 		glsl += this.#GetGlobalConstantsString();
-		glsl += this.#GetHelperFunctionsString();
-		glsl += this.#main.ToString(ShaderLanguageGLSL, "hlsl_") + "\n\n";//this.#GetFunctionString(this.#main, "hlsl_");
+		glsl += this.#GetFunctionsString();
 		glsl += this.#BuildVertexShaderMain(vsInputs);
 		
 		return glsl;
@@ -8041,13 +8098,15 @@ class HLSL
 		return glsl;
 	}
 
-	#GetHelperFunctionsString()
+	#GetFunctionsString()
 	{
 		let functions = "";
 		for (let f = 0; f < this.#functions.length; f++)
 		{
-			functions += this.#functions[f].ToString(ShaderLanguageGLSL) + "\n\n";// this.#GetFunctionString(this.#functions[f]);
+			functions += this.#functions[f].ToString(ShaderLanguageGLSL) + "\n\n";
 		}
+
+		functions += this.#main.ToString(ShaderLanguageGLSL, "hlsl_") + "\n\n";
 		return functions;
 	}
 
@@ -8360,8 +8419,7 @@ class HLSL
 		glsl += this.#GetMatrixConstructors();
 		glsl += this.#GetTextureSamplerString();
 		glsl += this.#GetGlobalConstantsString();
-		glsl += this.#GetHelperFunctionsString();
-		glsl += this.#main.ToString(ShaderLanguageGLSL, "hlsl_") + "\n\n";//this.#GetFunctionString(this.#main, "hlsl_");
+		glsl += this.#GetFunctionsString();
 		glsl += this.#BuildPixelShaderMain(psInputs);
 		
 		return glsl;
