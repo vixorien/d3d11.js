@@ -251,7 +251,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float rough = max(roughnessMap.Sample(samp, input.uv).r, MIN_ROUGHNESS);
 	float3 normalFromMap = normalMap.Sample(samp, input.uv).rgb;
 	normalFromMap = normalize(normalFromMap * 2.0 - 1.0);
-
+	
 	//return float4(rough, rough, rough, 1);
 	
 	// Gather the required vectors for converting the normal
@@ -261,10 +261,10 @@ float4 main(VertexToPixel input) : SV_TARGET
 
 	// Create the 3x3 matrix to convert from TANGENT-SPACE normals to WORLD-SPACE normals
 	float3x3 TBN = float3x3(T, B, N);
-
+	
 	// Adjust the normal from the map and simply use the results
 	input.normal = mul(normalFromMap, TBN);
-
+	
 	float3 specColor = lerp(float3(0.04, 0.04, 0.04), albedo.rgb, metal);
 
 	float3 color = float3(0,0,0);

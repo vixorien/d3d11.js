@@ -5983,6 +5983,13 @@ const HLSLMatrixElementConversion = {
 	"_44": "[3][3]"
 };
 
+const HLSLMatrixConstructorConversion = {
+	"float2x2": "float2x2_tr",
+	"float3x3": "float3x3_tr",
+	"float4x4": "float4x4_tr",
+	"matrix": "float4x4_tr",
+};
+
 const HLSLReservedWordConversion = {
 	"$Global": "_global_cbuffer",
 	"input": "_input",
@@ -6169,30 +6176,8 @@ class HLSL
 			return identifier;
 	}
 
-	// Note: This can probably go away once we move to the new parser stuff (and can convert types)
-	static TranslateTokenToGLSL(token)
-	{
-		// Check for numbers - need to remove the "f"
-		if (token.Type == TokenNumericLiteral &&
-			token.Text.charAt(token.Text.length - 1) == "f")
-		{
-			// Might be left with a "." at the end, in the case of "1.f"
-			let stripSize = 1;
-			if (token.Text.charAt(token.Text.length - 2) == ".")
-				stripSize = 2;
-
-			return token.Text.substring(0, token.Text.length - stripSize);
-		}
-		else
-		{
-			return HLSL.TranslateToGLSL(token.Text);
-		}
-	}
-
-
 	constructor(hlslCode, shaderType)
 	{
-		console.log(hlslCode);
 		// Validate shader type
 		if (shaderType != ShaderTypeVertex &&
 			shaderType != ShaderTypePixel)
@@ -6781,15 +6766,6 @@ class HLSL
 		// Check for parens, which means function
 		if (this.#Allow(it, TokenParenLeft))
 		{
-			//let f = {
-			//	ReturnType: type,
-			//	Name: name,
-			//	Semantic: null,
-			//	Parameters: [],
-			//	BodyTokens: [],
-			//	TextureFunctions: []
-			//};
-
 			// It's a function, so it may have parameters
 			let params = [];
 			do
@@ -6797,7 +6773,7 @@ class HLSL
 				if (it.Current().Type == TokenParenRight)
 					break;
 
-				/*f.Parameters*/ params.push(this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true));
+				params.push(this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true));
 			}
 			while (this.#Allow(it, TokenComma));
 
@@ -6810,45 +6786,13 @@ class HLSL
 			{
 				// Verify identifier and save
 				this.#Require(it, TokenIdentifier);
-				//f.Semantic = it.PeekPrev().Text;
 				semantic = it.PeekPrev().Text;
 			}
 
-			// Where are we in the iterator?
-			let funcStartPos = it.Position();
-
-			// Next should be open scope
-			//let scopeLevel = 1;
+			// Next should be open scope, function body, end scope
 			this.#Require(it, TokenScopeLeft);
-
-			//// TESTING: Attempt a parse
 			let statements = this.#ParseFunctionBody(it);
-
 			this.#Require(it, TokenScopeRight);
-			//console.log(statements);
-			//for (let i = 0; i < statements.length; i++)
-			//	console.log(statements[i].ToString(ShaderLanguageGLSL, ""));
-			//console.log(this.#textureSamplerCombinations);
-			//throw new Error("STOPPING NOW");
-
-			//do
-			//{
-			//	this.#CheckAndParseTextureObjectFunction(it, f, funcStartPos);
-
-			//	// Check for scope change and skip everything else
-			//	if (this.#Allow(it, TokenScopeLeft))
-			//		scopeLevel++;
-			//	else if (this.#Allow(it, TokenScopeRight))
-			//		scopeLevel--;
-			//	else
-			//		it.MoveNext();
-			//}
-			//while (scopeLevel >= 1);
-
-			// Function is over, where did we end up?
-			// Add all of the tokens to the function body
-			//let funcEndPos = it.Position();
-			//f.BodyTokens = it.GetRange(funcStartPos, funcEndPos);
 
 			let f = new ShaderElementFunction(
 				type,
@@ -6859,7 +6803,7 @@ class HLSL
 				null);
 
 			// Is this main?
-			if (/*f.Name*/ name == "main")
+			if (name == "main")
 			{
 				// Too many mains?
 				if (this.#main != null)
@@ -7714,154 +7658,6 @@ class HLSL
 	// SampleBias() -> texture(samp, uv, bias)
 	// Etc.
 
-	#CheckAndParseTextureObjectFunction(it, baseFunc, relativePosOffset)
-	{
-		// Record start position in the event this is a texture object function
-		// Note that all positions here are relative to the function body
-		let overallStartPos = it.Position() - relativePosOffset;
-
-		// Must start with a texture identifier
-		if (it.Current().Type != TokenIdentifier ||
-			!this.#IsTexture(it.Current().Text))
-			return;
-
-		// This is a valid texture, cache and move past
-		let textureName = it.Current().Text;
-		it.MoveNext();
-
-		// It's a texture, so we need a period next
-		if (!this.#Allow(it, TokenPeriod))
-			return;
-
-		// We have the pattern [textureName][.], so next must be an identifier
-		this.#Require(it, TokenIdentifier);
-		let textureFuncName = it.PeekPrev().Text;
-		
-		// Which kind of function?
-		// TODO: Handle all the permutations (SO MANY)
-		//       See list of objects & functions here: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/d3d11-graphics-reference-sm5-objects
-		switch (textureFuncName)
-		{
-			case "Sample":
-				// Pixel shader only!!!
-				if (this.#shaderType != ShaderTypePixel)
-					throw new Error("'Sample' function only valid in pixel shaders");
-				break;
-
-			case "SampleLevel": break; // Valid in either shader, just skip
-
-			default:
-				throw new Error("Texture function '" + textureFuncName + "' not yet implemented!");
-		}
-
-		// Need left parens, then sampler
-		// TODO: Handle expression that evaluations to a sampler, like a function call?
-		// NOTE: Just checked - HLSL requires sampler param to come from a literal expression!
-		//       Could be a function call that returns a literal, but we'll just disallow for now.
-		this.#Require(it, TokenParenLeft);
-		this.#Require(it, TokenIdentifier)
-		let samplerName = it.PeekPrev().Text;
-
-		// Verify sampler
-		if (!this.#IsSampler(samplerName))
-			throw new Error("Invalid sampler state '" + samplerName + "' in texture function");
-
-		// Next is comma
-		this.#Require(it, TokenComma);
-
-		// At this point, there should be at least one more, but potentially 
-		// several more, arguments to the function call.  The first is always 
-		// UV coords, but the rest depend on the exact texture function called.
-		let paramExpressions = [];
-		let paramIndex = 1; // Skip first, since that's the sampler
-		let currentParamStartPos = it.Position() - relativePosOffset;
-		let currentParamEndPos = currentParamStartPos; // Will be changed below
-
-		// An entire expression that (theoretically) evaluates to texture
-		// coords, including another texture sample!
-		//let uvExpressionStartPos = it.Position() - relativePosOffset;
-		let parenDepth = 1;
-		
-		do
-		{
-			// Check for a sub-texture function
-			this.#CheckAndParseTextureObjectFunction(it, baseFunc, relativePosOffset);
-
-			// Check for paren depth changes
-			if (this.#Allow(it, TokenParenLeft))
-			{
-				parenDepth++;
-			}
-			else if (this.#Allow(it, TokenParenRight))
-			{
-				parenDepth--;
-			}
-			else if (parenDepth == 1 && this.#Allow(it, TokenComma))
-			{
-				// We've moved to the next parameter, so calculate the proper end pos
-				currentParamEndPos = it.Position() - relativePosOffset - 1;
-				paramExpressions[paramIndex] = { StartPos: currentParamStartPos, EndPos: currentParamEndPos };
-				paramIndex++;
-
-				// New start pos (will include commas!)
-				currentParamStartPos = it.Position() - relativePosOffset;
-			}
-			else
-			{
-				it.MoveNext();
-			}
-		} while (parenDepth >= 1);
-
-		// Finalize last parameter
-		currentParamEndPos = it.Position() - relativePosOffset - 1;
-		paramExpressions[paramIndex] = { StartPos: currentParamStartPos, EndPos: currentParamEndPos };
-
-		// We've ended the overall function with a right paren
-		// so store the end location and finalize this data
-		let overallEndPos = it.Position() - relativePosOffset; // Should include the end parens
-
-		// Set up the texture/sampler combination
-		let combination = this.#GetOrCreateTextureSamplerCombination(textureName, samplerName);
-
-		// Grab the texture type, too
-		let textureType = "";
-		for (let i = 0; i < this.#textures.length; i++)
-			if (this.#textures[i].Name == textureName)
-				textureType = this.#textures[i].Type;
-		
-		// Set up the overall texture function details and add to the base function
-		let texFunc = {
-			TextureSamplerCombination: combination,
-			FunctionName: textureFuncName,
-			TextureType: textureType,
-			StartPosition: overallStartPos,
-			EndPosition: overallEndPos,
-			ParamExpressions: paramExpressions
-		};
-		baseFunc.TextureFunctions.push(texFunc);
-	}
-
-	#GetOrCreateTextureSamplerCombination(textureName, samplerName)
-	{
-		// Check for this combination first
-		let combinedName = "combined_" + textureName + "_" + samplerName;
-		for (let i = 0; i < this.#textureSamplerCombinations.length; i++)
-			if (this.#textureSamplerCombinations[i].CombinedName == combinedName)
-				return this.#textureSamplerCombinations[i];
-
-		// Not present yet, so create and save
-		let combination = {
-			TextureName: textureName,
-			SamplerName: samplerName,
-			CombinedName: combinedName,
-			Texture: this.#GetTexture(textureName),
-			Sampler: this.#GetSampler(samplerName)
-		};
-		this.#textureSamplerCombinations.push(combination);
-		return combination;
-	}
-
-
 	#RegisterExists(elements, registerIndex)
 	{
 		for (let e = 0; e < elements.length; e++)
@@ -7939,8 +7735,7 @@ class HLSL
 			case ShaderTypePixel: glsl = this.#ConvertPixelShader(); break;
 			default: throw new Error("Invalid shader type");
 		}
-
-		console.log(glsl);
+		
 		return glsl;
 	}
 
@@ -8244,268 +8039,6 @@ class HLSL
 
 		glsl += "\n";
 		return glsl;
-	}
-
-	#GetFunctionString(func, prependName = "")
-	{
-		let newFuncName = prependName + func.Name;
-		let funcStr = "";
-
-		// Start the function
-		funcStr += HLSL.TranslateToGLSL(func.ReturnType); // Data type
-		funcStr += " " + HLSL.TranslateToGLSL(newFuncName) + "("; // Identifier
-
-		// Parameters
-		for (let p = 0; p < func.Parameters.length; p++)
-		{
-			let param = func.Parameters[p];
-
-			// Any in/out?
-			if (param.InputModifier != null)
-				funcStr += param.InputModifier + " ";
-
-			funcStr += HLSL.TranslateToGLSL(param.DataType); // Data type
-			funcStr += " " + HLSL.TranslateToGLSL(param.Name); // Identifier
-
-			if (p < func.Parameters.length - 1)
-				funcStr += ", ";
-		}
-
-		// End header
-		funcStr += ")";
-
-		// Body (including scope!)
-		let it = new TokenIterator(func.BodyTokens);
-		let indent = 0;
-		let parenDepth = 0;
-		while (it.MoveNext())
-		{
-			// Get current
-			let t = it.Current();
-
-			// End scope needs to "unindent" BEFORE
-			if (t.Type == TokenScopeRight)
-				indent--;
-
-			// Beginning of line - indent?
-			if (funcStr.charAt(funcStr.length - 1) == "\n")
-			{
-				funcStr += "\t".repeat(Math.max(indent, 0));
-			}
-
-			// Start scope adds indentation AFTER
-			if (t.Type == TokenScopeLeft)
-				indent++;
-
-			// Look for matrix constructors
-			funcStr += this.#GetMatrixConstructorString(it);
-
-			// Determine if the current token is a texture function
-			// TODO: Optimize this so we're not doing linear searches on every token
-			funcStr += this.#GetTextureFunctionString(it, func);
-			t = it.Current(); // Update current in the event we've moved! (this feels dirty)
-
-			// Track parens (due to for loops)
-			// NOTE: Moved this below texture function - really just need it before newline check below
-			switch (t.Type)
-			{
-				case TokenParenLeft: parenDepth++; break;
-				case TokenParenRight: parenDepth--; break;
-			}
-
-			// Is this a matrix element?
-			const matElementReplacement = this.#GetMatrixElementConversion(it);
-			if (matElementReplacement.length > 0)
-			{
-				// Replacing the period and matrix element (like "._m00")
-				// with the GLSL-style array access (like "[0][0]")
-				funcStr += matElementReplacement;
-
-				// Skip the period, but not the identifier part
-				// as that'll get skipped by the loop
-				it.MoveNext();
-			}
-			else
-			{
-				// Add the token
-				funcStr += HLSL.TranslateTokenToGLSL(t);
-			}
-
-			// Extra spaces?
-			if (t.Type == TokenIdentifier)
-			{
-				if (t.Text == "return" ||
-					t.Text == "case" ||
-					it.PeekNext().Type == TokenIdentifier) // Always put a space between double identifier
-					funcStr += " ";
-			}
-
-			// New line?
-			if ((t.Type == TokenSemicolon && parenDepth == 0) ||	// End of line, but not within "for loops"
-				t.Type == TokenScopeLeft ||
-				t.Type == TokenScopeRight)
-				funcStr += "\n";
-		}
-
-		// End body
-		funcStr += "\n";
-		return funcStr;
-	}
-
-	// TODO: Make constants/arrays for these translations
-	#GetMatrixConstructorString(it)
-	{
-		// Is this an identifier with a left paren?  If not, skip
-		if (it.Current().Type != TokenIdentifier ||
-			it.PeekNext().Type != TokenParenLeft)
-			return "";
-
-		// We have the "ident(" pattern, check for matrix constructors
-		let ident = it.Current().Text;
-		let replace = "";
-		switch (ident)
-		{
-			case "float2x2": replace = "float2x2_tr"; break;
-			case "float3x3": replace = "float3x3_tr"; break;
-			case "float4x4":
-			case "matrix": replace = "float4x4_tr"; break;
-			default: return "";
-		}
-
-		// We definitely have the proper pattern, skip the identifier
-		this.#Require(it, TokenIdentifier);
-		return replace;
-	}
-
-	#GetMatrixElementConversion(it)
-	{
-		// If we're not a period followed by an identifier, skip
-		if (it.Current().Type != TokenPeriod ||
-			it.PeekNext().Type != TokenIdentifier)
-			return "";
-
-		// We have the ".ident" pattern, check for matrix elements
-		const elementText = it.PeekNext().Text;
-		if (!HLSLMatrixElementConversion.hasOwnProperty(elementText))
-			return ""; // Not a matrix element
-
-		// It definitely is a matrix element, so return the replacement
-		return HLSLMatrixElementConversion[elementText];
-	}
-
-	#GetTextureFunctionString(it, baseFunc)
-	{
-		// Any functions, and is this an identifier?
-		if (baseFunc.TextureFunctions.length == 0 ||
-			it.Current().Type != TokenIdentifier)
-			return "";
-
-		// Do any of the texture functions start here?
-		let currentPos = it.Position();
-		let whichTexFunc = null;
-		for (let i = 0; i < baseFunc.TextureFunctions.length; i++)
-		{
-			if (baseFunc.TextureFunctions[i].StartPosition == currentPos)
-			{
-				whichTexFunc = baseFunc.TextureFunctions[i];
-				break;
-			}
-		}
-
-		// Anything?
-		if (whichTexFunc == null)
-			return "";
-
-		let glslTextureFunc = "";
-		switch (whichTexFunc.FunctionName)
-		{
-			case "Sample": glslTextureFunc = "texture"; break;
-			case "SampleLevel": glslTextureFunc = "textureLod"; break;
-			default:
-				throw new Error("Sample function type not yet implemented!");
-		}
-
-		// We have at least one function and we're at the right position
-		let texFuncStr = glslTextureFunc + "(" + whichTexFunc.TextureSamplerCombination.CombinedName + ", ";
-
-		// What type of texture?
-		// TODO: Handle other, similar texture types
-		if (whichTexFunc.TextureType == "Texture1D")
-		{
-			// 1D textures are really just 2D textures with a height of 1, so we need
-			// to wrap the single (float) value in a vec2(v, 0)
-			texFuncStr += "vec2(";
-		}
-		else if (whichTexFunc.TextureType == "Texture2D")
-		{
-			// Add in extra UV work to flip Y
-			// - What we want is: uv.y = 1 - uv.y
-			// - For that, we'll do: (0,1) + (1,-1) * uvExpression
-			texFuncStr += "vec2(0.0, 1.0) + vec2(1.0, -1.0) * (";
-		}
-		else if (whichTexFunc.TextureType == "Texture3D")
-		{
-			// Add in extra UV work to flip Y
-			// - What we want is: uv.y = 1 - uv.y
-			// - For that, we'll do: (0,1,0) + (1,-1,0) * uvExpression
-			texFuncStr += "vec3(0.0, 1.0, 0.0) + vec3(1.0, -1.0, 1.0) * (";
-		}
-		else if (whichTexFunc.TextureType == "TextureCube")
-		{
-			// Just flip the Y for the cube direction
-			texFuncStr += "vec3(1.0, -1.0, 1.0) * (";
-		}
-
-		// Skip ahead to the first post-Sampler expression (UV location)
-		while (it.Position() < whichTexFunc.ParamExpressions[1].StartPos)
-			it.MoveNext();
-
-		// Handle all expressions
-		let expressionIndex = 1;
-		while (expressionIndex < whichTexFunc.ParamExpressions.length)
-		{
-			// Handle current expression, which may require a recursive call
-			while (it.Position() < whichTexFunc.ParamExpressions[expressionIndex].EndPos)
-			{
-				// Determine if we've got a sub-texture-function
-				texFuncStr += this.#GetTextureFunctionString(it, baseFunc);
-
-				// Handle the remaining tokens
-				texFuncStr += HLSL.TranslateTokenToGLSL(it.Current());
-
-				// Skip ahead
-				it.MoveNext();
-			}
-
-			// Is this the UV expression (index 1)?  If so, we're flipping Y, so end the () wrapper
-			if (expressionIndex == 1)
-			{ 
-				// Are we ending a wrapper on coords for a particular type?
-				if (whichTexFunc.TextureType == "Texture1D")
-				{
-					// 1D textures need an extra coord since they're really just 2D textures
-					// Finish the uCoord --> vec2(uCoord, 0.5) wrapper
-					texFuncStr += ", 0.5)";
-				}
-				else if (
-					whichTexFunc.TextureType == "Texture2D" ||
-					whichTexFunc.TextureType == "Texture3D" ||
-					whichTexFunc.TextureType == "TextureCube")
-				{
-					// Finish the wrapper to flip the Y
-					texFuncStr += ")";
-				}
-			}
-
-			// Move to the next
-			expressionIndex++;
-		}
-
-		// End the function by moving past the end parens and adding it
-		it.MoveNext();
-		texFuncStr += ")";
-		
-		return texFuncStr;
 	}
 
 	#GetHelperFunctionsString()
@@ -8862,9 +8395,8 @@ class ShaderElementFunction extends ShaderElement
 	Semantic;
 	Parameters; // ShaderElementMemberVar objects
 	Statements;
-	TextureFunctions; // TODO: Is this needed?  I think this can go away once statements & expressions properly write their own GLSL
 
-	constructor(returnType, name, semantic, params, statements, textureFuncs)
+	constructor(returnType, name, semantic, params, statements)
 	{
 		super();
 
@@ -8873,7 +8405,6 @@ class ShaderElementFunction extends ShaderElement
 		this.Semantic = semantic;
 		this.Parameters = params;
 		this.Statements = statements;
-		this.TextureFunctions = textureFuncs;
 	}
 
 	ToString(lang, prependName = "")
@@ -9591,18 +9122,30 @@ class ExpFunctionCall extends Expression
 			s += ")";
 			return s;
 		}
-		else
+		else // HLSL or non-texture-sample GLSL
 		{
-			// HLSL or non-texture-sample GLSL
-			let s = this.FuncExp.ToString(lang) + "(";
+			// Grab function expression
+			let s = this.FuncExp.ToString(lang);
 
+			// If we're in GLSL, see if the function expression is a simple matrix constructor
+			// Note, this needs to happen manually (BEFORE) an overall data type translation!
+			if (lang == ShaderLanguageGLSL &&
+				this.FuncExp instanceof ExpVariable)
+			{
+				let text = this.FuncExp.VarToken.Text;
+				if(HLSLMatrixConstructorConversion.hasOwnProperty(text))
+					s = HLSLMatrixConstructorConversion[text];
+			}
+			
+
+			// Parameter list
+			s += "(";
 			for (let p = 0; p < this.Parameters.length; p++)
 			{
 				if (p > 0) s += ", ";
 
 				s += this.Parameters[p].ToString(lang);
 			}
-
 			s += ")";
 			return s;
 		}
