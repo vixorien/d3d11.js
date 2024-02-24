@@ -1280,7 +1280,6 @@
 			context.IASetInputLayout(inputLayout);
 
 			// Create shaders
-			let simpleTexturePS = device.CreatePixelShader(await loadText("../assets/shaders/SimpleTexturePS.hlsl"));
 			let vs = device.CreateVertexShader(await loadText("../assets/shaders/PBR_VS.hlsl"));
 			let ps = device.CreatePixelShader(await loadText("../assets/shaders/PBR_PS.hlsl"));
 			let solidPS = device.CreatePixelShader(await loadText("../assets/shaders/SolidColorPS.hlsl"));
@@ -1290,6 +1289,7 @@
 			let postprocPS = device.CreatePixelShader(await loadText("../assets/shaders/BlurPS.hlsl"));
 			let quadVS = device.CreateVertexShader(await loadText("../assets/shaders/QuadVS.hlsl"));
 			let fullscreenVS = device.CreateVertexShader(await loadText("../assets/shaders/FullscreenVS.hlsl"));
+			let simpleTexturePS = device.CreatePixelShader(await loadText("../assets/shaders/SimpleTexturePS.hlsl"));
 
 			let equirectToCubePS = device.CreatePixelShader(await loadText("../assets/shaders/EquirectToCubePS.hlsl"));
 

@@ -182,8 +182,9 @@ class TokenIterator
 		return this.#tokens.slice(startInclusive, endExclusive);
 	}
 
-	PeekNext() { return this.#Peek(1); }
 	PeekPrev() { return this.#Peek(-1); }
+	PeekNext() { return this.#Peek(1); }
+	PeekNextNext() { return this.#Peek(2); }
 
 	#Peek(offset)
 	{
@@ -333,6 +334,7 @@ class HLSL
 
 	constructor(hlslCode, shaderType)
 	{
+		console.log(hlslCode);
 		// Validate shader type
 		if (shaderType != ShaderTypeVertex &&
 			shaderType != ShaderTypePixel)
@@ -1385,6 +1387,9 @@ class HLSL
 		// Now look for assignment
 		if (this.#AllowOperator(it, "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="))
 		{
+			// Get the actual assignment operator
+			let assignOp = it.PeekPrev().Text;
+
 			// Was the expression above a variable?
 			let expIsVar = exp instanceof ExpVariable;
 
@@ -1403,6 +1408,7 @@ class HLSL
 			// Previous token is a variable, so parse the assignment
 			return new ExpAssignment(
 				exp, // Need whole expression since it might be a member, like: pos.x = 5;
+				assignOp,
 				this.#ParseAssignment(it));
 		}
 
@@ -1414,18 +1420,18 @@ class HLSL
 	{
 		// Grab the expression first
 		let exp = this.#ParseLogicalOr(it);
-
+		
 		// Check for "?" operator
 		if (this.#AllowOperator(it, "?"))
 		{
 			// The next piece should be the "if" expression
-			let expIf = this.#ParseTernary(it);
-
+			let expIf = this.#ParseExpression(it);
+			
 			// Now we must have a ":"
-			if (this.#RequireOperator(it, ":"))
+			if (this.#Require(it, TokenColon))
 			{
 				// Last is the "else" expression
-				let expElse = this.#ParseTernary(it);
+				let expElse = this.#ParseExpression(it);
 
 				return new ExpTernary(
 					exp,
@@ -1622,9 +1628,10 @@ class HLSL
 				this.#ParseUnaryOrCast(it)); // Next parse, which could be another unary or operand or grouping
 		}
 
-		// Check for cast, which starts with '(' followed by a data type
+		// Check for cast, which follows the (DATATYPE) pattern
 		if (it.Current().Type == TokenParenLeft &&
-			this.#IsDataType(it.PeekNext().Text))
+			this.#IsDataType(it.PeekNext().Text) &&
+			it.PeekNextNext().Type == TokenParenRight) // Need a 2-token peek here!
 		{
 			// Move ahead
 			this.#Require(it, TokenParenLeft);
@@ -1680,6 +1687,9 @@ class HLSL
 				exp = new ExpFunctionCall(
 					exp,
 					params);
+
+				// If this is a texture sample call, we need to created a combined version for GLSL
+				this.#CheckForTextureSampleCall(exp);
 			}
 			else if (this.#Allow(it, TokenBracketLeft)) // Left bracket --> array access
 			{
@@ -1694,15 +1704,11 @@ class HLSL
 			else if (this.#Allow(it, TokenPeriod)) // Period --> member access
 			{
 				// Very next token must be an identifier!
-				if (it.Current().Type != TokenIdentifier)
-					throw new Error("Invalid token after member access operator '.': " + it.Current().Text);
+				this.#Require(it, TokenIdentifier);
 
 				exp = new ExpMember(
 					exp, // Left side of "."
-					this.#ParsePostfixCallArrayOrMember(it)); // right side of "."
-
-				// If this is a texture sample call, we need to created a combined version for GLSL
-				this.#CheckForTextureSampleCall(exp);
+					new ExpVariable(it.PeekPrev())); // Right side of "."
 			}
 			else // Nothing useful left
 			{
@@ -1713,27 +1719,28 @@ class HLSL
 		return exp;
 	}
 
-	#CheckForTextureSampleCall(memberExp)
+	#CheckForTextureSampleCall(exp)
 	{
-		// Left must be variable and right must be function call
-		if (!(memberExp.ExpLeft instanceof ExpVariable) || !(memberExp.ExpRight instanceof ExpFunctionCall))
+		// Must be a function
+		if (!(exp instanceof ExpFunctionCall))
 			return;
-
-		// Left is a variable!  Must be a texture
-		let texName = memberExp.ExpLeft.VarToken.Text;
+		
+		// Left expression must be member expression
+		// Left of member must be variable (the texture)
+		// Right of member must be "variable" (the sample function name)
+		if (!(exp.FuncExp instanceof ExpMember) ||
+			!(exp.FuncExp.ExpLeft instanceof ExpVariable) ||
+			!(exp.FuncExp.ExpRight instanceof ExpVariable))
+			return;
+		
+		// Grab texture
+		let texName = exp.FuncExp.ExpLeft.VarToken.Text;
 		if (!this.#IsTexture(texName))
 			return;
-
-		// Right must be a function call with a variable expression as its function expression
-		if (!(memberExp.ExpRight.FuncExp instanceof ExpVariable))
-			return; // TODO: Throw since this is probably invalid?
-
-		// Right must have a sampler as its first parameter
-		if (memberExp.ExpRight.Parameters.length <= 1 || !(memberExp.ExpRight.Parameters[0] instanceof ExpVariable))
-			return; // TODO: Throw since this is probably invalid?  Or can functions return samplers?
-
-		// Grab the function call name
-		let funcName = memberExp.ExpRight.FuncExp.VarToken.Text;
+		
+		// Grab function name
+		// TODO: Determine proper number of params based on function name
+		let funcName = exp.FuncExp.ExpRight.VarToken.Text;
 		switch (funcName)
 		{
 			case "Sample":
@@ -1748,13 +1755,18 @@ class HLSL
 				throw new Error("Invalid (or not implemented) texture member function found.");
 		}
 
-		// Get the sampler name
-		let sampName = memberExp.ExpRight.Parameters[0].VarToken.Text;
-		if (!this.#IsSampler(sampName))
-			return; // TODO: Throw since this is definitely invalid?
+		// Function must have 2+ parameters to be valid sample function
+		if (exp.Parameters.length <= 1) // TODO: Align with function name above
+			throw new Error("Invalid number of parameters for texture sampling function");
 
-		// This is definitely a texture sample, so record that
-		memberExp.IsTextureSample = true;
+		// First param must be variable
+		if (!(exp.Parameters[0] instanceof ExpVariable))
+			throw new Error("Sampler expected");
+
+		// Get the sampler name
+		let sampName = exp.Parameters[0].VarToken.Text;
+		if (!this.#IsSampler(sampName))
+			throw new Error("Sampler expected");
 
 		// Does this combination already exist?
 		let combined = null;
@@ -1782,8 +1794,8 @@ class HLSL
 		}
 
 		// Track this data in the expression (for ease of ToString() later)
-		memberExp.IsTextureSample = true;
-		memberExp.CombinedTextureAndSampler = combined;
+		exp.IsTextureSample = true;
+		exp.CombinedTextureAndSampler = combined;
 	}
 
 	#ParseOperandOrGrouping(it)
@@ -2061,12 +2073,17 @@ class HLSL
 
 	GetGLSL()
 	{
+		let glsl = "";
+
 		switch (this.#shaderType)
 		{
-			case ShaderTypeVertex: return this.#ConvertVertexShader();
-			case ShaderTypePixel: return this.#ConvertPixelShader();
+			case ShaderTypeVertex: glsl = this.#ConvertVertexShader(); break;
+			case ShaderTypePixel: glsl = this.#ConvertPixelShader(); break;
 			default: throw new Error("Invalid shader type");
 		}
+
+		console.log(glsl);
+		return glsl;
 	}
 
 	#GetStructByName(name)
@@ -2955,7 +2972,7 @@ class HLSL
 		glsl += this.#GetHelperFunctionsString();
 		glsl += this.#main.ToString(ShaderLanguageGLSL, "hlsl_") + "\n\n";//this.#GetFunctionString(this.#main, "hlsl_");
 		glsl += this.#BuildPixelShaderMain(psInputs);
-		console.log(glsl);
+		
 		return glsl;
 	}
 
@@ -3562,18 +3579,20 @@ class ExpArray extends Expression
 class ExpAssignment extends Expression
 {
 	VarExp;
+	AssignOperator;
 	AssignExp;
 
-	constructor(varExp, assignExp)
+	constructor(varExp, assignOp, assignExp)
 	{
 		super();
 		this.VarExp = varExp;
+		this.AssignOperator = assignOp;
 		this.AssignExp = assignExp;
 	}
 
 	ToString(lang)
 	{
-		return this.VarExp.ToString(lang) + " = " + this.AssignExp.ToString(lang);
+		return this.VarExp.ToString(lang) + " " + this.AssignOperator + " " + this.AssignExp.ToString(lang);
 	}
 }
 
@@ -3649,27 +3668,86 @@ class ExpFunctionCall extends Expression
 	FuncExp;
 	Parameters;
 
+	IsTextureSample;
+	CombinedTextureAndSampler;
+
 	constructor(funcExp, params)
 	{
 		super();
+
 		this.FuncExp = funcExp;
 		this.Parameters = params;
+
+		this.IsTextureSample = false;
+		this.CombinedTextureAndSampler = null;
 	}
 
 	ToString(lang)
 	{
-		let s = this.FuncExp.ToString(lang) + "(";
-
-		for (let p = 0; p < this.Parameters.length; p++)
+		// Is this GLSL AND its a texture sample function?
+		if (lang == ShaderLanguageGLSL && this.IsTextureSample)
 		{
-			if (p > 0)
-				s += ", ";
+			// Get the hlsl texture sample function
+			let hlslTextureFunc = this.FuncExp.ExpRight.VarToken.Text;
+			if (!HLSLTextureSampleConversion.hasOwnProperty(hlslTextureFunc))
+				throw new Error("Sample function type not yet implemented!");
 
-			s += this.Parameters[p].ToString(lang);
+			// Grab the glsl equivalent to start the string
+			// This replaces the 'texture.Sample(sampler, ' pattern
+			let s = HLSLTextureSampleConversion[hlslTextureFunc] + "(" + this.CombinedTextureAndSampler.CombinedName + ", ";
+
+			// The second parameter of the function is the texture coordinate
+			// This must be wrapped to flip the Y coord
+			let uv = this.Parameters[1].ToString(lang);
+			switch (this.CombinedTextureAndSampler.Texture.Type)
+			{
+				// 1D textures are really just 2D textures with a height of 1, so we need
+				// to wrap the single (float) value in a vec2(v, 0)
+				case "Texture1D": uv = "vec2(" + uv + ", 0.5)"; break;
+
+				// Add in extra UV work to flip Y
+				// - What we want is: uv.y = 1 - uv.y
+				// - For that, we'll do: (0,1) + (1,-1) * uvExpression
+				case "Texture2D": uv = "vec2(0.0, 1.0) + vec2(1.0, -1.0) * (" + uv + ")"; break;
+
+				// Add in extra UV work to flip Y
+				// - What we want is: uv.y = 1 - uv.y
+				// - For that, we'll do: (0,1,0) + (1,-1,0) * uvExpression
+				case "Texture3D": uv = "vec3(0.0, 1.0, 0.0) + vec3(1.0, -1.0, 1.0) * (" + uv + ")"; break;
+
+				// Just flip the Y for the cube direction
+				case "TextureCube": uv = "vec3(1.0, -1.0, 1.0) * (" + uv + ")"; break;
+
+				default:
+					throw new Error("Invalid texture type or not yet implemented");
+			}
+			s += uv;
+
+			// Include any other parameters
+			for (let i = 2; i < this.Parameters.length; i++)
+			{
+				s += ", " + this.Parameters[i].ToString(lang);
+			}
+
+			// Finalize call
+			s += ")";
+			return s;
 		}
+		else
+		{
+			// HLSL or non-texture-sample GLSL
+			let s = this.FuncExp.ToString(lang) + "(";
 
-		s += ")";
-		return s;
+			for (let p = 0; p < this.Parameters.length; p++)
+			{
+				if (p > 0) s += ", ";
+
+				s += this.Parameters[p].ToString(lang);
+			}
+
+			s += ")";
+			return s;
+		}
 	}
 }
 
@@ -3731,8 +3809,6 @@ class ExpMember extends Expression
 {
 	ExpLeft;
 	ExpRight;
-	IsTextureSample;
-	CombinedTextureAndSampler;
 
 	constructor(expLeft, expRight)
 	{
@@ -3740,9 +3816,6 @@ class ExpMember extends Expression
 
 		this.ExpLeft = expLeft;
 		this.ExpRight = expRight;
-
-		this.IsTextureSample = false;
-		this.CombinedTextureAndSampler = null;
 	}
 
 	RightmostChildIsVariable()
@@ -3762,61 +3835,22 @@ class ExpMember extends Expression
 		switch (lang)
 		{
 			default:
-			case ShaderLanguageHLSL: return this.ExpLeft.ToString(lang) + "." + this.ExpRight.ToString(lang);
+			case ShaderLanguageHLSL:
+				return this.ExpLeft.ToString(lang) + "." + this.ExpRight.ToString(lang);
 
 			case ShaderLanguageGLSL:
 
-				// If this is not a texture sample, just use the normal result
-				if (!this.IsTextureSample)
-					return this.ExpLeft.ToString(lang) + "." + this.ExpRight.ToString(lang);
+				let l = this.ExpLeft.ToString(lang);
+				let r = this.ExpRight.ToString(lang);
 
-				// This IS a texture sample, so we need to manually build the string with replacements/augments
-
-				// What's the exact Sample function name?
-				let hlslTextureFunc = this.ExpRight.FuncExp.VarToken.Text;
-				if (!HLSLTextureSampleConversion.hasOwnProperty(hlslTextureFunc))
-					throw new Error("Sample function type not yet implemented!");
-
-				// Grab the glsl equivalent to start the string
-				// This replaces the 'texture.Sample(sampler, ' pattern
-				let s = HLSLTextureSampleConversion[hlslTextureFunc] + "(" + this.CombinedTextureAndSampler.CombinedName + ", ";
-
-				// The second parameter of the function is the texture coordinate
-				// This must be wrapped to flip the Y coord
-				let uv = this.ExpRight.Parameters[1].ToString(lang);
-				switch (this.CombinedTextureAndSampler.Texture.Type)
+				// Check for matrix element conversion, which should
+				// replace the .mXY pattern with [X][Y] (removing the dot)
+				if (HLSLMatrixElementConversion.hasOwnProperty(r))
 				{
-					// 1D textures are really just 2D textures with a height of 1, so we need
-					// to wrap the single (float) value in a vec2(v, 0)
-					case "Texture1D": uv = "vec2(" + uv + ", 0.5)"; break;
-
-					// Add in extra UV work to flip Y
-					// - What we want is: uv.y = 1 - uv.y
-					// - For that, we'll do: (0,1) + (1,-1) * uvExpression
-					case "Texture2D": uv = "vec2(0.0, 1.0) + vec2(1.0, -1.0) * (" + uv + ")"; break;
-
-					// Add in extra UV work to flip Y
-					// - What we want is: uv.y = 1 - uv.y
-					// - For that, we'll do: (0,1,0) + (1,-1,0) * uvExpression
-					case "Texture3D": uv = "vec3(0.0, 1.0, 0.0) + vec3(1.0, -1.0, 1.0) * (" + uv + ")"; break;
-
-					// Just flip the Y for the cube direction
-					case "TextureCube": uv = "vec3(1.0, -1.0, 1.0) * (" + uv + ")"; break;
-
-					default:
-						throw new Error("Invalid texture type or not yet implemented");
+					return l + HLSLMatrixElementConversion[r];
 				}
-				s += uv;
-
-				// Include any other parameters
-				for (let i = 2; i < this.ExpRight.Parameters.length; i++)
-				{
-					s += ", " + this.ExpRight.Parameters[i].ToString(lang);
-				}
-
-				// Finalize call
-				s += ")";
-				return s;
+				
+				return l + "." + r;
 		}
 	}
 }
