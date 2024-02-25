@@ -6213,16 +6213,16 @@ class HLSL
 
 			// Grab the path and verify we haven't seen it before
 			let url = text.substring(q1 + 1, q2);
-			if (includedURLs.hasOwnProperty(url))
-				continue;
-			else
+			let newText = "";
+			if (!includedURLs.hasOwnProperty(url))
+			{
+				// Haven't seen this one, so record and fetch
 				includedURLs[url] = true;
+				resp = await fetch(url);
+				newText = await resp.text();
+			}
 
-			// Actually fetch
-			const resp = await fetch(url);
-			const newText = await resp.text();
-
-			// Replace the include with the new text
+			// Replace the include with the new text (or blank if we've seen it)
 			text =
 				text.substring(0, includePos) +
 				newText +

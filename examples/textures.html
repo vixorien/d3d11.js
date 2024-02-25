@@ -1280,23 +1280,23 @@
 			context.IASetInputLayout(inputLayout);
 
 			// Create shaders
-			let ps = device.CreatePixelShader(await loadText("../assets/shaders/PBR_PS.hlsl"));
-			let vs = device.CreateVertexShader(await loadText("../assets/shaders/PBR_VS.hlsl"));
-			let solidPS = device.CreatePixelShader(await loadText("../assets/shaders/SolidColorPS.hlsl"));
-			let skyVS = device.CreateVertexShader(await loadText("../assets/shaders/SkyVS.hlsl"));
-			let skyPS = device.CreatePixelShader(await loadText("../assets/shaders/SkyPS.hlsl"));
-			let tonemapPS = device.CreatePixelShader(await loadText("../assets/shaders/TonemapPS.hlsl"));
-			let postprocPS = device.CreatePixelShader(await loadText("../assets/shaders/BlurPS.hlsl"));
-			let quadVS = device.CreateVertexShader(await loadText("../assets/shaders/QuadVS.hlsl"));
-			let fullscreenVS = device.CreateVertexShader(await loadText("../assets/shaders/FullscreenVS.hlsl"));
-			let simpleTexturePS = device.CreatePixelShader(await loadText("../assets/shaders/SimpleTexturePS.hlsl"));
+			let ps = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
+			let vs = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
+			let solidPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
+			let skyVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyVS.hlsl"));
+			let skyPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyPS.hlsl"));
+			let tonemapPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/TonemapPS.hlsl"));
+			let postprocPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/BlurPS.hlsl"));
+			let quadVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/QuadVS.hlsl"));
+			let fullscreenVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/FullscreenVS.hlsl"));
+			let simpleTexturePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
 
-			let equirectToCubePS = device.CreatePixelShader(await loadText("../assets/shaders/EquirectToCubePS.hlsl"));
+			let equirectToCubePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
 
 			// Shaders for IBL
-			let brdfLutPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
-			let iblIrradiancePS = device.CreatePixelShader(await loadText("../assets/shaders/IBLIrradianceMapPS.hlsl"));
-			let iblSpecularPS = device.CreatePixelShader(await loadText("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
+			let brdfLutPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
+			let iblIrradiancePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
+			let iblSpecularPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
 
 			// Create IBL textures
 			let lutSRV = createBrdfLookUpTable(device, context, 1024, brdfLutPS, fullscreenVS);
