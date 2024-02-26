@@ -2419,7 +2419,7 @@ class ID3D11Device extends IUnknown
 
 			// Determine the format and types for GL
 			let formatDetails = this.#GetFormatDetails(desc.Format);
-
+			
 			// Perform the read (which should stall the pipeline to
 			// complete all work automatically?  Or do we flush?)
 			this.#gl.readPixels(
@@ -2545,7 +2545,7 @@ class ID3D11Device extends IUnknown
 				break;
 
 			case DXGI_FORMAT_R16G16_FLOAT:
-				glFormatDetails.Type = this.#gl.FLOAT;
+				glFormatDetails.Type = this.#gl.HALF_FLOAT;
 				glFormatDetails.Format = this.#gl.RG;
 				glFormatDetails.InternalFormat = this.#gl.RG16F;
 				break;

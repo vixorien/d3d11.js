@@ -826,183 +826,6 @@
 			return specSRV;
 		}
 
-
-
-		function writeTGAFile(fileName, pixelData, width, height)
-		{
-			let header = new Uint8Array([
-				0, 0, 2, // No ID field, no color map, image type 2
-				0, 0, 0, 0, 0, // Color map details (none)
-				0, 0, // Image origin X (0) as two bytes
-				0, 0, // Image origin Y (0) as two bytes
-				Math.floor(width % 256), Math.floor(width / 256), // Image width (two bytes)
-				Math.floor(height % 256), Math.floor(height / 256), // Image height (two bytes)
-				32, // Bytes per pixel
-				0x20
-			]);
-
-			let fileBlob = new Blob([header, pixelData], { type: "image/x-targa" });
-			let file = window.URL.createObjectURL(fileBlob);
-
-			let aTag = document.createElement("a");
-			aTag.setAttribute("download", fileName);
-			aTag.href = file;
-			aTag.click();
-		}
-
-
-		function writePNGFile(fileName, pixelData, width, height)
-		{
-			// Create a canvas element with the proper size
-			let canvas = document.createElement("canvas");
-			let canvasContext = canvas.getContext("2d");
-			let imageData = canvasContext.createImageData(width, height);
-
-			// Copy data to the canvas image
-			// Need to flip the Y axis!
-			let pixelWidth = width * 4;
-			for (let y = 0; y < height; y++)
-			{
-				let flippedY = height - y - 1;
-				for (let x = 0; x < width * 4; x++)
-				{
-					let readIndex = x + y * pixelWidth;
-					let writeIndex = x + flippedY * pixelWidth;
-
-					imageData.data[writeIndex] = pixelData[readIndex];
-				}
-			}
-
-			// Put the data into the canvas
-			canvas.width = width;
-			canvas.height = height;
-			canvasContext.putImageData(imageData, 0, 0);
-
-			let aTag = document.createElement("a");
-			aTag.setAttribute("download", fileName);
-			aTag.href = canvas.toDataURL("image/png");
-			aTag.click();
-		}
-
-		// Writes a cube map to a DDS file, following format details here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
-		//
-		// Starts with "magic number" representing characters 'DDS ', but backwards to match: 0x20534444
-		//
-		// Header details
-		// - dwSize - Always 124
-		// - dwFlags
-		// - dwHeight
-		// - dwWidth
-		// - dwPitchOrLinearSize
-		// - dwDepth
-		// - dwMipMapCount
-		// - dwReserved1[11]
-		// - ddspf
-		// - dwCaps
-		// - dwCaps2
-		// - dwCaps3
-		// - dwCaps4
-		// - dwReserved2
-
-		function writeDDSFile(fileName, pixelData, width, height, mipLevels, isCube)
-		{
-			// Overall Flags
-			const DDSD_CAPS = 0x1;
-			const DDSD_HEIGHT = 0x2;
-			const DDSD_WIDTH = 0x4;
-			const DDSD_PITCH = 0x8;
-			const DDSD_PIXELFORMAT = 0x1000;
-			const DDSD_MIPMAPCOUNT = 0x20000;
-			const DDSD_LINEARSIZE = 0x80000;
-			const DDSD_DEPTH = 0x800000;
-
-			const DDS_HEADER_FLAGS_TEXTURE =
-				DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
-
-			// Caps flags
-			const DDSCAPS_COMPLEX = 0x8; // Has more than once surface: mips, cube, etc.
-			const DDSCAPS_MIPMAP = 0x400000;
-			const DDSCAPS_TEXTURE = 0x1000;
-
-			// Caps2 flags
-			const DDSCAPS2_CUBEMAP = 0x200
-			const DDSCAPS2_CUBEMAP_POSITIVEX = 0x400;
-			const DDSCAPS2_CUBEMAP_NEGATIVEX = 0x800;
-			const DDSCAPS2_CUBEMAP_POSITIVEY = 0x1000;
-			const DDSCAPS2_CUBEMAP_NEGATIVEY = 0x2000;
-			const DDSCAPS2_CUBEMAP_POSITIVEZ = 0x4000;
-			const DDSCAPS2_CUBEMAP_NEGATIVEZ = 0x8000;
-			const DDSCAPS2_VOLUME = 0x200000;
-
-			const DDS_CUBEMAP_ALLFACES =
-				DDSCAPS2_CUBEMAP |
-				DDSCAPS2_CUBEMAP_POSITIVEX |
-				DDSCAPS2_CUBEMAP_NEGATIVEX |
-				DDSCAPS2_CUBEMAP_POSITIVEY |
-				DDSCAPS2_CUBEMAP_NEGATIVEY |
-				DDSCAPS2_CUBEMAP_POSITIVEZ |
-				DDSCAPS2_CUBEMAP_NEGATIVEZ;
-
-			// Pixel format flags
-			const DDPF_ALPHAPIXELS = 0x1;
-			const DDPF_ALPHA = 0x2;
-			const DDPF_FOURCC = 0x4; // Used when DXT10 header is needed, set FourCC to 'DX10' (backwards?)
-			const DDPF_RGB = 0x40;
-			const DDPF_YUV = 0x200;
-			const DDPF_LUMINANCE = 0x20000;
-
-
-			// Flags for header
-			let flags = DDS_HEADER_FLAGS_TEXTURE | DDSD_PITCH | (mipLevels > 1 ? DDSD_MIPMAPCOUNT : 0);
-			let caps =
-				DDSCAPS_TEXTURE |
-				(mipLevels > 1 || isCube ? DDSCAPS_COMPLEX : 0) |
-				(mipLevels > 1 ? DDSCAPS_MIPMAP : 0);
-			let caps2 = isCube ? DDS_CUBEMAP_ALLFACES : 0;
-			let pixelFormatFlags = DDPF_RGB | DDPF_ALPHAPIXELS;
-
-			// Calculations for header
-			let bitsPerPixel = 32;
-			let pitch = Math.trunc((width * bitsPerPixel + 7) / 8);
-			// Pitch formula here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
-
-			let header = new Uint32Array([
-				0x20534444, // Magic number for 'DDS '
-				// ------------
-				124, // Header size, always 124
-				flags,
-				width, // Width
-				height, // Height
-				pitch,
-				1, // Depth (Unused for non-volume textures - maybe just set to zero?)
-				mipLevels,
-				0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 11x unused (reserved) entries
-				// Pixel format ----
-				/* dwSize        */ 32, // Always 32
-				/* dwFlags       */ pixelFormatFlags,
-				/* dwFourCC      */ 0,
-				/* dwRGBBitCount */ bitsPerPixel, // Includes alpha!
-				/* dwRBitMask    */ 0x000000ff, // Yes these feel "backwards" but are correct
-				/* dwGBitMask    */ 0x0000ff00,
-				/* dwBBitMask    */ 0x00ff0000,
-				/* dwABitMask    */ 0xff000000,
-				// End pixel format ---
-				caps,
-				caps2,
-				0, 0, 0 // Caps3, caps4 & reserved2
-			]);
-
-			let fileBlob = new Blob([header, pixelData], { type: "image/vnd-ms.dds" });
-			let file = window.URL.createObjectURL(fileBlob);
-
-			let aTag = document.createElement("a");
-			aTag.setAttribute("download", fileName);
-			aTag.href = file;
-			aTag.click();
-		}
-
-
-
 		let globalDevice = null;
 		let globalContext = null;
 
@@ -1328,16 +1151,20 @@
 			//let copySRV = device.CreateShaderResourceView(copyTexture, null);
 
 			// Create a texture for full resource copy testing
-			let iblSpecRes = iblSpecSRV.GetResource();
-			let iblSpecDesc = iblSpecRes.GetDesc();
-			iblSpecDesc.BindFlags = 0;
-			iblSpecDesc.Usage = D3D11_USAGE_STAGING;
-			iblSpecDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-			let iblSpecCopyTexture = device.CreateTexture2D(iblSpecDesc, null);
+			//let iblSpecRes = iblSpecSRV.GetResource();
+			//let iblSpecDesc = iblSpecRes.GetDesc();
+			//iblSpecDesc.BindFlags = 0;
+			//iblSpecDesc.Usage = D3D11_USAGE_STAGING;
+			//iblSpecDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+			//let iblSpecCopyTexture = device.CreateTexture2D(iblSpecDesc, null);
 
-			// Perform the copy and make a new SRV
-			context.CopyResource(iblSpecCopyTexture, iblSpecRes);
-			iblSpecRes.Release(); // Cleanup
+			//// Perform the copy and make a new SRV
+			//context.CopyResource(iblSpecCopyTexture, iblSpecRes);
+			//iblSpecRes.Release(); // Cleanup
+
+			//let [w, h, mips, arrSize, bytesPerPixel, pixels] = TextureUtils.ReadPixelDataFromSRV(device, context, lutSRV);
+			//TextureUtils.WritePNGFile("lut.png", pixels, w, h);
+
 
 			// Perform a readback of the data in one subresource
 			//let w = iblSpecDesc.Width;
@@ -1413,7 +1240,7 @@
 					}
 				}
 
-				writeDDSFile("test.dds", readbackData, w, h, mipLevels, true);
+				TextureUtils.WriteDDSFile("test.dds", readbackData, w, h, mipLevels, true);
 			}
 
 			// Reset the render target

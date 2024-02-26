@@ -94,6 +94,210 @@ export class TextureUtils
 		return srv;
 	}
 
+	/**
+	 * Gets the bytes per pixel for the given DXGI format
+	 * 
+	 * @param {any} format A DXGI_FORMAT value
+	 */
+	static GetDXGIFormatBytesPerPixel(format)
+	{
+		switch (format)
+		{
+			case DXGI_FORMAT_R32G32B32A32_FLOAT:
+				return 16;
+
+			case DXGI_FORMAT_R32G32B32_FLOAT:
+				return 12;
+
+			case DXGI_FORMAT_R16G16B16A16_FLOAT:
+			case DXGI_FORMAT_R32G32_FLOAT:
+				return 8;
+
+			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+			case DXGI_FORMAT_R16G16_FLOAT:
+			case DXGI_FORMAT_R32_FLOAT:
+			case DXGI_FORMAT_R32_UINT:
+			case DXGI_FORMAT_D24_UNORM_S8_UINT:
+				return 4;
+
+			case DXGI_FORMAT_D16_UNORM:
+			case DXGI_FORMAT_R16_UINT:
+				return 2;
+
+			// Unknown
+			default:
+				return -1;
+		}
+	}
+
+	static #GetArrayForReadback(dxgiFormat, pixelCount)
+	{
+		switch (dxgiFormat)
+		{
+			case DXGI_FORMAT_R32G32B32A32_FLOAT:
+				return new Float32Array(pixelCount * 4);
+
+			case DXGI_FORMAT_R32G32B32_FLOAT:
+				return new Float32Array(pixelCount * 3);
+
+			case DXGI_FORMAT_R16G16B16A16_FLOAT:
+				return new Uint16Array(pixelCount * 4);
+
+			case DXGI_FORMAT_R32G32_FLOAT:
+				return new Float32Array(pixelCount * 2);
+
+			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+				return new Uint8Array(pixelCount * 4);
+
+			case DXGI_FORMAT_R16G16_FLOAT:
+				return new Uint16Array(pixelCount * 2);
+
+			case DXGI_FORMAT_R32_FLOAT:
+				return new Float32Array(pixelCount);
+
+			case DXGI_FORMAT_R32_UINT:
+				return new Uint32Array(pixelCount);
+
+			case DXGI_FORMAT_D24_UNORM_S8_UINT:
+				return new Uint8Array(pixelCount * 4); // TODO: Test this!
+
+			case DXGI_FORMAT_D16_UNORM:
+			case DXGI_FORMAT_R16_UINT:
+				return new Uint16Array(pixelCount);
+
+			// Unknown
+			default:
+				throw new Error("Invalid format specified");
+		}
+	}
+
+	/**
+	 * Reads pixel data from the texture of the given shader resource view
+	 * 
+	 * @param {ID3D11Device} d3dDevice The ID3D11Device object
+	 * @param {ID3D11DeviceContext} d3dContext The ID3D11DeviceContext object
+	 * @param {ID3D11ShaderResourceView} textureSRV An SRV of the texture to read
+	 * 
+	 * @returns {Array} Array of [width, height, mipLevels, arraySize, bytesPerPixel, pixelData]
+	 */
+	static ReadPixelDataFromSRV(d3dDevice, d3dContext, textureSRV)
+	{
+		// Grab the resource, which adds a reference
+		let resource = textureSRV.GetResource();
+
+		// Perform the actual work
+		let results = TextureUtils.ReadPixelDataFromTexture(d3dDevice, d3dContext, resource);
+
+		// Clean up and return
+		resource.Release();
+		return results;
+	}
+
+	/**
+	 * Reads pixel data from the texture of the given GPU texture resource
+	 * 
+	 * @param {ID3D11Device} d3dDevice The ID3D11Device object
+	 * @param {ID3D11DeviceContext} d3dContext The ID3D11DeviceContext object
+	 * @param {ID3D11Resource} textureResource The texture resource to read
+	 * 
+	 * @returns {Array} Array of [width, height, mipLevels, arraySize, bytesPerPixel, pixelData].
+	 * Note that pixelData is a TypedArray, but the exact type depends upon the texture format of the resource.
+	 */
+	static ReadPixelDataFromTexture(d3dDevice, d3dContext, textureResource)
+	{
+		// Grab the texture's description and save some details
+		let desc = textureResource.GetDesc();
+		let w = desc.Width;
+		let h = desc.Height;
+		let mipLevels = desc.MipLevels;
+		let arraySize = desc.ArraySize;
+
+		// Adjust this description and make a readback resource
+		desc.BindFlags = 0;
+		desc.Usage = D3D11_USAGE_STAGING;
+		desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		let readbackTexture = d3dDevice.CreateTexture2D(desc, null);
+
+		// Copy the original texture to the readback texture
+		d3dContext.CopyResource(readbackTexture, textureResource);
+
+		// Calculate the total size of the resource
+		let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(desc.Format);
+		let totalPixels = w * h * arraySize;
+		let mipWidth = w;
+		let mipHeight = h;
+		for (let mip = 1; mip < mipLevels; mip++)
+		{
+			// Calc mip size
+			mipWidth = Math.max(Math.floor(mipWidth / 2), 1);
+			mipHeight = Math.max(Math.floor(mipHeight / 2), 1);
+
+			// Add this mip to the overall size
+			totalPixels += mipWidth * mipHeight * arraySize;
+		}
+
+		// Create an array big enough to hold all subresources
+		let readbackData = TextureUtils.#GetArrayForReadback(desc.Format, totalPixels);
+
+		// Read all of the data, one subresource at a time
+		let dataOffset = 0;
+		for (let arrayElement = 0; arrayElement < arraySize; arrayElement++)
+		{
+			// Mip size starts as the main texture size
+			mipWidth = w;
+			mipHeight = h;
+			for (let mip = 0; mip < mipLevels; mip++)
+			{
+				// Data for just this subresource
+				let subResIndex = D3D11CalcSubresource(mip, arrayElement, mipLevels);
+				let subResDataSize = mipWidth * mipHeight;
+				let subResData = TextureUtils.#GetArrayForReadback(desc.Format, subResDataSize);
+
+				// Perform the read and copy to the overall array
+				d3dDevice.ReadFromSubresource(subResData, readbackTexture, subResIndex, null);
+
+				// Flip the data on Y by looping through top half and swapping
+				let rowWidth = subResData.length / mipHeight;
+				for (let y = 0; y < mipHeight / 2; y++)
+				{
+					let flippedY = mipHeight - y - 1;
+					for (let x = 0; x < rowWidth; x++)
+					{
+						let top = x + y * rowWidth;
+						let bot = x + flippedY * rowWidth;
+
+						let bottomPixel = subResData[bot];
+						subResData[bot] = subResData[top];
+						subResData[top] = bottomPixel;
+					}
+				}
+
+				// Add to the overall data
+				readbackData.set(subResData, dataOffset);
+
+				// Adjust data offset
+				dataOffset += subResData.length;
+
+				// Update the mip size
+				mipWidth = Math.max(Math.floor(mipWidth / 2), 1);
+				mipHeight = Math.max(Math.floor(mipHeight / 2), 1);
+			}
+		}
+
+		return [w, h, mipLevels, arraySize, bytesPerPixel, readbackData];
+	}
+
+	
+
+	/**
+	 * Loads a local HDR file from the user's machine
+	 * 
+	 * @param {any} fileInput The file input HTML element to use
+	 * 
+	 * @returns Array of [width, height, pixels]
+	 */
 	static async LoadHDRFileLocal(fileInput)
 	{
 		// Ensure file has been set
@@ -420,5 +624,195 @@ export class TextureUtils
 			}
 			fr.readAsArrayBuffer(file);
 		});
+	}
+
+	/**
+	 * Write the specified pixel data to a DDS file and initiates the "download".
+	 * Format details: format details here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
+	 * Note: The exact layout of the pixel data is dependant upon the width, height
+	 * mip levels and whether or not this is a cube map.
+	 * 
+	 * @param {string} fileName The file name to save
+	 * @param {TypedArray} pixelData TypedArray of pixel data
+	 * @param {number} width Width in pixels
+	 * @param {number} height Height in pixels
+	 * @param {number} mipLevels Number of mip levels
+	 * @param {boolean} isCube Is this a cube map?
+	 */
+	static WriteDDSFile(fileName, pixelData, width, height, mipLevels, isCube)
+	{
+		// Overall Flags
+		const DDSD_CAPS = 0x1;
+		const DDSD_HEIGHT = 0x2;
+		const DDSD_WIDTH = 0x4;
+		const DDSD_PITCH = 0x8;
+		const DDSD_PIXELFORMAT = 0x1000;
+		const DDSD_MIPMAPCOUNT = 0x20000;
+		const DDSD_LINEARSIZE = 0x80000;
+		const DDSD_DEPTH = 0x800000;
+
+		const DDS_HEADER_FLAGS_TEXTURE =
+			DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
+
+		// Caps flags
+		const DDSCAPS_COMPLEX = 0x8; // Has more than once surface: mips, cube, etc.
+		const DDSCAPS_MIPMAP = 0x400000;
+		const DDSCAPS_TEXTURE = 0x1000;
+
+		// Caps2 flags
+		const DDSCAPS2_CUBEMAP = 0x200
+		const DDSCAPS2_CUBEMAP_POSITIVEX = 0x400;
+		const DDSCAPS2_CUBEMAP_NEGATIVEX = 0x800;
+		const DDSCAPS2_CUBEMAP_POSITIVEY = 0x1000;
+		const DDSCAPS2_CUBEMAP_NEGATIVEY = 0x2000;
+		const DDSCAPS2_CUBEMAP_POSITIVEZ = 0x4000;
+		const DDSCAPS2_CUBEMAP_NEGATIVEZ = 0x8000;
+		const DDSCAPS2_VOLUME = 0x200000;
+
+		const DDS_CUBEMAP_ALLFACES =
+			DDSCAPS2_CUBEMAP |
+			DDSCAPS2_CUBEMAP_POSITIVEX |
+			DDSCAPS2_CUBEMAP_NEGATIVEX |
+			DDSCAPS2_CUBEMAP_POSITIVEY |
+			DDSCAPS2_CUBEMAP_NEGATIVEY |
+			DDSCAPS2_CUBEMAP_POSITIVEZ |
+			DDSCAPS2_CUBEMAP_NEGATIVEZ;
+
+		// Pixel format flags
+		const DDPF_ALPHAPIXELS = 0x1;
+		const DDPF_ALPHA = 0x2;
+		const DDPF_FOURCC = 0x4; // Used when DXT10 header is needed, set FourCC to 'DX10' (backwards?)
+		const DDPF_RGB = 0x40;
+		const DDPF_YUV = 0x200;
+		const DDPF_LUMINANCE = 0x20000;
+
+		// Flags for header
+		let flags = DDS_HEADER_FLAGS_TEXTURE | DDSD_PITCH | (mipLevels > 1 ? DDSD_MIPMAPCOUNT : 0);
+		let caps =
+			DDSCAPS_TEXTURE |
+			(mipLevels > 1 || isCube ? DDSCAPS_COMPLEX : 0) |
+			(mipLevels > 1 ? DDSCAPS_MIPMAP : 0);
+		let caps2 = isCube ? DDS_CUBEMAP_ALLFACES : 0;
+		let pixelFormatFlags = DDPF_RGB | DDPF_ALPHAPIXELS;
+
+		// Calculations for header
+		let bitsPerPixel = 32;
+		let pitch = Math.trunc((width * bitsPerPixel + 7) / 8);
+		// Pitch formula here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
+
+		let header = new Uint32Array([
+			0x20534444, // Magic number for 'DDS '
+			// ------------
+			124, // Header size, always 124
+			flags,
+			width, // Width
+			height, // Height
+			pitch,
+			1, // Depth (Unused for non-volume textures - maybe just set to zero?)
+			mipLevels,
+			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 11x unused (reserved) entries
+				// Pixel format ----
+				/* dwSize        */ 32, // Always 32
+				/* dwFlags       */ pixelFormatFlags,
+				/* dwFourCC      */ 0,
+				/* dwRGBBitCount */ bitsPerPixel, // Includes alpha!
+				/* dwRBitMask    */ 0x000000ff, // Yes these feel "backwards" but are correct
+				/* dwGBitMask    */ 0x0000ff00,
+				/* dwBBitMask    */ 0x00ff0000,
+				/* dwABitMask    */ 0xff000000,
+			// End pixel format ---
+			caps,
+			caps2,
+			0, 0, 0 // Caps3, caps4 & reserved2
+		]);
+
+		// Create the file to save
+		let fileBlob = new Blob([header, pixelData], { type: "image/vnd-ms.dds" });
+		let file = window.URL.createObjectURL(fileBlob);
+
+		// Quick HTML element to initiate the "download"
+		let aTag = document.createElement("a");
+		aTag.setAttribute("download", fileName);
+		aTag.href = file;
+		aTag.click();
+		aTag.remove();
+	}
+
+	/**
+	 * Write the specified pixel data to a PNG file and initiates the "download"
+	 * 
+	 * @param {string} fileName The file name to save
+	 * @param {TypedArray} pixelData TypedArray of pixel data
+	 * @param {number} width Width in pixels
+	 * @param {number} height Height in pixels
+	 * @param {boolean} flipY Should the pixel data be flipped on the Y axis?
+	 */
+	static WritePNGFile(fileName, pixelData, width, height, elementsPerPixel = 4, flipY = false)
+	{
+		// Create a canvas element with the proper size
+		let canvas = document.createElement("canvas");
+		let canvasContext = canvas.getContext("2d");
+		let imageData = canvasContext.createImageData(width, height);
+
+		// Copy data to the canvas image
+		// Need to flip the Y axis!
+		let rowWidth = width * elementsPerPixel;
+		for (let y = 0; y < height; y++)
+		{
+			let flippedY = height - y - 1;
+			for (let x = 0; x < rowWidth; x++)
+			{
+				let readIndex = x + y * rowWidth;
+				let writeIndex = x + flippedY * rowWidth;
+
+				imageData.data[writeIndex] = pixelData[readIndex];
+			}
+		}
+
+		// Put the data into the canvas
+		canvas.width = width;
+		canvas.height = height;
+		canvasContext.putImageData(imageData, 0, 0);
+
+		// Create an HTML element to initiate the "download"
+		let aTag = document.createElement("a");
+		aTag.setAttribute("download", fileName);
+		aTag.href = canvas.toDataURL("image/png");
+		aTag.click();
+		aTag.remove();
+	}
+
+	/**
+	 * Write the specified pixel data to a TGA file and initiates the "download".
+	 * Note: This function assumes the pixel data is 32 bits per pixel
+	 * 
+	 * @param {string} fileName The file name to save
+	 * @param {TypedArray} pixelData TypedArray of pixel data
+	 * @param {number} width Width in pixels
+	 * @param {number} height Height in pixels
+	 */
+	static WriteTGAFile(fileName, pixelData, width, height)
+	{
+		let header = new Uint8Array([
+			0, 0, 2, // No ID field, no color map, image type 2
+			0, 0, 0, 0, 0, // Color map details (none)
+			0, 0, // Image origin X (0) as two bytes
+			0, 0, // Image origin Y (0) as two bytes
+			Math.floor(width % 256), Math.floor(width / 256), // Image width (two bytes)
+			Math.floor(height % 256), Math.floor(height / 256), // Image height (two bytes)
+			32, // Bits per pixel
+			0x20
+		]);
+
+		// Create the file to save
+		let fileBlob = new Blob([header, pixelData], { type: "image/x-targa" });
+		let file = window.URL.createObjectURL(fileBlob);
+
+		// Create an HTML element to initiate the "download"
+		let aTag = document.createElement("a");
+		aTag.setAttribute("download", fileName);
+		aTag.href = file;
+		aTag.click();
+		aTag.remove();
 	}
 }
