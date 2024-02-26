@@ -127,7 +127,7 @@ export class TextureUtils
 
 			// Unknown
 			default:
-				return -1;
+				return 0;
 		}
 	}
 
@@ -180,7 +180,8 @@ export class TextureUtils
 	 * @param {ID3D11DeviceContext} d3dContext The ID3D11DeviceContext object
 	 * @param {ID3D11ShaderResourceView} textureSRV An SRV of the texture to read
 	 * 
-	 * @returns {Array} Array of [width, height, mipLevels, arraySize, bytesPerPixel, pixelData]
+	 * @returns {Array} Array of [width, height, mipLevels, arraySizeOrCubeCount, isCubemap, dxgiFormat, pixelData].
+	 * Note that pixelData is a TypedArray, but the exact type depends upon the texture format of the resource.
 	 */
 	static ReadPixelDataFromSRV(d3dDevice, d3dContext, textureSRV)
 	{
@@ -202,7 +203,7 @@ export class TextureUtils
 	 * @param {ID3D11DeviceContext} d3dContext The ID3D11DeviceContext object
 	 * @param {ID3D11Resource} textureResource The texture resource to read
 	 * 
-	 * @returns {Array} Array of [width, height, mipLevels, arraySize, bytesPerPixel, pixelData].
+	 * @returns {Array} Array of [width, height, mipLevels, arraySizeOrCubeCount, isCubemap, dxgiFormat, pixelData].
 	 * Note that pixelData is a TypedArray, but the exact type depends upon the texture format of the resource.
 	 */
 	static ReadPixelDataFromTexture(d3dDevice, d3dContext, textureResource)
@@ -213,6 +214,7 @@ export class TextureUtils
 		let h = desc.Height;
 		let mipLevels = desc.MipLevels;
 		let arraySize = desc.ArraySize;
+		let isCubemap = ((desc.MiscFlags & D3D11_RESOURCE_MISC_TEXTURECUBE) == D3D11_RESOURCE_MISC_TEXTURECUBE);
 
 		// Adjust this description and make a readback resource
 		desc.BindFlags = 0;
@@ -224,7 +226,7 @@ export class TextureUtils
 		d3dContext.CopyResource(readbackTexture, textureResource);
 
 		// Calculate the total size of the resource
-		let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(desc.Format);
+		//let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(desc.Format);
 		let totalPixels = w * h * arraySize;
 		let mipWidth = w;
 		let mipHeight = h;
@@ -286,7 +288,7 @@ export class TextureUtils
 			}
 		}
 
-		return [w, h, mipLevels, arraySize, bytesPerPixel, readbackData];
+		return [w, h, mipLevels, isCubemap ? arraySize / 6 : arraySize, isCubemap, desc.Format, readbackData];
 	}
 
 	
@@ -626,6 +628,7 @@ export class TextureUtils
 		});
 	}
 
+
 	/**
 	 * Write the specified pixel data to a DDS file and initiates the "download".
 	 * Format details: format details here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
@@ -633,13 +636,15 @@ export class TextureUtils
 	 * mip levels and whether or not this is a cube map.
 	 * 
 	 * @param {string} fileName The file name to save
-	 * @param {TypedArray} pixelData TypedArray of pixel data
 	 * @param {number} width Width in pixels
 	 * @param {number} height Height in pixels
 	 * @param {number} mipLevels Number of mip levels
+	 * @param {number} arraySizeOrCubeCount Number of array elements (or number of cubes, if also a cube map)
 	 * @param {boolean} isCube Is this a cube map?
+	 * @param {number} dxgiFormat The pixel format of the data
+	 * @param {TypedArray} pixelData TypedArray of pixel data
 	 */
-	static WriteDDSFile(fileName, pixelData, width, height, mipLevels, isCube)
+	static WriteDDSFile(fileName, width, height, mipLevels, arraySizeOrCubeCount, isCube, dxgiFormat, pixelData)
 	{
 		// Overall Flags
 		const DDSD_CAPS = 0x1;
@@ -686,6 +691,12 @@ export class TextureUtils
 		const DDPF_YUV = 0x200;
 		const DDPF_LUMINANCE = 0x20000;
 
+		// Extended header details
+		const DDS_DIMENSION_TEXTURE1D = 2;
+		const DDS_DIMENSION_TEXTURE2D = 3;
+		const DDS_DIMENSION_TEXTURE3D = 4;
+		const DDS_RESOURCE_MISC_TEXTURECUBE = 0x4;
+
 		// Flags for header
 		let flags = DDS_HEADER_FLAGS_TEXTURE | DDSD_PITCH | (mipLevels > 1 ? DDSD_MIPMAPCOUNT : 0);
 		let caps =
@@ -696,13 +707,15 @@ export class TextureUtils
 		let pixelFormatFlags = DDPF_RGB | DDPF_ALPHAPIXELS;
 
 		// Calculations for header
-		let bitsPerPixel = 32;
+		let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(dxgiFormat);
+		let bitsPerPixel = bytesPerPixel * 8;
 		let pitch = Math.trunc((width * bitsPerPixel + 7) / 8);
 		// Pitch formula here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
 
 		let header = new Uint32Array([
 			0x20534444, // Magic number for 'DDS '
-			// ------------
+
+			// --- Starting standard header ---
 			124, // Header size, always 124
 			flags,
 			width, // Width
@@ -711,19 +724,28 @@ export class TextureUtils
 			1, // Depth (Unused for non-volume textures - maybe just set to zero?)
 			mipLevels,
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 11x unused (reserved) entries
-				// Pixel format ----
-				/* dwSize        */ 32, // Always 32
-				/* dwFlags       */ pixelFormatFlags,
-				/* dwFourCC      */ 0,
-				/* dwRGBBitCount */ bitsPerPixel, // Includes alpha!
-				/* dwRBitMask    */ 0x000000ff, // Yes these feel "backwards" but are correct
-				/* dwGBitMask    */ 0x0000ff00,
-				/* dwBBitMask    */ 0x00ff0000,
-				/* dwABitMask    */ 0xff000000,
-			// End pixel format ---
+			// --- Pixel format ---
+			/* dwSize        */ 32, // Always 32
+			/* dwFlags       */ DDPF_FOURCC,  // Assuming we're using the extended header for all formats!
+			/* dwFourCC      */ 0x30315844,   // Needs to be "DX10", but left-to-right: '0', '1', 'X', 'D'
+			/* dwRGBBitCount */ 0, // The following are all zeros since the extended header handles format details
+			/* dwRBitMask    */ 0,
+			/* dwGBitMask    */ 0,
+			/* dwBBitMask    */ 0,
+			/* dwABitMask    */ 0,
+			// --- End pixel format ---
 			caps,
 			caps2,
-			0, 0, 0 // Caps3, caps4 & reserved2
+			0, 0, 0, // Caps3, caps4 & reserved2
+			// --- End standard header ---
+
+			// --- Starting DX10 Extended header ---
+			/* DXGI Format */ dxgiFormat,
+			/* Dimensions  */ DDS_DIMENSION_TEXTURE2D, // Assuming 2D only for now!
+			/* Misc (cube) */ isCube ? DDS_RESOURCE_MISC_TEXTURECUBE : 0,
+			/* Elements    */ arraySizeOrCubeCount, // Array elements OR cube count, NEVER cubeCount * 6
+			/* Misc        */ 0 
+			// --- End extended header ---
 		]);
 
 		// Create the file to save

@@ -1135,112 +1135,12 @@
 			globalEquirectToCubePS = equirectToCubePS;
 			globalFullscreenVS = fullscreenVS;
 
-			// Create a texture for copy subresource testing
-			//let copyTexDesc = new D3D11_TEXTURE2D_DESC(256, 256, 1, 1, DXGI_FORMAT_R8G8B8A8_UNORM, new DXGI_SAMPLE_DESC(1, 0), D3D11_USAGE_DEFAULT, D3D11_BIND_SHADER_RESOURCE, 0, 0);
-			//let copyTexture = device.CreateTexture2D(copyTexDesc, null);
-			//
-			//let lutResource = lutSRV.GetResource();
-			//context.CopySubresourceRegion(
-			//	copyTexture,
-			//	0,
-			//	0, 0, 0,
-			//	lutResource,
-			//	0,
-			//	new D3D11_BOX(0, 0, 256, 128));
-			//lutResource.Release();
-			//let copySRV = device.CreateShaderResourceView(copyTexture, null);
-
-			// Create a texture for full resource copy testing
-			//let iblSpecRes = iblSpecSRV.GetResource();
-			//let iblSpecDesc = iblSpecRes.GetDesc();
-			//iblSpecDesc.BindFlags = 0;
-			//iblSpecDesc.Usage = D3D11_USAGE_STAGING;
-			//iblSpecDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
-			//let iblSpecCopyTexture = device.CreateTexture2D(iblSpecDesc, null);
-
-			//// Perform the copy and make a new SRV
-			//context.CopyResource(iblSpecCopyTexture, iblSpecRes);
-			//iblSpecRes.Release(); // Cleanup
-
-			//let [w, h, mips, arrSize, bytesPerPixel, pixels] = TextureUtils.ReadPixelDataFromSRV(device, context, lutSRV);
-			//TextureUtils.WritePNGFile("lut.png", pixels, w, h);
-
-
-			// Perform a readback of the data in one subresource
-			//let w = iblSpecDesc.Width;
-			//let h = iblSpecDesc.Height;
-			//let readbackData = new Uint8Array(w * h * 4);
-			//device.ReadFromSubresource(readbackData, iblSpecCopyTexture, 0, null);
-
-			//writeTGAFile("test.tga", readbackData, w, h);
-			//writePNGFile("test.png", readbackData, w, h);
-
-			// DDS TEST --------------
+			// Texture saving test
 			let ddsTest = false;
 			if (ddsTest)
 			{
-				// Readback the entire resource into an array of Uint8Arrays
-				let w = iblSpecDesc.Width;
-				let h = iblSpecDesc.Height;
-				let mipLevels = iblSpecDesc.MipLevels;
-
-				// First, calculate the full size of the array
-				let totalSize = w * h * 4 * 6; // X * Y * 4 pixels * 6 faces
-				let mipSize = w;
-				for (let mip = 1; mip < mipLevels; mip++)
-				{
-					// Calc mip size - ASSUMING SQUARE since cube map!
-					mipSize = Math.max(Math.floor(mipSize / 2), 1);
-
-					// Add this mip to the overall size
-					totalSize += mipSize * mipSize * 4 * 6;
-				}
-
-				// Create an array big enough to hold all subresources
-				let readbackData = new Uint8Array(totalSize);
-				let dataOffset = 0;
-				for (let face = 0; face < 6; face++)
-				{
-					// Mip size starts as the main texture size
-					mipSize = w;
-					for (let mip = 0; mip < mipLevels; mip++)
-					{
-						// Data for just this subresource
-						let subResIndex = D3D11CalcSubresource(mip, face, mipLevels);
-						let subResDataSize = mipSize * mipSize * 4;
-						let subResData = new Uint8Array(subResDataSize);
-
-						// Perform the read and copy to the overall array
-						device.ReadFromSubresource(subResData, iblSpecCopyTexture, subResIndex, null);
-
-						// Flip the data on Y by looping through top half and swapping
-						let rowWidth = mipSize * 4;
-						for (let y = 0; y < mipSize / 2; y++)
-						{
-							let flippedY = mipSize - y - 1;
-							for (let x = 0; x < rowWidth; x++)
-							{
-								let top = x + y * rowWidth;
-								let bot = x + flippedY * rowWidth;
-
-								let bottomPixel = subResData[bot];
-								subResData[bot] = subResData[top];
-								subResData[top] = bottomPixel;
-							}
-						}
-
-						// Add to the overall data
-						readbackData.set(subResData, dataOffset);
-
-						// Adjust data offset
-						dataOffset += subResDataSize;
-
-						// Update the mip size
-						mipSize = Math.max(Math.floor(mipSize / 2), 1);
-					}
-				}
-
-				TextureUtils.WriteDDSFile("test.dds", readbackData, w, h, mipLevels, true);
+				let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(device, context, irrSRV);
+				TextureUtils.WriteDDSFile("irr.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 			}
 
 			// Reset the render target
