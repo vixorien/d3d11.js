@@ -197,9 +197,10 @@
 
 										<button type="button" class="btn btn-primary mt-2" onclick="loadHDR()">Load</button>
 
-										<label for="hdrExposure" class="form-label">Exposure Adjust: 0</label>
-										<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="hdrExposure" oninput="setHDRExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust: ' + this.value;" />
-
+										<div class="mt-2">
+											<label for="hdrExposure" class="form-label">Exposure Adjust: 0</label>
+											<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="hdrExposure" oninput="setHDRExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust: ' + this.value;" />
+										</div>
 
 									</div>
 								</div>
@@ -259,6 +260,7 @@
 		import { Vertex } from "../build/vertex.js";
 		import { Mesh } from "../build/mesh.js";
 
+		let globalHDROriginalSRV = null; // So we can change exposure on the fly
 		let globalSkySRV = null;
 		let globalIrrSRV = null;
 		let globalIBLSpecSRV = null;
@@ -267,6 +269,10 @@
 		let globalIBLMipsToSkip = 3;
 		let globalSkyIsHDR = false;
 		let globalSkyMipLevelPreview = 0;
+		let globalHDRExposure = 0;
+		let globalUpdateHDRMap = 0;
+		let globalUpdateIrrFace = 0;
+		let globalUpdateSpecFace = 0;
 
 		let globalIBLSampler = null;
 		let globalIrrPS = null;
@@ -295,7 +301,8 @@
 		window.setHDRExposure = function (val)
 		{
 			// Adjust exposure and re-create all PBR assets
-
+			globalHDRExposure = val;
+			globalUpdateHDRMap = 1;
 		}
 
 		window.loadSixFaces = async function ()
@@ -393,6 +400,10 @@
 			let fileInput = document.getElementById("hdrFile");
 			let [width, height, data] = await TextureUtils.LoadHDRFileLocal(fileInput);
 
+			// Release if necessary
+			if (globalHDROriginalSRV != null)
+				globalHDROriginalSRV.Release();
+
 			// Put this data into a texture
 			let hdrDesc = new D3D11_TEXTURE2D_DESC(
 				width,
@@ -406,101 +417,13 @@
 				0,
 				0);
 			let hdrTexture = globalDevice.CreateTexture2D(hdrDesc, [data]);
-			let hdrSRV = globalDevice.CreateShaderResourceView(hdrTexture, null);
+			globalHDROriginalSRV = globalDevice.CreateShaderResourceView(hdrTexture, null);
+			hdrTexture.Release(); // Just need the SRV
 
-			// Collect info on cube
-			let cubeSize = width / 4;
-			let generateMips = true;
-			let mips = 1;
-			if (generateMips)
-			{
-				mips = Math.floor(Math.log2(cubeSize)) + 1;
-			}
-
-			// Create empty cube map
-			let cubeDesc = new D3D11_TEXTURE2D_DESC(
-				cubeSize,
-				cubeSize,
-				mips,
-				6, // 6 faces (as array elements)
-				DXGI_FORMAT_R32G32B32A32_FLOAT,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-				0,
-				D3D11_RESOURCE_MISC_TEXTURECUBE | (generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0));
-			let hdrCubeTexture = globalDevice.CreateTexture2D(cubeDesc, null);
-			let hdrCubeSRV = globalDevice.CreateShaderResourceView(hdrCubeTexture, null);
-			
-			
-			// Constant buffer for per-face data (index)
-			let cbDesc = new D3D11_BUFFER_DESC(
-				Float32Array.BYTES_PER_ELEMENT * 4,
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-			let cb = globalDevice.CreateBuffer(cbDesc, null);
-			let cbData = new Float32Array(4);
-
-			// Set up viewport
-			let oldVP = globalContext.RSGetViewports()[0];
-			let vp = new D3D11_VIEWPORT(0, 0, cubeSize, cubeSize, 0, 1);
-			globalContext.RSSetViewports([vp]);
-
-			// Get existing render targets
-			let [rts, dsv] = globalContext.OMGetRenderTargets();
-
-			// Process each face
-			globalContext.VSSetShader(globalFullscreenVS);
-			globalContext.PSSetShader(globalEquirectToCubePS);
-			globalContext.PSSetConstantBuffers(0, [cb]);
-			globalContext.PSSetShaderResources(0, [hdrSRV]);
-			globalContext.PSSetSamplers(0, [globalIBLSampler]);
-			for (let face = 0; face < 6; face++)
-			{
-				// RTV for this face
-				let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
-					DXGI_FORMAT_R32G32B32A32_FLOAT,
-					D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
-					0,
-					face,
-					1);
-				let faceRTV = globalDevice.CreateRenderTargetView(hdrCubeTexture, faceRTVDesc);
-
-				// Set cb data
-				cbData.set([face], 0);
-				globalContext.UpdateSubresource(cb, 0, null, cbData, 0, 0);
-
-				// Draw and flush to ensure we're done
-				globalContext.OMSetRenderTargets([faceRTV], null);
-				globalContext.Draw(3, 0);
-				globalContext.Flush();
-
-				faceRTV.Release();
-			}
-
-			// Generate mip maps for the enviroment map for later IBL steps
-			if (generateMips)
-			{
-				globalContext.GenerateMips(hdrCubeSRV);
-			}
-
-
-			// Release and clean up
-			cb.Release();
-			hdrSRV.Release(); // Don't need original anymore
-			hdrTexture.Release();
-			hdrCubeTexture.Release(); // SRV has ref
-			globalContext.RSSetViewports([oldVP]);
-			globalContext.OMSetRenderTargets(rts, dsv); // Restore old targets
-
-			// Save ref
-			globalSkySRV = hdrCubeSRV;
+			// Copy the equirect to a cube map
+			globalSkySRV.Release();
+			globalSkySRV = copyEquirectToCube(globalHDROriginalSRV, DXGI_FORMAT_R32G32B32A32_FLOAT, true, globalHDRExposure, globalEquirectToCubePS, globalFullscreenVS);
 			globalSkyIsHDR = true;
-
-			// Note: Need to generate mip maps for cube so that spec IBL can sample different mips
-			// See here: https://learnopengl.com/PBR/IBL/Specular-IBL
 
 			// Create new indirect PBR maps
 			globalIrrSRV.Release();
@@ -587,6 +510,106 @@
 			const resp = await fetch(url);
 			const text = await resp.text();
 			return text;
+		}
+
+		function copyEquirectToCube(equirectSRV, dxgiFormat, generateMips, exposureAdjust, ps, vs)
+		{
+			// Grab the resource and its description from the SRV
+			let equirectRes = equirectSRV.GetResource();
+			let equirectDesc = equirectRes.GetDesc();
+			equirectRes.Release();
+
+			// Validate size
+			if (equirectDesc.Width != equirectDesc.Height * 2)
+				throw new Error("Invalid dimensions for equirect map");
+
+			// Collect info on cube
+			let cubeSize = equirectDesc.Width / 4;
+			let mips = 1;
+			if (generateMips)
+			{
+				mips = Math.floor(Math.log2(cubeSize)) + 1;
+			}
+
+			// Create empty cube map
+			let cubeDesc = new D3D11_TEXTURE2D_DESC(
+				cubeSize,
+				cubeSize,
+				mips,
+				6, // 6 faces (as array elements)
+				dxgiFormat,
+				new DXGI_SAMPLE_DESC(1, 0),
+				D3D11_USAGE_DEFAULT,
+				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
+				0,
+				D3D11_RESOURCE_MISC_TEXTURECUBE | (generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0));
+			let cubeTexture = globalDevice.CreateTexture2D(cubeDesc, null);
+			let cubeSRV = globalDevice.CreateShaderResourceView(cubeTexture, null);
+
+
+			// Constant buffer for per-face data (index)
+			let cbDesc = new D3D11_BUFFER_DESC(
+				Float32Array.BYTES_PER_ELEMENT * 4,
+				D3D11_USAGE_DYNAMIC,
+				D3D11_BIND_CONSTANT_BUFFER,
+				D3D11_CPU_ACCESS_WRITE,
+				0, 0);
+			let cb = globalDevice.CreateBuffer(cbDesc, null);
+			let cbData = new Float32Array(4); // Must be mutliple of 16 bytes
+
+			// Second float is exposure
+			cbData.set([exposureAdjust], 1); 
+
+			// Set up viewport
+			let oldVP = globalContext.RSGetViewports()[0];
+			let vp = new D3D11_VIEWPORT(0, 0, cubeSize, cubeSize, 0, 1);
+			globalContext.RSSetViewports([vp]);
+
+			// Get existing render targets
+			let [rts, dsv] = globalContext.OMGetRenderTargets();
+
+			// Process each face
+			globalContext.VSSetShader(vs);
+			globalContext.PSSetShader(ps);
+			globalContext.PSSetConstantBuffers(0, [cb]);
+			globalContext.PSSetShaderResources(0, [equirectSRV]);
+			globalContext.PSSetSamplers(0, [globalIBLSampler]);
+			for (let face = 0; face < 6; face++)
+			{
+				// RTV for this face
+				let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
+					dxgiFormat,
+					D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
+					0,
+					face,
+					1);
+				let faceRTV = globalDevice.CreateRenderTargetView(cubeTexture, faceRTVDesc);
+
+				// Set cb data
+				cbData.set([face], 0);
+				globalContext.UpdateSubresource(cb, 0, null, cbData, 0, 0);
+
+				// Draw and flush to ensure we're done
+				globalContext.OMSetRenderTargets([faceRTV], null);
+				globalContext.Draw(3, 0);
+				globalContext.Flush();
+
+				faceRTV.Release();
+			}
+
+			// Generate mip maps for the enviroment map for later IBL steps
+			if (generateMips)
+			{
+				globalContext.GenerateMips(cubeSRV);
+			}
+
+			// Clean up
+			cb.Release();
+			cubeTexture.Release(); // SRV has ref
+			globalContext.RSSetViewports([oldVP]);
+			globalContext.OMSetRenderTargets(rts, dsv); // Restore old targets
+
+			return cubeSRV;
 		}
 
 		function createBrdfLookUpTable(device, context, size, ps, vs)
@@ -1305,6 +1328,37 @@
 
 					// Absolute movement
 					cameraPosition = Vector3.Add(cameraPosition, cameraMoveAbsolute);
+				}
+
+				// Any skybox updates?
+				if (globalSkyIsHDR)
+				{
+					// Yes, so check for which update, if any
+					switch (globalUpdateHDRMap)
+					{
+						case 1:
+							globalSkySRV.Release();
+							globalSkySRV = copyEquirectToCube(globalHDROriginalSRV, DXGI_FORMAT_R32G32B32A32_FLOAT, true, globalHDRExposure, globalEquirectToCubePS, globalFullscreenVS);
+							globalUpdateHDRMap++;
+							break;
+
+						case 2:
+							globalIrrSRV.Release();
+							globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
+							globalUpdateHDRMap++;
+							break;
+
+						case 3:
+							globalIBLSpecSRV.Release();
+							globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, globalIBLMipsToSkip, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
+							globalUpdateHDRMap++;
+							break;
+
+						default:
+							globalUpdateHDRMap = 0;
+							break;
+					}
+					
 				}
 			}
 
