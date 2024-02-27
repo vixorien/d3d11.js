@@ -14,7 +14,7 @@ struct VertexToPixel_Sky
 
 cbuffer ExternalData : register(b0)
 {
-	matrix world; // Unused, but keeping for offset
+	//matrix world; // Unused, but keeping for offset
 	matrix view;
 	matrix projection;
 }

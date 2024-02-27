@@ -31,6 +31,10 @@
 			"output": "./build/mesh.js"
 		},
 		{
+			"input": [ "./src/utils/sky.js" ],
+			"output": "./build/sky.js"
+		},
+		{
 			"input": [ "./src/utils/textureUtils.js" ],
 			"output": "./build/textureUtils.js"
 		},

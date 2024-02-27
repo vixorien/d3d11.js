@@ -49,6 +49,85 @@ export class TextureUtils
 	}
 
 	/**
+	 * Creates a blank texture and returns a shader resource view for it.
+	 * 
+	 * @param {ID3D11Device} d3dDevice The D3D device to use for creation
+	 * @param {number} width The width in pixels
+	 * @param {number} height The height in pixels
+	 * @param {any} dxgiFormat The color format
+	 * @param {number} mips Number of mip map levels.  Set this to zero to generate all mips down to 1x1.
+	 * @param {number} arraySize Texture array size
+	 * @param {boolean} renderTargetCapable Can this be used as a render target, too?
+	 * @param {boolean} canGenerateMips Can mip maps be auto generated for this texture?
+	 * 
+	 * @returns {ID3D11ShaderResourceView} An SRV for the underlying texture resource
+	 */
+	static CreateTexture2D(d3dDevice, width, height, dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM, mips = 1, arraySize = 1, renderTargetCapable = true, canGenerateMips = true)
+	{
+		// Set up the texture
+		let desc = new D3D11_TEXTURE2D_DESC(
+			width, height,
+			mips,
+			arraySize,
+			dxgiFormat,
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_SHADER_RESOURCE,
+			0,
+			canGenerateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0);
+
+		// Check for render target
+		if (renderTargetCapable)
+			desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+
+		// Create the texture and SRV, then release the texture ref
+		let texture = d3dDevice.CreateTexture2D(desc, null);
+		let srv = d3dDevice.CreateShaderResourceView(texture, null);
+		texture.Release();
+
+		return srv;
+	}
+
+	/**
+	 * Creates a blank cube map texture and returns a shader resource view for it.
+	 * 
+	 * @param {ID3D11Device} d3dDevice The D3D device to use for creation
+	 * @param {number} cubeSize The width (and the height) of a single cube face in pixels
+	 * @param {any} dxgiFormat The color format
+	 * @param {number} mips Number of mip map levels.  Set this to zero to generate all mips down to 1x1.
+	 * @param {boolean} renderTargetCapable Can this be used as a render target, too?
+	 * @param {boolean} canGenerateMips Can mip maps be auto generated for this texture?
+	 * 
+	 * @returns {ID3D11ShaderResourceView} An SRV for the underlying texture resource
+	 */
+	static CreateTextureCube(d3dDevice, cubeSize, dxgiFormat = DXGI_FORMAT_R8G8B8A8_UNORM, mips = 1, renderTargetCapable = true, canGenerateMips = true)
+	{
+		// Set up the texture
+		let desc = new D3D11_TEXTURE2D_DESC(
+			cubeSize,
+			cubeSize,
+			mips,
+			6, // 6 faces (as array elements)
+			dxgiFormat,
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_SHADER_RESOURCE,
+			0,
+			D3D11_RESOURCE_MISC_TEXTURECUBE);
+
+		// Check for other flags
+		if (renderTargetCapable) desc.BindFlags |= D3D11_BIND_RENDER_TARGET;
+		if (canGenerateMips) desc.MiscFlags |= D3D11_RESOURCE_MISC_GENERATE_MIPS;
+
+		// Create the texture and SRV, then release the texture ref
+		let texture = d3dDevice.CreateTexture2D(desc, null);
+		let srv = d3dDevice.CreateShaderResourceView(texture, null);
+		texture.Release();
+
+		return srv;
+	}
+
+	/**
 	 * Loads an image from a URL as a Texture2D and
 	 * optionally generates a mipmap chain for it
 	 * 
@@ -94,42 +173,7 @@ export class TextureUtils
 		return srv;
 	}
 
-	/**
-	 * Gets the bytes per pixel for the given DXGI format
-	 * 
-	 * @param {any} format A DXGI_FORMAT value
-	 */
-	static GetDXGIFormatBytesPerPixel(format)
-	{
-		switch (format)
-		{
-			case DXGI_FORMAT_R32G32B32A32_FLOAT:
-				return 16;
-
-			case DXGI_FORMAT_R32G32B32_FLOAT:
-				return 12;
-
-			case DXGI_FORMAT_R16G16B16A16_FLOAT:
-			case DXGI_FORMAT_R32G32_FLOAT:
-				return 8;
-
-			case DXGI_FORMAT_R8G8B8A8_UNORM:
-			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
-			case DXGI_FORMAT_R16G16_FLOAT:
-			case DXGI_FORMAT_R32_FLOAT:
-			case DXGI_FORMAT_R32_UINT:
-			case DXGI_FORMAT_D24_UNORM_S8_UINT:
-				return 4;
-
-			case DXGI_FORMAT_D16_UNORM:
-			case DXGI_FORMAT_R16_UINT:
-				return 2;
-
-			// Unknown
-			default:
-				return 0;
-		}
-	}
+	
 
 	static #GetArrayForReadback(dxgiFormat, pixelCount)
 	{
@@ -836,5 +880,56 @@ export class TextureUtils
 		aTag.href = file;
 		aTag.click();
 		aTag.remove();
+	}
+
+	/**
+	 * Gets the bytes per pixel for the given DXGI format
+	 * 
+	 * @param {any} format A DXGI_FORMAT value
+	 * 
+	 * @returns {number} The number of bytes for the given format
+	 */
+	static GetDXGIFormatBytesPerPixel(format)
+	{
+		switch (format)
+		{
+			case DXGI_FORMAT_R32G32B32A32_FLOAT:
+				return 16;
+
+			case DXGI_FORMAT_R32G32B32_FLOAT:
+				return 12;
+
+			case DXGI_FORMAT_R16G16B16A16_FLOAT:
+			case DXGI_FORMAT_R32G32_FLOAT:
+				return 8;
+
+			case DXGI_FORMAT_R8G8B8A8_UNORM:
+			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+			case DXGI_FORMAT_R16G16_FLOAT:
+			case DXGI_FORMAT_R32_FLOAT:
+			case DXGI_FORMAT_R32_UINT:
+			case DXGI_FORMAT_D24_UNORM_S8_UINT:
+				return 4;
+
+			case DXGI_FORMAT_D16_UNORM:
+			case DXGI_FORMAT_R16_UINT:
+				return 2;
+
+			// Unknown
+			default:
+				return 0;
+		}
+	}
+
+	/**
+	 * Gets the bits per pixel for the given DXGI format
+	 * 
+	 * @param {any} format A DXGI_FORMAT value
+	 * 
+	 * @returns {number} The number of bits for the given format
+	 */
+	static GetDXGIFormatBitsPerPixel(format)
+	{
+		return TextureUtils.GetDXGIFormatBytesPerPixel(format) * 8;
 	}
 }

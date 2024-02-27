@@ -259,11 +259,14 @@
 		import { Vector2, Vector3, Matrix4x4 } from "../build/d3dmath.js";
 		import { Vertex } from "../build/vertex.js";
 		import { Mesh } from "../build/mesh.js";
+		import { Sky } from "../build/sky.js";
 
 		let globalHDROriginalSRV = null; // So we can change exposure on the fly
 		let globalSkySRV = null;
 		let globalIrrSRV = null;
 		let globalIBLSpecSRV = null;
+
+		let globalSky = null;
 
 		let globalIBLMips = -1;
 		let globalIBLMipsToSkip = 3;
@@ -559,7 +562,7 @@
 
 			// Second float is exposure
 			cbData.set([exposureAdjust], 1); 
-
+			
 			// Set up viewport
 			let oldVP = globalContext.RSGetViewports()[0];
 			let vp = new D3D11_VIEWPORT(0, 0, cubeSize, cubeSize, 0, 1);
@@ -740,7 +743,7 @@
 
 			// How many mips do we need?
 			globalIBLMips = Math.max(Math.log2(mapSize) + 1 - iblSpecMipsToSkip, 1); // Add 1 for 1x1
-
+			
 			// Create an empty texture cube for specular
 			let cubeDesc = new D3D11_TEXTURE2D_DESC(
 				mapSize,
@@ -1158,6 +1161,15 @@
 			globalEquirectToCubePS = equirectToCubePS;
 			globalFullscreenVS = fullscreenVS;
 
+			// Create the sky object
+			globalSky = new Sky(device, context,
+				skySRV, false,
+				skyVS, skyPS, cubeMesh,
+				DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
+				DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
+				DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
+				equirectToCubePS, fullscreenVS);
+
 			// Texture saving test
 			let ddsTest = false;
 			if (ddsTest)
@@ -1513,13 +1525,16 @@
 
 					// Update pixel data (set above while lights are moving)
 					psData.set(cameraPosition, 0);
-					psData.set([globalIBLMips], 8);
+					psData.set([globalSky.SpecularIBLMipsTotal], 8);
 					psData.set([lightCount], 9);  // Set light count (all lights)
 					psData.set([globalSkyIsHDR ? 1 : 0], 10); // Set HDR switch
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 					// Textures
-					context.PSSetShaderResources(0, [albedoSRV, normalSRV, metalSRV, roughSRV, lutSRV, globalIrrSRV, globalIBLSpecSRV]);
+					context.PSSetShaderResources(0, [
+						albedoSRV, normalSRV, metalSRV, roughSRV,
+						globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
+					]);
 
 					// Draw
 					context.IASetVertexBuffers(0, [currentMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
@@ -1565,7 +1580,10 @@
 							context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 							// Set textures for this sphere
-							context.PSSetShaderResources(0, [rowMats[row][0], rowMats[row][1], rowMats[row][2], solidRoughSRVs[i], lutSRV, globalIrrSRV, globalIBLSpecSRV]);
+							context.PSSetShaderResources(0, [
+								rowMats[row][0], rowMats[row][1], rowMats[row][2], solidRoughSRVs[i],
+								globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
+							]);
 
 							// Draw one sphere
 							context.DrawIndexed(sphereMesh.IndexCount, 0, 0);
@@ -1575,35 +1593,7 @@
 
 				// Skybox
 				{
-					// Set up states
-					context.RSSetState(skyRastState);
-					context.OMSetDepthStencilState(skyDepthState);
-
-					// Set up shaders
-					context.VSSetShader(skyVS);
-					context.PSSetShader(skyPS);
-
-					// NOTE: Current cbuffers should be fine?
-					// VS -> Using same w/v/p
-
-					// Set up sky PS cbuffer
-					context.PSSetConstantBuffers(0, [skyCB]);
-					skyData.set([
-						globalSkyMipLevelPreview
-					]);
-					context.UpdateSubresource(skyCB, 0, null, skyData, 0, 0);
-
-					// Set up texture
-					context.PSSetShaderResources(0, [globalSkySRV]);
-
-					// Draw cube
-					context.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					context.IASetIndexBuffer(cubeMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-					context.DrawIndexed(cubeMesh.IndexCount, 0, 0);
-
-					// Revert states
-					context.RSSetState(null);
-					context.OMSetDepthStencilState(null);
+					globalSky.Draw(vMat, pMat);
 				}
 
 				// Finalize post processing if necessary
