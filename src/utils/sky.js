@@ -54,6 +54,19 @@ export class Sky
 	#equirectToCubePS;
 	#fullscreenVS;
 
+	// Progressive updating
+	#progressiveUpdate;
+
+	#lutDirty;
+
+	#irrDirty;
+	#irrFaceUpdate;
+
+	#specDirty;
+	#specMipUpdate;
+	#specFaceUpdate;
+
+
 	constructor(
 		d3dDevice,
 		d3dContext,
@@ -114,7 +127,7 @@ export class Sky
 		this.#equirectToCubePS = equirectPS;
 		this.#fullscreenVS = fullscreenVS;
 
-		// Create the sampler we'll need
+		// Create a sampler for rendering
 		let sampDesc = new D3D11_SAMPLER_DESC(
 			D3D11_FILTER_ANISOTROPIC,
 			D3D11_TEXTURE_ADDRESS_WRAP,
@@ -128,13 +141,13 @@ export class Sky
 			D3D11_FLOAT32_MAX);
 		this.#sampler = this.#d3dDevice.CreateSamplerState(sampDesc);
 
-		// Create a rasterizer state for the sky
+		// Create a rasterizer state for rendering the inside of our mesh
 		let skyRastDesc = new D3D11_RASTERIZER_DESC(
 			D3D11_FILL_SOLID,
 			D3D11_CULL_FRONT);
 		this.#skyRasterState = this.#d3dDevice.CreateRasterizerState(skyRastDesc);
 
-		// Create a depth/stencil state for the sky
+		// Create a depth/stencil state so we accept equal depth values
 		let skyDepthDesc = new D3D11_DEPTH_STENCIL_DESC(
 			true,
 			D3D11_DEPTH_WRITE_MASK_ALL,
@@ -162,23 +175,50 @@ export class Sky
 		this.#cbPSData = new Float32Array(psMaxDataSize);
 		this.#cbVSData = new Float32Array(vsMaxDataSize);
 
-		// Create the resources (but don't render to them yet?)
-		this.BRDFLookUpTableSRV = this.#CreateBrdfLookUpTable();
-		this.IrradianceCubeSRV = this.#CreateIrradianceMap();
-		this.SpecularIBLCubeSRV = this.#CreateSpecularIBLMap();
+		// Create the resources (but don't render to them yet)
+		this.#CreateBrdfLutTexture();
+		this.#CreateIrradianceTexture();
+		this.#CreateSpecularIBLTexture();
+
+		this.#lutDirty = true;
+		
+		this.#irrDirty = true;
+		this.#irrFaceUpdate = 0;
+		
+		this.#specDirty = true;
+		this.#specMipUpdate = 0;
+		this.#specFaceUpdate = 0;
+
+		this.#progressiveUpdate = true;
 	}
 
-	static FromSixFaces()
+	LoadEquirectNonHDR()
 	{
+
 	}
 
-	static FromHDR()
+	LoadSixFaces()
 	{
+
+	}
+
+	LoadHDR()
+	{
+
+	}
+
+	LoadDDS()
+	{
+
 	}
 
 	Update()
 	{
-
+		// Perform any asset updates if necessary, ensuring
+		// that we do at most one per frame
+		if (this.#lutDirty) this.#RenderBrdfLookUpTable();
+		else if (this.#irrDirty) this.#RenderIrradianceMap();
+		else if (this.#specDirty) this.#RenderSpecularIBLMap();
 	}
 
 	Draw(view, proj, mipLevelPreview = 0)
@@ -215,16 +255,57 @@ export class Sky
 		this.#d3dContext.OMSetDepthStencilState(null);
 	}
 
-	#CreateBrdfLookUpTable()
+	// Helpers for creating the proper sized resources
+	#CreateBrdfLutTexture()
 	{
-		let lutSRV = TextureUtils.CreateTexture2D(
+		if (this.BRDFLookUpTableSRV != null)
+			this.BRDFLookUpTableSRV.Release();
+
+		this.BRDFLookUpTableSRV = TextureUtils.CreateTexture2D(
 			this.#d3dDevice,
 			this.BRDFLookUpTableSize,
 			this.BRDFLookUpTableSize,
-			this.BRDFLookUpTableColorFormat);
-		let lutTexture = lutSRV.GetResource();
+			this.BRDFLookUpTableColorFormat,
+			1,
+			1,
+			true);
+	}
+
+	#CreateIrradianceTexture()
+	{
+		if (this.IrradianceCubeSRV != null)
+			this.IrradianceCubeSRV.Release();
+
+		this.IrradianceCubeSRV = TextureUtils.CreateTextureCube(
+			this.#d3dDevice,
+			this.IrradianceCubeSize,
+			this.IrradianceColorFormat,
+			1,
+			true);
+	}
+
+	#CreateSpecularIBLTexture()
+	{
+		this.SpecularIBLCubeSRV = TextureUtils.CreateTextureCube(
+			this.#d3dDevice,
+			this.SpecularIBLCubeSize,
+			this.SpecularIBLColorFormat,
+			this.SpecularIBLMipsTotal,
+			true,
+			true);
+	}
+
+
+	#RenderBrdfLookUpTable()
+	{
+		if (!this.#lutDirty)
+			return;
+
+		// Grab the resource so we can make an RTV
+		let lutTexture = this.BRDFLookUpTableSRV.GetResource();
 
 		// RTV
+		let [oldRTVs, dsv] = this.#d3dContext.OMGetRenderTargets();
 		let rtv = this.#d3dDevice.CreateRenderTargetView(lutTexture, null);
 		this.#d3dContext.OMSetRenderTargets([rtv], null);
 
@@ -239,39 +320,49 @@ export class Sky
 		this.#d3dContext.Draw(3, 0);
 		this.#d3dContext.Flush();
 
-		// Finish up before returning the view
+		// Finish up
+		this.#d3dContext.OMSetRenderTargets([oldRTVs[0]], dsv);
 		this.#d3dContext.RSSetViewports([oldVP]);
 		lutTexture.Release();
 		rtv.Release();
-		return lutSRV;
+		this.#lutDirty = false;
 	}
 
-	// TODO: Parameterize face?
-	#CreateIrradianceMap()
+	#RenderIrradianceMap()
 	{
-		let mapSize = this.IrradianceCubeSize;
-		if (mapSize <= 0)
-			mapSize = this.SkyCubeSize;
+		// Make sure we have a skybox first and work to do
+		if (this.SkyCubeSRV == null || !this.#irrDirty)
+			return;
 
-		// Create an empty texture cube for irradiance
-		let irrSRV = TextureUtils.CreateTextureCube(
-			this.#d3dDevice,
-			mapSize,
-			this.IrradianceColorFormat);
-		let irrTexture = irrSRV.GetResource();
+		// Which face(s) are we updating now?
+		let startFace = 0;
+		let endFace = 6;
+		let singleFaceUpdate = false;
+		if (this.#progressiveUpdate &&
+			this.#irrFaceUpdate >= 0 && this.#irrFaceUpdate < 6) // Must be a valid face
+		{
+			// Exactly one face this time
+			startFace = this.#irrFaceUpdate;
+			endFace = startFace + 1;
+			singleFaceUpdate = true;
+		}
+
+		// Grab texture and rt
+		let [oldRTVs, dsv] = this.#d3dContext.OMGetRenderTargets();
+		let irrTexture = this.IrradianceCubeSRV.GetResource();
 
 		// Set up viewport
 		let oldVP = this.#d3dContext.RSGetViewports()[0];
-		let vp = new D3D11_VIEWPORT(0, 0, mapSize, mapSize, 0, 1);
+		let vp = new D3D11_VIEWPORT(0, 0, this.IrradianceCubeSize, this.IrradianceCubeSize, 0, 1);
 		this.#d3dContext.RSSetViewports([vp]);
-
+		
 		// Process each face
 		this.#d3dContext.VSSetShader(this.#fullscreenVS);
 		this.#d3dContext.PSSetShader(this.#irrPS);
 		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
 		this.#d3dContext.PSSetShaderResources(0, [this.SkyCubeSRV]);
 		this.#d3dContext.PSSetSamplers(0, [this.#sampler]);
-		for (let face = 0; face < 6; face++)
+		for (let face = startFace; face < endFace; face++)
 		{
 			// RTV for this face
 			let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
@@ -286,7 +377,7 @@ export class Sky
 			this.#cbPSData.set([
 				face,
 				this.#isHDR ? 1 : 0,
-				mapSize
+				this.IrradianceCubeSize
 			]);
 
 			this.#d3dContext.UpdateSubresource(this.#cbPS, 0, null, this.#cbPSData, 0, 0);
@@ -299,27 +390,62 @@ export class Sky
 			faceRTV.Release();
 		}
 
+		// Was this a single face update?
+		if (singleFaceUpdate)
+		{
+			// Now that we've set the face for this update, increment for next time
+			this.#irrFaceUpdate++;
+			if (this.#irrFaceUpdate >= 6)
+			{
+				this.#irrFaceUpdate = 0;
+				this.#irrDirty = false;
+			}
+		}
+		else
+		{
+			// Wasn't a single face, so the whole thing is clean
+			this.#irrDirty = false;
+		}
+
 		// Release and clean up
 		irrTexture.Release();
+		this.#d3dContext.OMSetRenderTargets([oldRTVs[0]], dsv);
 		this.#d3dContext.RSSetViewports([oldVP]);
-		return irrSRV;
 	}
 
-	#CreateSpecularIBLMap()
+	#RenderSpecularIBLMap()
 	{
-		let mapSize = this.SpecularIBLCubeSize;
-		if (mapSize <= 0)
-			mapSize = this.SkyCubeSize;
+		// Make sure we have a skybox first
+		if (this.SkyCubeSRV == null || !this.#specDirty)
+			return;
 
-		// Create an empty texture cube for specular
-		let specSRV = TextureUtils.CreateTextureCube(
-			this.#d3dDevice,
-			mapSize,
-			this.SpecularIBLColorFormat,
-			this.SpecularIBLMipsTotal);
-		let specTexture = specSRV.GetResource();
+		// Which mip(s) are we updating now?
+		let startMip = 0;
+		let endMip = this.SpecularIBLMipsTotal;
+		if (this.#progressiveUpdate &&
+			this.#specMipUpdate >= 0 && this.#specMipUpdate < this.SpecularIBLMipsTotal)
+		{
+			// Exactly one mip this time
+			startMip = this.#specMipUpdate;
+			endMip = startMip + 1;
+		}
 
-		// Set up viewport
+		// Which face(s) are we updating now?
+		let startFace = 0;
+		let endFace = 6;
+		let singleFaceUpdate = false;
+		if (this.#progressiveUpdate &&
+			this.#specFaceUpdate >= 0 && this.#specFaceUpdate < 6) // Must be a valid face
+		{
+			// Exactly one face this time
+			startFace = this.#specFaceUpdate;
+			endFace = startFace + 1;
+			singleFaceUpdate = true;
+		}
+
+
+		let specTexture = this.SpecularIBLCubeSRV.GetResource();
+		let [oldRTVs, dsv] = this.#d3dContext.OMGetRenderTargets();
 		let oldVP = this.#d3dContext.RSGetViewports()[0];
 
 		// Prepare overall pipeline
@@ -330,7 +456,7 @@ export class Sky
 		this.#d3dContext.PSSetSamplers(0, [this.#sampler]);
 
 		// Process each mip
-		for (let mip = 0; mip < this.SpecularIBLMipsTotal; mip++)
+		for (let mip = startMip; mip < endMip; mip++)
 		{
 			// Set the viewport for this mip size
 			let mipSize = Math.pow(2, this.SpecularIBLMipsTotal + this.SpecularIBLMipsToSkip - 1 - mip);
@@ -342,7 +468,7 @@ export class Sky
 			let roughness = mip / Math.max(this.SpecularIBLMipsTotal - 1.0, 1.0);
 
 			// Process each face
-			for (let face = 0; face < 6; face++)
+			for (let face = startFace; face < endFace; face++)
 			{
 				// RTV for this face
 				let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
@@ -372,10 +498,36 @@ export class Sky
 			}
 		}
 
+		// Was this a single face update?
+		if (singleFaceUpdate)
+		{
+			// Now that we've set the face for this update, increment for next time
+			this.#specFaceUpdate++;
+
+			// Done with all faces for this mip?
+			if (this.#specFaceUpdate >= 6)
+			{
+				this.#specMipUpdate++;
+				this.#specFaceUpdate = 0;
+			}
+
+			// Done with all mips?
+			if (this.#specMipUpdate >= this.SpecularIBLMipsTotal)
+			{
+				this.#specMipUpdate = 0;
+				this.#specDirty = false;
+			}
+		}
+		else
+		{
+			// Wasn't a single face, so the whole thing is clean
+			this.#specDirty = false;
+		}
+
 		// Clean up and done
 		specTexture.Release();
+		this.#d3dContext.OMSetRenderTargets([oldRTVs[0]], dsv);
 		this.#d3dContext.RSSetViewports([oldVP]);
-		return specSRV;
 	}
 
 	#CopyEquirectToCube()

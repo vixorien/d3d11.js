@@ -1342,6 +1342,8 @@
 					cameraPosition = Vector3.Add(cameraPosition, cameraMoveAbsolute);
 				}
 
+				globalSky.Update();
+
 				// Any skybox updates?
 				if (globalSkyIsHDR)
 				{
