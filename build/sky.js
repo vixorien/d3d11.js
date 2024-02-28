@@ -180,31 +180,73 @@ export class Sky
 		this.#CreateIrradianceTexture();
 		this.#CreateSpecularIBLTexture();
 
+		// Look up table only needs to be made once
 		this.#lutDirty = true;
-		
-		this.#irrDirty = true;
-		this.#irrFaceUpdate = 0;
-		
-		this.#specDirty = true;
-		this.#specMipUpdate = 0;
-		this.#specFaceUpdate = 0;
+		this.#MarkIBLDirty();
 
 		this.#progressiveUpdate = true;
 	}
 
-	LoadEquirectNonHDR()
+	#MarkIBLDirty()
 	{
+		this.#irrDirty = true;
+		this.#irrFaceUpdate = 0;
 
+		this.#specDirty = true;
+		this.#specMipUpdate = 0;
+		this.#specFaceUpdate = 0;
 	}
+	
 
 	LoadSixFaces()
 	{
 
 	}
 
-	LoadHDR()
-	{
+	//LoadEquirectNonHDR(width, height, pixelData)
+	//{
+	//}
 
+	LoadEquirectHDR(width, height, pixelData, hdrExposure = 0)
+	{
+		if (width <= 0 || height <= 0 || height != width / 2)
+			throw new Error("Invalid width and/or height for equirectangular HDR data");
+
+		if (pixelData == null || pixelData.length == 0)
+			throw new Error("Invalid or empty pixel data for equirectangular HDR data");
+
+		if (this.#equirectSRV != null)
+			this.#equirectSRV.Release();
+
+		this.#hdrExposure = hdrExposure;
+
+		// Determine the color format
+		let format = DXGI_FORMAT_UNKNOWN;
+		if (pixelData instanceof Float32Array) format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+		else if (pixelData instanceof Uint16Array) format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		else throw new Error("Invalid data type for equirectangular HDR pixel data");
+
+		let hdrDesc = new D3D11_TEXTURE2D_DESC(
+			width,
+			height,
+			1,
+			1,
+			format,
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_SHADER_RESOURCE,
+			0,
+			0);
+		let tex = this.#d3dDevice.CreateTexture2D(hdrDesc, [pixelData]);
+		this.#equirectSRV = this.#d3dDevice.CreateShaderResourceView(tex, null);
+		tex.Release(); // Just need the SRV
+
+		// Copy the equirect to a cube map
+		this.#CopyEquirectToCube();
+
+		// All done
+		this.#isHDR = true;
+		this.#MarkIBLDirty();
 	}
 
 	LoadDDS()
@@ -318,7 +360,7 @@ export class Sky
 		this.#d3dContext.PSSetShader(this.#brdfLutPS);
 		this.#d3dContext.VSSetShader(this.#fullscreenVS);
 		this.#d3dContext.Draw(3, 0);
-		this.#d3dContext.Flush();
+		//this.#d3dContext.Flush();
 
 		// Finish up
 		this.#d3dContext.OMSetRenderTargets([oldRTVs[0]], dsv);
@@ -385,7 +427,9 @@ export class Sky
 			// Draw and flush to ensure we're done
 			this.#d3dContext.OMSetRenderTargets([faceRTV], null);
 			this.#d3dContext.Draw(3, 0);
-			this.#d3dContext.Flush();
+
+			if (!singleFaceUpdate)
+				this.#d3dContext.Flush();
 
 			faceRTV.Release();
 		}
@@ -492,7 +536,9 @@ export class Sky
 				// Draw and flush to ensure we're done
 				this.#d3dContext.OMSetRenderTargets([faceRTV], null);
 				this.#d3dContext.Draw(3, 0);
-				this.#d3dContext.Flush();
+
+				if (!singleFaceUpdate)
+					this.#d3dContext.Flush();
 
 				faceRTV.Release();
 			}
@@ -549,27 +595,30 @@ export class Sky
 		let idealCubeSize = equirectDesc.Width / 4;
 		if (this.SkyCubeSize != idealCubeSize)
 		{
+			// Release if necessary
+			if (this.SkyCubeSRV != null)
+				this.SkyCubeSRV.Release();
+
 			// Recreate the sky cube
-			this.SkyCubeSRV.Release();
 			this.SkyCubeSRV = TextureUtils.CreateTextureCube(
 				this.#d3dDevice,
 				idealCubeSize,
 				this.SkyColorFormat,
 				0); // All mips down to 1x1!
 
+			// Save new size
 			this.SkyCubeSize = idealCubeSize;
 		}
-
-
+		
 		// Grab the texture itself
 		let cubeTexture = this.SkyCubeSRV.GetResource();
-
-		// Set exposure adjustment value
+	
+		// Set exposure adjustment value (2nd float in cbuffer)
 		this.#cbPSData.set([this.#hdrExposure], 1);
 
 		// Set up viewport
 		let oldVP = this.#d3dContext.RSGetViewports()[0];
-		let vp = new D3D11_VIEWPORT(0, 0, cubeSize, cubeSize, 0, 1);
+		let vp = new D3D11_VIEWPORT(0, 0, this.SkyCubeSize, this.SkyCubeSize, 0, 1);
 		this.#d3dContext.RSSetViewports([vp]);
 
 		// Get existing render targets
@@ -585,7 +634,7 @@ export class Sky
 		{
 			// RTV for this face
 			let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
-				dxgiFormat,
+				this.SkyColorFormat,
 				D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
 				0,
 				face,
