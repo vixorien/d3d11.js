@@ -5,6 +5,7 @@ cbuffer data : register(b0)
 {
 	float faceIndex;
 	float exposure;
+	float envIsHDR;
 }
 
 struct VertexToPixel
@@ -57,9 +58,13 @@ float4 main(VertexToPixel input) : SV_TARGET
 	// Turn the direction into a UV and sample
 	float2 uv = DirectionToUV(dir);
 
-	// Sample and convert to linear
+	// Sample and convert to linear if necessary
 	float4 color = pow(EquirectMap.Sample(BasicSampler, uv), 2.2f);
+	color = envIsHDR == 1.0 ? color : pow(color, 2.2f);
 
-	// Apply exposure and convert back to gamma
-	return pow(color * pow(2.0f, exposure), 1.0f / 2.2f);
+	// Apply exposure and convert back to gamma if necessary
+	color *= pow(2.0f, exposure);
+	color = envIsHDR == 1.0 ? color : pow(color, 1.0f / 2.2f);
+
+	return color;
 }

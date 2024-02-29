@@ -677,13 +677,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	 * Note that even though the function takes an array of
 	 * rectangles, only the first is used in d3d11.js.  
 	 * 
-	 * @param {Array<D3D11_RECT>} rects Array of scissor rects.  Note that only the first viewport is used in d3d11.js.
+	 * @param {Array<D3D11_RECT>} rects Array of scissor rects.  Note that only the first scissor rect is used in d3d11.js.
 	 */
 	RSSetScissorRects(rects)
 	{
 		// Copy the first element
 		this.#scissorRect = structuredClone(rects[0]);
 		this.#scissorRectDirty = true;
+		this.#rasterizerDirty = true; // TODO: See if we can optimize this so we don't need to update the entire stage
 	}
 
 	/**
@@ -1201,8 +1202,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	 * 
 	 * @returns {number} The height of the current RTV/DSV, or zero if there are none bound
 	 */
-	#GetActiveRenderTargetHeight()
+	#GetActiveRenderTargetSize()
 	{
+		let rtWidth = 0;
 		let rtHeight = 0;
 
 		// Any RTVs?
@@ -1216,12 +1218,14 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				{
 					// Height of actual target
 					let rtRes = this.#renderTargetViews[i].GetResource();
+					rtWidth = rtRes.GetDesc().Width;
 					rtHeight = rtRes.GetDesc().Height;
 					rtRes.Release();
 
 					// Use mip level to calculate height
 					let mip = this.#renderTargetViews[i].GetDesc().MipSlice;
 					let div = Math.pow(2, mip);
+					rtWidth = Math.max(1, Math.floor(rtWidth / div));
 					rtHeight = Math.max(1, Math.floor(rtHeight / div));
 					break;
 				}
@@ -1233,16 +1237,18 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		{
 			// Height of actual resource
 			let dsvRes = this.#depthStencilView.GetResource();
+			rtWidth = dsvRes.GetDesc().Width;
 			rtHeight = dsvRes.GetDesc().Height;
 			dsvRes.Release();
 
 			// Use mip level to calculate height
 			let mip = this.#depthStencilView.GetDesc().MipSlice;
 			let div = Math.pow(2, mip);
+			rtWidth = Math.max(1, Math.floor(rtWidth / div));
 			rtHeight = Math.max(1, Math.floor(rtHeight / div));
 		}
 
-		return rtHeight;
+		return [rtWidth, rtHeight];
 	}
 
 	
@@ -1250,14 +1256,15 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	{
 		// We need to flip the Y on viewports & scissor rects, so
 		// what's the actual render target height?
+		let rtWidth = 0;
 		let rtHeight = 0;
 		if (this.#viewportDirty || this.#scissorRectDirty)
 		{
-			rtHeight = this.#GetActiveRenderTargetHeight();
+			[rtWidth, rtHeight] = this.#GetActiveRenderTargetSize();
 		}
 		
 		// Need to update viewport (and we have a real height)?
-		if (this.#viewportDirty && this.#viewport != null && rtHeight > 0)
+		if (this.#viewportDirty && this.#viewport != null && rtHeight > 0 && rtWidth > 0)
 		{
 			// Perform the invert
 			let invertY = rtHeight - this.#viewport.Height;
@@ -1278,20 +1285,30 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Need to update scissor rect (and we have a real height)?
-		if (this.#scissorRectDirty && this.#scissorRect != null && rtHeight > 0)
+		if (this.#scissorRectDirty && rtHeight > 0 && rtWidth > 0)
 		{
-			// Invert
-			let scissorWidth = this.#scissorRect.Right - this.#scissorRect.Left;
-			let scissorHeight = this.#scissorRect.Bottom - this.#scissorRect.Top;
-			let invertY = rtHeight - scissorHeight;
+			// Do we have a scissor rect?
+			if (this.#scissorRect == null)
+			{
+				// No, so use the whole render target
+				this.#gl.scissor(0, 0, rtWidth, rtHeight);
+			}
+			else
+			{
+				// Invert the Y
+				let scissorWidth = this.#scissorRect.Right - this.#scissorRect.Left;
+				let scissorHeight = this.#scissorRect.Bottom - this.#scissorRect.Top;
+				let invertY = rtHeight - scissorHeight;
 
-			// Set up the GL scissor rect
-			this.#gl.scissor(
-				this.#scissorRect.Left,
-				invertY - this.#scissorRect.Top,
-				scissorWidth,
-				scissorHeight);
-
+				// Set up the GL scissor rect
+				this.#gl.scissor(
+					this.#scissorRect.Left,
+					invertY - this.#scissorRect.Top,
+					scissorWidth,
+					scissorHeight);
+			}
+			
+			// All clean
 			this.#scissorRectDirty = false;
 		}
 
@@ -1356,6 +1373,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			this.#gl.disable(this.#gl.SCISSOR_TEST);
 
 		// Multisample - not currently implemented!
+
 		this.#rasterizerDirty = false;
 	}
 
@@ -1543,8 +1561,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
 		this.#PrepareTexturesAndSamplers();
-		this.#PrepareRasterizer();
-		this.#PrepareOutputMerger()
+		this.#PrepareOutputMerger();
+		this.#PrepareRasterizer(); // Rasterizer AFTER output merger due to scissor needing up-to-date render target details!
 
 		this.#gl.drawArrays(
 			this.#GetGLPrimitiveType(this.#primitiveTopology),
@@ -1558,8 +1576,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#PrepareShaders();
 		this.#PrepareConstantBuffers();
 		this.#PrepareTexturesAndSamplers();
-		this.#PrepareRasterizer();
-		this.#PrepareOutputMerger()
+		this.#PrepareOutputMerger();
+		this.#PrepareRasterizer(); // Rasterizer AFTER output merger due to scissor needing up-to-date render target details!
 
 		// Get proper format
 		let format = this.#gl.UNSIGNED_SHORT;
@@ -1583,7 +1601,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	Flush()
 	{
 		// TODO: Experiement with flush() vs. finish()
-		this.#gl.flush();
+		this.#gl.finish();
 	}
 
 	// NOTE: Not using all of the params just yet

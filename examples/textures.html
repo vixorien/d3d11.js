@@ -305,7 +305,7 @@
 		{
 			// Adjust exposure and re-create all PBR assets
 			globalHDRExposure = val;
-			globalUpdateHDRMap = 1;
+			globalSky.SetHDRExposure(val);
 		}
 
 		window.loadSixFaces = async function ()
@@ -403,39 +403,7 @@
 			let fileInput = document.getElementById("hdrFile");
 			let [width, height, data] = await TextureUtils.LoadHDRFileLocal(fileInput);
 
-			globalSky.LoadEquirectHDR(width, height, data);
-
-			//// Release if necessary
-			//if (globalHDROriginalSRV != null)
-			//	globalHDROriginalSRV.Release();
-
-			//// Put this data into a texture
-			//let hdrDesc = new D3D11_TEXTURE2D_DESC(
-			//	width,
-			//	height,
-			//	1,
-			//	1,
-			//	DXGI_FORMAT_R32G32B32A32_FLOAT,
-			//	new DXGI_SAMPLE_DESC(1, 0),
-			//	D3D11_USAGE_DEFAULT,
-			//	D3D11_BIND_SHADER_RESOURCE,
-			//	0,
-			//	0);
-			//let hdrTexture = globalDevice.CreateTexture2D(hdrDesc, [data]);
-			//globalHDROriginalSRV = globalDevice.CreateShaderResourceView(hdrTexture, null);
-			//hdrTexture.Release(); // Just need the SRV
-
-			//// Copy the equirect to a cube map
-			//globalSkySRV.Release();
-			//globalSkySRV = copyEquirectToCube(globalHDROriginalSRV, DXGI_FORMAT_R32G32B32A32_FLOAT, true, globalHDRExposure, globalEquirectToCubePS, globalFullscreenVS);
-			//globalSkyIsHDR = true;
-
-			//// Create new indirect PBR maps
-			//globalIrrSRV.Release();
-			//globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
-
-			//globalIBLSpecSRV.Release();
-			//globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, globalIBLMipsToSkip, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
+			globalSky.LoadEquirectHDR(width, height, data, globalHDRExposure);
 		}
 
 

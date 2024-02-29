@@ -36,6 +36,7 @@ export class Sky
 	// Pipeline
 	#skyRasterState;
 	#skyDepthState;
+	#scissorRasterState;
 
 	// HDR specific
 	#isHDR;
@@ -55,16 +56,20 @@ export class Sky
 	#fullscreenVS;
 
 	// Progressive updating
-	#progressiveUpdate;
+	#progressiveUpdate = true;
+	#maxUpdateTileSize = 1024;
 
 	#lutDirty;
+	#lutTileUpdate;
 
 	#irrDirty;
 	#irrFaceUpdate;
+	#irrTileUpdate;
 
 	#specDirty;
 	#specMipUpdate;
 	#specFaceUpdate;
+	#specTileUpdate;
 
 
 	constructor(
@@ -151,6 +156,18 @@ export class Sky
 			D3D11_CULL_FRONT);
 		this.#skyRasterState = this.#d3dDevice.CreateRasterizerState(skyRastDesc);
 
+		// Create a rasterizer state for using a scissor rect
+		let scissorDesc = new D3D11_RASTERIZER_DESC(
+			D3D11_FILL_SOLID,
+			D3D11_CULL_BACK,
+			false,
+			0,
+			0,
+			0,
+			true,
+			true);
+		this.#scissorRasterState = this.#d3dDevice.CreateRasterizerState(scissorDesc);
+
 		// Create a depth/stencil state so we accept equal depth values
 		let skyDepthDesc = new D3D11_DEPTH_STENCIL_DESC(
 			true,
@@ -184,21 +201,22 @@ export class Sky
 		this.#CreateIrradianceTexture();
 		this.#CreateSpecularIBLTexture();
 
-		// Look up table only needs to be made once
-		this.#lutDirty = true;
+		// Set dirty to start
 		this.#MarkIBLDirty();
-
-		this.#progressiveUpdate = true;
+		this.#lutDirty = true; // Look up table only needs to be made once
+		this.#lutTileUpdate = 0;
 	}
 
 	#MarkIBLDirty()
 	{
 		this.#irrDirty = true;
 		this.#irrFaceUpdate = 0;
+		this.#irrTileUpdate = 0;
 
 		this.#specDirty = true;
 		this.#specMipUpdate = 0;
 		this.#specFaceUpdate = 0;
+		this.#specTileUpdate = 0;
 	}
 	
 
@@ -219,10 +237,8 @@ export class Sky
 		if (pixelData == null || pixelData.length == 0)
 			throw new Error("Invalid or empty pixel data for equirectangular HDR data");
 
-		if (this.#equirectSRV != null)
-			this.#equirectSRV.Release();
-
 		// Save exposure
+		this.#isHDR = true;
 		this.#hdrExposure = hdrExposure;
 
 		// Determine the color format
@@ -230,6 +246,10 @@ export class Sky
 		if (pixelData instanceof Float32Array) format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		else if (pixelData instanceof Uint16Array) format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		else throw new Error("Invalid data type for equirectangular HDR pixel data");
+
+		// Reset if necessary
+		if (this.#equirectSRV != null)
+			this.#equirectSRV.Release();
 
 		let hdrDesc = new D3D11_TEXTURE2D_DESC(
 			width,
@@ -250,13 +270,23 @@ export class Sky
 		this.#CopyEquirectToCube();
 
 		// All done
-		this.#isHDR = true;
 		this.#MarkIBLDirty();
 	}
 
 	LoadDDS()
 	{
 
+	}
+
+	SetHDRExposure(exp)
+	{
+		this.#hdrExposure = exp;
+
+		if (this.#isHDR)
+		{
+			this.#CopyEquirectToCube(); // Update sky cube with new exposure
+			this.#MarkIBLDirty(); // Re-create IBL to match
+		}
 	}
 
 	Update()
@@ -286,7 +316,7 @@ export class Sky
 		
 		// PS cbuffer
 		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
-		this.#cbPSData.set([mipLevelPreview]);
+		this.#cbPSData.set([mipLevelPreview, this.#isHDR ? 1.0 : 0.0]);
 		this.#d3dContext.UpdateSubresource(this.#cbPS, 0, null, this.#cbPSData, 0, 0);
 
 		// Set up texture
@@ -342,6 +372,25 @@ export class Sky
 			true);
 	}
 
+	#GetNumTiles(tileSize, fullWidth, fullHeight)
+	{
+		return Math.ceil(fullWidth / tileSize) * Math.ceil(fullHeight / tileSize);
+	}
+
+	#GetScissorRectFromTileIndex(tileIndex, tileSize, fullWidth, fullHeight)
+	{
+		let numTilesX = Math.ceil(fullWidth / tileSize);
+		//let numTilesY = Math.ceil(fullHeight / tileSize);
+
+		let col = Math.floor(tileIndex % numTilesX);
+		let row = Math.floor(tileIndex / numTilesX);
+
+		let x = tileSize * col;
+		let y = tileSize * row;
+
+		// Note: Left, Top, Right, Bottom!
+		return new D3D11_RECT(x, y, x + tileSize, y + tileSize);
+	}
 
 	#RenderBrdfLookUpTable()
 	{
@@ -361,18 +410,59 @@ export class Sky
 		let vp = new D3D11_VIEWPORT(0, 0, this.BRDFLookUpTableSize, this.BRDFLookUpTableSize, 0, 1);
 		this.#d3dContext.RSSetViewports([vp]);
 
+		// Check the overall size against the max tile size
+		let singleTileUpdate = false;
+		let numTiles = 1;
+		if (this.#progressiveUpdate)
+		{
+			// What's the tile size we need?
+			let tileSize = this.BRDFLookUpTableSize;
+			if (tileSize > this.#maxUpdateTileSize)
+				tileSize = this.#maxUpdateTileSize;
+
+			// How many tiles based on tile size?
+			numTiles = this.#GetNumTiles(tileSize, this.BRDFLookUpTableSize, this.BRDFLookUpTableSize);
+			
+			// Is current one valid?
+			if (numTiles > 1 && this.#lutTileUpdate >= 0 && this.#lutTileUpdate < numTiles)
+			{
+				let rect = this.#GetScissorRectFromTileIndex(this.#lutTileUpdate, tileSize, this.BRDFLookUpTableSize, this.BRDFLookUpTableSize);
+				this.#d3dContext.RSSetScissorRects([rect]);
+				this.#d3dContext.RSSetState(this.#scissorRasterState);
+
+				singleTileUpdate = true;
+			}
+		}
+
 		// Draw
 		this.#d3dContext.PSSetShader(this.#brdfLutPS);
 		this.#d3dContext.VSSetShader(this.#fullscreenVS);
 		this.#d3dContext.Draw(3, 0);
-		//this.#d3dContext.Flush();
+
+		// If this was a single tile update, reset everything and progress to the next tile
+		if (singleTileUpdate)
+		{
+			this.#d3dContext.RSSetState(null);
+			this.#d3dContext.RSSetScissorRects([null]);
+
+			this.#lutTileUpdate++;
+			if (this.#lutTileUpdate >= numTiles)
+			{
+				this.#lutTileUpdate = 0;
+				this.#lutDirty = false;
+
+			}
+		}
+		else // Did the full surface, so we're done after this
+		{
+			this.#lutDirty = false;
+		}
 
 		// Finish up
 		this.#d3dContext.OMSetRenderTargets([oldRTVs[0]], dsv);
 		this.#d3dContext.RSSetViewports([oldVP]);
 		lutTexture.Release();
 		rtv.Release();
-		this.#lutDirty = false;
 	}
 
 	#RenderIrradianceMap()
@@ -385,6 +475,8 @@ export class Sky
 		let startFace = 0;
 		let endFace = 6;
 		let singleFaceUpdate = false;
+		let numTiles = 1;
+		let singleTileUpdate = false;
 		if (this.#progressiveUpdate &&
 			this.#irrFaceUpdate >= 0 && this.#irrFaceUpdate < 6) // Must be a valid face
 		{
@@ -392,6 +484,27 @@ export class Sky
 			startFace = this.#irrFaceUpdate;
 			endFace = startFace + 1;
 			singleFaceUpdate = true;
+
+			// TILES ----
+			// What's the tile size we need?
+			let tileSize = this.IrradianceCubeSize;
+			if (tileSize > this.#maxUpdateTileSize)
+				tileSize = this.#maxUpdateTileSize;
+
+			// How many tiles based on tile size?
+			numTiles = this.#GetNumTiles(tileSize, this.IrradianceCubeSize, this.IrradianceCubeSize);
+
+			// Is current one valid?
+			if (numTiles > 1 && this.#irrTileUpdate >= 0 && this.#irrTileUpdate < numTiles)
+			{
+				this.#d3dContext.RSSetState(this.#scissorRasterState);
+				this.#d3dContext.RSSetScissorRects([
+					this.#GetScissorRectFromTileIndex(this.#irrTileUpdate, tileSize, this.IrradianceCubeSize, this.IrradianceCubeSize)
+				]);
+
+				singleTileUpdate = true;
+			}
+		
 		}
 
 		// Grab texture and rt
@@ -439,8 +552,30 @@ export class Sky
 			faceRTV.Release();
 		}
 
-		// Was this a single face update?
-		if (singleFaceUpdate)
+		// Was this a single tile update?
+		if (singleTileUpdate) // Implies a single face update, too
+		{
+			this.#d3dContext.RSSetState(null);
+			this.#d3dContext.RSSetScissorRects([null]);
+
+			// Next tile
+			this.#irrTileUpdate++;
+
+			// Done with all tiles?
+			if (this.#irrTileUpdate >= numTiles)
+			{
+				this.#irrTileUpdate = 0;
+				this.#irrFaceUpdate++; // Next face
+			}
+
+			// Done with all faces?
+			if (this.#irrFaceUpdate >= 6)
+			{
+				this.#irrFaceUpdate = 0;
+				this.#irrDirty = false;
+			}
+		}
+		else if (singleFaceUpdate) // Was this a single face update but NOT a single tile update
 		{
 			// Now that we've set the face for this update, increment for next time
 			this.#irrFaceUpdate++;
@@ -483,6 +618,8 @@ export class Sky
 		let startFace = 0;
 		let endFace = 6;
 		let singleFaceUpdate = false;
+		let numTiles = 1;
+		let singleTileUpdate = false;
 		if (this.#progressiveUpdate &&
 			this.#specFaceUpdate >= 0 && this.#specFaceUpdate < 6) // Must be a valid face
 		{
@@ -490,6 +627,26 @@ export class Sky
 			startFace = this.#specFaceUpdate;
 			endFace = startFace + 1;
 			singleFaceUpdate = true;
+
+			// TILES ----
+			// What's the tile size we need?
+			let tileSize = this.SpecularIBLCubeSize;
+			if (tileSize > this.#maxUpdateTileSize)
+				tileSize = this.#maxUpdateTileSize;
+
+			// How many tiles based on tile size?
+			numTiles = this.#GetNumTiles(tileSize, this.SpecularIBLCubeSize, this.SpecularIBLCubeSize);
+
+			// Is current one valid?
+			if (numTiles > 1 && this.#specTileUpdate >= 0 && this.#specTileUpdate < numTiles)
+			{
+				this.#d3dContext.RSSetState(this.#scissorRasterState);
+				this.#d3dContext.RSSetScissorRects([
+					this.#GetScissorRectFromTileIndex(this.#specTileUpdate, tileSize, this.SpecularIBLCubeSize, this.SpecularIBLCubeSize)
+				]);
+
+				singleTileUpdate = true;
+			}
 		}
 
 
@@ -549,8 +706,37 @@ export class Sky
 			}
 		}
 
-		// Was this a single face update?
-		if (singleFaceUpdate)
+		// Was this a single tile update?
+		if (singleTileUpdate) // Implies a single face update, too
+		{
+			this.#d3dContext.RSSetState(null);
+			this.#d3dContext.RSSetScissorRects([null]);
+
+			// Next tile
+			this.#specTileUpdate++;
+
+			// Done with all tiles?
+			if (this.#specTileUpdate >= numTiles)
+			{
+				this.#specTileUpdate = 0;
+				this.#specFaceUpdate++; // Next face
+			}
+
+			// Done with all faces?
+			if (this.#specFaceUpdate >= 6)
+			{
+				this.#specFaceUpdate = 0;
+				this.#specMipUpdate++;
+			}
+
+			// Done with all mips?
+			if (this.#specMipUpdate >= this.SpecularIBLMipsTotal)
+			{
+				this.#specMipUpdate = 0;
+				this.#specDirty = false;
+			}
+		}
+		else if (singleFaceUpdate)
 		{
 			// Now that we've set the face for this update, increment for next time
 			this.#specFaceUpdate++;
@@ -558,8 +744,8 @@ export class Sky
 			// Done with all faces for this mip?
 			if (this.#specFaceUpdate >= 6)
 			{
-				this.#specMipUpdate++;
 				this.#specFaceUpdate = 0;
+				this.#specMipUpdate++;
 			}
 
 			// Done with all mips?
@@ -618,8 +804,9 @@ export class Sky
 		// Grab the texture itself
 		let cubeTexture = this.SkyCubeSRV.GetResource();
 	
-		// Set exposure adjustment value (2nd float in cbuffer)
-		this.#cbPSData.set([this.#hdrExposure], 1);
+		// Set extra PS data
+		this.#cbPSData.set([this.#hdrExposure], 1); // Exposure adjustment
+		this.#cbPSData.set([this.#isHDR ? 1 : 0], 2); // Is ths environment HDR?
 
 		// Set up viewport
 		let oldVP = this.#d3dContext.RSGetViewports()[0];
