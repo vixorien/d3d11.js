@@ -261,30 +261,14 @@
 		import { Mesh } from "../build/mesh.js";
 		import { Sky } from "../build/sky.js";
 
-		let globalHDROriginalSRV = null; // So we can change exposure on the fly
-		let globalSkySRV = null;
-		let globalIrrSRV = null;
-		let globalIBLSpecSRV = null;
-
+		// Global vars we can use in window functions
 		let globalSky = null;
-
-		let globalIBLMips = -1;
-		let globalIBLMipsToSkip = 3;
-		let globalSkyIsHDR = false;
-		let globalSkyMipLevelPreview = 0;
 		let globalHDRExposure = 0;
-		let globalUpdateHDRMap = 0;
-		let globalUpdateIrrFace = 0;
-		let globalUpdateSpecFace = 0;
-
-		let globalIBLSampler = null;
-		let globalIrrPS = null;
-		let globalIBLSpecPS = null;
-		let globalEquirectToCubePS = null;
-		let globalFullscreenVS = null;
-
+		let globalSkyMipLevelPreview = 0;
 		let globalTonemapType = 0;
 		let globalTonemapExposure = 0;
+		let globalDevice = null;
+		let globalContext = null;
 
 		window.setTonemapType = function(val)
 		{
@@ -348,15 +332,8 @@
 				fileURLs[i] = new Blob([cubeDataArray]);
 			}
 
-			// All loaded - Attempt to load as a cube map
-			globalSkySRV = await loadTextureCube(globalDevice, globalContext, fileURLs, true, true);
-			globalSkyIsHDR = false;
-
-			globalIrrSRV.Release();
-			globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
-
-			globalIBLSpecSRV.Release();
-			globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, globalIBLMipsToSkip, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
+			// All loaded - Attempt to load as a cube map (assuming NOT hdr)
+			globalSky.LoadCubeMap(await loadTextureCube(globalDevice, globalContext, fileURLs, true, true), false);
 		}
 		
 
@@ -485,346 +462,6 @@
 			return text;
 		}
 
-		function copyEquirectToCube(equirectSRV, dxgiFormat, generateMips, exposureAdjust, ps, vs)
-		{
-			// Grab the resource and its description from the SRV
-			let equirectRes = equirectSRV.GetResource();
-			let equirectDesc = equirectRes.GetDesc();
-			equirectRes.Release();
-
-			// Validate size
-			if (equirectDesc.Width != equirectDesc.Height * 2)
-				throw new Error("Invalid dimensions for equirect map");
-
-			// Collect info on cube
-			let cubeSize = equirectDesc.Width / 4;
-			let mips = 1;
-			if (generateMips)
-			{
-				mips = Math.floor(Math.log2(cubeSize)) + 1;
-			}
-
-			// Create empty cube map
-			let cubeDesc = new D3D11_TEXTURE2D_DESC(
-				cubeSize,
-				cubeSize,
-				mips,
-				6, // 6 faces (as array elements)
-				dxgiFormat,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-				0,
-				D3D11_RESOURCE_MISC_TEXTURECUBE | (generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0));
-			let cubeTexture = globalDevice.CreateTexture2D(cubeDesc, null);
-			let cubeSRV = globalDevice.CreateShaderResourceView(cubeTexture, null);
-
-
-			// Constant buffer for per-face data (index)
-			let cbDesc = new D3D11_BUFFER_DESC(
-				Float32Array.BYTES_PER_ELEMENT * 4,
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-			let cb = globalDevice.CreateBuffer(cbDesc, null);
-			let cbData = new Float32Array(4); // Must be mutliple of 16 bytes
-
-			// Second float is exposure
-			cbData.set([exposureAdjust], 1); 
-			
-			// Set up viewport
-			let oldVP = globalContext.RSGetViewports()[0];
-			let vp = new D3D11_VIEWPORT(0, 0, cubeSize, cubeSize, 0, 1);
-			globalContext.RSSetViewports([vp]);
-
-			// Get existing render targets
-			let [rts, dsv] = globalContext.OMGetRenderTargets();
-
-			// Process each face
-			globalContext.VSSetShader(vs);
-			globalContext.PSSetShader(ps);
-			globalContext.PSSetConstantBuffers(0, [cb]);
-			globalContext.PSSetShaderResources(0, [equirectSRV]);
-			globalContext.PSSetSamplers(0, [globalIBLSampler]);
-			for (let face = 0; face < 6; face++)
-			{
-				// RTV for this face
-				let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
-					dxgiFormat,
-					D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
-					0,
-					face,
-					1);
-				let faceRTV = globalDevice.CreateRenderTargetView(cubeTexture, faceRTVDesc);
-
-				// Set cb data
-				cbData.set([face], 0);
-				globalContext.UpdateSubresource(cb, 0, null, cbData, 0, 0);
-
-				// Draw and flush to ensure we're done
-				globalContext.OMSetRenderTargets([faceRTV], null);
-				globalContext.Draw(3, 0);
-				globalContext.Flush();
-
-				faceRTV.Release();
-			}
-
-			// Generate mip maps for the enviroment map for later IBL steps
-			if (generateMips)
-			{
-				globalContext.GenerateMips(cubeSRV);
-			}
-
-			// Clean up
-			cb.Release();
-			cubeTexture.Release(); // SRV has ref
-			globalContext.RSSetViewports([oldVP]);
-			globalContext.OMSetRenderTargets(rts, dsv); // Restore old targets
-
-			return cubeSRV;
-		}
-
-		function createBrdfLookUpTable(device, context, size, ps, vs)
-		{
-			let lutDesc = new D3D11_TEXTURE2D_DESC(
-				size,
-				size,
-				1,
-				1,
-				DXGI_FORMAT_R16G16_FLOAT,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-				0,
-				0);
-			let lutTexture = device.CreateTexture2D(lutDesc, null);
-			let lutSRV = device.CreateShaderResourceView(lutTexture, null);
-
-			// RTV
-			let rtv = device.CreateRenderTargetView(lutTexture, null);
-			context.OMSetRenderTargets([rtv], null);
-
-			// Set up viewport
-			let oldVP = context.RSGetViewports()[0];
-			let vp = new D3D11_VIEWPORT(0, 0, size, size, 0, 1);
-			context.RSSetViewports([vp]);
-
-			// Draw
-			context.PSSetShader(ps);
-			context.VSSetShader(vs);
-			context.Draw(3, 0);
-			context.Flush();
-
-			// Finish up before returning the view
-			context.RSSetViewports([oldVP]);
-			lutTexture.Release();
-			rtv.Release();
-			return lutSRV;
-		}
-
-
-		function createIrradianceMap(device, context, mapSize, skySRV, sampler, ps, vs, format, envIsHDR)
-		{
-			// Get the size of the sky box
-			let res = skySRV.GetResource();
-			let cubeSize = res.GetDesc().Width;
-			res.Release(); // Release the new ref
-
-			// Create an empty texture cube for irradiance
-			let cubeDesc = new D3D11_TEXTURE2D_DESC(
-				mapSize,
-				mapSize,
-				1, // No mips
-				6, // 6 faces (as array elements)
-				format,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-				0,
-				D3D11_RESOURCE_MISC_TEXTURECUBE);
-			let irrTexture = device.CreateTexture2D(cubeDesc, null);
-			let irrSRV = device.CreateShaderResourceView(irrTexture, null);
-
-			// Constant buffer for per-face data (index)
-			let cbDesc = new D3D11_BUFFER_DESC(
-				Float32Array.BYTES_PER_ELEMENT * 4,
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-			let cb = device.CreateBuffer(cbDesc, null);
-			let cbData = new Float32Array(4);
-
-			// Set up viewport
-			let oldVP = context.RSGetViewports()[0];
-			let vp = new D3D11_VIEWPORT(0, 0, mapSize, mapSize, 0, 1);
-			context.RSSetViewports([vp]);
-
-			// Process each face
-			context.VSSetShader(vs);
-			context.PSSetShader(ps);
-			context.PSSetConstantBuffers(0, [cb]);
-			context.PSSetShaderResources(0, [skySRV]);
-			context.PSSetSamplers(0, [sampler]);
-			for (let face = 0; face < 6; face++)
-			{
-				// RTV for this face
-				let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
-					format,
-					D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
-					0,
-					face,
-					1);
-				let faceRTV = device.CreateRenderTargetView(irrTexture, faceRTVDesc);
-
-				// Set cb data
-				cbData.set([
-					face,
-					envIsHDR ? 1 : 0,
-					cubeSize
-				]);
-				
-				context.UpdateSubresource(cb, 0, null, cbData, 0, 0);
-
-				// Draw and flush to ensure we're done
-				context.OMSetRenderTargets([faceRTV], null);
-				context.Draw(3, 0);
-				context.Flush();
-
-				faceRTV.Release();
-			}
-
-			// Release and clean up
-			cb.Release();
-			irrTexture.Release();
-			context.RSSetViewports([oldVP]);
-			return irrSRV;
-		}
-
-		function createIBLSpecularMap(device, context, mapSize, iblSpecMipsToSkip, skySRV, sampler, ps, vs, format, envIsHDR)
-		{
-			let usePreviousMipForNextMip = false;
-
-			// Get the size of the sky box
-			let res = skySRV.GetResource();
-			let cubeSize = res.GetDesc().Width;
-			res.Release(); // Release the new ref
-
-			// How many mips do we need?
-			globalIBLMips = Math.max(Math.log2(mapSize) + 1 - iblSpecMipsToSkip, 1); // Add 1 for 1x1
-			
-			// Create an empty texture cube for specular
-			let cubeDesc = new D3D11_TEXTURE2D_DESC(
-				mapSize,
-				mapSize,
-				globalIBLMips,
-				6, // 6 faces (as array elements)
-				format,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-				0,
-				D3D11_RESOURCE_MISC_TEXTURECUBE);
-			let specTexture = device.CreateTexture2D(cubeDesc, null);
-			let specSRV = device.CreateShaderResourceView(specTexture, null);
-			
-			// Constant buffer for per-face data
-			let cbDesc = new D3D11_BUFFER_DESC(
-				Float32Array.BYTES_PER_ELEMENT * 8,
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-			let cb = device.CreateBuffer(cbDesc, null);
-			let cbData = new Float32Array(8);
-
-			// Set up viewport
-			let oldVP = context.RSGetViewports()[0];
-
-			// Prepare overall pipeline
-			context.VSSetShader(vs);
-			context.PSSetShader(ps);
-			context.PSSetConstantBuffers(0, [cb]);
-			context.PSSetSamplers(0, [sampler]);
-
-			let srvForMip = skySRV;
-
-			// Process each mip
-			for (let mip = 0; mip < globalIBLMips; mip++)
-			{
-				// Set the viewport for this mip size
-				let mipSize = Math.pow(2, globalIBLMips + iblSpecMipsToSkip - 1 - mip);
-
-				let vp = new D3D11_VIEWPORT(0, 0, mipSize, mipSize, 0, 1);
-				context.RSSetViewports([vp]);
-
-				// After the first mip, we need to use the previous for sampling
-				if (mip > 0 && usePreviousMipForNextMip)
-				{
-					let mipSRVDesc = new D3D11_SHADER_RESOURCE_VIEW_DESC(
-						format,
-						D3D11_SRV_DIMENSION_TEXTURECUBE,
-						mip - 1,
-						1,
-						0,
-						1);
-					srvForMip = device.CreateShaderResourceView(specTexture, mipSRVDesc);
-				}
-
-				// Set the SRV for this render
-				context.PSSetShaderResources(0, [srvForMip]);
-
-				// Roughness for this mip
-				let roughness = mip / Math.max(globalIBLMips - 1.0, 1.0);
-
-				// Process each face
-				for (let face = 0; face < 6; face++)
-				{
-					// RTV for this face
-					let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
-						format,
-						D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
-						mip,
-						face,
-						1);
-					let faceRTV = device.CreateRenderTargetView(specTexture, faceRTVDesc);
-
-					// Set cb data
-					cbData.set([
-						roughness,
-						face,
-						mip,
-						envIsHDR ? 1 : 0,
-						cubeSize
-					]);
-					context.UpdateSubresource(cb, 0, null, cbData, 0, 0);
-
-					// Draw and flush to ensure we're done
-					context.OMSetRenderTargets([faceRTV], null);
-					context.Draw(3, 0);
-					context.Flush();
-
-					faceRTV.Release();
-				}
-
-				// Done with this mip?
-				if (mip > 0 && globalIBLMips > 1 && usePreviousMipForNextMip)
-				{
-					srvForMip.Release();
-				}
-			}
-
-			// Clean up and done
-			cb.Release();
-			specTexture.Release();
-			context.RSSetViewports([oldVP]);
-			return specSRV;
-		}
-
-		let globalDevice = null;
-		let globalContext = null;
-
 		async function main()
 		{
 			let postprocessing = true;
@@ -914,8 +551,6 @@
 				false,
 				true
 			);
-			globalSkySRV = skySRV;
-			globalSkyIsHDR = false;
 			context.PSSetShaderResources(4, [skySRV]);
 
 			// Create/release test
@@ -1117,28 +752,15 @@
 			let iblIrradiancePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
 			let iblSpecularPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
 
-			// Create IBL textures
-			let lutSRV = createBrdfLookUpTable(device, context, 1024, brdfLutPS, fullscreenVS);
-			let irrSRV = createIrradianceMap(device, context, 256, skySRV, sampler, iblIrradiancePS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
-			let iblSpecSRV = createIBLSpecularMap(device, context, 512, globalIBLMipsToSkip, skySRV, sampler, iblSpecularPS, fullscreenVS, DXGI_FORMAT_R16G16B16A16_FLOAT, false);
-			globalIrrSRV = irrSRV;
-			globalIBLSpecSRV = iblSpecSRV;
-
-			// Save other globals for skybox load (TEMP)
-			globalIBLSampler = sampler;
-			globalIrrPS = iblIrradiancePS;
-			globalIBLSpecPS = iblSpecularPS;
-			globalEquirectToCubePS = equirectToCubePS;
-			globalFullscreenVS = fullscreenVS;
 
 			// Create the sky object
 			globalSky = new Sky(device, context,
-				skySRV, false,
 				skyVS, skyPS, cubeMesh,
 				DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
 				DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
 				DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
 				equirectToCubePS, fullscreenVS);
+			globalSky.LoadCubeMap(skySRV, false);
 
 			// Texture saving test
 			let ddsTest = false;
@@ -1315,38 +937,9 @@
 					cameraPosition = Vector3.Add(cameraPosition, cameraMoveAbsolute);
 				}
 
+				// Check for any progressive IBL updates
 				globalSky.Update();
 
-				// Any skybox updates?
-				if (globalSkyIsHDR)
-				{
-					// Yes, so check for which update, if any
-					switch (globalUpdateHDRMap)
-					{
-						case 1:
-							globalSkySRV.Release();
-							globalSkySRV = copyEquirectToCube(globalHDROriginalSRV, DXGI_FORMAT_R32G32B32A32_FLOAT, true, globalHDRExposure, globalEquirectToCubePS, globalFullscreenVS);
-							globalUpdateHDRMap++;
-							break;
-
-						case 2:
-							globalIrrSRV.Release();
-							globalIrrSRV = createIrradianceMap(globalDevice, globalContext, 64, globalSkySRV, globalIBLSampler, globalIrrPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
-							globalUpdateHDRMap++;
-							break;
-
-						case 3:
-							globalIBLSpecSRV.Release();
-							globalIBLSpecSRV = createIBLSpecularMap(globalDevice, globalContext, 512, globalIBLMipsToSkip, globalSkySRV, globalIBLSampler, globalIBLSpecPS, globalFullscreenVS, DXGI_FORMAT_R32G32B32A32_FLOAT, true);
-							globalUpdateHDRMap++;
-							break;
-
-						default:
-							globalUpdateHDRMap = 0;
-							break;
-					}
-					
-				}
 			}
 
 			function checkForResize()
@@ -1427,7 +1020,7 @@
 				checkForResize();
 
 				// Set up tone mapping if necessary
-				if (globalSkyIsHDR)
+				if (globalSky.IsHDR())
 				{
 					context.OMSetRenderTargets([ppRTV], depthDSV);
 				}
@@ -1502,7 +1095,7 @@
 					psData.set(cameraPosition, 0);
 					psData.set([globalSky.SpecularIBLMipsTotal], 8);
 					psData.set([lightCount], 9);  // Set light count (all lights)
-					psData.set([globalSkyIsHDR ? 1 : 0], 10); // Set HDR switch
+					psData.set([globalSky.IsHDR ? 1 : 0], 10); // Set HDR switch
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 					// Textures
@@ -1568,11 +1161,11 @@
 
 				// Skybox
 				{
-					globalSky.Draw(vMat, pMat);
+					globalSky.Draw(vMat, pMat, globalSkyMipLevelPreview);
 				}
 
 				// Finalize post processing if necessary
-				if (globalSkyIsHDR)
+				if (globalSky.IsHDR())
 				{
 					context.OMSetRenderTargets([rtv], null);
 					context.VSSetShader(fullscreenVS);

@@ -123,8 +123,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float3 fullIndirect = (indirectDiffuse * albedo * saturate(1.0 - metal)) + indirectSpecular;
 
 	float3 finalColor = color + fullIndirect;
-	if (envIsHDR == 0.0)
-		finalColor = pow(finalColor, 1.0 / 2.2);
+	finalColor = pow(finalColor, 1.0 / 2.2);
 
 	return float4(finalColor, 1);
 }

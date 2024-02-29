@@ -56,8 +56,8 @@ export class Sky
 	#fullscreenVS;
 
 	// Progressive updating
-	#progressiveUpdate = true;
-	#maxUpdateTileSize = 128;
+	#progressiveUpdate;
+	#maxUpdateTileSize;
 
 	#lutDirty;
 	#lutTileUpdate;
@@ -75,9 +75,6 @@ export class Sky
 	constructor(
 		d3dDevice,
 		d3dContext,
-
-		cubeSRV, // Skybox format will be read from here
-		isHDR,
 
 		skyVS,
 		skyPS,
@@ -107,13 +104,9 @@ export class Sky
 		this.#skyVS = skyVS;
 		this.#skyMesh = skyMesh;
 
-		this.SkyCubeSRV = cubeSRV;
-		this.SkyColorFormat = cubeSRV.GetDesc().Format;
-		this.#isHDR = isHDR;
-
-		let cubeRes = cubeSRV.GetResource();
-		this.SkyCubeSize = cubeRes.GetDesc().Width;
-		cubeRes.Release();
+		this.SkyCubeSRV = null;
+		this.SkyCubeSize = 0;
+		this.SkyColorFormat = DXGI_FORMAT_UNKNOWN
 
 		this.BRDFLookUpTableColorFormat = brdfLutColorFormat;
 		this.BRDFLookUpTableSize = brdfLutSize;
@@ -133,8 +126,12 @@ export class Sky
 		this.#fullscreenVS = fullscreenVS;
 
 		// Other defaults
-		this.#equirectSRV = null;
+		this.#isHDR = false;
 		this.#hdrExposure = 0;
+		this.#equirectSRV = null;
+
+		this.#progressiveUpdate = true;
+		this.#maxUpdateTileSize = 128;
 
 		// Create a sampler for rendering
 		let sampDesc = new D3D11_SAMPLER_DESC(
@@ -201,24 +198,44 @@ export class Sky
 		this.#CreateIrradianceTexture();
 		this.#CreateSpecularIBLTexture();
 
-		// Set dirty to start
-		this.#MarkIBLDirty();
+		// Not dirty since we don't have a cube map yet
+		this.#ResetIBLDirtyState(false);
 		this.#lutDirty = true; // Look up table only needs to be made once
 		this.#lutTileUpdate = 0;
 	}
 
-	#MarkIBLDirty()
+	IsHDR()
 	{
-		this.#irrDirty = true;
+		return this.#isHDR;
+	}
+
+	#ResetIBLDirtyState(dirty)
+	{
+		this.#irrDirty = dirty;
 		this.#irrFaceUpdate = 0;
 		this.#irrTileUpdate = 0;
 
-		this.#specDirty = true;
+		this.#specDirty = dirty;
 		this.#specMipUpdate = 0;
 		this.#specFaceUpdate = 0;
 		this.#specTileUpdate = 0;
 	}
-	
+
+	LoadCubeMap(cubeSRV, isHDR = false)
+	{
+		// Save cube and grab format straight from SRV
+		this.SkyCubeSRV = cubeSRV;
+		this.SkyColorFormat = cubeSRV.GetDesc().Format;
+		
+		// Go to the texture for the cube dimensions
+		let cubeRes = cubeSRV.GetResource();
+		this.SkyCubeSize = cubeRes.GetDesc().Width;
+		cubeRes.Release();
+
+		// Other setup
+		this.#isHDR = isHDR;
+		this.#ResetIBLDirtyState(true);
+	}
 
 	LoadSixFaces()
 	{
@@ -270,7 +287,7 @@ export class Sky
 		this.#CopyEquirectToCube();
 
 		// All done
-		this.#MarkIBLDirty();
+		this.#ResetIBLDirtyState(true);
 	}
 
 	LoadDDS()
@@ -285,7 +302,7 @@ export class Sky
 		if (this.#isHDR)
 		{
 			this.#CopyEquirectToCube(); // Update sky cube with new exposure
-			this.#MarkIBLDirty(); // Re-create IBL to match
+			this.#ResetIBLDirtyState(true); // Re-create IBL to match
 		}
 	}
 
