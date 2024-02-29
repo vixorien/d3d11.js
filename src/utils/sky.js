@@ -57,7 +57,7 @@ export class Sky
 
 	// Progressive updating
 	#progressiveUpdate = true;
-	#maxUpdateTileSize = 1024;
+	#maxUpdateTileSize = 128;
 
 	#lutDirty;
 	#lutTileUpdate;
@@ -443,7 +443,7 @@ export class Sky
 		if (singleTileUpdate)
 		{
 			this.#d3dContext.RSSetState(null);
-			this.#d3dContext.RSSetScissorRects([null]);
+			//this.#d3dContext.RSSetScissorRects([null]);
 
 			this.#lutTileUpdate++;
 			if (this.#lutTileUpdate >= numTiles)
@@ -556,7 +556,7 @@ export class Sky
 		if (singleTileUpdate) // Implies a single face update, too
 		{
 			this.#d3dContext.RSSetState(null);
-			this.#d3dContext.RSSetScissorRects([null]);
+			//this.#d3dContext.RSSetScissorRects([null]);
 
 			// Next tile
 			this.#irrTileUpdate++;
@@ -630,19 +630,22 @@ export class Sky
 
 			// TILES ----
 			// What's the tile size we need?
-			let tileSize = this.SpecularIBLCubeSize;
+			// TODO: Move this lower to ensure we're using the right mip?
+			let mipSize = Math.pow(2, this.SpecularIBLMipsTotal + this.SpecularIBLMipsToSkip - 1 - startMip);
+
+			let tileSize = mipSize;
 			if (tileSize > this.#maxUpdateTileSize)
 				tileSize = this.#maxUpdateTileSize;
 
 			// How many tiles based on tile size?
-			numTiles = this.#GetNumTiles(tileSize, this.SpecularIBLCubeSize, this.SpecularIBLCubeSize);
+			numTiles = this.#GetNumTiles(tileSize, mipSize, mipSize);
 
 			// Is current one valid?
 			if (numTiles > 1 && this.#specTileUpdate >= 0 && this.#specTileUpdate < numTiles)
 			{
 				this.#d3dContext.RSSetState(this.#scissorRasterState);
 				this.#d3dContext.RSSetScissorRects([
-					this.#GetScissorRectFromTileIndex(this.#specTileUpdate, tileSize, this.SpecularIBLCubeSize, this.SpecularIBLCubeSize)
+					this.#GetScissorRectFromTileIndex(this.#specTileUpdate, tileSize, mipSize, mipSize)
 				]);
 
 				singleTileUpdate = true;
@@ -710,7 +713,7 @@ export class Sky
 		if (singleTileUpdate) // Implies a single face update, too
 		{
 			this.#d3dContext.RSSetState(null);
-			this.#d3dContext.RSSetScissorRects([null]);
+			//this.#d3dContext.RSSetScissorRects([null]);
 
 			// Next tile
 			this.#specTileUpdate++;

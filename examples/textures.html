@@ -1148,6 +1148,9 @@
 				TextureUtils.WriteDDSFile("irr.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 			}
 
+			// Test for scissor
+			let scissorRastState = device.CreateRasterizerState(new D3D11_RASTERIZER_DESC(D3D11_FILL_SOLID, D3D11_CULL_BACK, false, 0, 0, 0, true, true));
+
 			// Reset the render target
 			context.OMSetRenderTargets([rtv], depthDSV);
 

@@ -3487,9 +3487,15 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// TODO: Turn off scissor and buffer write masks, as
 		//       D3D does not take those into account when clearing
 
+		let [width, height] = this.#GetActiveRenderTargetSize();
+		this.#gl.scissor(0, 0, width, height);
+
 		// Clear
 		this.#gl.clearColor(color[0], color[1], color[2], color[3]);
 		this.#gl.clear(this.#gl.COLOR_BUFFER_BIT);
+
+		// Need to update rasterizer due to scissor change
+		this.#scissorRectDirty = true;
 	}
 
 
@@ -4577,26 +4583,17 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		// Need to update scissor rect (and we have a real height)?
 		if (this.#scissorRectDirty && rtHeight > 0 && rtWidth > 0)
 		{
-			// Do we have a scissor rect?
-			if (this.#scissorRect == null)
-			{
-				// No, so use the whole render target
-				this.#gl.scissor(0, 0, rtWidth, rtHeight);
-			}
-			else
-			{
-				// Invert the Y
-				let scissorWidth = this.#scissorRect.Right - this.#scissorRect.Left;
-				let scissorHeight = this.#scissorRect.Bottom - this.#scissorRect.Top;
-				let invertY = rtHeight - scissorHeight;
+			// Invert the Y
+			let scissorWidth = this.#scissorRect.Right - this.#scissorRect.Left;
+			let scissorHeight = this.#scissorRect.Bottom - this.#scissorRect.Top;
+			let invertY = rtHeight - scissorHeight;
 
-				// Set up the GL scissor rect
-				this.#gl.scissor(
-					this.#scissorRect.Left,
-					invertY - this.#scissorRect.Top,
-					scissorWidth,
-					scissorHeight);
-			}
+			// Set up the GL scissor rect
+			this.#gl.scissor(
+				this.#scissorRect.Left,
+				invertY - this.#scissorRect.Top,
+				scissorWidth,
+				scissorHeight);
 			
 			// All clean
 			this.#scissorRectDirty = false;
