@@ -57,7 +57,7 @@ export class Sky
 
 	// Progressive updating
 	#progressiveUpdate;
-	#maxUpdateTileSize;
+	#maxUpdateTileSize; // 0 means full face per update
 
 	#lutDirty;
 	#lutTileUpdate;
@@ -94,7 +94,10 @@ export class Sky
 		iblSpecPS,
 
 		equirectPS,
-		fullscreenVS
+		fullscreenVS,
+
+		progressiveIBLUpdate = true,
+		progressiveMaxTileSize = 64
 	)
 	{
 		this.#d3dDevice = d3dDevice;
@@ -125,13 +128,14 @@ export class Sky
 		this.#equirectToCubePS = equirectPS;
 		this.#fullscreenVS = fullscreenVS;
 
+		// Progressive updating
+		this.#progressiveUpdate = progressiveIBLUpdate;
+		this.#maxUpdateTileSize = Math.max(progressiveMaxTileSize, 0);
+
 		// Other defaults
 		this.#isHDR = false;
 		this.#hdrExposure = 0;
 		this.#equirectSRV = null;
-
-		this.#progressiveUpdate = true;
-		this.#maxUpdateTileSize = 128;
 
 		// Create a sampler for rendering
 		let sampDesc = new D3D11_SAMPLER_DESC(
@@ -434,7 +438,7 @@ export class Sky
 		{
 			// What's the tile size we need?
 			let tileSize = this.BRDFLookUpTableSize;
-			if (tileSize > this.#maxUpdateTileSize)
+			if (tileSize > this.#maxUpdateTileSize && this.#maxUpdateTileSize > 0)
 				tileSize = this.#maxUpdateTileSize;
 
 			// How many tiles based on tile size?
@@ -505,7 +509,7 @@ export class Sky
 			// TILES ----
 			// What's the tile size we need?
 			let tileSize = this.IrradianceCubeSize;
-			if (tileSize > this.#maxUpdateTileSize)
+			if (tileSize > this.#maxUpdateTileSize && this.#maxUpdateTileSize > 0)
 				tileSize = this.#maxUpdateTileSize;
 
 			// How many tiles based on tile size?
@@ -651,7 +655,7 @@ export class Sky
 			let mipSize = Math.pow(2, this.SpecularIBLMipsTotal + this.SpecularIBLMipsToSkip - 1 - startMip);
 
 			let tileSize = mipSize;
-			if (tileSize > this.#maxUpdateTileSize)
+			if (tileSize > this.#maxUpdateTileSize && this.#maxUpdateTileSize > 0)
 				tileSize = this.#maxUpdateTileSize;
 
 			// How many tiles based on tile size?

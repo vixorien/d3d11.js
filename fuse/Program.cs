@@ -37,11 +37,16 @@ namespace Fuse
 	//          output: "./build/out.js"  <-- Single string
 	//       },
 	//       {
-	//          input: [                  <-- Array of one string (effectively a rename)
+	//          input: [                  <-- Array of one string (effectively a rename or copy)
 	//              "./src/rename.js"
 	//          ],
 	//          output: "./build/done.js" <-- Single string
-	//       }
+	//       },
+	//       {
+	//          input: [                  <-- Array of one folder
+	//              "./src/"
+	//          ],
+	//          output: "./build/"       <-- Single folder string
 	//   ]
 	// }
 
@@ -115,25 +120,69 @@ namespace Fuse
 					continue;
 				}
 
-				// We have what we need, attempt the fuse
-				try
+				// Is this a folder copy?
+				if (f.Input.Length == 1 && Directory.Exists(f.Input[0]))
 				{
-					// Read all of the text of each input file and concatenate
-					string combined = "";
-					foreach (string input in f.Input)
+					// Input is a folder, so output must be too
+					if (!Directory.Exists(f.Output))
 					{
-						combined += File.ReadAllText(path + "/" + input);
-						combined += Environment.NewLine;
-						combined += Environment.NewLine;
+						Log($"Input is a folder, but output is not; skipping fuse");
+						errorCount++;
+						continue;
 					}
 
-					File.WriteAllText(path + "/" + f.Output, combined);
+					// Get a listing of all files in the specified folder
+					string[] files = null;
+					try
+					{
+						files = Directory.GetFiles(f.Input[0]);
+					}
+					catch (Exception e)
+					{
+						Log($"Error copying input folder contents into output folder: {e.Message}; skipping fuse");
+						errorCount++;
+						continue;
+					}
+
+					// Copy each file, one by one
+					foreach (string fileToCopy in files)
+					{
+						try
+						{
+							// Isolate the file name
+							string fileNameOnly = Path.GetFileName(fileToCopy);
+							File.Copy(fileToCopy, Path.Combine(f.Output, fileNameOnly), true);
+						}
+						catch (Exception e)
+						{
+							Log($"Error copying input folder contents into output folder: {e.Message}; skipping fuse");
+							errorCount++;
+							continue;
+						}
+					}
 				}
-				catch (Exception e)
+				else
 				{
-					Log($"Error fusing input files into output file: {e.Message}; skipping fuse");
-					errorCount++;
-					continue;
+					// We have what we need, attempt the fuse
+					try
+					{
+						// Read all of the text of each input file and concatenate
+						string combined = "";
+						foreach (string input in f.Input)
+						{
+							combined += File.ReadAllText(path + "/" + input);
+							combined += Environment.NewLine;
+							combined += Environment.NewLine;
+						}
+
+						File.WriteAllText(path + "/" + f.Output, combined);
+					}
+					catch (Exception e)
+					{
+						Log($"Error fusing input files into output file: {e.Message}; skipping fuse");
+						errorCount++;
+						continue;
+					}
 				}
 
 				Log("Fuse completed");

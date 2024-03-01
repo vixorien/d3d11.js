@@ -40,4 +40,3 @@ export class Vertex
 		return Float32Array.BYTES_PER_ELEMENT * this.GetStrideInFloats(); 
 	}
 }
-

@@ -279,4 +279,3 @@ class MouseButtons
 		this.#buttonCode = buttonCode;
 	}
 }
-

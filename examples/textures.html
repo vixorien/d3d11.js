@@ -214,9 +214,10 @@
 						<div class="card-body">
 							<h5 class="card-title">Save IBL Maps</h5>
 							<p>Save any of the generated Image-Based Lighting maps</p>
-							<button class="btn btn-primary mb-1" disabled>Save Convolved Spec Map as DDS</button><br />
-							<button class="btn btn-primary mb-1" disabled>Save Irradiance Map as DDS</button><br />
-							<button class="btn btn-primary mb-1" disabled>Save LUT as PNG</button>
+							<button class="btn btn-primary mb-1" disabled>Save Skybox as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1" disabled>Save IBL Specular as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1" disabled>Save Irradiance as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1" disabled>Save BRDF Look Up Table as DDS Texture</button>
 						</div>
 					</div>
 					<!-- END Card: Save IBL Maps -->
@@ -759,7 +760,8 @@
 				DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
 				DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
 				DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
-				equirectToCubePS, fullscreenVS);
+				equirectToCubePS, fullscreenVS,
+				true, 128);
 			globalSky.LoadCubeMap(skySRV, false);
 
 			// Texture saving test

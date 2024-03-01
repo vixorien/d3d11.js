@@ -19,28 +19,8 @@
 			"output": "./build/d3d11.js"
 		},
 		{
-			"input": [ "./src/utils/d3dmath.js" ],
-			"output": "./build/d3dmath.js"
-		},
-		{
-			"input": [ "./src/utils/input.js" ],
-			"output": "./build/input.js"
-		},
-		{
-			"input": [ "./src/utils/mesh.js" ],
-			"output": "./build/mesh.js"
-		},
-		{
-			"input": [ "./src/utils/sky.js" ],
-			"output": "./build/sky.js"
-		},
-		{
-			"input": [ "./src/utils/textureUtils.js" ],
-			"output": "./build/textureUtils.js"
-		},
-		{
-			"input": [ "./src/utils/vertex.js" ],
-			"output": "./build/vertex.js"
+			"input": [ "./src/utils/" ],
+			"output": "./build/"
 		}
 	]
 }

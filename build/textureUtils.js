@@ -933,5 +933,3 @@ export class TextureUtils
 		return TextureUtils.GetDXGIFormatBytesPerPixel(format) * 8;
 	}
 }
-
-

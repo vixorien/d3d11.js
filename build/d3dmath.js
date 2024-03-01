@@ -638,4 +638,3 @@ export class Matrix4x4 extends Float32Array
 		return mat;
 	}
 }
-
