@@ -194,7 +194,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#BindBackBufferFramebuffer();
 		this.#BindRenderTargets([renderTargetView]);
 
-		// TODO: Turn off scissor and buffer write masks, as
+		// TODO: Turn off buffer write masks, as
 		//       D3D does not take those into account when clearing
 
 		let [width, height] = this.#GetActiveRenderTargetSize();
