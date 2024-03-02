@@ -6,27 +6,25 @@ export class Material
 	PixelShader;
 	Color;
 
+	PSTextureSRVs;
+	PSSamplerStates;
+
 	constructor(vs, ps, color)
 	{
 		this.VertexShader = vs;
 		this.PixelShader = ps;
 		this.Color = color;
+
+		this.PSTextureSRVs = [];
+		this.PSSamplerStates = [];
 	}
-}
 
-export class MaterialPBR extends Material
-{
-	AlbedoSRV;
-	NormalSRV;
-	MetalSRV;
-	RoughSRV;
+	SetPSTextureSRV(index, srv) { this.PSTextureSRVs[index] = srv; }
+	SetPSSamplerState(index, samp) { this.PSSamplerStates[index] = samp; }
 
-	constructor(vs, ps, color, albedoSRV, normalSRV, metalSRV, roughSRV)
+	PrepareMaterial(context)
 	{
-		super(vs, ps, color);
-		this.AlbedoSRV = albedoSRV;
-		this.NormalSRV = normalSRV;
-		this.MetalSRV = metalSRV;
-		this.RoughSRV = roughSRV;
+		context.PSSetShaderResources(0, this.PSTextureSRVs);
+		context.PSSetSamplers(0, this.PSSamplerStates);
 	}
 }

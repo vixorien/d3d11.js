@@ -256,7 +256,7 @@
 	<!-- END bootstrap -->
 	<script type="module">
 
-		import { MaterialPBR } from "../build/material.js";
+		import { Material } from "../build/material.js";
 		import { Transform } from "../build/transform.js";
 		import { Entity } from "../build/entity.js";
 		import { TextureUtils } from "../build/textureUtils.js";
@@ -584,20 +584,6 @@
 
 			context.PSSetSamplers(0, [sampler, clampSampler]);
 
-
-			// Create a rasterizer state for the sky
-			let skyRastDesc = new D3D11_RASTERIZER_DESC(
-				D3D11_FILL_SOLID,
-				D3D11_CULL_FRONT);
-			let skyRastState = device.CreateRasterizerState(skyRastDesc);
-
-			// Create a depth/stencil state for the sky
-			let skyDepthDesc = new D3D11_DEPTH_STENCIL_DESC(
-				true,
-				D3D11_DEPTH_WRITE_MASK_ALL,
-				D3D11_COMPARISON_LESS_EQUAL);
-			let skyDepthState = device.CreateDepthStencilState(skyDepthDesc);
-
 			// Attempt to load a mesh
 			let sphereMesh = await Mesh.LoadFromFile(device, "../assets/meshes/sphere.obj");
 			let helixMesh = await Mesh.LoadFromFile(device, "../assets/meshes/helix.obj");
@@ -769,12 +755,14 @@
 
 
 			// Entity setup
-			let mat = new MaterialPBR(
-				vs, ps, new Vector3(1, 1, 1),
-				albedoSRV,
-				normalSRV,
-				metalSRV,
-				roughSRV); 
+			let mat = new Material(vs, ps, new Vector3(1, 1, 1));
+			mat.SetPSTextureSRV(0, albedoSRV);
+			mat.SetPSTextureSRV(1, normalSRV);
+			mat.SetPSTextureSRV(2, metalSRV);
+			mat.SetPSTextureSRV(3, roughSRV);
+			mat.SetPSSamplerState(0, sampler);
+			mat.SetPSSamplerState(1, clampSampler);
+
 			let entity = new Entity(
 				sphereMesh,
 				mat);
@@ -1108,12 +1096,11 @@
 					psData.set([globalSky.IsHDR ? 1 : 0], 10); // Set HDR switch
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
-					// Textures
-					context.PSSetShaderResources(0, [
-						e.Material.AlbedoSRV,
-						e.Material.NormalSRV,
-						e.Material.MetalSRV,
-						e.Material.RoughSRV,
+					// Set up material
+					e.Material.PrepareMaterial(context);
+
+					// Set up IBL
+					context.PSSetShaderResources(4, [
 						globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
 					]);
 
@@ -1126,32 +1113,6 @@
 				// Main shape draw
 				{
 					DrawEntity(entity);
-					//// Update vertex data
-					//let rot = new Matrix4x4();
-					//Matrix4x4.FillIdentity(rot);//Matrix4x4.RotationY(time * -0.00025);
-
-					//let sc = Matrix4x4.ScaleUniform(currentScale);
-					//wMat = Matrix4x4.Multiply(sc, rot);
-					//vsData.set(wMat, 0);
-					//context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
-
-					//// Update pixel data (set above while lights are moving)
-					//psData.set(cameraPosition, 0);
-					//psData.set([globalSky.SpecularIBLMipsTotal], 8);
-					//psData.set([lightCount], 9);  // Set light count (all lights)
-					//psData.set([globalSky.IsHDR ? 1 : 0], 10); // Set HDR switch
-					//context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
-
-					//// Textures
-					//context.PSSetShaderResources(0, [
-					//	albedoSRV, normalSRV, metalSRV, roughSRV,
-					//	globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
-					//]);
-
-					//// Draw
-					//context.IASetVertexBuffers(0, [currentMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					//context.IASetIndexBuffer(currentMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-					//context.DrawIndexed(currentMesh.IndexCount, 0, 0);
 				}
 
 				// Roughness spheres
