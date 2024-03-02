@@ -115,6 +115,60 @@ export class Vector3 extends Float32Array
 }
 
 
+export class Quaternion extends Float32Array
+{
+	get x() { return this[0]; }
+	get y() { return this[1]; }
+	get z() { return this[2]; }
+	get w() { return this[3]; }
+
+	set x(x) { this[0] = x; }
+	set y(y) { this[1] = y; }
+	set z(z) { this[2] = z; }
+	set w(w) { this[3] = w; }
+
+	constructor(x = 0, y = 0, z = 0, w = 0)
+	{
+		super(4);
+		this.x = x;
+		this.y = y;
+		this.z = z;
+		this.w = w;
+	}
+
+	static Identity()
+	{
+		return new Quaternion(0, 0, 0, 1);
+	}
+
+	// Applied in order: roll, pitch, yaw
+	static FromAngles(pitch, yaw, roll)
+	{
+		// Cut each angle in half
+		pitch *= 0.5;
+		yaw *= 0.5;
+		roll *= 0.5;
+
+		// Sin and cos of each
+		let sinP = Math.sin(pitch);
+		let sinY = Math.sin(yaw);
+		let sinR = Math.sin(roll);
+
+		let cosP = Math.cos(pitch);
+		let cosY = Math.cos(yaw);
+		let cosR = Math.cos(roll);
+
+		// Fill result and return
+		let q = new Quaternion();
+		q.x = cosR * sinP & cosY + sinR * cosP * sinY;
+		q.y = cosR * cosP & sinY - sinR * sinP * cosY;
+		q.z = sinR * cosP & cosY - cosR * sinP * sinY;
+		q.w = cosR * cosP & cosY + sinR * sinP * sinY;
+		return q;
+	}
+}
+
+
 // Note: Fastest way of filling these arrays is manually (one element at a time)
 // - Using fill() is much worse
 // - Using .set() is even worse
@@ -210,6 +264,48 @@ export class Matrix4x4 extends Float32Array
 		mat[4] = -sinAngle;
 		mat[5] = cosAngle;
 		return mat;
+	}
+
+	// Applied as roll, pitch, yaw
+	static RotationAngles(pitch, yaw, roll)
+	{
+		// Sin and cos of each
+		let sinP = Math.sin(pitch);
+		let sinY = Math.sin(yaw);
+		let sinR = Math.sin(roll);
+
+		let cosP = Math.cos(pitch);
+		let cosY = Math.cos(yaw);
+		let cosR = Math.cos(roll);
+
+		let mat = new Matrix4x4();
+
+		mat[0] = cosR * cosY + sinR * sinP * sinY;
+		mat[1] = sinR * cosP;
+		mat[2] = sinR * sinP * cosY + cosR * sinY;
+		mat[3] = 0;
+
+		mat[4] = cosR * sinP * sinY - sinR * cosY;
+		mat[5] = cosR * cosP;
+		mat[6] = sinR * sinY + cosR * sinP * cosY;
+		mat[7] = 0;
+
+		mat[8] = cosP * sinY;
+		mat[9] = -sinP;
+		mat[10] = cosP * cosY;
+		mat[11] = 0;
+
+		mat[12] = 0;
+		mat[13] = 0;
+		mat[14] = 0;
+		mat[15] = 1;
+
+		return mat;
+	}
+
+	static RotationAnglesV(vec3)
+	{
+		return Matrix4x4.RotationAngles(vec3.x, vec3.y, vec3.z);
 	}
 
 	// [x, 0, 0, 0]

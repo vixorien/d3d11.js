@@ -256,6 +256,9 @@
 	<!-- END bootstrap -->
 	<script type="module">
 
+		import { MaterialPBR } from "../build/material.js";
+		import { Transform } from "../build/transform.js";
+		import { Entity } from "../build/entity.js";
 		import { TextureUtils } from "../build/textureUtils.js";
 		import { Vector2, Vector3, Matrix4x4 } from "../build/d3dmath.js";
 		import { Vertex } from "../build/vertex.js";
@@ -764,6 +767,22 @@
 				true, 128);
 			globalSky.LoadCubeMap(skySRV, false);
 
+
+			// Entity setup
+			let mat = new MaterialPBR(
+				vs, ps, new Vector3(1, 1, 1),
+				albedoSRV,
+				normalSRV,
+				metalSRV,
+				roughSRV); 
+			let entity = new Entity(
+				sphereMesh,
+				mat);
+			entity.Transform.ScaleUniform(7);
+
+
+
+
 			// Texture saving test
 			let ddsTest = false;
 			if (ddsTest)
@@ -811,17 +830,7 @@
 			// Ensure we're set for triangles
 			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-			// Sky mip preview constant buffer
-			let skyCBDesc = new D3D11_BUFFER_DESC(
-				Float32Array.BYTES_PER_ELEMENT * 4,
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-			let skyCB = device.CreateBuffer(skyCBDesc, null);
-			let skyData = new Float32Array(4);
-
-
+		
 			// Perform a readback
 			// Need to actually copy to a staging resource!
 			//let readback = new Uint8Array(256*256*4);
@@ -1082,18 +1091,17 @@
 				context.PSSetShader(ps);
 				context.PSSetConstantBuffers(0, [psCB]);
 
-				// Main shape draw
+				function DrawEntity(e)
 				{
-					// Update vertex data
-					let rot = new Matrix4x4();
-					Matrix4x4.FillIdentity(rot);//Matrix4x4.RotationY(time * -0.00025);
+					// Set shaders
+					context.VSSetShader(e.Material.VertexShader);
+					context.PSSetShader(e.Material.PixelShader);
 
-					let sc = Matrix4x4.ScaleUniform(currentScale);
-					wMat = Matrix4x4.Multiply(sc, rot);
-					vsData.set(wMat, 0);
+					// Update vertex data
+					vsData.set(e.Transform.WorldMatrix, 0);
 					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
-					// Update pixel data (set above while lights are moving)
+					// Update pixel data
 					psData.set(cameraPosition, 0);
 					psData.set([globalSky.SpecularIBLMipsTotal], 8);
 					psData.set([lightCount], 9);  // Set light count (all lights)
@@ -1102,14 +1110,48 @@
 
 					// Textures
 					context.PSSetShaderResources(0, [
-						albedoSRV, normalSRV, metalSRV, roughSRV,
+						e.Material.AlbedoSRV,
+						e.Material.NormalSRV,
+						e.Material.MetalSRV,
+						e.Material.RoughSRV,
 						globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
 					]);
 
 					// Draw
-					context.IASetVertexBuffers(0, [currentMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					context.IASetIndexBuffer(currentMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-					context.DrawIndexed(currentMesh.IndexCount, 0, 0);
+					context.IASetVertexBuffers(0, [e.Mesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+					context.IASetIndexBuffer(e.Mesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+					context.DrawIndexed(e.Mesh.IndexCount, 0, 0);
+				}
+
+				// Main shape draw
+				{
+					DrawEntity(entity);
+					//// Update vertex data
+					//let rot = new Matrix4x4();
+					//Matrix4x4.FillIdentity(rot);//Matrix4x4.RotationY(time * -0.00025);
+
+					//let sc = Matrix4x4.ScaleUniform(currentScale);
+					//wMat = Matrix4x4.Multiply(sc, rot);
+					//vsData.set(wMat, 0);
+					//context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
+
+					//// Update pixel data (set above while lights are moving)
+					//psData.set(cameraPosition, 0);
+					//psData.set([globalSky.SpecularIBLMipsTotal], 8);
+					//psData.set([lightCount], 9);  // Set light count (all lights)
+					//psData.set([globalSky.IsHDR ? 1 : 0], 10); // Set HDR switch
+					//context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
+
+					//// Textures
+					//context.PSSetShaderResources(0, [
+					//	albedoSRV, normalSRV, metalSRV, roughSRV,
+					//	globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
+					//]);
+
+					//// Draw
+					//context.IASetVertexBuffers(0, [currentMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+					//context.IASetIndexBuffer(currentMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+					//context.DrawIndexed(currentMesh.IndexCount, 0, 0);
 				}
 
 				// Roughness spheres

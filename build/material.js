@@ -2,24 +2,28 @@
 
 export class Material
 {
-	ColorTint;
+	VertexShader;
+	PixelShader;
+	Color;
 
-	constructor(colorTint)
+	constructor(vs, ps, color)
 	{
-		this.ColorTint = colorTint;
+		this.VertexShader = vs;
+		this.PixelShader = ps;
+		this.Color = color;
 	}
 }
 
-export class PBRMaterial extends Material
+export class MaterialPBR extends Material
 {
 	AlbedoSRV;
 	NormalSRV;
 	MetalSRV;
 	RoughSRV;
 
-	constructor(colorTint, albedoSRV, normalSRV, metalSRV, roughSRV)
+	constructor(vs, ps, color, albedoSRV, normalSRV, metalSRV, roughSRV)
 	{
-		super(colorTint);
+		super(vs, ps, color);
 		this.AlbedoSRV = albedoSRV;
 		this.NormalSRV = normalSRV;
 		this.MetalSRV = metalSRV;
