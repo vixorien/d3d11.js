@@ -24,6 +24,11 @@ export class Sky
 	BRDFLookUpTableSize;
 	BRDFLookUpTableColorFormat;
 
+	// Properties
+	get IrradianceReady() { return this.SkyCubeSRV != null && !this.#irrDirty; }
+	get SpecularIBLReady() { return this.SkyCubeSRV != null && !this.#specDirty; }
+	get BRDFLookUpTableReady() { return !this.#lutDirty; }
+
 	// Internal D3D stuff
 	#d3dDevice;
 	#d3dContext;

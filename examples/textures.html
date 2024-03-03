@@ -214,10 +214,10 @@
 						<div class="card-body">
 							<h5 class="card-title">Save IBL Maps</h5>
 							<p>Save any of the generated Image-Based Lighting maps</p>
-							<button class="btn btn-primary mb-1" disabled>Save Skybox as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1" disabled>Save IBL Specular as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1" disabled>Save Irradiance as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1" disabled>Save BRDF Look Up Table as DDS Texture</button>
+							<button class="btn btn-primary mb-1" id="buttonSaveSky" disabled>Save Skybox as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1" id="buttonSaveIBL" disabled>Save IBL Specular as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1" id="buttonSaveIrr" disabled>Save Irradiance as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1" id="buttonSaveLUT" disabled>Save BRDF Look Up Table as DDS Texture</button>
 						</div>
 					</div>
 					<!-- END Card: Save IBL Maps -->
@@ -468,13 +468,11 @@
 
 		async function main()
 		{
-			let postprocessing = true;
-
+			// Grab canvas html element
 			let viewportElement = document.getElementById("viewport");
-			let input = new Input(viewportElement);
 
-			// Some quick vars
-			let float32Size = Float32Array.BYTES_PER_ELEMENT;
+			// Input manager setup
+			let input = new Input(viewportElement);
 
 			// Init the API
 			const swapChainDesc = new DXGI_SWAP_CHAIN_DESC(
@@ -514,53 +512,20 @@
 			let depthDSV = device.CreateDepthStencilView(depthBuffer, null);
 			depthBuffer.Release();
 
-			// Set the targets
+			// Set the default render targets
 			context.OMSetRenderTargets([rtv], depthDSV);
 
-			// Attempt to load an image
-			let albedoSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png");
-			let normalSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_normals.png");
-			let metalSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_metal.png");
-			let roughSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_roughness.png");
-			context.PSSetShaderResources(0, [albedoSRV, normalSRV, metalSRV, roughSRV]);
+			// Ensure we're set for triangles
+			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-			// Create several solid textures
-			let blackSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 0, 255);
-			let whiteSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 255, 255, 255);
-			let blueSRV  = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 192, 255);
-			let greenSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 128, 0, 255);
-			let redSRV   = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 0, 0, 255);
-			let flatNormalsSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 127, 127, 255, 255);
-
-			// Array of greyscale roughness textures
-			let solidRoughSRVs = [];
-			for (let i = 0; i < 11; i++)
-			{
-				let r = Math.floor((i / 10.0) * 255);
-				solidRoughSRVs.push(TextureUtils.CreateSolidTexture2D(device, 2, 2, r, r, r, 255));
-			}
-
-			// Load a cube map
-			let skySRV = await loadTextureCube(
-				device,
-				context,
-				[
-					"../assets/skies/cloudsblue/right.png",
-					"../assets/skies/cloudsblue/left.png",
-					"../assets/skies/cloudsblue/up.png",
-					"../assets/skies/cloudsblue/down.png",
-					"../assets/skies/cloudsblue/front.png",
-					"../assets/skies/cloudsblue/back.png"
-				],
-				false,
-				true
-			);
-			context.PSSetShaderResources(4, [skySRV]);
-
-			// Create/release test
-			//let crateSRV = await loadTexture2D(device, context, "../assets/textures/crate.png");
-			//crateSRV.Release();
-
+			// Create an input layout
+			let inputElements = [];
+			inputElements[0] = new D3D11_INPUT_ELEMENT_DESC("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0);
+			inputElements[1] = new D3D11_INPUT_ELEMENT_DESC("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 3 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
+			inputElements[2] = new D3D11_INPUT_ELEMENT_DESC("NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 5 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
+			inputElements[3] = new D3D11_INPUT_ELEMENT_DESC("TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 8 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
+			let inputLayout = device.CreateInputLayout(inputElements);
+			context.IASetInputLayout(inputLayout);
 
 			// Create a sampler
 			let sampDesc = new D3D11_SAMPLER_DESC(
@@ -582,9 +547,29 @@
 			sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 			let clampSampler = device.CreateSamplerState(sampDesc);
 
-			context.PSSetSamplers(0, [sampler, clampSampler]);
+			// Attempt to load an image
+			let albedoSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png");
+			let normalSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_normals.png");
+			let metalSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_metal.png");
+			let roughSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_roughness.png");
 
-			// Attempt to load a mesh
+			// Create several solid textures
+			let blackSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 0, 255);
+			let whiteSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 255, 255, 255);
+			let blueSRV  = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 192, 255);
+			let greenSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 128, 0, 255);
+			let redSRV   = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 0, 0, 255);
+			let flatNormalsSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 127, 127, 255, 255);
+
+			// Array of greyscale roughness textures
+			let solidRoughSRVs = [];
+			for (let i = 0; i < 11; i++)
+			{
+				let r = Math.floor((i / 10.0) * 255);
+				solidRoughSRVs.push(TextureUtils.CreateSolidTexture2D(device, 2, 2, r, r, r, 255));
+			}
+
+			// Mesh loading
 			let sphereMesh = await Mesh.LoadFromFile(device, "../assets/meshes/sphere.obj");
 			let helixMesh = await Mesh.LoadFromFile(device, "../assets/meshes/helix.obj");
 			let cubeMesh = await Mesh.LoadFromFile(device, "../assets/meshes/cube.obj");
@@ -595,6 +580,88 @@
 			// Helix = 3
 			// Cube = 4.5
 
+			// Camera
+			let cameraPosition = new Vector3(0, 0, -10);
+			let cameraRotation = new Vector2(0, 0);
+			let camDir = new Vector3(0, 0, 1);
+
+
+			// Create shaders
+			let ps = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
+			let vs = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
+			let solidPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
+			let skyVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyVS.hlsl"));
+			let skyPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyPS.hlsl"));
+			let tonemapPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/TonemapPS.hlsl"));
+			let postprocPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/BlurPS.hlsl"));
+			let quadVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/QuadVS.hlsl"));
+			let fullscreenVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/FullscreenVS.hlsl"));
+			let simpleTexturePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
+
+			let equirectToCubePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
+
+			// Shaders for IBL
+			let brdfLutPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
+			let iblIrradiancePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
+			let iblSpecularPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
+
+
+			// Load a cube map
+			let skySRV = await loadTextureCube(
+				device,
+				context,
+				[
+					"../assets/skies/cloudsblue/right.png",
+					"../assets/skies/cloudsblue/left.png",
+					"../assets/skies/cloudsblue/up.png",
+					"../assets/skies/cloudsblue/down.png",
+					"../assets/skies/cloudsblue/front.png",
+					"../assets/skies/cloudsblue/back.png"
+				],
+				false,
+				true
+			);
+
+			// Create the sky object
+			globalSky = new Sky(device, context,
+				skyVS, skyPS, cubeMesh,
+				DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
+				DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
+				DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
+				equirectToCubePS, fullscreenVS,
+				true, 128);
+			globalSky.LoadCubeMap(skySRV, false);
+
+
+			// Entity setup
+			let mat = new Material(vs, ps, new Vector3(1, 1, 1));
+			mat.SetPSTextureSRV(0, albedoSRV);
+			mat.SetPSTextureSRV(1, normalSRV);
+			mat.SetPSTextureSRV(2, metalSRV);
+			mat.SetPSTextureSRV(3, roughSRV);
+			mat.SetPSSamplerState(0, sampler);
+			mat.SetPSSamplerState(1, clampSampler);
+
+			let entity = new Entity(
+				sphereMesh,
+				mat);
+			entity.Transform.ScaleUniform(7);
+
+
+
+
+			// Texture saving test
+			let ddsTest = false;
+			if (ddsTest)
+			{
+				let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(device, context, irrSRV);
+				TextureUtils.WriteDDSFile("spec.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
+			}
+
+			// Test for scissor
+			let scissorRastState = device.CreateRasterizerState(new D3D11_RASTERIZER_DESC(D3D11_FILL_SOLID, D3D11_CULL_BACK, false, 0, 0, 0, true, true));
+
+			
 			// Create constant buffer
 			let elementCount = 16 * 3; // 3 matrices
 			let vsCBDesc = new D3D11_BUFFER_DESC(
@@ -606,16 +673,12 @@
 			let vsCB = device.CreateBuffer(vsCBDesc, null);
 
 
-			let aspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
 
-			// Camera
-			let cameraPosition = new Vector3(0, 0, -10);
-			let cameraRotation = new Vector2(0, 0);
-			let camDir = new Vector3(0, 0, 1);
 
 			// Set up the initial VS CB data
 			let wMat = Matrix4x4.RotationY(0);
 			let vMat = Matrix4x4.ViewDirectionLH(cameraPosition, camDir, Vector3.UnitY);
+			let aspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
 			let pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, aspectRatio, 0.01, 100);
 
 			let vsData = new Float32Array(elementCount);
@@ -712,82 +775,6 @@
 			let quadCB = device.CreateBuffer(quadCBDesc, null);
 			let quadData = new Float32Array(8);
 
-
-
-			// Create an input layout
-			let inputElements = [];
-			inputElements[0] = new D3D11_INPUT_ELEMENT_DESC("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			inputElements[1] = new D3D11_INPUT_ELEMENT_DESC("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 3 * float32Size, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			inputElements[2] = new D3D11_INPUT_ELEMENT_DESC("NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 5 * float32Size, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			inputElements[3] = new D3D11_INPUT_ELEMENT_DESC("TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 8 * float32Size, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			let inputLayout = device.CreateInputLayout(inputElements);
-			context.IASetInputLayout(inputLayout);
-
-			// Create shaders
-			let ps = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
-			let vs = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
-			let solidPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
-			let skyVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyVS.hlsl"));
-			let skyPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyPS.hlsl"));
-			let tonemapPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/TonemapPS.hlsl"));
-			let postprocPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/BlurPS.hlsl"));
-			let quadVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/QuadVS.hlsl"));
-			let fullscreenVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/FullscreenVS.hlsl"));
-			let simpleTexturePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
-
-			let equirectToCubePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
-
-			// Shaders for IBL
-			let brdfLutPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
-			let iblIrradiancePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
-			let iblSpecularPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
-
-
-			// Create the sky object
-			globalSky = new Sky(device, context,
-				skyVS, skyPS, cubeMesh,
-				DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
-				DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
-				DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
-				equirectToCubePS, fullscreenVS,
-				true, 128);
-			globalSky.LoadCubeMap(skySRV, false);
-
-
-			// Entity setup
-			let mat = new Material(vs, ps, new Vector3(1, 1, 1));
-			mat.SetPSTextureSRV(0, albedoSRV);
-			mat.SetPSTextureSRV(1, normalSRV);
-			mat.SetPSTextureSRV(2, metalSRV);
-			mat.SetPSTextureSRV(3, roughSRV);
-			mat.SetPSSamplerState(0, sampler);
-			mat.SetPSSamplerState(1, clampSampler);
-
-			let entity = new Entity(
-				sphereMesh,
-				mat);
-			entity.Transform.ScaleUniform(7);
-
-
-
-
-			// Texture saving test
-			let ddsTest = false;
-			if (ddsTest)
-			{
-				let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(device, context, irrSRV);
-				TextureUtils.WriteDDSFile("irr.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
-			}
-
-			// Test for scissor
-			let scissorRastState = device.CreateRasterizerState(new D3D11_RASTERIZER_DESC(D3D11_FILL_SOLID, D3D11_CULL_BACK, false, 0, 0, 0, true, true));
-
-			// Reset the render target
-			context.OMSetRenderTargets([rtv], depthDSV);
-
-			context.VSSetShader(vs);
-			context.PSSetShader(ps);
-
 			// Post process resources
 			let ppTexDesc = new D3D11_TEXTURE2D_DESC(
 				viewportElement.width,
@@ -815,8 +802,6 @@
 			let ppCB = device.CreateBuffer(ppCBDesc, null);
 			let ppData = new Float32Array(4);
 
-			// Ensure we're set for triangles
-			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 		
 			// Perform a readback
@@ -939,6 +924,24 @@
 				// Check for any progressive IBL updates
 				globalSky.Update();
 
+				// Check for sky assets being ready
+				let saveSky = document.getElementById("buttonSaveSky");
+				let saveIBL = document.getElementById("buttonSaveIBL");
+				let saveIrr = document.getElementById("buttonSaveIrr");
+				let saveLUT = document.getElementById("buttonSaveLUT");
+
+				// TODO: Tie disabling to the actual new skybox load
+				if (saveSky.disabled && globalSky.SkyCubeSRV != null) saveSky.disabled = false;
+				else if (!saveSky.disabled && globalSky.SkyCubeSRV == null) saveSky.disabled = true;
+
+				if (saveIBL.disabled && globalSky.SpecularIBLReady) saveIBL.disabled = false;
+				else if (!saveIBL.disabled && !globalSky.SpecularIBLReady) saveIBL.disabled = true;
+
+				if (saveIrr.disabled && globalSky.IrradianceReady) saveIrr.disabled = false;
+				else if (!saveIrr.disabled && !globalSky.IrradianceReady) saveIrr.disabled = true;
+
+				if (saveLUT.disabled && globalSky.BRDFLookUpTableReady) saveLUT.disabled = false;
+				else if (!saveLUT.disabled && !globalSky.BRDFLookUpTableReady) saveLUT.disabled = true;
 			}
 
 			function checkForResize()
