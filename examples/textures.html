@@ -2,7 +2,6 @@
 <html class="h-100">
 <head>
 	<script src="../build/d3d11.js"></script>
-	<script src="../build/input.js"></script>
 
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 	<style>
@@ -35,15 +34,15 @@
 			<!-- Testing tabs -->
 			<ul class="nav nav-pills" id="navbar" role="tablist">
 				<li class="nav-item" role="presentation">
-					<button class="nav-link active" id="tabScene" data-bs-toggle="pill" data-bs-target="#scene" type="button" role="tab">Scene</button>
+					<button class="nav-link active" id="tabScene" data-bs-toggle="pill" data-bs-target="#scene" type="button" role="tab">&#127758; Scene</button>
 				</li>
 
 				<li class="nav-item" role="presentation">
-					<button class="nav-link" id="tabEnvironment" data-bs-toggle="pill" data-bs-target="#environment" type="button" role="tab">Environment</button>
+					<button class="nav-link" id="tabEnvironment" data-bs-toggle="pill" data-bs-target="#environment" type="button" role="tab">&#9925; Environment</button>
 				</li>
 
 				<li class="nav-item" role="presentation">
-					<button class="nav-link" id="tabControls" data-bs-toggle="pill" data-bs-target="#controls" type="button" role="tab">Controls</button>
+					<button class="nav-link" id="tabControls" data-bs-toggle="pill" data-bs-target="#controls" type="button" role="tab">&#127918; Controls</button>
 				</li>
 			</ul>
 
@@ -56,7 +55,7 @@
 					<!-- Card: Scene -->
 					<div class="card mb-3">
 						<div class="card-body">
-							<h5 class="card-title">Scene Selection</h5>
+							<h5 class="card-title">&#128250; Scene Selection</h5>
 
 							<label for="sceneSet" class="form-label">Scenes</label>
 							<select id="sceneSet" class="form-select" onchange="">
@@ -71,7 +70,7 @@
 					<!-- Card: Lighting -->
 					<div class="card mb-3">
 						<div class="card-body">
-							<h5 class="card-title">Lights</h5>
+							<h5 class="card-title">&#128161; Lights</h5>
 
 							<label for="lightSet" class="form-label">Lights</label>
 							<select id="lightSet" class="form-select" onchange="">
@@ -87,35 +86,11 @@
 				<!-- Environment tab pane -->
 				<div class="tab-pane pt-3" id="environment" role="tabpanel" tabindex="0">
 
-					<!-- CARD: Tonemapping -->
-					<div class="card mb-3">
-						<div class="card-body">
-							<h5 class="card-title">Tonemapping</h5>
-							<p>Change the mesh(es), lighting, environment map, etc.</p>
-
-							<label for="mipLevelRange" class="form-label">Sky Mip Level: 0</label>
-							<input type="range" class="form-range" min="0" max="16" value="0" id="mipLevelRange" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Sky Mip Level: ' + this.value;" />
-
-							<label for="exposureRange" class="form-label">Exposure Adjust (HDR only): 0</label>
-							<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust (HDR only): ' + this.value;" />
-
-							<label for="tonemapType" class="form-label">Tonemap Type (HDR Only)</label>
-							<select id="tonemapType" class="form-select" onchange="setTonemapType(this.value);">
-								<option value="0" selected>None (Linear)</option>
-								<option value="1">Reinhard</option>
-								<option value="2">Reinhard (White Point)</option>
-								<option value="3">Exposure</option>
-								<option value="4">Uncharted 2</option>
-								<option value="5">Aces</option>
-							</select>
-						</div>
-					</div>
-
 					<!-- CARD: Loading -->
 					<div class="card mb-3">
 						<div class="card-body">
-							<h5 class="card-title">Load Environment</h5>
-							<p>Load a new environment map in one of several ways.</p>
+							<h5 class="card-title">&#128194; Load Environment</h5>
+							<p class="m-0">Load a new environment map</p>
 						</div>
 
 						<div class="accordion m-1" id="loadAccordion">
@@ -124,7 +99,7 @@
 							<div class="accordion-item">
 								<h2 class="accordion-header">
 									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
-										Six Individual Faces
+										&#11036; Individual Faces
 									</button>
 								</h2>
 								<div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
@@ -170,7 +145,7 @@
 							<div class="accordion-item">
 								<h2 class="accordion-header">
 									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-										DDS Cube Map (Not yet implemented)
+										&#128230; DDS Cube Map (Not yet implemented)
 									</button>
 								</h2>
 								<div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
@@ -184,7 +159,7 @@
 							<div class="accordion-item">
 								<h2 class="accordion-header">
 									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
-										HDR File
+										&#127748; HDR File
 									</button>
 								</h2>
 								<div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
@@ -209,15 +184,40 @@
 					</div>
 					<!-- END Card: Loading-->
 
+					<!-- CARD: Tonemapping -->
+					<div class="card mb-3">
+						<div class="card-body">
+							<h5 class="card-title">&#127912; Tonemapping</h5>
+							<p>Adjust the final render for HDR environments</p>
+
+							<label for="mipLevelRange" class="form-label">Sky Mip Level: 0</label>
+							<input type="range" class="form-range" min="0" max="16" value="0" id="mipLevelRange" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Sky Mip Level: ' + this.value;" />
+
+							<label for="exposureRange" class="form-label">Exposure Adjust (HDR only): 0</label>
+							<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust (HDR only): ' + this.value;" />
+
+							<label for="tonemapType" class="form-label">Tonemap Type (HDR Only)</label>
+							<select id="tonemapType" class="form-select" onchange="setTonemapType(this.value);">
+								<option value="0" selected>None (Linear)</option>
+								<option value="1">Reinhard</option>
+								<option value="2">Reinhard (White Point)</option>
+								<option value="3">Exposure</option>
+								<option value="4">Uncharted 2</option>
+								<option value="5">Aces</option>
+							</select>
+						</div>
+					</div>
+					<!-- END Card: Tonemapping -->
+
 					<!-- Card: Save IBL Maps -->
 					<div class="card mb-3">
 						<div class="card-body">
-							<h5 class="card-title">Save IBL Maps</h5>
+							<h5 class="card-title">&#128190; Save IBL Maps</h5>
 							<p>Save any of the generated Image-Based Lighting maps</p>
-							<button class="btn btn-primary mb-1" id="buttonSaveSky" disabled>Save Skybox as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1" id="buttonSaveIBL" disabled>Save IBL Specular as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1" id="buttonSaveIrr" disabled>Save Irradiance as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1" id="buttonSaveLUT" disabled>Save BRDF Look Up Table as DDS Texture</button>
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveSky" disabled>Save Skybox as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIrr" disabled>Save Irradiance as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIBL" disabled>Save IBL Specular as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveLUT" disabled>Save BRDF Look Up Table as DDS Texture</button>
 						</div>
 					</div>
 					<!-- END Card: Save IBL Maps -->
@@ -231,7 +231,7 @@
 					<!-- CARD: Controls -->
 					<div class="card mb-3">
 						<div class="card-body">
-							<h5 class="card-title">Controls</h5>
+							<h5 class="card-title">&#127918; Controls</h5>
 							<p>Left-click & drag</p>
 							<p>WASD movement</p>
 						</div>
@@ -256,14 +256,16 @@
 	<!-- END bootstrap -->
 	<script type="module">
 
-		import { Material } from "../build/material.js";
-		import { Transform } from "../build/transform.js";
-		import { Entity } from "../build/entity.js";
-		import { TextureUtils } from "../build/textureUtils.js";
 		import { Vector2, Vector3, Matrix4x4 } from "../build/d3dmath.js";
+		import { TextureUtils } from "../build/textureUtils.js";
+		import { Transform } from "../build/transform.js";
+		import { FPSCamera } from "../build/camera.js";
+		import { Material } from "../build/material.js";
+		import { Entity } from "../build/entity.js";
 		import { Vertex } from "../build/vertex.js";
 		import { Mesh } from "../build/mesh.js";
 		import { Sky } from "../build/sky.js";
+		import { Input, Keys, MouseButtons } from "../build/input.js";
 
 		// Global vars we can use in window functions
 		let globalSky = null;
@@ -581,6 +583,7 @@
 			// Cube = 4.5
 
 			// Camera
+			let fpsCamera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
 			let cameraPosition = new Vector3(0, 0, -10);
 			let cameraRotation = new Vector2(0, 0);
 			let camDir = new Vector3(0, 0, 1);
@@ -712,7 +715,8 @@
 				lightColors.push([r, g, b]);
 			}
 			let psData = new Float32Array(psElementCount);
-			psData.set(cameraPosition, 0); // Camera pos
+			//psData.set(cameraPosition, 0); // Camera pos
+			psData.set(fpsCamera.Position, 0);
 			psData.set([1, 1, 1], 4); // Tint
 			psData.set([lightCount], 9); // Light count
 			for (let i = 0; i < 8; i++)
@@ -883,43 +887,44 @@
 
 
 
-			function update(time)
+			function update(deltaTime, totalTime)
 			{
-				// Update
-				let speed = 0.2;
-				if (input.IsKeyDown(Keys.Shift)) speed *= 5;
-				if (input.IsMouseDown(MouseButtons.Right)) speed *= 0.15;
+				//// Update
+				//let speed = 0.2;
+				//if (input.IsKeyDown(Keys.Shift)) speed *= 5;
+				//if (input.IsMouseDown(MouseButtons.Right)) speed *= 0.15;
 
-				let cameraMoveRelative = new Vector3();
-				let cameraMoveAbsolute = new Vector3();
-				let anyMove = false;
-				if (input.IsKeyDown(Keys.A)) { anyMove = true; cameraMoveRelative.x -= speed; }
-				if (input.IsKeyDown(Keys.D)) { anyMove = true; cameraMoveRelative.x += speed; }
-				if (input.IsKeyDown(Keys.W)) { anyMove = true; cameraMoveRelative.z += speed; }
-				if (input.IsKeyDown(Keys.S)) { anyMove = true; cameraMoveRelative.z -= speed; }
-				if (input.IsKeyDown(Keys.Space)) { anyMove = true; cameraMoveAbsolute.y += speed; }
-				if (input.IsKeyDown(Keys.X)) { anyMove = true; cameraMoveAbsolute.y -= speed; }
+				//let cameraMoveRelative = new Vector3();
+				//let cameraMoveAbsolute = new Vector3();
+				//let anyMove = false;
+				//if (input.IsKeyDown(Keys.A)) { anyMove = true; cameraMoveRelative.x -= speed; }
+				//if (input.IsKeyDown(Keys.D)) { anyMove = true; cameraMoveRelative.x += speed; }
+				//if (input.IsKeyDown(Keys.W)) { anyMove = true; cameraMoveRelative.z += speed; }
+				//if (input.IsKeyDown(Keys.S)) { anyMove = true; cameraMoveRelative.z -= speed; }
+				//if (input.IsKeyDown(Keys.Space)) { anyMove = true; cameraMoveAbsolute.y += speed; }
+				//if (input.IsKeyDown(Keys.X)) { anyMove = true; cameraMoveAbsolute.y -= speed; }
 
-				if (input.IsMouseDown(MouseButtons.Left) || input.IsMouseDown(MouseButtons.Right))
-				{
-					cameraRotation.x += input.GetMouseDeltaY() * 0.001;
-					cameraRotation.y += input.GetMouseDeltaX() * 0.001;
+				//if (input.IsMouseDown(MouseButtons.Left) || input.IsMouseDown(MouseButtons.Right))
+				//{
+				//	cameraRotation.x += input.GetMouseDeltaY() * 0.001;
+				//	cameraRotation.y += input.GetMouseDeltaX() * 0.001;
 
-					camDir.x = Math.sin(cameraRotation.y);
-					camDir.z = Math.cos(cameraRotation.y);
+				//	camDir.x = Math.sin(cameraRotation.y);
+				//	camDir.z = Math.cos(cameraRotation.y);
 
-					camDir.y = -Math.sin(cameraRotation.x);
-				}
+				//	camDir.y = -Math.sin(cameraRotation.x);
+				//}
 
-				if (anyMove)
-				{
-					// Relative movement based on rotation
-					let moveRelative = Vector3.Rotate(cameraMoveRelative, cameraRotation.x, cameraRotation.y, 0);
-					cameraPosition = Vector3.Add(cameraPosition, moveRelative);
+				//if (anyMove)
+				//{
+				//	// Relative movement based on rotation
+				//	let moveRelative = Vector3.Rotate(cameraMoveRelative, cameraRotation.x, cameraRotation.y, 0);
+				//	cameraPosition = Vector3.Add(cameraPosition, moveRelative);
 
-					// Absolute movement
-					cameraPosition = Vector3.Add(cameraPosition, cameraMoveAbsolute);
-				}
+				//	// Absolute movement
+				//	cameraPosition = Vector3.Add(cameraPosition, cameraMoveAbsolute);
+				//}
+				fpsCamera.Update(input, deltaTime);
 
 				// Check for any progressive IBL updates
 				globalSky.Update();
@@ -986,8 +991,10 @@
 					context.OMSetRenderTargets([rtv], depthDSV);
 
 					// Update aspect ratio and camera
-					aspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
-					pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, aspectRatio, 0.01, 100);
+					//aspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
+					//pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, aspectRatio, 0.01, 100);
+					fpsCamera.AspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
+					pMat = fpsCamera.ProjectionMatrix;
 					vsData.set(pMat, 32);
 
 					// Update rendering viewport, too
@@ -1017,7 +1024,7 @@
 			}
 
 
-			function draw(time)
+			function draw(deltaTime, totalTime)
 			{
 				checkForResize();
 
@@ -1027,11 +1034,12 @@
 					context.OMSetRenderTargets([ppRTV], depthDSV);
 				}
 
-				vMat = Matrix4x4.ViewDirectionLH(
-					cameraPosition,
-					camDir, //new Vector3(0, 0, 1),
-					Vector3.UnitY);
-
+				//vMat = Matrix4x4.ViewDirectionLH(
+				//	cameraPosition,
+				//	camDir, //new Vector3(0, 0, 1),
+				//	Vector3.UnitY);
+				vMat = fpsCamera.ViewMatrix;
+				//console.log(fpsCamera);
 				vsData.set(vMat, 16);
 
 				// Set constant buffers for main draw
@@ -1056,8 +1064,8 @@
 					for (let i = 0; i < 8; i++)
 					{
 						let offset = (i / 4) * Math.PI * 2;
-						let s = Math.sin(time * 0.0005 + offset);
-						let c = Math.cos(time * 0.0005 + offset);
+						let s = Math.sin(totalTime + offset);
+						let c = Math.cos(totalTime + offset);
 
 						let lightPos = [3 * s, i < 4 ? -3 : 3, 3 * c];
 
@@ -1093,7 +1101,8 @@
 					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 					// Update pixel data
-					psData.set(cameraPosition, 0);
+					//psData.set(cameraPosition, 0);
+					psData.set(fpsCamera.Position, 0);
 					psData.set([globalSky.SpecularIBLMipsTotal], 8);
 					psData.set([lightCount], 9);  // Set light count (all lights)
 					psData.set([globalSky.IsHDR ? 1 : 0], 10); // Set HDR switch
@@ -1212,14 +1221,24 @@
 				context.OMSetRenderTargets([rtv], depthDSV);
 			}
 
+			let startTime = -1;
+			let prevTime = 0;
 			function frameloop(time)
 			{
-				update(time);
-				draw(time);
+				if (startTime == -1)
+					startTime = time;
+
+				let totalTime = (time - startTime) / 1000;
+				let deltaTime = (time - prevTime) / 1000;
+				
+				update(deltaTime, totalTime);
+				draw(deltaTime, totalTime);
 
 				// End of frame work
 				window.requestAnimationFrame(frameloop);
 				input.EndOfFrame();
+
+				prevTime = time;
 			}
 
 			window.requestAnimationFrame(frameloop);

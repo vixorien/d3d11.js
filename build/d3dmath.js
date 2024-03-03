@@ -20,12 +20,13 @@ export class Vector2 extends Float32Array
 
 export class Vector3 extends Float32Array
 {
-	static UnitX = new Vector3(1, 0, 0);
-	static UnitY = new Vector3(0, 1, 0);
-	static UnitZ = new Vector3(0, 0, 1);
-	static UnitXNeg = new Vector3(-1, 0, 0);
-	static UnitYNeg = new Vector3(0, -1, 0);
-	static UnitZNeg = new Vector3(0, 0, -1);
+	static get Zero() { return new Vector3(0, 0, 0); }
+	static get UnitX() { return new Vector3(1, 0, 0); }
+	static get UnitY() { return new Vector3(0, 1, 0); }
+	static get UnitZ() { return new Vector3(0, 0, 1); }
+	static get UnitXNeg() { return new Vector3(-1, 0, 0); }
+	static get UnitYNeg() { return new Vector3(0, -1, 0); }
+	static get UnitZNeg() { return new Vector3(0, 0, -1); }
 
 	get x() { return this[0]; }
 	get y() { return this[1]; }
@@ -110,6 +111,7 @@ export class Vector3 extends Float32Array
 
 		// Combine in roll/pitch/yaw order
 		let rotMat = Matrix4x4.Multiply(yMat, Matrix4x4.Multiply(pMat, rMat));
+		
 		return Vector3.Transform(v, rotMat);
 	}
 }

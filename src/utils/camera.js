@@ -1,0 +1,129 @@
+
+import { Keys, MouseButtons } from "./input.js";
+import { Vector3, Matrix4x4 } from "./d3dmath.js";
+
+export class FPSCamera
+{
+	get Position() { return this.#position; }
+	get PitchYawRoll() { return this.#pitchYawRoll; }
+
+	get ViewMatrix() { this.#updateView(); return this.#viewMatrix; }
+	get ProjectionMatrix() { this.#updateProjection(); return this.#projMatrix; }
+
+	get AspectRatio() { return this.#aspectRatio; }
+	set AspectRatio(ar) { this.#aspectRatio = ar; this.#projDirty = true; }
+
+	// View
+	#position;
+	#pitchYawRoll;
+
+	#forwardVector;
+
+	// Projection
+	#aspectRatio;
+	#fov;
+	#nearClip;
+	#farClip;
+
+	// Matrices
+	#viewMatrix;
+	#projMatrix;
+
+	#viewDirty;
+	#projDirty;
+
+	constructor(x, y, z, aspectRatio, fov = Math.PI / 4, nearClip = 0.01, farClip = 100)
+	{
+		this.#position = new Vector3(x, y, z);
+		this.#pitchYawRoll = Vector3.Zero;
+		this.#forwardVector = Vector3.UnitZ;
+
+		this.#aspectRatio = aspectRatio;
+		this.#fov = fov;
+		this.#nearClip = nearClip;
+		this.#farClip = farClip;
+
+		this.#viewDirty = true;
+		this.#projDirty = true;
+
+		this.#updateView();
+		this.#updateProjection();
+	}
+
+	Update(input, dt)
+	{
+		// Update
+		let speed = 12 * dt;
+		if (input.IsKeyDown(Keys.Shift)) speed *= 5;
+		if (input.IsMouseDown(MouseButtons.Right)) speed *= 0.15;
+
+		let cameraMoveRelative = new Vector3();
+		let cameraMoveAbsolute = new Vector3();
+		let anyMove = false;
+		if (input.IsKeyDown(Keys.A)) { anyMove = true; cameraMoveRelative.x -= speed; }
+		if (input.IsKeyDown(Keys.D)) { anyMove = true; cameraMoveRelative.x += speed; }
+		if (input.IsKeyDown(Keys.W)) { anyMove = true; cameraMoveRelative.z += speed; }
+		if (input.IsKeyDown(Keys.S)) { anyMove = true; cameraMoveRelative.z -= speed; }
+		if (input.IsKeyDown(Keys.Space)) { anyMove = true; cameraMoveAbsolute.y += speed; }
+		if (input.IsKeyDown(Keys.X)) { anyMove = true; cameraMoveAbsolute.y -= speed; }
+
+		if (input.IsMouseDown(MouseButtons.Left) || input.IsMouseDown(MouseButtons.Right))
+		{
+			this.#pitchYawRoll.x += input.GetMouseDeltaY() * 0.001;
+			this.#pitchYawRoll.y += input.GetMouseDeltaX() * 0.001;
+
+			// Recompute forward vector
+			this.#forwardVector.x = Math.sin(this.#pitchYawRoll.y);
+			this.#forwardVector.z = Math.cos(this.#pitchYawRoll.y);
+			this.#forwardVector.y = -Math.sin(this.#pitchYawRoll.x);
+
+			this.#viewDirty = true;
+		}
+
+		if (anyMove)
+		{
+			// Relative movement based on rotation
+			let moveRelative = Vector3.Rotate(cameraMoveRelative, this.#pitchYawRoll.x, this.#pitchYawRoll.y, 0);
+			this.#position = Vector3.Add(this.#position, moveRelative);
+
+			// Absolute movement
+			this.#position = Vector3.Add(this.#position, cameraMoveAbsolute);
+
+			this.#viewDirty = true;
+		}
+	}
+
+	#updateView()
+	{
+		if (!this.#viewDirty)
+			return;
+
+		this.#viewMatrix = Matrix4x4.ViewDirectionLH(this.#position, this.#forwardVector, Vector3.UnitY);
+		this.#viewDirty = false;
+	}
+
+	#updateProjection()
+	{
+		if (!this.#projDirty)
+			return;
+
+		this.#projMatrix = Matrix4x4.PerspectiveFovLH(this.#fov, this.#aspectRatio, this.#nearClip, this.#farClip);
+		this.#projDirty = false;
+	}
+
+}
+
+export class OrbitCamera
+{
+	#distance;
+
+	constructor(distance, aspectRatio, fov)
+	{
+		this.#distance = distance;
+	}
+
+	Update(dt)
+	{
+
+	}
+}

@@ -2,7 +2,7 @@
 
 //TODO: Look into https://developer.mozilla.org/en-US/docs/Web/API/Pointer_Lock_API
 
-class Input
+export class Input
 {
 	#keyStates;
 	#mouseButtons;
@@ -150,7 +150,7 @@ class Input
 	GetMouseDeltaY() { return this.#deltaMouseY; }
 }
 
-class Keys
+export class Keys
 {
 	static Backspace = new Keys(8);
 	static Tab = new Keys(9);
@@ -263,7 +263,8 @@ class Keys
 	}
 }
 
-class MouseButtons
+
+export class MouseButtons
 {
 	static Left = new MouseButtons(0);
 	static Middle = new MouseButtons(1);
