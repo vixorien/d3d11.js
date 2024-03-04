@@ -20,6 +20,7 @@ export class Vector2 extends Float32Array
 
 export class Vector3 extends Float32Array
 {
+	static get One() { return new Vector3(1, 1, 1); }
 	static get Zero() { return new Vector3(0, 0, 0); }
 	static get UnitX() { return new Vector3(1, 0, 0); }
 	static get UnitY() { return new Vector3(0, 1, 0); }
