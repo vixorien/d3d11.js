@@ -1207,7 +1207,7 @@
 						{
 							// Per object data
 							Matrix4x4.FillTranslation(tr, (i - 5) * spacing, y + row * spacing, 0);
-							wMat = Matrix4x4.Multiply(tr, sc);
+							wMat = Matrix4x4.Multiply(sc, tr);
 							vsData.set(wMat, 0);
 							context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 

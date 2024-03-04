@@ -344,30 +344,36 @@ export class Matrix4x4 extends Float32Array
 
 	static Multiply(a, b)
 	{
-		let mat = new Matrix4x4();
-
 		let a_00 = a[0], a_01 = a[1], a_02 = a[2], a_03 = a[3];
 		let a_10 = a[4], a_11 = a[5], a_12 = a[6], a_13 = a[7];
 		let a_20 = a[8], a_21 = a[9], a_22 = a[10], a_23 = a[11];
 		let a_30 = a[12], a_31 = a[13], a_32 = a[14], a_33 = a[15];
 
-		// NOTE: Should really just type this all out to make it faster
-		let offset;
-		let b_0, b_1, b_2, b_3;
-		for (let row = 0; row < 4; row++)
-		{
-			offset = row * 4;
-			b_0 = b[0 + offset];
-			b_1 = b[1 + offset];
-			b_2 = b[2 + offset];
-			b_3 = b[3 + offset];
+		let b_00 = b[0], b_01 = b[1], b_02 = b[2], b_03 = b[3];
+		let b_10 = b[4], b_11 = b[5], b_12 = b[6], b_13 = b[7];
+		let b_20 = b[8], b_21 = b[9], b_22 = b[10], b_23 = b[11];
+		let b_30 = b[12], b_31 = b[13], b_32 = b[14], b_33 = b[15];
 
-			mat[0 + offset] = b_0 * a_00 + b_1 * a_10 + b_2 * a_20 + b_3 * a_30;
-			mat[1 + offset] = b_0 * a_01 + b_1 * a_11 + b_2 * a_21 + b_3 * a_31;
-			mat[2 + offset] = b_0 * a_02 + b_1 * a_12 + b_2 * a_22 + b_3 * a_32;
-			mat[3 + offset] = b_0 * a_03 + b_1 * a_13 + b_2 * a_23 + b_3 * a_33;
-		}
+		let mat = new Matrix4x4();
+		mat[0] = b_00 * a_00 + b_10 * a_01 + b_20 * a_02 + b_30 * a_03;
+		mat[1] = b_01 * a_00 + b_11 * a_01 + b_21 * a_02 + b_31 * a_03;
+		mat[2] = b_02 * a_00 + b_12 * a_01 + b_22 * a_02 + b_32 * a_03;
+		mat[3] = b_03 * a_00 + b_13 * a_01 + b_23 * a_02 + b_33 * a_03;
 
+		mat[4] = b_00 * a_10 + b_10 * a_11 + b_20 * a_12 + b_30 * a_13;
+		mat[5] = b_01 * a_10 + b_11 * a_11 + b_21 * a_12 + b_31 * a_13;
+		mat[6] = b_02 * a_10 + b_12 * a_11 + b_22 * a_12 + b_32 * a_13;
+		mat[7] = b_03 * a_10 + b_13 * a_11 + b_23 * a_12 + b_33 * a_13;
+
+		mat[8] = b_00 * a_20 + b_10 * a_21 + b_20 * a_22 + b_30 * a_23;
+		mat[9] = b_01 * a_20 + b_11 * a_21 + b_21 * a_22 + b_31 * a_23;
+		mat[10] = b_02 * a_20 + b_12 * a_21 + b_22 * a_22 + b_32 * a_23;
+		mat[11] = b_03 * a_20 + b_13 * a_21 + b_23 * a_22 + b_33 * a_23;
+
+		mat[12] = b_00 * a_30 + b_10 * a_31 + b_20 * a_32 + b_30 * a_33;
+		mat[13] = b_01 * a_30 + b_11 * a_31 + b_21 * a_32 + b_31 * a_33;
+		mat[14] = b_02 * a_30 + b_12 * a_31 + b_22 * a_32 + b_32 * a_33;
+		mat[15] = b_03 * a_30 + b_13 * a_31 + b_23 * a_32 + b_33 * a_33;
 		return mat;
 	}
 

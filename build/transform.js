@@ -105,8 +105,8 @@ export class Transform
 		let sMat = Matrix4x4.ScaleV(this.#scale);
 
 		this.#worldMat =
-			Matrix4x4.Multiply(tMat,
-				Matrix4x4.Multiply(rMat, sMat));
+			Matrix4x4.Multiply(sMat,
+				Matrix4x4.Multiply(rMat, tMat));
 
 		// TODO: Inverse transpose!
 
