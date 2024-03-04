@@ -584,9 +584,6 @@
 
 			// Camera
 			let fpsCamera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
-			let cameraPosition = new Vector3(0, 0, -10);
-			let cameraRotation = new Vector2(0, 0);
-			let camDir = new Vector3(0, 0, 1);
 
 
 			// Create shaders
@@ -679,10 +676,9 @@
 
 
 			// Set up the initial VS CB data
-			let wMat = Matrix4x4.RotationY(0);
-			let vMat = Matrix4x4.ViewDirectionLH(cameraPosition, camDir, Vector3.UnitY);
-			let aspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
-			let pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, aspectRatio, 0.01, 100);
+			let wMat = Matrix4x4.Identity;
+			let vMat = fpsCamera.ViewMatrix;
+			let pMat = fpsCamera.ProjectionMatrix;
 
 			let vsData = new Float32Array(elementCount);
 			vsData.set(wMat, 0);
@@ -715,8 +711,7 @@
 				lightColors.push([r, g, b]);
 			}
 			let psData = new Float32Array(psElementCount);
-			//psData.set(cameraPosition, 0); // Camera pos
-			psData.set(fpsCamera.Position, 0);
+			psData.set(fpsCamera.Position, 0); // Camera pos
 			psData.set([1, 1, 1], 4); // Tint
 			psData.set([lightCount], 9); // Light count
 			for (let i = 0; i < 8; i++)
@@ -889,41 +884,6 @@
 
 			function update(deltaTime, totalTime)
 			{
-				//// Update
-				//let speed = 0.2;
-				//if (input.IsKeyDown(Keys.Shift)) speed *= 5;
-				//if (input.IsMouseDown(MouseButtons.Right)) speed *= 0.15;
-
-				//let cameraMoveRelative = new Vector3();
-				//let cameraMoveAbsolute = new Vector3();
-				//let anyMove = false;
-				//if (input.IsKeyDown(Keys.A)) { anyMove = true; cameraMoveRelative.x -= speed; }
-				//if (input.IsKeyDown(Keys.D)) { anyMove = true; cameraMoveRelative.x += speed; }
-				//if (input.IsKeyDown(Keys.W)) { anyMove = true; cameraMoveRelative.z += speed; }
-				//if (input.IsKeyDown(Keys.S)) { anyMove = true; cameraMoveRelative.z -= speed; }
-				//if (input.IsKeyDown(Keys.Space)) { anyMove = true; cameraMoveAbsolute.y += speed; }
-				//if (input.IsKeyDown(Keys.X)) { anyMove = true; cameraMoveAbsolute.y -= speed; }
-
-				//if (input.IsMouseDown(MouseButtons.Left) || input.IsMouseDown(MouseButtons.Right))
-				//{
-				//	cameraRotation.x += input.GetMouseDeltaY() * 0.001;
-				//	cameraRotation.y += input.GetMouseDeltaX() * 0.001;
-
-				//	camDir.x = Math.sin(cameraRotation.y);
-				//	camDir.z = Math.cos(cameraRotation.y);
-
-				//	camDir.y = -Math.sin(cameraRotation.x);
-				//}
-
-				//if (anyMove)
-				//{
-				//	// Relative movement based on rotation
-				//	let moveRelative = Vector3.Rotate(cameraMoveRelative, cameraRotation.x, cameraRotation.y, 0);
-				//	cameraPosition = Vector3.Add(cameraPosition, moveRelative);
-
-				//	// Absolute movement
-				//	cameraPosition = Vector3.Add(cameraPosition, cameraMoveAbsolute);
-				//}
 				fpsCamera.Update(input, deltaTime);
 
 				// Check for any progressive IBL updates
@@ -991,8 +951,6 @@
 					context.OMSetRenderTargets([rtv], depthDSV);
 
 					// Update aspect ratio and camera
-					//aspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
-					//pMat = Matrix4x4.PerspectiveFovLH(Math.PI / 4.0, aspectRatio, 0.01, 100);
 					fpsCamera.AspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
 					pMat = fpsCamera.ProjectionMatrix;
 					vsData.set(pMat, 32);
@@ -1034,12 +992,7 @@
 					context.OMSetRenderTargets([ppRTV], depthDSV);
 				}
 
-				//vMat = Matrix4x4.ViewDirectionLH(
-				//	cameraPosition,
-				//	camDir, //new Vector3(0, 0, 1),
-				//	Vector3.UnitY);
 				vMat = fpsCamera.ViewMatrix;
-				//console.log(fpsCamera);
 				vsData.set(vMat, 16);
 
 				// Set constant buffers for main draw
@@ -1101,7 +1054,6 @@
 					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 					// Update pixel data
-					//psData.set(cameraPosition, 0);
 					psData.set(fpsCamera.Position, 0);
 					psData.set([globalSky.SpecularIBLMipsTotal], 8);
 					psData.set([lightCount], 9);  // Set light count (all lights)
@@ -1133,7 +1085,7 @@
 					let y = 7;
 					let spacing = 2.2;
 					let sc = Matrix4x4.ScaleUniform(scale);
-					let tr = Matrix4x4.Identity();
+					let tr = Matrix4x4.Identity;
 
 					// Turn off lights
 					psData.set([9], 9); // Zero light count

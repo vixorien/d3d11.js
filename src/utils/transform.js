@@ -24,8 +24,8 @@ export class Transform
 		this.#pitchYawRoll = new Vector3(0, 0, 0);
 		this.#scale = new Vector3(1, 1, 1);
 
-		this.#worldMat = Matrix4x4.Identity();
-		this.#worldInvTransMat = Matrix4x4.Identity();
+		this.#worldMat = Matrix4x4.Identity;
+		this.#worldInvTransMat = Matrix4x4.Identity;
 
 		this.#worldDirty = false;
 	}

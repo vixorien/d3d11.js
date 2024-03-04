@@ -185,7 +185,7 @@ export class Matrix4x4 extends Float32Array
 	// ----------- Creation functions  -----------
 	// -------------------------------------------
 
-	static Identity()
+	static get Identity()
 	{
 		let mat = new Matrix4x4();
 		mat[0] = 1.0;
@@ -201,7 +201,7 @@ export class Matrix4x4 extends Float32Array
 	// [x, y, z, 1]
 	static Translation(x, y, z)
 	{
-		let mat = Matrix4x4.Identity();
+		let mat = Matrix4x4.Identity;
 		mat[12] = x;
 		mat[13] = y;
 		mat[14] = z;
@@ -210,7 +210,7 @@ export class Matrix4x4 extends Float32Array
 
 	static TranslationV(vec3)
 	{
-		let mat = Matrix4x4.Identity();
+		let mat = Matrix4x4.Identity;
 		mat[12] = vec3.x;
 		mat[13] = vec3.y;
 		mat[14] = vec3.z;
@@ -226,7 +226,7 @@ export class Matrix4x4 extends Float32Array
 		const sinAngle = Math.sin(angle);
 		const cosAngle = Math.cos(angle);
 
-		let mat = this.Identity();
+		let mat = Matrix4x4.Identity;
 		mat[5] = cosAngle;
 		mat[6] = sinAngle;
 		mat[9] = -sinAngle;
@@ -243,7 +243,7 @@ export class Matrix4x4 extends Float32Array
 		const sinAngle = Math.sin(angle);
 		const cosAngle = Math.cos(angle);
 
-		let mat = this.Identity();
+		let mat = Matrix4x4.Identity;
 		mat[0] = cosAngle;
 		mat[2] = -sinAngle;
 		mat[8] = sinAngle;
@@ -260,7 +260,7 @@ export class Matrix4x4 extends Float32Array
 		const sinAngle = Math.sin(angle);
 		const cosAngle = Math.cos(angle);
 
-		let mat = this.Identity();
+		let mat = Matrix4x4.Identity;
 		mat[0] = cosAngle;
 		mat[1] = sinAngle;
 		mat[4] = -sinAngle;
@@ -316,7 +316,7 @@ export class Matrix4x4 extends Float32Array
 	// [0, 0, 0, 1]
 	static Scale(x, y, z)
 	{
-		let mat = Matrix4x4.Identity();
+		let mat = Matrix4x4.Identity;
 		mat[0] = x;
 		mat[5] = y;
 		mat[10] = z;
@@ -325,7 +325,7 @@ export class Matrix4x4 extends Float32Array
 
 	static ScaleV(vec3)
 	{
-		let mat = Matrix4x4.Identity();
+		let mat = Matrix4x4.Identity;
 		mat[0] = vec3.x;
 		mat[5] = vec3.y;
 		mat[10] = vec3.z;
@@ -334,7 +334,7 @@ export class Matrix4x4 extends Float32Array
 
 	static ScaleUniform(s)
 	{
-		let mat = Matrix4x4.Identity();
+		let mat = Matrix4x4.Identity;
 		mat[0] = s;
 		mat[5] = s
 		mat[10] = s;

@@ -2,22 +2,12 @@
 import { Keys, MouseButtons } from "./input.js";
 import { Vector3, Matrix4x4 } from "./d3dmath.js";
 
-export class FPSCamera
+class Camera
 {
-	get Position() { return this.#position; }
-	get PitchYawRoll() { return this.#pitchYawRoll; }
-
-	get ViewMatrix() { this.#updateView(); return this.#viewMatrix; }
 	get ProjectionMatrix() { this.#updateProjection(); return this.#projMatrix; }
 
 	get AspectRatio() { return this.#aspectRatio; }
 	set AspectRatio(ar) { this.#aspectRatio = ar; this.#projDirty = true; }
-
-	// View
-	#position;
-	#pitchYawRoll;
-
-	#forwardVector;
 
 	// Projection
 	#aspectRatio;
@@ -25,29 +15,60 @@ export class FPSCamera
 	#nearClip;
 	#farClip;
 
-	// Matrices
-	#viewMatrix;
+	// Projection matrix
 	#projMatrix;
-
-	#viewDirty;
 	#projDirty;
 
-	constructor(x, y, z, aspectRatio, fov = Math.PI / 4, nearClip = 0.01, farClip = 100)
+	constructor(aspectRatio, fov = Math.PI / 4, nearClip = 0.01, farClip = 100)
 	{
-		this.#position = new Vector3(x, y, z);
-		this.#pitchYawRoll = Vector3.Zero;
-		this.#forwardVector = Vector3.UnitZ;
-
 		this.#aspectRatio = aspectRatio;
 		this.#fov = fov;
 		this.#nearClip = nearClip;
 		this.#farClip = farClip;
 
-		this.#viewDirty = true;
 		this.#projDirty = true;
-
-		this.#updateView();
 		this.#updateProjection();
+	}
+
+	#updateProjection()
+	{
+		if (!this.#projDirty)
+			return;
+
+		this.#projMatrix = Matrix4x4.PerspectiveFovLH(this.#fov, this.#aspectRatio, this.#nearClip, this.#farClip);
+		this.#projDirty = false;
+	}
+
+}
+
+export class FPSCamera extends Camera
+{
+	get ViewMatrix() { this.#updateView(); return this.#viewMatrix; }
+
+	get Forward() { return this.#forwardVector; }
+	get Position() { return this.#position; }
+	get PitchYawRoll() { return this.#pitchYawRoll; }
+
+
+	// View
+	#position;
+	#pitchYawRoll;
+	#forwardVector;
+
+	// Matrices
+	#viewMatrix;
+	#viewDirty;
+
+	constructor(x, y, z, aspectRatio, fov = Math.PI / 4, nearClip = 0.01, farClip = 100)
+	{
+		super(aspectRatio, fov, nearClip, farClip);
+
+		this.#position = new Vector3(x, y, z);
+		this.#pitchYawRoll = Vector3.Zero;
+		this.#forwardVector = Vector3.UnitZ;
+
+		this.#viewDirty = true;
+		this.#updateView();
 	}
 
 	Update(input, dt)
@@ -102,27 +123,21 @@ export class FPSCamera
 		this.#viewDirty = false;
 	}
 
-	#updateProjection()
-	{
-		if (!this.#projDirty)
-			return;
-
-		this.#projMatrix = Matrix4x4.PerspectiveFovLH(this.#fov, this.#aspectRatio, this.#nearClip, this.#farClip);
-		this.#projDirty = false;
-	}
-
+	
 }
 
-export class OrbitCamera
+export class OrbitCamera extends Camera
 {
 	#distance;
 
-	constructor(distance, aspectRatio, fov)
+	constructor(distance, aspectRatio, fov = Math.PI / 4, nearClip = 0.01, farClip = 100)
 	{
+		super(aspectRatio, fov, nearClip, farClip);
+
 		this.#distance = distance;
 	}
 
-	Update(dt)
+	Update(input, dt)
 	{
 
 	}
