@@ -58,11 +58,10 @@
 							<h5 class="card-title">&#128250; Scene Selection</h5>
 
 							<label for="sceneSet" class="form-label">Scenes</label>
-							<select id="sceneSet" class="form-select" onchange="">
+							<select id="sceneSet" class="form-select" onchange="setScene(this.value);">
 								<option value="0" selected>Sphere</option>
-								<option value="1">Cube</option>
-								<option value="2">Helix</option>
-								<option value="3">Roughness Grid</option>
+								<option value="1">Helix</option>
+								<option value="2">Cube</option>
 							</select>
 						</div>
 					</div>
@@ -275,6 +274,14 @@
 		let globalTonemapExposure = 0;
 		let globalDevice = null;
 		let globalContext = null;
+
+		let globalScenes = [];
+		let globalCurrentScene = 0;
+
+		window.setScene = function(val)
+		{
+			globalCurrentScene = val;
+		}
 
 		window.setTonemapType = function(val)
 		{
@@ -642,12 +649,29 @@
 			mat.SetPSSamplerState(0, sampler);
 			mat.SetPSSamplerState(1, clampSampler);
 
-			let entity = new Entity(
+			// --- SPHERE SCENE ---
+			let sphereEntity = new Entity(
 				sphereMesh,
 				mat);
-			entity.Transform.ScaleUniform(7);
+			sphereEntity.Transform.ScaleUniform(7);
 
+			globalScenes.push([sphereEntity]);
 
+			// --- HELIX SCENE ---
+			let helixEntity = new Entity(
+				helixMesh,
+				mat);
+			helixEntity.Transform.ScaleUniform(3);
+
+			globalScenes.push([helixEntity]);
+
+			// --- CUBE SCENE ---
+			let cubeEntity = new Entity(
+				cubeMesh,
+				mat);
+			cubeEntity.Transform.ScaleUniform(4);
+
+			globalScenes.push([cubeEntity]);
 
 
 			// Texture saving test
@@ -1074,9 +1098,12 @@
 					context.DrawIndexed(e.Mesh.IndexCount, 0, 0);
 				}
 
-				// Main shape draw
+				// Main scene draw
 				{
-					DrawEntity(entity);
+					for (let i = 0; i < globalScenes[globalCurrentScene].length; i++)
+					{
+						DrawEntity(globalScenes[globalCurrentScene][i]);
+					}
 				}
 
 				// Roughness spheres
