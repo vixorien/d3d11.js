@@ -62,6 +62,8 @@
 								<option value="0" selected>Sphere</option>
 								<option value="1">Helix</option>
 								<option value="2">Cube</option>
+								<option value="3">Roughness Grid</option>
+								<option value="4">RGB Grid</option>
 							</select>
 						</div>
 					</div>
@@ -672,6 +674,72 @@
 			cubeEntity.Transform.ScaleUniform(4);
 
 			globalScenes.push([cubeEntity]);
+
+			// --- ROUGHNESS SPHERES ---
+			let roughRowTextures = [
+				// Albedo,	normals,        metals
+				[whiteSRV, flatNormalsSRV, whiteSRV], // Metal
+				[whiteSRV, flatNormalsSRV, blackSRV], // White plastic
+				[blackSRV, flatNormalsSRV, blackSRV]  // Black plastic
+			];
+
+			let spacing = 1.1;
+			let startY = roughRowTextures.length / 2;
+			let roughScene = [];
+			for (let row = 0; row < roughRowTextures.length; row++)
+			{
+				for (let col = 0; col < 11; col++)
+				{
+					let m = new Material(vs, ps, new Vector3(1, 1, 1));
+					m.SetPSTextureSRV(0, roughRowTextures[row][0]);
+					m.SetPSTextureSRV(1, roughRowTextures[row][1]);
+					m.SetPSTextureSRV(2, roughRowTextures[row][2]);
+					m.SetPSTextureSRV(3, solidRoughSRVs[col]);
+					m.SetPSSamplerState(0, sampler);
+					m.SetPSSamplerState(1, clampSampler);
+
+					let e = new Entity(sphereMesh, m);
+					e.Transform.SetPosition((col - 5) * spacing, startY - row * spacing, 0);
+					e.Transform.SetScaleUniform(1);
+
+					roughScene.push(e);
+				}
+			}
+			globalScenes.push(roughScene);
+
+
+			// --- RGB SPHERES ---
+			let rgbRowTextures = [
+				// Albedo,	normals,        metals
+				[whiteSRV, flatNormalsSRV, blackSRV], // White plastic
+				[redSRV, flatNormalsSRV, blackSRV],   // Red plastic
+				[greenSRV, flatNormalsSRV, blackSRV], // Green plastic
+				[blueSRV, flatNormalsSRV, blackSRV],  // Blue plastic
+				[blackSRV, flatNormalsSRV, blackSRV]  // Black plastic
+			];
+
+			startY = rgbRowTextures.length / 2;
+			let rgbScene = [];
+			for (let row = 0; row < rgbRowTextures.length; row++)
+			{
+				for (let col = 0; col < 11; col++)
+				{
+					let m = new Material(vs, ps, new Vector3(1, 1, 1));
+					m.SetPSTextureSRV(0, rgbRowTextures[row][0]);
+					m.SetPSTextureSRV(1, rgbRowTextures[row][1]);
+					m.SetPSTextureSRV(2, rgbRowTextures[row][2]);
+					m.SetPSTextureSRV(3, solidRoughSRVs[col]);
+					m.SetPSSamplerState(0, sampler);
+					m.SetPSSamplerState(1, clampSampler);
+
+					let e = new Entity(sphereMesh, m);
+					e.Transform.SetPosition((col - 5) * spacing, startY - row * spacing, 0);
+					e.Transform.SetScaleUniform(1);
+
+					rgbScene.push(e);
+				}
+			}
+			globalScenes.push(rgbScene);
 
 
 			// Texture saving test
