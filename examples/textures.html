@@ -260,6 +260,7 @@
 		import { Vector2, Vector3, Matrix4x4 } from "../build/d3dmath.js";
 		import { TextureUtils } from "../build/textureUtils.js";
 		import { Transform } from "../build/transform.js";
+		import { BufferMap } from "../build/bufferMap.js";
 		import { FPSCamera } from "../build/camera.js";
 		import { Material } from "../build/material.js";
 		import { Entity } from "../build/entity.js";
@@ -479,6 +480,14 @@
 
 		async function main()
 		{
+			// Buffer map test
+			let map = new BufferMap(64);
+			map.PushMapping("world", 16);
+			map.PushMapping("view", 16);
+			map.PushMapping("proj", 16);
+			map.PushMapping("other", 4);
+			console.log(map);
+
 			// Grab canvas html element
 			let viewportElement = document.getElementById("viewport");
 
@@ -1175,53 +1184,53 @@
 				}
 
 				// Roughness spheres
-				{
-					let scale = 2;
-					let y = 7;
-					let spacing = 2.2;
-					let sc = Matrix4x4.ScaleUniform(scale);
-					let tr = Matrix4x4.Identity;
+				//{
+				//	let scale = 2;
+				//	let y = 7;
+				//	let spacing = 2.2;
+				//	let sc = Matrix4x4.ScaleUniform(scale);
+				//	let tr = Matrix4x4.Identity;
 
-					// Turn off lights
-					psData.set([9], 9); // Zero light count
-					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
+				//	// Turn off lights
+				//	psData.set([9], 9); // Zero light count
+				//	context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
-					// Set up the overall pipeline for spheres
-					context.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					context.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+				//	// Set up the overall pipeline for spheres
+				//	context.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+				//	context.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
 
-					let rowMats = [
-						// Albedo,	normals,        metals
-						[blackSRV,  flatNormalsSRV, blackSRV],
-						[whiteSRV,  flatNormalsSRV, blackSRV],
-						[redSRV,    flatNormalsSRV, blackSRV],
-						[greenSRV,  flatNormalsSRV, blackSRV],
-						[blueSRV,   flatNormalsSRV, blackSRV],
-						[whiteSRV,  flatNormalsSRV,	whiteSRV]
-					];
+				//	let rowMats = [
+				//		// Albedo,	normals,        metals
+				//		[blackSRV,  flatNormalsSRV, blackSRV],
+				//		[whiteSRV,  flatNormalsSRV, blackSRV],
+				//		[redSRV,    flatNormalsSRV, blackSRV],
+				//		[greenSRV,  flatNormalsSRV, blackSRV],
+				//		[blueSRV,   flatNormalsSRV, blackSRV],
+				//		[whiteSRV,  flatNormalsSRV,	whiteSRV]
+				//	];
 
-					for (let row = 0; row < rowMats.length; row++)
-					{
-						for (let i = 0; i < 11; i++)
-						{
-							// Per object data
-							Matrix4x4.FillTranslation(tr, (i - 5) * spacing, y + row * spacing, 0);
-							wMat = Matrix4x4.Multiply(sc, tr);
-							vsData.set(wMat, 0);
-							context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
+				//	for (let row = 0; row < rowMats.length; row++)
+				//	{
+				//		for (let i = 0; i < 11; i++)
+				//		{
+				//			// Per object data
+				//			Matrix4x4.FillTranslation(tr, (i - 5) * spacing, y + row * spacing, 0);
+				//			wMat = Matrix4x4.Multiply(sc, tr);
+				//			vsData.set(wMat, 0);
+				//			context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
-							// Set textures for this sphere
-							context.PSSetShaderResources(0, [
-								rowMats[row][0], rowMats[row][1], rowMats[row][2], solidRoughSRVs[i],
-								globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
-							]);
+				//			// Set textures for this sphere
+				//			context.PSSetShaderResources(0, [
+				//				rowMats[row][0], rowMats[row][1], rowMats[row][2], solidRoughSRVs[i],
+				//				globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
+				//			]);
 
-							// Draw one sphere
-							context.DrawIndexed(sphereMesh.IndexCount, 0, 0);
-						}
-					}
-				}
+				//			// Draw one sphere
+				//			context.DrawIndexed(sphereMesh.IndexCount, 0, 0);
+				//		}
+				//	}
+				//}
 
 				// Skybox
 				{
