@@ -358,6 +358,43 @@ export class Sky
 		this.#d3dContext.OMSetDepthStencilState(null);
 	}
 
+	#ClearAllSubresources(srv, color)
+	{
+		// Grab description
+		let res = srv.GetResource();
+		let resDesc = res.GetDesc();
+
+		// Can this resource be RTV'd?
+		if ((resDesc.BindFlags & D3D11_BIND_RENDER_TARGET) == 0)
+		{
+			res.Release();
+			return;
+		}
+
+		// Handle all array elements
+		for (let a = 0; a < resDesc.ArraySize; a++)
+		{
+			for (let m = 0; m < resDesc.MipLevels; m++)
+			{
+				// Make an RTV for this subresource
+				let rtvDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
+					resDesc.Format,
+					D3D11_RTV_DIMENSION_TEXTURE2D,
+					m,
+					a,
+					1); // Just one array element this time
+				let rtv = this.#d3dDevice.CreateRenderTargetView(res, rtvDesc);
+
+				// Clear and release
+				this.#d3dContext.ClearRenderTargetView(rtv, color);
+				rtv.Release();
+			}
+		}
+
+		// Clean up find resource ref
+		res.Release();
+	}
+
 	// Helpers for creating the proper sized resources
 	#CreateBrdfLutTexture()
 	{
@@ -372,6 +409,7 @@ export class Sky
 			1,
 			1,
 			true);
+		this.#ClearAllSubresources(this.BRDFLookUpTableSRV, [1, 1, 1, 1]);
 	}
 
 	#CreateIrradianceTexture()
@@ -385,10 +423,14 @@ export class Sky
 			this.IrradianceColorFormat,
 			1,
 			true);
+		this.#ClearAllSubresources(this.BRDFLookUpTableSRV, [1, 1, 1, 1]);
 	}
 
 	#CreateSpecularIBLTexture()
 	{
+		if (this.SpecularIBLCubeSRV != null)
+			this.SpecularIBLCubeSRV.Release();
+
 		this.SpecularIBLCubeSRV = TextureUtils.CreateTextureCube(
 			this.#d3dDevice,
 			this.SpecularIBLCubeSize,
@@ -396,6 +438,7 @@ export class Sky
 			this.SpecularIBLMipsTotal,
 			true,
 			true);
+		this.#ClearAllSubresources(this.BRDFLookUpTableSRV, [1, 1, 1, 1]);
 	}
 
 	#GetNumTiles(tileSize, fullWidth, fullHeight)

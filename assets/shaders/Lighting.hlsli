@@ -1,4 +1,7 @@
 
+const float LIGHT_TYPE_DIR = 0.0f;
+const float LIGHT_TYPE_POINT = 1.0f;
+
 struct Light
 {
 	float type;

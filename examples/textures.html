@@ -259,12 +259,13 @@
 
 		import { Vector2, Vector3, Matrix4x4 } from "../build/d3dmath.js";
 		import { TextureUtils } from "../build/textureUtils.js";
+		import { MappedArray } from "../build/mappedArray.js";
 		import { Transform } from "../build/transform.js";
-		import { BufferMap } from "../build/bufferMap.js";
 		import { FPSCamera } from "../build/camera.js";
 		import { Material } from "../build/material.js";
 		import { Entity } from "../build/entity.js";
 		import { Vertex } from "../build/vertex.js";
+		import { Light } from "../build/light.js";
 		import { Mesh } from "../build/mesh.js";
 		import { Sky } from "../build/sky.js";
 		import { Input, Keys, MouseButtons } from "../build/input.js";
@@ -480,14 +481,6 @@
 
 		async function main()
 		{
-			// Buffer map test
-			let map = new BufferMap(64);
-			map.PushMapping("world", 16);
-			map.PushMapping("view", 16);
-			map.PushMapping("proj", 16);
-			map.PushMapping("other", 4);
-			console.log(map);
-
 			// Grab canvas html element
 			let viewportElement = document.getElementById("viewport");
 
@@ -809,46 +802,37 @@
 				let r = bright < 1 ? 1 : Math.random();
 				let g = bright >= 1 && bright < 2 ? 1 : Math.random();
 				let b = bright >= 2 ? 1 : Math.random();
-				lightColors.push([r, g, b]);
+				lightColors.push(new Vector3(r, g, b));
 			}
 			let psData = new Float32Array(psElementCount);
 			psData.set(fpsCamera.Position, 0); // Camera pos
 			psData.set([1, 1, 1], 4); // Tint
 			psData.set([lightCount], 9); // Light count
+
 			for (let i = 0; i < 8; i++)
 			{
 				psData.set(
-					[
-						1, // type - 0:dir, 1:point
-						1, // intensity
-						6, // range
-						0, // Pad
-						Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5, 0, // pos + pad
-						0, 0, 0, 0, // direction + pad
-						lightColors[i][0], lightColors[i][1], lightColors[i][2], 0 //color + pad
-					],
+					new Light(
+						Light.TypePoint,
+						lightColors[i],
+						1,
+						Vector3.Zero,
+						new Vector3(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5),
+						6
+					),
 					elementsBeforeLights + i * 16);
 			}
 
+			
 			// Add the three dir lights after point lights
-			let dirs = [];
-			dirs.push([1, -1, 1]);
-			dirs.push([-1, 0, 0]);
-			dirs.push([0, 1, -0.5]);
-			for (let i = 8; i < 11; i++)
-			{
-				psData.set(
-					[
-						0, // type - 0:dir, 1:point
-						Math.random() * 0.5 + 0.5, // intensity
-						0, // range
-						0, // Pad
-						0, 0, 0, 0, // pos + pad
-						dirs[i - 8][0], dirs[i - 8][1], dirs[i - 8][2], 0, // direction + pad
-						1, 1, 1, 0 //color + pad
-					],
-					elementsBeforeLights + i * 16);
-			}
+			let dir1 = new Light(Light.TypeDirectional, Vector3.One, 1, new Vector3(1, -1, 1));
+			let dir2 = new Light(Light.TypeDirectional, Vector3.One, 1, new Vector3(-1, 0, 0));
+			let dir3 = new Light(Light.TypeDirectional, Vector3.One, 1, new Vector3(0, 1, -0.5));
+
+			psData.set(dir1, elementsBeforeLights + 8 * 16);
+			psData.set(dir2, elementsBeforeLights + 9 * 16);
+			psData.set(dir3, elementsBeforeLights + 10 * 16);
+
 			context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 

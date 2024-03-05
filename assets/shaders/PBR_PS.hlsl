@@ -68,7 +68,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	{
 		Light l = lights[i];
 
-		if (l.type == 0.0)
+		if (l.type == LIGHT_TYPE_DIR)
 		{
 			color += DirLightPBR(
 				l,
@@ -80,7 +80,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 				albedo,
 				specColor);
 		}
-		else if (l.type == 1.0)
+		else if (l.type == LIGHT_TYPE_POINT)
 		{
 			color += PointLightPBR(
 				l,

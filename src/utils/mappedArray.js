@@ -1,6 +1,6 @@
 
 
-export class BufferMap extends Float32Array
+export class MappedArray extends Float32Array
 {
 	#size;
 	#offset;
@@ -15,7 +15,7 @@ export class BufferMap extends Float32Array
 		this.#mapping = {};
 	}
 
-	SetByName(name, data)
+	SetData(name, data)
 	{
 		// Get offset of this name
 		if (!this.#mapping.hasOwnProperty(name))
@@ -28,18 +28,13 @@ export class BufferMap extends Float32Array
 	PushMapping(name, size)
 	{
 		if (this.#offset + size >= this.#size)
-			throw new Error("Mapping past end of buffer");
+			throw new Error("Cannot map past end of buffer");
+
+		if (this.#mapping.hasOwnProperty(name))
+			throw new Error("Name already exists in map");
 
 		this.#mapping[name] = this.#offset;
 		this.#offset += size;
-	}
-
-	SetMappingOffset(name, size, offset)
-	{
-		if (offset + size >= this.#size)
-			throw new Error("Mapping past end of buffer");
-
-		this.#mapping[name] = offset;
 	}
 
 }
