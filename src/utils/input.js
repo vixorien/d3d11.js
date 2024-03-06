@@ -12,6 +12,7 @@ export class Input
 	#prevMouseY;
 	#deltaMouseX;
 	#deltaMouseY;
+	#mouseWheel;
 
 	// For removal
 	#boundFocusOutHandler;
@@ -23,11 +24,14 @@ export class Input
 	#boundMouseDownHandler;
 	#boundMouseUpHandler;
 	#boundMouseMoveHandler;
+	#boundMouseWheelHandler;
 
 	constructor(element)
 	{
 		this.#keyStates = new Array(256).fill(false);
 		this.#mouseButtons = new Array(5).fill(false);
+
+		this.#mouseWheel = 0;
 
 		element.addEventListener("focusout", this.#boundFocusOutHandler = this.#FocusOutHandler.bind(this));
 		element.addEventListener("contextmenu", this.#boundContextMenuHandler = this.#ContextMenuHandler.bind(this));
@@ -38,7 +42,7 @@ export class Input
 		element.addEventListener("mousedown", this.#boundMouseDownHandler = this.#MouseDownHandler.bind(this));
 		element.addEventListener("mouseup", this.#boundMouseUpHandler = this.#MouseUpHandler.bind(this));
 		element.addEventListener("mousemove", this.#boundMouseMoveHandler = this.#MouseMoveHandler.bind(this));
-
+		element.addEventListener("wheel", this.#boundMouseWheelHandler = this.#MouseWheelHandler.bind(this));
 	}
 
 	#ClearState()
@@ -67,6 +71,8 @@ export class Input
 		// Zero out the delta
 		this.#deltaMouseX = 0;
 		this.#deltaMouseY = 0;
+
+		this.#mouseWheel = 0;
 	}
 
 	// ------------------------------
@@ -126,6 +132,11 @@ export class Input
 		this.#mouseY = e.clientY;
 	}
 
+	#MouseWheelHandler(e)
+	{
+		this.#mouseWheel = e.deltaY;
+	}
+
 	IsMouseDown(button)
 	{
 		// Validate key
@@ -148,6 +159,7 @@ export class Input
 	GetMouseY() { return this.#mouseY; }
 	GetMouseDeltaX() { return this.#deltaMouseX; }
 	GetMouseDeltaY() { return this.#deltaMouseY; }
+	GetMouseWheel() { return this.#mouseWheel; }
 }
 
 export class Keys

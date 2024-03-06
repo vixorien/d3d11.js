@@ -261,7 +261,7 @@
 		import { TextureUtils } from "../build/textureUtils.js";
 		import { MappedArray } from "../build/mappedArray.js";
 		import { Transform } from "../build/transform.js";
-		import { FPSCamera } from "../build/camera.js";
+		import { FPSCamera, OrbitCamera } from "../build/camera.js";
 		import { Material } from "../build/material.js";
 		import { Entity } from "../build/entity.js";
 		import { Vertex } from "../build/vertex.js";
@@ -594,7 +594,8 @@
 			// Cube = 4.5
 
 			// Camera
-			let fpsCamera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
+			//let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
+			let camera = new OrbitCamera(10, viewportElement.clientWidth / viewportElement.clientHeight);
 
 
 			// Create shaders
@@ -771,8 +772,8 @@
 
 			// Set up the initial VS CB data
 			let wMat = Matrix4x4.Identity;
-			let vMat = fpsCamera.ViewMatrix;
-			let pMat = fpsCamera.ProjectionMatrix;
+			let vMat = camera.ViewMatrix;
+			let pMat = camera.ProjectionMatrix;
 
 			let vsData = new Float32Array(elementCount);
 			vsData.set(wMat, 0);
@@ -805,7 +806,7 @@
 				lightColors.push(new Vector3(r, g, b));
 			}
 			let psData = new Float32Array(psElementCount);
-			psData.set(fpsCamera.Position, 0); // Camera pos
+			psData.set(camera.Position, 0); // Camera pos
 			psData.set([1, 1, 1], 4); // Tint
 			psData.set([lightCount], 9); // Light count
 
@@ -969,7 +970,7 @@
 
 			function update(deltaTime, totalTime)
 			{
-				fpsCamera.Update(input, deltaTime);
+				camera.Update(input, deltaTime);
 
 				// Check for any progressive IBL updates
 				globalSky.Update();
@@ -1036,8 +1037,8 @@
 					context.OMSetRenderTargets([rtv], depthDSV);
 
 					// Update aspect ratio and camera
-					fpsCamera.AspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
-					pMat = fpsCamera.ProjectionMatrix;
+					camera.AspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
+					pMat = camera.ProjectionMatrix;
 					vsData.set(pMat, 32);
 
 					// Update rendering viewport, too
@@ -1077,7 +1078,7 @@
 					context.OMSetRenderTargets([ppRTV], depthDSV);
 				}
 
-				vMat = fpsCamera.ViewMatrix;
+				vMat = camera.ViewMatrix;
 				vsData.set(vMat, 16);
 
 				// Set constant buffers for main draw
@@ -1139,7 +1140,7 @@
 					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 					// Update pixel data
-					psData.set(fpsCamera.Position, 0);
+					psData.set(camera.Position, 0);
 					psData.set([globalSky.SpecularIBLMipsTotal], 8);
 					psData.set([lightCount], 9);  // Set light count (all lights)
 					psData.set([globalSky.IsHDR ? 1 : 0], 10); // Set HDR switch

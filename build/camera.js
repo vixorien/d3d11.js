@@ -97,6 +97,7 @@ export class FPSCamera extends Camera
 			this.#forwardVector.x = Math.sin(this.#pitchYawRoll.y);
 			this.#forwardVector.z = Math.cos(this.#pitchYawRoll.y);
 			this.#forwardVector.y = -Math.sin(this.#pitchYawRoll.x);
+			this.#forwardVector = Vector3.Normalize(this.#forwardVector);
 
 			this.#viewDirty = true;
 		}
@@ -128,17 +129,83 @@ export class FPSCamera extends Camera
 
 export class OrbitCamera extends Camera
 {
+	get ViewMatrix() { this.#updateView(); return this.#viewMatrix; }
+
+	get Forward() { return this.#forwardVector; }
+	get Position() { return this.#position; }
+	get FocusPosition() { return this.#focusPosition; }
+	get PitchYawRoll() { return this.#pitchYawRoll; }
+
+	// View
 	#distance;
+	#position;
+	#focusPosition;
+	#pitchYawRoll;
+	#forwardVector;
+
+	// Matrices
+	#viewMatrix;
+	#viewDirty;
 
 	constructor(distance, aspectRatio, fov = Math.PI / 4, nearClip = 0.01, farClip = 100)
 	{
 		super(aspectRatio, fov, nearClip, farClip);
 
 		this.#distance = distance;
+
+		this.#focusPosition = Vector3.Zero;
+		this.#pitchYawRoll = Vector3.Zero;
+		this.#forwardVector = Vector3.UnitZ;
+		this.#updatePosition();
+
+		this.#viewDirty = true;
+		this.#updateView();
 	}
 
 	Update(input, dt)
 	{
+		let wheel = input.GetMouseWheel();
+		if(wheel != 0)
+		{
+			this.#distance += wheel * 0.01;
+			this.#distance = Math.max(this.#distance, 0.1);
+			this.#viewDirty = true;
+		}
 
+		if (input.IsMouseDown(MouseButtons.Left) || input.IsMouseDown(MouseButtons.Right))
+		{
+			this.#pitchYawRoll.x += input.GetMouseDeltaY() * 0.01;
+			this.#pitchYawRoll.y += input.GetMouseDeltaX() * 0.01;
+
+			// Recompute forward vector
+			this.#forwardVector.x = Math.sin(this.#pitchYawRoll.y);
+			this.#forwardVector.z = Math.cos(this.#pitchYawRoll.y);
+			this.#forwardVector.y = -Math.sin(this.#pitchYawRoll.x);
+			this.#forwardVector = Vector3.Normalize(this.#forwardVector);
+
+			this.#viewDirty = true;
+		}
+
+		// Update position in the event anything changed
+		if (this.#viewDirty)
+			this.#updatePosition();
+	}
+
+	#updatePosition()
+	{
+		this.#position = Vector3.Add(this.#focusPosition, Vector3.Multiply(this.#forwardVector, -this.#distance));
+	}
+
+	#updateView()
+	{
+		if (!this.#viewDirty)
+			return;
+
+		this.#viewMatrix = Matrix4x4.ViewPositionLH(
+			this.#position,
+			this.#focusPosition,
+			Vector3.UnitY);
+		
+		this.#viewDirty = false;
 	}
 }
