@@ -75,10 +75,10 @@
 
 							<label for="lightSet" class="form-label">Lights</label>
 							<select id="lightSet" class="form-select" onchange="setLighting(this.value);">
-								<option value="0" selected>No lights (sky only)</option>
-								<option value="1">One Directional Light</option>
-								<option value="2">Three Directional Lights</option>
-								<option value="3">Eight Point Lights</option>
+								<option value="0" selected>One Directional Light</option>
+								<option value="1">Three Directional Lights</option>
+								<option value="2">Eight Point Lights</option>
+								<option value="3">No lights (sky only)</option>
 							</select>
 						</div>
 					</div>
@@ -285,6 +285,11 @@
 		let globalCurrentScene = 0;
 		let globalLightings = [];
 		let globalCurrentLighting = 0;
+
+		const Lighting_OneDir = 0;
+		const Lighting_ThreeDir = 1;
+		const Lighting_EightPoints = 2;
+		const Lighting_None = 3;
 
 		window.setScene = function(val)
 		{
@@ -757,22 +762,22 @@
 			// ----------- Lighting setups ---------------
 
 			// --- No lights ---
-			globalLightings.push([]);
+			globalLightings[Lighting_None] = [];
 
 			// --- One Dir Light ---
-			globalLightings.push([
+			globalLightings[Lighting_OneDir] = [
 				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1)))
-			]);
+			];
 
 			// --- Three Dir Lights ---
-			globalLightings.push([
+			globalLightings[Lighting_ThreeDir] = [
 				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1))),
 				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(-1, -0.1, -0.1))),
-				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(0, 1, -0.5)))
-			]);
+				new Light(Light.TypeDirectional, Vector3.One, 0.3, Vector3.Normalize(new Vector3(0, 1, -0.5)))
+			];
 
 			// --- Eight Point Lights ---
-			let pointLights = [];
+			globalLightings[Lighting_EightPoints] = [];
 			for (let i = 0; i < 8; i++)
 			{
 				let color = Vector3.One;
@@ -786,7 +791,7 @@
 
 				let pos = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
 
-				pointLights.push(new Light(
+				globalLightings[Lighting_EightPoints].push(new Light(
 					Light.TypePoint,
 					color,
 					1.0,
@@ -795,7 +800,6 @@
 					10
 				));
 			}
-			globalLightings.push(pointLights);
 
 			// Texture saving test
 			let ddsTest = false;
@@ -1045,6 +1049,16 @@
 
 				if (saveLUT.disabled && globalSky.BRDFLookUpTableReady) saveLUT.disabled = false;
 				else if (!saveLUT.disabled && !globalSky.BRDFLookUpTableReady) saveLUT.disabled = true;
+
+				// Update the point lights
+				for (let i = 0; i < globalLightings[Lighting_EightPoints].length; i++)
+				{
+					let offset = (i / 4) * Math.PI * 2;
+					let s = Math.sin(totalTime + offset);
+					let c = Math.cos(totalTime + offset);
+
+					globalLightings[Lighting_EightPoints][i].Position = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
+				}
 			}
 
 			function checkForResize()
@@ -1144,7 +1158,7 @@
 				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
 
 				// Light sphere draws
-				if(false)
+				if (globalCurrentLighting == Lighting_EightPoints)
 				{
 					// Swap to sphere buffers
 					context.VSSetShader(vs);
@@ -1153,23 +1167,18 @@
 					context.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
 					context.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
-					for (let i = 0; i < 8; i++)
+					let sMat = Matrix4x4.ScaleUniform(0.25);
+
+					for (let i = 0; i < globalLightings[Lighting_EightPoints].length; i++)
 					{
-						let offset = (i / 4) * Math.PI * 2;
-						let s = Math.sin(totalTime + offset);
-						let c = Math.cos(totalTime + offset);
+						let light = globalLightings[Lighting_EightPoints][i];
 
-						let lightPos = [3 * s, i < 4 ? -3 : 3, 3 * c];
-
-						wMat = Matrix4x4.Translation(lightPos[0], lightPos[1], lightPos[2]);
+						wMat = Matrix4x4.Multiply(sMat, Matrix4x4.Translation(light.Position.x, light.Position.y, light.Position.z));
 						vsData.set(wMat, 0);
 						context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
-						// Update PS data for later (12 initial, 16 per light, 4 floats deep)
-						psData.set(lightPos, elementsBeforeLights + i * 16 + 4);
-
 						// Update data for this draw
-						solidData.set(lightColors[i], 0);
+						solidData.set(light.Color, 0);
 						context.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
 
 						// Draw sphere
