@@ -7,6 +7,7 @@ export class Light extends Float32Array
 	static TypePoint = 1.0;
 
 	static SizeInBytes = 16 * Float32Array.BYTES_PER_ELEMENT;
+	static SizeInFloats = 16;
 
 	// Overall mapping in shader
 	// {

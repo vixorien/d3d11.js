@@ -74,9 +74,11 @@
 							<h5 class="card-title">&#128161; Lights</h5>
 
 							<label for="lightSet" class="form-label">Lights</label>
-							<select id="lightSet" class="form-select" onchange="">
-								<option value="0" selected>Three directional light</option>
-								<option value="1">Eight rotating lights</option>
+							<select id="lightSet" class="form-select" onchange="setLighting(this.value);">
+								<option value="0" selected>No lights (sky only)</option>
+								<option value="1">One Directional Light</option>
+								<option value="2">Three Directional Lights</option>
+								<option value="3">Eight Point Lights</option>
 							</select>
 						</div>
 					</div>
@@ -281,10 +283,17 @@
 
 		let globalScenes = [];
 		let globalCurrentScene = 0;
+		let globalLightings = [];
+		let globalCurrentLighting = 0;
 
 		window.setScene = function(val)
 		{
 			globalCurrentScene = val;
+		}
+
+		window.setLighting = function (val)
+		{
+			globalCurrentLighting = val;
 		}
 
 		window.setTonemapType = function(val)
@@ -645,7 +654,7 @@
 			globalSky.LoadCubeMap(skySRV, false);
 
 
-			// Entity setup
+			// -------------- Entity setup -------------------
 			let mat = new Material(vs, ps, new Vector3(1, 1, 1));
 			mat.SetPSTextureSRV(0, albedoSRV);
 			mat.SetPSTextureSRV(1, normalSRV);
@@ -744,6 +753,49 @@
 			}
 			globalScenes.push(rgbScene);
 
+
+			// ----------- Lighting setups ---------------
+
+			// --- No lights ---
+			globalLightings.push([]);
+
+			// --- One Dir Light ---
+			globalLightings.push([
+				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1)))
+			]);
+
+			// --- Three Dir Lights ---
+			globalLightings.push([
+				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1))),
+				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(-1, -0.1, -0.1))),
+				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(0, 1, -0.5)))
+			]);
+
+			// --- Eight Point Lights ---
+			let pointLights = [];
+			for (let i = 0; i < 8; i++)
+			{
+				let color = Vector3.One;
+				if (i % 4 == 1) color = Vector3.UnitX;
+				else if (i % 4 == 2) color = Vector3.UnitY;
+				else if (i % 4 == 3) color = Vector3.UnitZ;
+
+				let offset = (i / 4) * Math.PI * 2;
+				let s = Math.sin(offset);
+				let c = Math.cos(offset);
+
+				let pos = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
+
+				pointLights.push(new Light(
+					Light.TypePoint,
+					color,
+					1.0,
+					Vector3.Zero,
+					pos,
+					10
+				));
+			}
+			globalLightings.push(pointLights);
 
 			// Texture saving test
 			let ddsTest = false;
@@ -1092,6 +1144,7 @@
 				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
 
 				// Light sphere draws
+				if(false)
 				{
 					// Swap to sphere buffers
 					context.VSSetShader(vs);
@@ -1142,8 +1195,19 @@
 					// Update pixel data
 					psData.set(camera.Position, 0);
 					psData.set([globalSky.SpecularIBLMipsTotal], 8);
-					psData.set([lightCount], 9);  // Set light count (all lights)
+					psData.set([globalLightings[globalCurrentLighting].length], 9);  // Set light count (all lights)
 					psData.set([globalSky.IsHDR ? 1 : 0], 10); // Set HDR switch
+
+					// Lighting
+					let lightStart = 12;
+					let lighting = globalLightings[globalCurrentLighting];
+					for (let i = 0; i < lighting.length; i++)
+					{
+						psData.set(lighting[i], lightStart);
+						lightStart += Light.SizeInFloats;
+					}
+
+
 					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
 
 					// Set up material
