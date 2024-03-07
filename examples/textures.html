@@ -837,29 +837,32 @@
 			let scissorRastState = device.CreateRasterizerState(new D3D11_RASTERIZER_DESC(D3D11_FILL_SOLID, D3D11_CULL_BACK, false, 0, 0, 0, true, true));
 
 			
-			// Create constant buffer
-			let elementCount = 16 * 3; // 3 matrices
-			let vsCBDesc = new D3D11_BUFFER_DESC(
-				elementCount * Float32Array.BYTES_PER_ELEMENT,
+			// Create constant buffers -----------------
+			let cbDesc = new D3D11_BUFFER_DESC(
+				0, // Will be filled in below
 				D3D11_USAGE_DYNAMIC,
 				D3D11_BIND_CONSTANT_BUFFER,
 				D3D11_CPU_ACCESS_WRITE,
 				0, 0);
-			let vsCB = device.CreateBuffer(vsCBDesc, null);
 
+			// VS Per Frame = 2 matrices (view & proj)
+			cbDesc.ByteWidth = 16 * 2 * Float32Array.BYTES_PER_ELEMENT;
+			let vsCBPerFrame = device.CreateBuffer(cbDesc, null);
+			let vsPerFrameData = new MappedArray(16 * 2);
+			vsPerFrameData.PushMapping("view", 16);
+			vsPerFrameData.PushMapping("proj", 16);
 
+			// VS Per Object = 1 matrix (world)
+			cbDesc.ByteWidth = 16 * Float32Array.BYTES_PER_ELEMENT;
+			let vsCBPerObject = device.CreateBuffer(cbDesc, null);
+			let vsPerObjectData = new MappedArray(16);
+			vsPerObjectData.PushMapping("world", 16);
 
 
 			// Set up the initial VS CB data
 			let wMat = Matrix4x4.Identity;
 			let vMat = camera.ViewMatrix;
 			let pMat = camera.ProjectionMatrix;
-
-			let vsData = new Float32Array(elementCount);
-			vsData.set(wMat, 0);
-			vsData.set(vMat, 16);
-			vsData.set(pMat, 32);
-			context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
 
 			// Cbuffer for pixel shader
 			let lightCount = 8 + 3; // 8 point, 3 dir
@@ -1128,8 +1131,6 @@
 
 					// Update aspect ratio and camera
 					camera.AspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
-					pMat = camera.ProjectionMatrix;
-					vsData.set(pMat, 32);
 
 					// Update rendering viewport, too
 					viewport.Width = viewportElement.clientWidth;
@@ -1168,12 +1169,14 @@
 					context.OMSetRenderTargets([ppRTV], depthDSV);
 				}
 
-				vMat = camera.ViewMatrix;
-				vsData.set(vMat, 16);
-
 				// Set constant buffers for main draw
-				context.VSSetConstantBuffers(0, [vsCB]);
+				context.VSSetConstantBuffers(0, [vsCBPerFrame, vsCBPerObject]);
 				context.PSSetConstantBuffers(0, [psCB]);
+			
+				// Set per-frame data and update CB
+				vsPerFrameData.SetData("view", camera.ViewMatrix);
+				vsPerFrameData.SetData("proj", camera.ProjectionMatrix);
+				context.UpdateSubresource(vsCBPerFrame, 0, null, vsPerFrameData, 0, 0);
 
 				// Clear the frame
 				let black = [0, 0, 0, 1];
@@ -1197,9 +1200,11 @@
 					{
 						let light = globalLightings[Lighting_EightPoints][i];
 
-						wMat = Matrix4x4.Multiply(sMat, Matrix4x4.Translation(light.Position.x, light.Position.y, light.Position.z));
-						vsData.set(wMat, 0);
-						context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
+						// Set per-object VS data
+						vsPerObjectData.SetData(
+							"world",
+							Matrix4x4.Multiply(sMat, Matrix4x4.Translation(light.Position.x, light.Position.y, light.Position.z)));
+						context.UpdateSubresource(vsCBPerObject, 0, null, vsPerObjectData, 0, 0);
 
 						// Update data for this draw
 						solidData.set(light.Color, 0);
@@ -1222,8 +1227,8 @@
 					context.PSSetShader(e.Material.PixelShader);
 
 					// Update vertex data
-					vsData.set(e.Transform.WorldMatrix, 0);
-					context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
+					vsPerObjectData.SetData("world", e.Transform.WorldMatrix);
+					context.UpdateSubresource(vsCBPerObject, 0, null, vsPerObjectData, 0, 0);
 
 					// Update pixel data
 					psData.set(camera.Position, 0);

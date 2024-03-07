@@ -27,7 +27,7 @@ export class MappedArray extends Float32Array
 
 	PushMapping(name, size)
 	{
-		if (this.#offset + size >= this.#size)
+		if (this.#offset + size > this.#size)
 			throw new Error("Cannot map past end of buffer");
 
 		if (this.#mapping.hasOwnProperty(name))

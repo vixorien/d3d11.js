@@ -15,11 +15,15 @@ struct VertexToPixel
 	float3 worldPos	: POSITION;
 };
 
-cbuffer vsData : register(b0)
+cbuffer perFrame : register(b0)
 {
-	matrix world;
 	matrix view;
 	matrix proj;
+}
+
+cbuffer perObject : register(b1)
+{
+	matrix world;
 }
 
 VertexToPixel main(VSInput input)
