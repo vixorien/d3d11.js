@@ -1,6 +1,7 @@
 
 import { Keys, MouseButtons } from "./input.js";
 import { Vector3, Matrix4x4 } from "./d3dmath.js";
+import { Transform } from "./transform.js";
 
 class Camera
 {

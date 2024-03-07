@@ -17,5 +17,5 @@ float4 main(VertexToPixel_Sky input) : SV_TARGET
 {
 	float4 color = SkyTexture.SampleLevel(BasicSampler, input.sampleDir, mipLevel);
 
-	return envIsHDR == 1.0 ? pow(color, 1.0f / 2.2f) : color;
+	return color; // envIsHDR == 1.0 ? pow(color, 1.0f / 2.2f) : color;
 }

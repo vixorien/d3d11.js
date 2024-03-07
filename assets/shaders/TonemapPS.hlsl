@@ -67,7 +67,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	const int TONEMAP_ACES = 5;
 
 	// Grab the color and apply exposure before tonemapping
-	float3 color = pow(pixels.Sample(samp, input.uv).rgb, 2.2f);
+	float3 color = pixels.Sample(samp, input.uv).rgb; // Assuming we're in linear space here
 	color *= pow(2.0f, exposure);
 
 	// Choose the tonemap type

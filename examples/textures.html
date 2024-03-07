@@ -574,11 +574,7 @@
 			sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 			let clampSampler = device.CreateSamplerState(sampDesc);
 
-			// Attempt to load an image
-			let albedoSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png");
-			let normalSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_normals.png");
-			let metalSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_metal.png");
-			let roughSRV = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_roughness.png");
+			
 
 			// Create several solid textures
 			let blackSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 0, 255);
@@ -659,15 +655,43 @@
 			globalSky.LoadCubeMap(skySRV, false);
 
 
-			// -------------- Entity setup -------------------
-			let mat = new Material(vs, ps, new Vector3(1, 1, 1));
-			mat.SetPSTextureSRV(0, albedoSRV);
-			mat.SetPSTextureSRV(1, normalSRV);
-			mat.SetPSTextureSRV(2, metalSRV);
-			mat.SetPSTextureSRV(3, roughSRV);
-			mat.SetPSSamplerState(0, sampler);
-			mat.SetPSSamplerState(1, clampSampler);
+			// ----------------- Materials --------------------
+			
+			let matCobble = new Material(vs, ps, new Vector3(1, 1, 1));
+			matCobble.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png"));
+			matCobble.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_normals.png"));
+			matCobble.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_metal.png"));
+			matCobble.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_roughness.png"));
+			matCobble.SetPSSamplerState(0, sampler);
+			matCobble.SetPSSamplerState(1, clampSampler);
 
+			let matBronze = new Material(vs, ps, new Vector3(1, 1, 1));
+			matBronze.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_albedo.png"));
+			matBronze.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_normals.png"));
+			matBronze.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_metal.png"));
+			matBronze.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_roughness.png"));
+			matBronze.SetPSSamplerState(0, sampler);
+			matBronze.SetPSSamplerState(1, clampSampler);
+
+			let matFloor = new Material(vs, ps, new Vector3(1, 1, 1));
+			matFloor.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/floor_albedo.png"));
+			matFloor.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/floor_normals.png"));
+			matFloor.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/floor_metal.png"));
+			matFloor.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/floor_roughness.png"));
+			matFloor.SetPSSamplerState(0, sampler);
+			matFloor.SetPSSamplerState(1, clampSampler);
+
+			let matScratched = new Material(vs, ps, new Vector3(1, 1, 1));
+			matScratched.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/scratched_albedo.png"));
+			matScratched.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/scratched_normals.png"));
+			matScratched.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/scratched_metal.png"));
+			matScratched.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/scratched_roughness.png"));
+			matScratched.SetPSSamplerState(0, sampler);
+			matScratched.SetPSSamplerState(1, clampSampler);
+
+			let mat = matFloor;
+
+			// -------------- Entity setup -------------------
 			// --- SPHERE SCENE ---
 			let sphereEntity = new Entity(
 				sphereMesh,
@@ -1167,7 +1191,7 @@
 					context.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
 					context.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
-					let sMat = Matrix4x4.ScaleUniform(0.25);
+					let sMat = Matrix4x4.ScaleUniform(0.5);
 
 					for (let i = 0; i < globalLightings[Lighting_EightPoints].length; i++)
 					{
@@ -1203,9 +1227,10 @@
 
 					// Update pixel data
 					psData.set(camera.Position, 0);
+					psData.set(e.Material.Color, 4);
 					psData.set([globalSky.SpecularIBLMipsTotal], 8);
 					psData.set([globalLightings[globalCurrentLighting].length], 9);  // Set light count (all lights)
-					psData.set([globalSky.IsHDR ? 1 : 0], 10); // Set HDR switch
+					psData.set([globalSky.IsHDR() ? 1 : 0], 10); // Set HDR switch
 
 					// Lighting
 					let lightStart = 12;

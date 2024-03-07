@@ -42,7 +42,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	input.normal = normalize(input.normal);
 	input.tangent = normalize(input.tangent);
 	
-	float3 albedo = pow(albedoMap.Sample(samp, input.uv).rgb, 2.2);
+	float3 albedo = pow(albedoMap.Sample(samp, input.uv).rgb, 2.2) * tint;
 	float metal = metalMap.Sample(samp, input.uv).r;
 	float rough = max(roughnessMap.Sample(samp, input.uv).r, MIN_ROUGHNESS);
 	float3 normalFromMap = normalMap.Sample(samp, input.uv).rgb;
@@ -123,7 +123,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float3 fullIndirect = (indirectDiffuse * albedo * saturate(1.0 - metal)) + indirectSpecular;
 
 	float3 finalColor = color + fullIndirect;
-	finalColor = pow(finalColor, 1.0 / 2.2);
+	finalColor = envIsHDR == 1.0 ? finalColor : pow(finalColor, 1.0 / 2.2);
 
 	return float4(finalColor, 1);
 }
