@@ -264,6 +264,7 @@ export class TextureUtils
 		desc.BindFlags = 0;
 		desc.Usage = D3D11_USAGE_STAGING;
 		desc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
+		desc.MiscFlags = (desc.MiscFlags & ~D3D11_RESOURCE_MISC_GENERATE_MIPS); // Remove mip gen flag!
 		let readbackTexture = d3dDevice.CreateTexture2D(desc, null);
 
 		// Copy the original texture to the readback texture
@@ -772,8 +773,8 @@ export class TextureUtils
 			/* dwSize        */ 32, // Always 32
 			/* dwFlags       */ DDPF_FOURCC,  // Assuming we're using the extended header for all formats!
 			/* dwFourCC      */ 0x30315844,   // Needs to be "DX10", but left-to-right: '0', '1', 'X', 'D'
-			/* dwRGBBitCount */ 0, // The following are all zeros since the extended header handles format details
-			/* dwRBitMask    */ 0,
+			/* dwRGBBitCount */ bitsPerPixel, 
+			/* dwRBitMask    */ 0, // The following are all zeros since the extended header handles format details (right?)
 			/* dwGBitMask    */ 0,
 			/* dwBBitMask    */ 0,
 			/* dwABitMask    */ 0,

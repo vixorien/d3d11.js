@@ -14,5 +14,5 @@ SamplerState samp : register(s0);
 
 float4 main(VertexToPixel input) : SV_TARGET
 {
-	return pixels.Sample(samp, input.uv);
+	return pixels.SampleLevel(samp, input.uv, 9.0);
 }

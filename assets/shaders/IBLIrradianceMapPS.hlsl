@@ -137,10 +137,6 @@ float D_GGX(float3 n, float3 h, float roughness)
 // Convolution method (similar to specular IBL)
 float3 Convolution(float3 zDir)
 {
-	// Total color (to be averaged at the end)
-	float3 totalColor = float3(0, 0, 0);
-	float sampleCount = 0.0;
-
 	// Perfectly diffuse!
 	float roughness = 1.0;
 
@@ -157,7 +153,7 @@ float3 Convolution(float3 zDir)
 	// Note the scaled cube size, which helps
 	// immensely with HDR convolution "speckles"
 	float PI = 3.14159265359f;
-	float scaledCubeSize = cubeSize * 4.0;
+	float scaledCubeSize = cubeSize;// *4.0;
 	float solidAngleTexel = 4.0f * PI / (6.0f * scaledCubeSize * scaledCubeSize);
 
 	// Sample the texture cube MANY times
@@ -181,7 +177,7 @@ float3 Convolution(float3 zDir)
 			// Select the proper mip level, as done here: https://chetanjags.wordpress.com/2015/08/26/image-based-lighting/
 			float D = D_GGX(N, H, roughness);
 			float pdf = (D * nDotH_and_hDotV / (4.0f * nDotH_and_hDotV)) + 0.0001f;
-			float solidAngleSample = 1.0f / (float(MAX_IBL_SAMPLES) * pdf);
+			float solidAngleSample = 1.0f / (float(MAX_IBL_SAMPLES) * pdf + 0.0001f);
 			float mipToSample = roughness == 0.0f ? 0.0f : 0.5f * log2(solidAngleSample / solidAngleTexel);
 
 			float3 thisColor = EnvironmentMap.SampleLevel(BasicSampler, L, mipToSample).rgb;
@@ -196,68 +192,68 @@ float3 Convolution(float3 zDir)
 
 // Nested loop around the hemisphere
 // From: http://www.codinglabs.net/article_physically_based_rendering.aspx
-float3 IrradianceHemisphereSamples(float3 zDir)
-{
-	// Calculate the tangent and bitangent
-	float3 xDir = normalize(cross(float3(0, 1, 0), zDir));
-	float3 yDir = normalize(cross(zDir, xDir));
-
-	// Total color (to be averaged at the end)
-	float3 totalColor = float3(0, 0, 0);
-	float sampleCount = 0.0;
-
-	// Variables for various sin/cos values
-	float sinT, cosT, sinP, cosP;
-
-	float PI = 3.14159265359f;
-	float TWO_PI = PI * 2.0f;
-	float PI_OVER_2 = PI * 0.5f;
-	float IRRADIANCE_SAMPLE_STEP_PHI = 0.025f;
-	float IRRADIANCE_SAMPLE_STEP_THETA = 0.01f;
-
-	// Pre-calculate values necessary for mip selection
-	float totalSamples =
-		(PI_OVER_2 / IRRADIANCE_SAMPLE_STEP_THETA) *
-		(TWO_PI / IRRADIANCE_SAMPLE_STEP_PHI);
-	float solidAngleTexel = 4.0f * PI / (6.0f * cubeSize * cubeSize);
-	float distr = 1.0f / PI; // I think?
-
-	// Loop around the hemisphere (360 degrees)
-	for (float phi = 0.0f; phi < TWO_PI; phi += IRRADIANCE_SAMPLE_STEP_PHI)
-	{
-		// Grab the sin and cos of phi
-		sincos(phi, sinP, cosP);
-
-		// Loop down the hemisphere (90 degrees)
-		for (float theta = 0.0f; theta < PI_OVER_2; theta += IRRADIANCE_SAMPLE_STEP_THETA)
-		{
-			// Get the sin and cos of theta
-			sincos(theta, sinT, cosT);
-
-			// Get an X/Y/Z direction from the polar coords
-			float3 hemisphereDir = float3(sinT * cosP, sinT * sinP, cosT);
-
-			// Change to world space based on this pixel's direction
-			hemisphereDir =
-				hemisphereDir.x * xDir +
-				hemisphereDir.y * yDir +
-				hemisphereDir.z * zDir;
-
-			// Select the proper mip level, as done here: https://chetanjags.wordpress.com/2015/08/26/image-based-lighting/
-			// Note: We're using a cosine distribution
-			float pdf = (distr * cosT / 4.0f) + 0.0001f;
-			float solidAngleSample = 1.0f / (totalSamples * pdf + 0.0001f);
-			float mipLevel = 0.5f * log2(solidAngleSample / solidAngleTexel);
-
-			// Sample in that direction
-			float3 samp = EnvironmentMap.SampleLevel(BasicSampler, hemisphereDir, mipLevel).rgb;
-			totalColor += cosT * sinT * (envIsHDR == 1.0f ? samp : pow(samp, 2.2f));
-			sampleCount++;
-		}
-	}
-
-	return PI * totalColor / sampleCount;
-}
+//float3 IrradianceHemisphereSamples(float3 zDir)
+//{
+//	// Calculate the tangent and bitangent
+//	float3 xDir = normalize(cross(float3(0, 1, 0), zDir));
+//	float3 yDir = normalize(cross(zDir, xDir));
+//
+//	// Total color (to be averaged at the end)
+//	float3 totalColor = float3(0, 0, 0);
+//	float sampleCount = 0.0;
+//
+//	// Variables for various sin/cos values
+//	float sinT, cosT, sinP, cosP;
+//
+//	float PI = 3.14159265359f;
+//	float TWO_PI = PI * 2.0f;
+//	float PI_OVER_2 = PI * 0.5f;
+//	float IRRADIANCE_SAMPLE_STEP_PHI = 0.025f;
+//	float IRRADIANCE_SAMPLE_STEP_THETA = 0.01f;
+//
+//	// Pre-calculate values necessary for mip selection
+//	float totalSamples =
+//		(PI_OVER_2 / IRRADIANCE_SAMPLE_STEP_THETA) *
+//		(TWO_PI / IRRADIANCE_SAMPLE_STEP_PHI);
+//	float solidAngleTexel = 4.0f * PI / (6.0f * cubeSize * cubeSize);
+//	float distr = 1.0f / PI; // I think?
+//
+//	// Loop around the hemisphere (360 degrees)
+//	for (float phi = 0.0f; phi < TWO_PI; phi += IRRADIANCE_SAMPLE_STEP_PHI)
+//	{
+//		// Grab the sin and cos of phi
+//		sincos(phi, sinP, cosP);
+//
+//		// Loop down the hemisphere (90 degrees)
+//		for (float theta = 0.0f; theta < PI_OVER_2; theta += IRRADIANCE_SAMPLE_STEP_THETA)
+//		{
+//			// Get the sin and cos of theta
+//			sincos(theta, sinT, cosT);
+//
+//			// Get an X/Y/Z direction from the polar coords
+//			float3 hemisphereDir = float3(sinT * cosP, sinT * sinP, cosT);
+//
+//			// Change to world space based on this pixel's direction
+//			hemisphereDir =
+//				hemisphereDir.x * xDir +
+//				hemisphereDir.y * yDir +
+//				hemisphereDir.z * zDir;
+//
+//			// Select the proper mip level, as done here: https://chetanjags.wordpress.com/2015/08/26/image-based-lighting/
+//			// Note: We're using a cosine distribution
+//			float pdf = (distr * cosT / 4.0f) + 0.0001f;
+//			float solidAngleSample = 1.0f / (totalSamples * pdf + 0.0001f);
+//			float mipLevel = 0.5f * log2(solidAngleSample / solidAngleTexel);
+//
+//			// Sample in that direction
+//			float3 samp = EnvironmentMap.SampleLevel(BasicSampler, hemisphereDir, mipLevel).rgb;
+//			totalColor += cosT * sinT * (envIsHDR == 1.0f ? samp : pow(samp, 2.2f));
+//			sampleCount++;
+//		}
+//	}
+//
+//	return PI * totalColor / sampleCount;
+//}
 
 
 float4 main(VertexToPixel input) : SV_TARGET

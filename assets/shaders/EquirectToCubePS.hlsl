@@ -4,6 +4,7 @@
 cbuffer data : register(b0)
 {
 	float faceIndex;
+	float sourceMipIndex;
 	float exposure;
 	float envIsHDR;
 }
@@ -59,7 +60,7 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float2 uv = DirectionToUV(dir);
 
 	// Sample and convert to linear if necessary
-	float4 color = pow(EquirectMap.Sample(BasicSampler, uv), 2.2f);
+	float4 color = EquirectMap.SampleLevel(BasicSampler, uv, sourceMipIndex);
 	color = envIsHDR == 1.0 ? color : pow(color, 2.2f);
 
 	// Apply exposure and convert back to gamma if necessary

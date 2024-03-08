@@ -29,10 +29,14 @@ export class Sky
 	get SpecularIBLReady() { return this.SkyCubeSRV != null && !this.#specDirty; }
 	get BRDFLookUpTableReady() { return !this.#lutDirty; }
 
+	// TESTING
+	get EquirectSRV() { return this.#equirectSRV; }
+
 	// Internal D3D stuff
 	#d3dDevice;
 	#d3dContext;
-	#sampler;
+	#samplerLinear;
+	#samplerPoint;
 	#cbVS;		// Constant buffer for sky rendering vertex shader work
 	#cbVSData;	// Data array for vertex shader
 	#cbPS;		// Constant buffer for sky rendering & IBL pixel shader work
@@ -58,6 +62,7 @@ export class Sky
 	#iblSpecPS;
 	#brdfLutPS;
 	#equirectToCubePS;
+	#mipReducePS;
 	#fullscreenVS;
 
 	// Progressive updating
@@ -99,6 +104,7 @@ export class Sky
 		iblSpecPS,
 
 		equirectPS,
+		mipReducePS,
 		fullscreenVS,
 
 		progressiveIBLUpdate = true,
@@ -131,6 +137,7 @@ export class Sky
 		this.#iblSpecPS = iblSpecPS;
 
 		this.#equirectToCubePS = equirectPS;
+		this.#mipReducePS = mipReducePS;
 		this.#fullscreenVS = fullscreenVS;
 
 		// Progressive updating
@@ -142,9 +149,9 @@ export class Sky
 		this.#hdrExposure = 0;
 		this.#equirectSRV = null;
 
-		// Create a sampler for rendering
+		// Create samplers for rendering
 		let sampDesc = new D3D11_SAMPLER_DESC(
-			D3D11_FILTER_ANISOTROPIC,
+			D3D11_FILTER_MIN_MAG_MIP_LINEAR,
 			D3D11_TEXTURE_ADDRESS_WRAP,
 			D3D11_TEXTURE_ADDRESS_WRAP,
 			D3D11_TEXTURE_ADDRESS_WRAP,
@@ -154,7 +161,14 @@ export class Sky
 			0,
 			0,
 			D3D11_FLOAT32_MAX);
-		this.#sampler = this.#d3dDevice.CreateSamplerState(sampDesc);
+		this.#samplerLinear = this.#d3dDevice.CreateSamplerState(sampDesc);
+
+		// Point, too!
+		sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		this.#samplerPoint = this.#d3dDevice.CreateSamplerState(sampDesc);
 
 		// Create a rasterizer state for rendering the inside of our mesh
 		let skyRastDesc = new D3D11_RASTERIZER_DESC(
@@ -280,22 +294,80 @@ export class Sky
 		let hdrDesc = new D3D11_TEXTURE2D_DESC(
 			width,
 			height,
-			1,
+			0, // All mips down to 1x1
 			1,
 			format,
 			new DXGI_SAMPLE_DESC(1, 0),
 			D3D11_USAGE_DEFAULT,
-			D3D11_BIND_SHADER_RESOURCE,
+			D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
 			0,
-			0);
+			D3D11_RESOURCE_MISC_GENERATE_MIPS);
 		let tex = this.#d3dDevice.CreateTexture2D(hdrDesc, [pixelData]);
 		this.#equirectSRV = this.#d3dDevice.CreateShaderResourceView(tex, null);
-		tex.Release(); // Just need the SRV
+		
+		// Save the format!
+		this.SkyColorFormat = format;
+
+		// Generate mips for the equirect
+		//this.#d3dContext.GenerateMips(this.#equirectSRV);
+
+		// How many total mips?
+		let totalMips = Math.max(Math.log2(width), Math.log2(height));
+
+		// Handle mip reduce manually
+		let [oldRTVs, dsv] = this.#d3dContext.OMGetRenderTargets();
+		let oldVP = this.#d3dContext.RSGetViewports()[0];
+
+		// Prepare pipeline
+		this.#d3dContext.VSSetShader(this.#fullscreenVS);
+		this.#d3dContext.PSSetShader(this.#mipReducePS);
+		this.#d3dContext.PSSetSamplers(0, [this.#samplerPoint]);
+		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
+		// Just using our existing constant buffer as it should be big enough
+
+		for (let mip = 1; mip < totalMips; mip++)
+		{
+			// Calc source mip size (So mip 0's width is 100%, mip 1's width is 50%, etc.)
+			let sourceMipWidth = Math.max(Math.floor(width / Math.pow(2, mip - 1)), 1);
+			let sourceMipHeight = Math.max(Math.floor(height / Math.pow(2, mip - 1)), 1);
+			
+			// Yes, this is HDR!
+			this.#cbPSData.set([sourceMipWidth, sourceMipHeight, 1.0]);
+			this.#d3dContext.UpdateSubresource(this.#cbPS, 0, null, this.#cbPSData, 0, 0);
+
+			// Set up viewport
+			let destMipWidth = Math.max(Math.floor(sourceMipWidth / 2), 1);
+			let destMipHeight = Math.max(Math.floor(sourceMipHeight / 2), 1);
+			
+			let vp = new D3D11_VIEWPORT(0, 0, destMipWidth, destMipHeight, 0, 1);
+			this.#d3dContext.RSSetViewports([vp]);
+
+			// Create RTV for this mip
+			let rtvDesc = new D3D11_RENDER_TARGET_VIEW_DESC(format, D3D11_RTV_DIMENSION_TEXTURE2D, mip);
+			let rtv = this.#d3dDevice.CreateRenderTargetView(tex, rtvDesc);
+			this.#d3dContext.OMSetRenderTargets([rtv], null);
+
+			// Create SRV for this texture such that it doesn't overlap RTV mip
+			let srvDesc = new D3D11_SHADER_RESOURCE_VIEW_DESC(format, D3D11_SRV_DIMENSION_TEXTURE2D, mip - 1, 1);
+			let srv = this.#d3dDevice.CreateShaderResourceView(tex, srvDesc);
+			this.#d3dContext.PSSetShaderResources(0, [srv]);
+
+			// Draw the rect
+			this.#d3dContext.Draw(3, 0);
+
+			srv.Release();
+			rtv.Release();
+		}
+
+		// Reset
+		this.#d3dContext.OMSetRenderTargets([oldRTVs[0]], dsv);
+		this.#d3dContext.RSSetViewports([oldVP]);
 
 		// Copy the equirect to a cube map
 		this.#CopyEquirectToCube();
 
 		// All done
+		tex.Release(); // Just need the SRV
 		this.#ResetIBLDirtyState(true);
 	}
 
@@ -590,7 +662,7 @@ export class Sky
 		this.#d3dContext.PSSetShader(this.#irrPS);
 		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
 		this.#d3dContext.PSSetShaderResources(0, [this.SkyCubeSRV]);
-		this.#d3dContext.PSSetSamplers(0, [this.#sampler]);
+		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinear]);
 		for (let face = startFace; face < endFace; face++)
 		{
 			// RTV for this face
@@ -731,7 +803,7 @@ export class Sky
 		this.#d3dContext.PSSetShader(this.#iblSpecPS);
 		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
 		this.#d3dContext.PSSetShaderResources(0, [this.SkyCubeSRV]);
-		this.#d3dContext.PSSetSamplers(0, [this.#sampler]);
+		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinear]);
 
 		// Process each mip
 		for (let mip = startMip; mip < endMip; mip++)
@@ -877,13 +949,19 @@ export class Sky
 		let cubeTexture = this.SkyCubeSRV.GetResource();
 	
 		// Set extra PS data
-		this.#cbPSData.set([this.#hdrExposure], 1); // Exposure adjustment
-		this.#cbPSData.set([this.#isHDR ? 1 : 0], 2); // Is ths environment HDR?
+		this.#cbPSData.set([0], 1); // Source mip index
+		this.#cbPSData.set([this.#hdrExposure], 2); // Exposure adjustment
+		this.#cbPSData.set([this.#isHDR ? 1 : 0], 3); // Is ths environment HDR?
 
 		// Set up viewport
 		let oldVP = this.#d3dContext.RSGetViewports()[0];
-		let vp = new D3D11_VIEWPORT(0, 0, this.SkyCubeSize, this.SkyCubeSize, 0, 1);
-		this.#d3dContext.RSSetViewports([vp]);
+
+		// How many mip levels do we need to handle manually?
+		let mipsToCopy = 1;
+		if (this.#isHDR)
+		{
+			mipsToCopy = Math.ceil(Math.log2(idealCubeSize)) + 1; // Account for 1x1
+		}
 
 		// Get existing render targets
 		let [rts, dsv] = this.#d3dContext.OMGetRenderTargets();
@@ -893,32 +971,45 @@ export class Sky
 		this.#d3dContext.PSSetShader(this.#equirectToCubePS);
 		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
 		this.#d3dContext.PSSetShaderResources(0, [this.#equirectSRV]);
-		this.#d3dContext.PSSetSamplers(0, [this.#sampler]);
-		for (let face = 0; face < 6; face++)
+		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinear]);
+		for (let mip = 0; mip < mipsToCopy; mip++)
 		{
-			// RTV for this face
-			let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
-				this.SkyColorFormat,
-				D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
-				0,
-				face,
-				1);
-			let faceRTV = this.#d3dDevice.CreateRenderTargetView(cubeTexture, faceRTVDesc);
+			for (let face = 0; face < 6; face++)
+			{
+				// RTV for this face
+				let faceRTVDesc = new D3D11_RENDER_TARGET_VIEW_DESC(
+					this.SkyColorFormat,
+					D3D11_RTV_DIMENSION_TEXTURE2DARRAY,
+					mip,
+					face,
+					1);
+				let faceRTV = this.#d3dDevice.CreateRenderTargetView(cubeTexture, faceRTVDesc);
 
-			// Set cb data
-			this.#cbPSData.set([face], 0);
-			this.#d3dContext.UpdateSubresource(this.#cbPS, 0, null, this.#cbPSData, 0, 0);
+				// Viewport for mip size
+				let mipSize = Math.max(Math.floor(idealCubeSize / Math.pow(2, mip)), 1);
+				let vp = new D3D11_VIEWPORT(0, 0, mipSize, mipSize, 0, 1);
+				this.#d3dContext.RSSetViewports([vp]);
 
-			// Draw and flush to ensure we're done
-			this.#d3dContext.OMSetRenderTargets([faceRTV], null);
-			this.#d3dContext.Draw(3, 0);
-			this.#d3dContext.Flush();
+				// Set cb data
+				this.#cbPSData.set([face], 0);
+				this.#cbPSData.set([mip], 1);
+				this.#d3dContext.UpdateSubresource(this.#cbPS, 0, null, this.#cbPSData, 0, 0);
 
-			faceRTV.Release();
+				// Draw and flush to ensure we're done
+				this.#d3dContext.OMSetRenderTargets([faceRTV], null);
+				this.#d3dContext.Draw(3, 0);
+				this.#d3dContext.Flush();
+
+				faceRTV.Release();
+			}
 		}
 
-		// Generate mip maps for the enviroment map for later IBL steps
-		this.#d3dContext.GenerateMips(this.SkyCubeSRV);
+		// If this isn't HDR, just perform the basic mip generation
+		if (!this.#isHDR)
+		{
+			// Generate mip maps for the enviroment map for later IBL steps
+			this.#d3dContext.GenerateMips(this.SkyCubeSRV);
+		}
 
 		// Clean up
 		cubeTexture.Release(); // SRV has ref

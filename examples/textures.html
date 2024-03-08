@@ -217,10 +217,10 @@
 						<div class="card-body">
 							<h5 class="card-title">&#128190; Save IBL Maps</h5>
 							<p>Save any of the generated Image-Based Lighting maps</p>
-							<button class="btn btn-primary mb-1 w-100" id="buttonSaveSky" disabled>Save Skybox as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIrr" disabled>Save Irradiance as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIBL" disabled>Save IBL Specular as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1 w-100" id="buttonSaveLUT" disabled>Save BRDF Look Up Table as DDS Texture</button>
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveSky" onclick="window.saveSkyToFile();" disabled>Save Skybox as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIrr" onclick="window.saveIrrToFile();" disabled>Save Irradiance as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIBL" onclick="window.saveIBLToFile();" disabled>Save IBL Specular as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveLUT" onclick="window.saveLUTToFile();" disabled>Save BRDF Look Up Table as DDS Texture</button>
 						</div>
 					</div>
 					<!-- END Card: Save IBL Maps -->
@@ -488,11 +488,28 @@
 			return srv;
 		}
 
-		async function loadText(url)
+		window.saveSkyToFile = function()
 		{
-			const resp = await fetch(url);
-			const text = await resp.text();
-			return text;
+			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.SkyCubeSRV);
+			TextureUtils.WriteDDSFile("sky_cube.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
+		}
+
+		window.saveIrrToFile = function()
+		{
+			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.IrradianceCubeSRV);
+			TextureUtils.WriteDDSFile("ibl_irradiance_cube.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
+		}
+
+		window.saveIBLToFile = function()
+		{
+			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.SpecularIBLCubeSRV);
+			TextureUtils.WriteDDSFile("ibl_specular_cube.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
+		}
+
+		window.saveLUTToFile = function()
+		{
+			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.BRDFLookUpTableSRV);
+			TextureUtils.WriteDDSFile("brdf_look_up_table.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 		}
 
 		async function main()
@@ -599,12 +616,6 @@
 			let helixMesh = await Mesh.LoadFromFile(device, "../assets/meshes/helix.obj");
 			let cubeMesh = await Mesh.LoadFromFile(device, "../assets/meshes/cube.obj");
 
-			let currentMesh = sphereMesh;
-			let currentScale = 7;
-			// Sphere = 7
-			// Helix = 3
-			// Cube = 4.5
-
 			// Camera
 			let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
 			//let camera = new OrbitCamera(10, viewportElement.clientWidth / viewportElement.clientHeight);
@@ -614,6 +625,7 @@
 			let ps = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
 			let vs = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
 			let solidPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
+			let mipReducePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/MipReducePS.hlsl"));
 			let skyVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyVS.hlsl"));
 			let skyPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyPS.hlsl"));
 			let tonemapPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/TonemapPS.hlsl"));
@@ -652,7 +664,7 @@
 				DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
 				DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
 				DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
-				equirectToCubePS, fullscreenVS,
+				equirectToCubePS, mipReducePS, fullscreenVS,
 				true, 128);
 			globalSky.LoadCubeMap(skySRV, false);
 
@@ -1165,22 +1177,22 @@
 				}
 
 				// Draw "UI"
-				//{
-				//	quadData.set([
-				//		100, 100, // Position in pixels
-				//		100, 100, // Size in pixels
-				//		viewportElement.clientWidth, viewportElement.clientHeight // Window size
-				//	]);
-				//	context.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
+				{
+					//quadData.set([
+					//	100, 100, // Position in pixels
+					//	800, 400, // Size in pixels
+					//	viewportElement.clientWidth, viewportElement.clientHeight // Window size
+					//]);
+					//context.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
 
-				//	context.VSSetShader(quadVS);
-				//	context.VSSetConstantBuffers(0, [quadCB]);
+					//context.VSSetShader(quadVS);
+					//context.VSSetConstantBuffers(0, [quadCB]);
 
-				//	context.PSSetShader(simpleTexturePS);
-				//	context.PSSetShaderResources(0, [globalSky.GetEquirectSRV()]);
+					//context.PSSetShader(simpleTexturePS);
+					//context.PSSetShaderResources(0, [globalSky.EquirectSRV]);
 
-				//	context.Draw(6, 0);
-				//}
+					//context.Draw(6, 0);
+				}
 
 				// Flush the frame
 				swapChain.Present();
