@@ -4224,9 +4224,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				if (cb.RegisterIndex < 0 || cb.RegisterIndex >= this.#maxVSConstantBuffers)
 					throw new Error("Invalid register index for vertex shader constant buffer");
 
-				// Get the uniform block index
-				// TODO: Check translated names!
-				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
+				// Get the uniform block index using the GL-translated name
+				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.NameGL);
 
 				// Store in the map
 				vspsMap.CBufferMap[cb.RegisterIndex] = ubIndex;
@@ -4242,9 +4241,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				if (cb.RegisterIndex < 0 || cb.RegisterIndex >= this.#maxPSConstantBuffers)
 					throw new Error("Invalid register index for pixel shader constant buffer");
 
-				// Get the uniform block index
-				// TODO: Check translated names!
-				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
+				// Get the uniform block index using the GL-translated name
+				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.NameGL);
 
 				// Store in the map - Note the offset for uniform block indices, since
 				// we need PS indices to start after all possible VS indices
@@ -5904,6 +5902,8 @@ const PrefixVSInput = "_vs_input_";
 const PrefixVSOutput = "_vs_output_";
 const PrefixPSInput = "_ps_input_";
 const PrefixPSOutput = "_ps_output_";
+const PrefixVSCBuffer = "_vs_";
+const PrefixPSCBuffer = "_ps_";
 const PSOutputVariable = "_sv_target_";
 
 const ShaderLanguageHLSL = 0;
@@ -6353,7 +6353,13 @@ class HLSL
 		let it = new TokenIterator(this.#tokens);
 
 		// Possible global cbuffer
-		let globalCB = new ShaderElementCBuffer("$Global", -1);
+		let prefix = "";
+		switch (this.#shaderType)
+		{
+			case ShaderTypePixel: prefix = PrefixPSCBuffer; break;
+			case ShaderTypeVertex: prefix = PrefixVSCBuffer; break;
+		}
+		let globalCB = new ShaderElementCBuffer("$Global", prefix + "global_cbuffer", -1);
 
 		// Work through tokens
 		it.MoveNext();
@@ -6667,7 +6673,17 @@ class HLSL
 
 		// End scope
 		this.#Require(it, TokenScopeRight);
-		return new ShaderElementCBuffer(name, regIndex, vars);
+
+		// What's the translated name for this cbuffer?
+		let prefix = "";
+		switch (this.#shaderType)
+		{
+			case ShaderTypePixel: prefix = PrefixPSCBuffer; break;
+			case ShaderTypeVertex: prefix = PrefixVSCBuffer; break;
+		}
+		let nameGL = HLSL.TranslateToGLSL(prefix + name);
+
+		return new ShaderElementCBuffer(name, nameGL, regIndex, vars);
 	}
 
 	// Structs: Interpmod(s), type, name, arraysize, semantic
@@ -7899,12 +7915,12 @@ class HLSL
 		// Append each type of shader element
 		glsl += this.#GetAttributesString(vsInputs);
 		glsl += this.#GetVSVaryings();
+		glsl += this.#GetGlobalConstantsString();
 		glsl += this.#GetStructsString();
 		glsl += this.#GetCBuffersString();
 		glsl += this.#GetHLSLOnlyFunctions();
 		glsl += this.#GetMatrixConstructors();
 		glsl += this.#GetTextureSamplerString();
-		glsl += this.#GetGlobalConstantsString();
 		glsl += this.#GetFunctionsString();
 		glsl += this.#BuildVertexShaderMain(vsInputs);
 		
@@ -8029,12 +8045,18 @@ class HLSL
 	#GetCBuffersString()
 	{
 		let cbStr = "";
+		let prefix = "";
+		switch (this.#shaderType)
+		{
+			case ShaderTypePixel: prefix = PrefixPSCBuffer; break;
+			case ShaderTypeVertex: prefix = PrefixVSCBuffer; break;
+		}
 
 		for (let c = 0; c < this.#cbuffers.length; c++)
 		{
 			// Start the uniform block
 			let cb = this.#cbuffers[c];
-			cbStr += "layout(std140) uniform " + HLSL.TranslateToGLSL(cb.Name) + "\n";
+			cbStr += "layout(std140) uniform " + HLSL.TranslateToGLSL(prefix + cb.Name) + "\n";
 			cbStr += "{\n";
 
 			// Handle each variable (no semantics)
@@ -8429,12 +8451,12 @@ class HLSL
 		glsl += "precision mediump sampler3D;\n\n";
 		glsl += "out vec4 " + PSOutputVariable + ";\n\n";
 		glsl += this.#GetPSVaryings(psInputs);
+		glsl += this.#GetGlobalConstantsString();
 		glsl += this.#GetStructsString();
 		glsl += this.#GetCBuffersString();
 		glsl += this.#GetHLSLOnlyFunctions();
 		glsl += this.#GetMatrixConstructors();
 		glsl += this.#GetTextureSamplerString();
-		glsl += this.#GetGlobalConstantsString();
 		glsl += this.#GetFunctionsString();
 		glsl += this.#BuildPixelShaderMain(psInputs);
 		
@@ -8449,14 +8471,16 @@ class ShaderElement { }
 class ShaderElementCBuffer extends ShaderElement
 {
 	Name;
+	NameGL;
 	RegisterIndex;
 	Members;
 
-	constructor(name, regIndex, members = [])
+	constructor(name, nameGL, regIndex, members = [])
 	{
 		super();
 
 		this.Name = name;
+		this.NameGL = nameGL;
 		this.RegisterIndex = regIndex;
 		this.Members = members;
 	}

@@ -291,6 +291,8 @@
 		const Lighting_EightPoints = 2;
 		const Lighting_None = 3;
 
+		const MaxLights = 64;
+
 		window.setScene = function(val)
 		{
 			globalCurrentScene = val;
@@ -833,9 +835,6 @@
 				TextureUtils.WriteDDSFile("spec.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 			}
 
-			// Test for scissor
-			let scissorRastState = device.CreateRasterizerState(new D3D11_RASTERIZER_DESC(D3D11_FILL_SOLID, D3D11_CULL_BACK, false, 0, 0, 0, true, true));
-
 			
 			// Create constant buffers -----------------
 			let cbDesc = new D3D11_BUFFER_DESC(
@@ -847,77 +846,36 @@
 
 			// VS Per Frame = 2 matrices (view & proj)
 			cbDesc.ByteWidth = 16 * 2 * Float32Array.BYTES_PER_ELEMENT;
-			let vsCBPerFrame = device.CreateBuffer(cbDesc, null);
+			let vsPerFrameCB = device.CreateBuffer(cbDesc, null);
 			let vsPerFrameData = new MappedArray(16 * 2);
 			vsPerFrameData.PushMapping("view", 16);
 			vsPerFrameData.PushMapping("proj", 16);
 
 			// VS Per Object = 1 matrix (world)
 			cbDesc.ByteWidth = 16 * Float32Array.BYTES_PER_ELEMENT;
-			let vsCBPerObject = device.CreateBuffer(cbDesc, null);
+			let vsPerObjectCB = device.CreateBuffer(cbDesc, null);
 			let vsPerObjectData = new MappedArray(16);
 			vsPerObjectData.PushMapping("world", 16);
 
+			// PS Per Frame = 8 floats + 64 lights
+			cbDesc.ByteWidth =
+				8 * Float32Array.BYTES_PER_ELEMENT +
+				MaxLights * Light.SizeInBytes;
+			let psPerFrameCB = device.CreateBuffer(cbDesc, null);
+			let psPerFrameData = new MappedArray(cbDesc.ByteWidth / Float32Array.BYTES_PER_ELEMENT);
+			psPerFrameData.PushMapping("cameraPos", 3);
+			psPerFrameData.PushMapping("pad", 1);
+			psPerFrameData.PushMapping("iblSpecMips", 1);
+			psPerFrameData.PushMapping("lightCount", 1);
+			psPerFrameData.PushMapping("envIsHDR", 1);
+			psPerFrameData.PushMapping("pad2", 1);
+			psPerFrameData.PushMapping("lights", MaxLights * Light.SizeInFloats);
 
-			// Set up the initial VS CB data
-			let wMat = Matrix4x4.Identity;
-			let vMat = camera.ViewMatrix;
-			let pMat = camera.ProjectionMatrix;
-
-			// Cbuffer for pixel shader
-			let lightCount = 8 + 3; // 8 point, 3 dir
-			let lightSizeInFloats = 16;
-			let elementsBeforeLights = 12; // 3 vectors worth
-			let psElementCount = elementsBeforeLights + lightSizeInFloats * lightCount; // Two vectors, plus one for IBL, and N lights
-			let psCBDesc = new D3D11_BUFFER_DESC(
-				psElementCount * Float32Array.BYTES_PER_ELEMENT,
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-			let psCB = device.CreateBuffer(psCBDesc, null);
-
-			// Set up initial PS CB data
-			let lightColors = [];
-			for (let i = 0; i < 8; i++)
-			{
-				// Pick one to be bright
-				let bright = Math.random() * 3;
-				let r = bright < 1 ? 1 : Math.random();
-				let g = bright >= 1 && bright < 2 ? 1 : Math.random();
-				let b = bright >= 2 ? 1 : Math.random();
-				lightColors.push(new Vector3(r, g, b));
-			}
-			let psData = new Float32Array(psElementCount);
-			psData.set(camera.Position, 0); // Camera pos
-			psData.set([1, 1, 1], 4); // Tint
-			psData.set([lightCount], 9); // Light count
-
-			for (let i = 0; i < 8; i++)
-			{
-				psData.set(
-					new Light(
-						Light.TypePoint,
-						lightColors[i],
-						1,
-						Vector3.Zero,
-						new Vector3(Math.random() * 10 - 5, Math.random() * 10 - 5, Math.random() * 10 - 5),
-						6
-					),
-					elementsBeforeLights + i * 16);
-			}
-
-			
-			// Add the three dir lights after point lights
-			let dir1 = new Light(Light.TypeDirectional, Vector3.One, 1, new Vector3(1, -1, 1));
-			let dir2 = new Light(Light.TypeDirectional, Vector3.One, 1, new Vector3(-1, 0, 0));
-			let dir3 = new Light(Light.TypeDirectional, Vector3.One, 1, new Vector3(0, 1, -0.5));
-
-			psData.set(dir1, elementsBeforeLights + 8 * 16);
-			psData.set(dir2, elementsBeforeLights + 9 * 16);
-			psData.set(dir3, elementsBeforeLights + 10 * 16);
-
-			context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
+			// PS Per Object = 4 floats (RGB color tint + pad)
+			cbDesc.ByteWidth = 4 * Float32Array.BYTES_PER_ELEMENT;
+			let psPerObjectCB = device.CreateBuffer(cbDesc, null);
+			let psPerObjectData = new MappedArray(4);
+			psPerObjectData.PushMapping("tint", 3);
 
 
 			// Cbuffer for solid color
@@ -969,85 +927,6 @@
 				0, 0);
 			let ppCB = device.CreateBuffer(ppCBDesc, null);
 			let ppData = new Float32Array(4);
-
-
-		
-			// Perform a readback
-			// Need to actually copy to a staging resource!
-			//let readback = new Uint8Array(256*256*4);
-			//let lutResource = lutSRV.GetResource();
-			//device.ReadFromSubresource(readback, lutResource, 0, null);
-			//lutResource.Release();
-			//
-			//console.log(readback);
-
-
-			// 1D texture test
-			//let width1D = 256;
-			//let data1D = new Uint8Array(width1D * 4);
-			//for (let i = 0; i < width1D * 4;)
-			//{
-			//	let v = Math.floor(i / 4) / width1D * 255;
-			//	data1D[i++] = v;
-			//	data1D[i++] = v;
-			//	data1D[i++] = v;
-			//	data1D[i++] = 1;
-			//}
-
-			//let desc1D = new D3D11_TEXTURE1D_DESC(
-			//	width1D,
-			//	1,
-			//	1,
-			//	DXGI_FORMAT_R8G8B8A8_UNORM,
-			//	D3D11_USAGE_IMMUTABLE,
-			//	D3D11_BIND_SHADER_RESOURCE,
-			//	0, 0);
-
-			//let texture1D = device.CreateTexture1D(desc1D, [data1D]);
-			//let srv1D = device.CreateShaderResourceView(texture1D, null);
-			//texture1D.Release();
-
-			// 3D texture test
-			//let width3D = 32;
-			//let totalBytes = width3D * width3D * width3D * 4;
-			//let data3D = new Uint8Array(totalBytes);
-			//let byteCount = 0;
-			//for (let z = 0; z < width3D; z++)
-			//{
-			//	for (let y = 0; y < width3D; y++)
-			//	{
-			//		for (let x = 0; x < width3D; x++)
-			//		{
-			//			data3D[byteCount++] = x / width3D * 255;
-			//			data3D[byteCount++] = y / width3D * 255;
-			//			data3D[byteCount++] = z / width3D * 255;
-			//			data3D[byteCount++] = 1;
-			//		}
-			//	}
-			//}
-
-			//let desc3D = new D3D11_TEXTURE3D_DESC(
-			//	width3D,
-			//	width3D,
-			//	width3D,
-			//	1,
-			//	DXGI_FORMAT_R8G8B8A8_UNORM,
-			//	D3D11_USAGE_IMMUTABLE,
-			//	D3D11_BIND_SHADER_RESOURCE,
-			//	0, 0);
-
-			//let texture3D = device.CreateTexture3D(desc3D, [data3D]);
-			//let srv3D = device.CreateShaderResourceView(texture3D, null);
-			//texture3D.Release();
-
-			// Test scissor rect
-			//let sciDesc = new D3D11_RASTERIZER_DESC(
-			//	D3D11_FILL_SOLID,
-			//	D3D11_CULL_NONE,
-			//	false, 0, 0, 0, true,
-			//	true); // Scissor
-			//let sciRS = device.CreateRasterizerState(sciDesc);
-			//let sciRect = new D3D11_RECT(100, 100, 300, 150);
 
 
 
@@ -1169,14 +1048,13 @@
 					context.OMSetRenderTargets([ppRTV], depthDSV);
 				}
 
-				// Set constant buffers for main draw
-				context.VSSetConstantBuffers(0, [vsCBPerFrame, vsCBPerObject]);
-				context.PSSetConstantBuffers(0, [psCB]);
+				// Set VS constant buffers for main draw
+				context.VSSetConstantBuffers(0, [vsPerFrameCB, vsPerObjectCB]);
 			
 				// Set per-frame data and update CB
 				vsPerFrameData.SetData("view", camera.ViewMatrix);
 				vsPerFrameData.SetData("proj", camera.ProjectionMatrix);
-				context.UpdateSubresource(vsCBPerFrame, 0, null, vsPerFrameData, 0, 0);
+				context.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
 
 				// Clear the frame
 				let black = [0, 0, 0, 1];
@@ -1204,7 +1082,7 @@
 						vsPerObjectData.SetData(
 							"world",
 							Matrix4x4.Multiply(sMat, Matrix4x4.Translation(light.Position.x, light.Position.y, light.Position.z)));
-						context.UpdateSubresource(vsCBPerObject, 0, null, vsPerObjectData, 0, 0);
+						context.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
 
 						// Update data for this draw
 						solidData.set(light.Color, 0);
@@ -1218,7 +1096,16 @@
 				// Pipeline for next several draws
 				context.VSSetShader(vs);
 				context.PSSetShader(ps);
-				context.PSSetConstantBuffers(0, [psCB]);
+				context.PSSetConstantBuffers(0, [psPerFrameCB, psPerObjectCB]);
+
+				// Set per-frame PS data and update CB
+				psPerFrameData.SetData("cameraPos", camera.Position);
+				psPerFrameData.SetData("iblSpecMips", [globalSky.SpecularIBLMipsTotal]);
+				psPerFrameData.SetData("lightCount", [globalLightings[globalCurrentLighting].length]);
+				psPerFrameData.SetData("envIsHDR", [globalSky.IsHDR() ? 1 : 0]);
+				for (let i = 0; i < globalLightings[globalCurrentLighting].length; i++)
+					psPerFrameData.SetData("lights", globalLightings[globalCurrentLighting][i], i * Light.SizeInFloats);
+				context.UpdateSubresource(psPerFrameCB, 0, null, psPerFrameData, 0, 0);
 
 				function DrawEntity(e)
 				{
@@ -1228,26 +1115,10 @@
 
 					// Update vertex data
 					vsPerObjectData.SetData("world", e.Transform.WorldMatrix);
-					context.UpdateSubresource(vsCBPerObject, 0, null, vsPerObjectData, 0, 0);
+					context.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
 
-					// Update pixel data
-					psData.set(camera.Position, 0);
-					psData.set(e.Material.Color, 4);
-					psData.set([globalSky.SpecularIBLMipsTotal], 8);
-					psData.set([globalLightings[globalCurrentLighting].length], 9);  // Set light count (all lights)
-					psData.set([globalSky.IsHDR() ? 1 : 0], 10); // Set HDR switch
-
-					// Lighting
-					let lightStart = 12;
-					let lighting = globalLightings[globalCurrentLighting];
-					for (let i = 0; i < lighting.length; i++)
-					{
-						psData.set(lighting[i], lightStart);
-						lightStart += Light.SizeInFloats;
-					}
-
-
-					context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
+					psPerObjectData.SetData("tint", e.Material.Color);
+					context.UpdateSubresource(psPerObjectCB, 0, null, psPerObjectData, 0, 0);
 
 					// Set up material
 					e.Material.PrepareMaterial(context);
@@ -1271,58 +1142,10 @@
 					}
 				}
 
-				// Roughness spheres
-				//{
-				//	let scale = 2;
-				//	let y = 7;
-				//	let spacing = 2.2;
-				//	let sc = Matrix4x4.ScaleUniform(scale);
-				//	let tr = Matrix4x4.Identity;
-
-				//	// Turn off lights
-				//	psData.set([9], 9); // Zero light count
-				//	context.UpdateSubresource(psCB, 0, null, psData, 0, 0);
-
-				//	// Set up the overall pipeline for spheres
-				//	context.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-				//	context.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-
-				//	let rowMats = [
-				//		// Albedo,	normals,        metals
-				//		[blackSRV,  flatNormalsSRV, blackSRV],
-				//		[whiteSRV,  flatNormalsSRV, blackSRV],
-				//		[redSRV,    flatNormalsSRV, blackSRV],
-				//		[greenSRV,  flatNormalsSRV, blackSRV],
-				//		[blueSRV,   flatNormalsSRV, blackSRV],
-				//		[whiteSRV,  flatNormalsSRV,	whiteSRV]
-				//	];
-
-				//	for (let row = 0; row < rowMats.length; row++)
-				//	{
-				//		for (let i = 0; i < 11; i++)
-				//		{
-				//			// Per object data
-				//			Matrix4x4.FillTranslation(tr, (i - 5) * spacing, y + row * spacing, 0);
-				//			wMat = Matrix4x4.Multiply(sc, tr);
-				//			vsData.set(wMat, 0);
-				//			context.UpdateSubresource(vsCB, 0, null, vsData, 0, 0);
-
-				//			// Set textures for this sphere
-				//			context.PSSetShaderResources(0, [
-				//				rowMats[row][0], rowMats[row][1], rowMats[row][2], solidRoughSRVs[i],
-				//				globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
-				//			]);
-
-				//			// Draw one sphere
-				//			context.DrawIndexed(sphereMesh.IndexCount, 0, 0);
-				//		}
-				//	}
-				//}
 
 				// Skybox
 				{
-					globalSky.Draw(vMat, pMat, globalSkyMipLevelPreview);
+					globalSky.Draw(camera.ViewMatrix, camera.ProjectionMatrix, globalSkyMipLevelPreview);
 				}
 
 				// Finalize post processing if necessary

@@ -15,14 +15,14 @@ export class MappedArray extends Float32Array
 		this.#mapping = {};
 	}
 
-	SetData(name, data)
+	SetData(name, data, additionalOffset = 0)
 	{
 		// Get offset of this name
 		if (!this.#mapping.hasOwnProperty(name))
 			throw new Error("Name not found in map");
 
 		let offset = this.#mapping[name];
-		this.set(data, offset);
+		this.set(data, offset + additionalOffset);
 	}
 
 	PushMapping(name, size)

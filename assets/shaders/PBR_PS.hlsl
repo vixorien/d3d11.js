@@ -9,19 +9,23 @@ struct VertexToPixel
 	float3 worldPos	: POSITION;
 };
 
-cbuffer psData : register(b0)
+const int MAX_LIGHTS = 64;
+cbuffer perFrame : register(b0)
 {
-	float3 cameraPos;	// Auto pad
-
-	float3 tint;		// Pad
-	float pad0;			// Pad out this float4
+	float3 cameraPos;	
+	float pad;			// 16 bytes
 
 	float iblSpecMips;
 	float lightCount;
 	float envIsHDR;
-	float pad2;
+	float pad2;			// 32 bytes
 
-	Light lights[11];
+	Light lights[MAX_LIGHTS];
+}
+
+cbuffer perObject : register(b1)
+{
+	float3 tint;
 }
 
 Texture2D albedoMap			: register(t0);

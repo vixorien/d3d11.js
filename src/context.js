@@ -934,9 +934,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				if (cb.RegisterIndex < 0 || cb.RegisterIndex >= this.#maxVSConstantBuffers)
 					throw new Error("Invalid register index for vertex shader constant buffer");
 
-				// Get the uniform block index
-				// TODO: Check translated names!
-				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
+				// Get the uniform block index using the GL-translated name
+				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.NameGL);
 
 				// Store in the map
 				vspsMap.CBufferMap[cb.RegisterIndex] = ubIndex;
@@ -952,9 +951,8 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 				if (cb.RegisterIndex < 0 || cb.RegisterIndex >= this.#maxPSConstantBuffers)
 					throw new Error("Invalid register index for pixel shader constant buffer");
 
-				// Get the uniform block index
-				// TODO: Check translated names!
-				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.Name);
+				// Get the uniform block index using the GL-translated name
+				let ubIndex = this.#gl.getUniformBlockIndex(prog, cb.NameGL);
 
 				// Store in the map - Note the offset for uniform block indices, since
 				// we need PS indices to start after all possible VS indices
