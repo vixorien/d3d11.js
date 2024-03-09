@@ -1016,4 +1016,57 @@ export class Sky
 		this.#d3dContext.RSSetViewports([oldVP]);
 		this.#d3dContext.OMSetRenderTargets(rts, dsv); // Restore old targets
 	}
+
+	#CubePixelToDirection(face, u, v)
+	{
+		let dir;
+		switch (face)
+		{
+			default:
+			case 0: dir = new Vector3(+1, -v, -u); break;
+			case 1: dir = new Vector3(-1, -v, +u); break;
+			case 2: dir = new Vector3(+u, +1, +v); break;
+			case 3: dir = new Vector3(+u, -1, -v); break;
+			case 4: dir = new Vector3(+u, -v, +1); break;
+			case 5: dir = new Vector3(-u, -v, -1); break;
+		}
+		return Vector3.Normalize(dir);
+	}
+
+	#CalcSHCoefficients()
+	{
+		let sh9 = new Float32Array(9);
+
+		// Grab data from cube map
+		let cubeSize = 0; // Get from texture
+
+		for (let face = 0; face < 6; face++)
+		{
+			for (let y = 0; y < cubeSize; y++)
+			{
+				for (let x = 0; x < cubeSize; x++)
+				{
+					let pixelIndex = y * cubeSize + x;
+					// Grab this pixel color
+					let color;
+
+					// Convert to -1 to 1 range
+					let u = ((x + 0.5) / cubeSize) * 2 - 1;
+					let v = ((y + 0.5) / cubeSize) * 2 - 1;
+
+					let denom = 1 + u * u + v * v;
+					let weight = 4 / (Math.sqrt(denom) * denom);
+
+					let dir = this.#CubePixelToDirection(face, u, v);
+
+
+				}
+			}
+		}
+	}
+
+	#CalcSHForDirection(dir, color)
+	{
+
+	}
 }
