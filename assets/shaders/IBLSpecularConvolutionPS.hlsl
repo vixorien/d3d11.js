@@ -156,7 +156,7 @@ float3 ConvolveTextureCube(float roughness, float3 R)
 	// Note the scaled cube size, which helps
 	// immensely with HDR convolution "speckles"
 	float PI = 3.14159265359f;
-	float scaledCubeSize = cubeSize;// *4.0;
+	float scaledCubeSize = cubeSize * 4.0;
 	float solidAngleTexel = 4.0f * PI / (6.0f * scaledCubeSize * scaledCubeSize);
 
 	// Sample the texture cube MANY times
