@@ -16,6 +16,35 @@
 			max-height: 100vh;
 			outline:none;
 		}
+
+		.btn-toggle {
+			padding: .25rem .5rem;
+			font-weight: 600;
+			color: var(--bs-emphasis-color);
+			background-color: transparent;
+		}
+
+		.btn-toggle:hover,
+		.btn-toggle:focus {
+			color: rgba(var(--bs-emphasis-color-rgb), .85);
+			background-color: var(--bs-tertiary-bg);
+		}
+
+		.btn-toggle::before {
+			width: 1.25em;
+			line-height: 0;
+			content: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='rgba%280,0,0,.5%29' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 14l6-6-6-6'/%3e%3c/svg%3e");
+			transition: transform .35s ease;
+			transform-origin: .5em 50%;
+		}
+
+		.btn-toggle[aria-expanded="true"] {
+			color: rgba(var(--bs-emphasis-color-rgb), .85);
+		}
+
+		.btn-toggle[aria-expanded="true"]::before {
+			transform: rotate(90deg);
+		}
 	</style>
 </head>
 <body class="h-100 m-0 p-0">
@@ -30,6 +59,18 @@
 
 			<!-- Overall title-->
 			<h1>Cube Maps</h1>
+
+			<!-- Testing new collapse list -->
+			<ul class="list-unstyled ps-0">
+				<li class="mb-1">
+					<button class="btn btn-toggle d-inline-flex align-items-center rounded border-0 collpased" data-bs-toggle="collapse" data-bs-target="#test1-collapse" aria-expanded="false">
+						Test
+					</button>
+					<div class="collapse" id="test1-collapse">
+						Things!
+					</div>
+				</li>
+			</ul>
 
 			<!-- Testing tabs -->
 			<ul class="nav nav-pills" id="navbar" role="tablist">
