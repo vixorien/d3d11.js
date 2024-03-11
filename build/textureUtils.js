@@ -675,10 +675,58 @@ export class TextureUtils
 		});
 	}
 
+	/**
+	 * Loads a local DDS file from the user's machine
+	 * 
+	 * @param {any} fileInput The file input HTML element to use
+	 * 
+	 * @returns Array of ???
+	 * TODO: Determine what to return - probably a bunch of info (maybe just a texture_desc + data array?)
+	 */
+	static LoadDDSFileLocal(fileInput)
+	{
+		// Ensure file has been set
+		if (fileInput.files.length == 0)
+		{
+			alert("Missing DDS file");
+			return;
+		}
+
+		// Check extension
+		let filename = fileInput.files[0].name;
+		let extension = filename.slice(filename.lastIndexOf('.'));
+		if (extension != ".dds")
+		{
+			alert("Invalid file extension for DDS file");
+			return;
+		}
+
+		// Read the local file and process
+		let fileContents = await TextureUtils.#ReadLocalFile(fileInput.files[0]);
+		return TextureUtils.#LoadDDSFile(fileContents);
+	}
+
+	/**
+	 * Loads a DDS file
+	 * Format details here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
+	 * 
+	 * @param {any} data Contents of the file
+	 * 
+	 * @returns {any} ???
+	 */
+	static async #LoadDDSFile(data)
+	{
+		// Genearl format:
+		// - Magic number: 'DDS ' (0x20534444)
+		// - DDS_HEADER
+		// - Maybe DDS_HEADER_DXT10
+		// - BYTE array of data (main surface)
+		// - BYTE array of more data (mips, array slices, etc.)
+	}
 
 	/**
 	 * Write the specified pixel data to a DDS file and initiates the "download".
-	 * Format details: format details here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
+	 * Format details: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
 	 * Note: The exact layout of the pixel data is dependant upon the width, height
 	 * mip levels and whether or not this is a cube map.
 	 * 
