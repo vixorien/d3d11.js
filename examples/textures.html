@@ -7,50 +7,20 @@
 	<style>
 
 		.fixed-size-custom {
-			width:250px !important;
+			width: 250px !important;
 		}
 
 		.canvas-fill-parent {
 			width: 100%;
 			height: 100%;
 			max-height: 100vh;
-			outline:none;
-		}
-
-		.btn-toggle {
-			padding: .25rem .5rem;
-			font-weight: 600;
-			color: var(--bs-emphasis-color);
-			background-color: transparent;
-		}
-
-		.btn-toggle:hover,
-		.btn-toggle:focus {
-			color: rgba(var(--bs-emphasis-color-rgb), .85);
-			background-color: var(--bs-tertiary-bg);
-		}
-
-		.btn-toggle::before {
-			width: 1.25em;
-			line-height: 0;
-			content: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='rgba%280,0,0,.5%29' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='M5 14l6-6-6-6'/%3e%3c/svg%3e");
-			transition: transform .35s ease;
-			transform-origin: .5em 50%;
-		}
-
-		.btn-toggle[aria-expanded="true"] {
-			color: rgba(var(--bs-emphasis-color-rgb), .85);
-		}
-
-		.btn-toggle[aria-expanded="true"]::before {
-			transform: rotate(90deg);
+			outline: none;
 		}
 	</style>
 </head>
 <body class="h-100 m-0 p-0">
-	
-	<!-- Trying out bootstrap -->
 
+	<!-- Trying out bootstrap -->
 	<!-- Main "container", but skipping actual .container class to ensure edge-to-edge page! -->
 	<div class="row h-100 m-0 p-0 overflow-hidden">
 
@@ -60,187 +30,212 @@
 			<!-- Overall title-->
 			<h1>Cube Maps</h1>
 
-			<!-- Testing new collapse list -->
-			<ul class="list-unstyled ps-0">
-				<li class="mb-1">
-					<button class="btn btn-toggle d-inline-flex align-items-center rounded border-0 collpased" data-bs-toggle="collapse" data-bs-target="#test1-collapse" aria-expanded="false">
-						Test
-					</button>
-					<div class="collapse" id="test1-collapse">
-						Things!
-					</div>
-				</li>
-			</ul>
+			<!-- Testing accordian navigation -->
+			<div class="accordion" id="main-nav">
 
-			<!-- Testing tabs -->
-			<ul class="nav nav-pills" id="navbar" role="tablist">
-				<li class="nav-item" role="presentation">
-					<button class="nav-link active" id="tabScene" data-bs-toggle="pill" data-bs-target="#scene" type="button" role="tab">&#127758; Scene</button>
-				</li>
+				<!-- SCENE -->
+				<div class="accordion-item">
+					<h2 class="accordion-header">
+						<button class="accordion-button collapsed p-3" type="button" data-bs-toggle="collapse" data-bs-target="#scene-accordion" aria-expanded="false" aria-controls="flush-collapseOne">
+							<h5>&#127758; Scene</h5>
+						</button>
+					</h2>
+					<div id="scene-accordion" class="accordion-collapse collapse">
+						<div class="accordion-body p-3">
 
-				<li class="nav-item" role="presentation">
-					<button class="nav-link" id="tabEnvironment" data-bs-toggle="pill" data-bs-target="#environment" type="button" role="tab">&#9925; Environment</button>
-				</li>
-
-				<li class="nav-item" role="presentation">
-					<button class="nav-link" id="tabControls" data-bs-toggle="pill" data-bs-target="#controls" type="button" role="tab">&#127918; Controls</button>
-				</li>
-			</ul>
-
-			<!-- Tab content -->
-			<div class="tab-content">
-
-				<!-- Scene tab pane -->
-				<div class="tab-pane pt-3 active" id="scene" role="tabpanel" tabindex="0">
-
-					<!-- Card: Scene -->
-					<div class="card mb-3">
-						<div class="card-body">
-							<h5 class="card-title">&#128250; Scene Selection</h5>
-
-							<label for="sceneSet" class="form-label">Scenes</label>
-							<select id="sceneSet" class="form-select" onchange="setScene(this.value);">
-								<option value="0" selected>Sphere</option>
-								<option value="1">Helix</option>
-								<option value="2">Cube</option>
-								<option value="3">Roughness Grid</option>
-								<option value="4">RGB Grid</option>
-							</select>
-						</div>
-					</div>
-
-					<!-- Card: Lighting -->
-					<div class="card mb-3">
-						<div class="card-body">
-							<h5 class="card-title">&#128161; Lights</h5>
-
-							<label for="lightSet" class="form-label">Lights</label>
-							<select id="lightSet" class="form-select" onchange="setLighting(this.value);">
-								<option value="0" selected>One Directional Light</option>
-								<option value="1">Three Directional Lights</option>
-								<option value="2">Eight Point Lights</option>
-								<option value="3">No lights (sky only)</option>
-							</select>
-						</div>
-					</div>
-
-				</div> 
-				<!-- END Scene tab pane -->
-
-				<!-- Environment tab pane -->
-				<div class="tab-pane pt-3" id="environment" role="tabpanel" tabindex="0">
-
-					<!-- CARD: Loading -->
-					<div class="card mb-3">
-						<div class="card-body">
-							<h5 class="card-title">&#128194; Load Environment</h5>
-							<p class="m-0">Load a new environment map</p>
-						</div>
-
-						<div class="accordion m-1" id="loadAccordion">
-
-							<!-- SIX FACES -->
-							<div class="accordion-item">
-								<h2 class="accordion-header">
-									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
-										&#11036; Individual Faces
-									</button>
-								</h2>
-								<div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
-									<div class="accordion-body">
-
-										<div class="input-group text-center">
-											<label for="sixFacesXPos" class="input-group-text" style="min-width:50px;">+X</label>
-											<input class="form-control" type="file" id="sixFacesXPos" />
-										</div>
-
-										<div class="input-group">
-											<label for="sixFacesXNeg" class="input-group-text" style="min-width: 50px;">- X</label>
-											<input class="form-control" type="file" id="sixFacesXNeg" />
-										</div>
-
-										<div class="input-group">
-											<label for="sixFacesYPos" class="input-group-text" style="min-width:50px;">+Y</label>
-											<input class="form-control" type="file" id="sixFacesYPos" />
-										</div>
-
-										<div class="input-group">
-											<label for="sixFacesYNeg" class="input-group-text" style="min-width:50px;">- Y</label>
-											<input class="form-control" type="file" id="sixFacesYNeg" />
-										</div>
-
-										<div class="input-group">
-											<label for="sixFacesZPos" class="input-group-text" style="min-width:50px;">+Z</label>
-											<input class="form-control" type="file" id="sixFacesZPos" />
-										</div>
-
-										<div class="input-group">
-											<label for="sixFacesZNeg" class="input-group-text" style="min-width:50px;">- Z</label>
-											<input class="form-control" type="file" id="sixFacesZNeg" />
-										</div>
-
-										<button type="button" class="btn btn-primary mt-2" onclick="loadSixFaces()">Load</button>
-
-									</div>
+							<!-- MODEL -->
+							<div class="row">
+								<label for="sceneSet" class="col-sm-2 col-form-label">Model</label>
+								<div class="col-sm">
+									<select id="sceneSet" class="form-select form-select-sm" onchange="setScene(this.value);">
+										<option value="0" selected>Sphere</option>
+										<option value="1">Helix</option>
+										<option value="2">Cube</option>
+										<option value="3">Roughness Grid</option>
+										<option value="4">RGB Grid</option>
+									</select>
 								</div>
 							</div>
 
-							<!-- DDS CUBE MAP -->
-							<div class="accordion-item">
-								<h2 class="accordion-header">
-									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
-										&#128230; DDS Cube Map (Not yet implemented)
-									</button>
-								</h2>
-								<div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
-									<div class="accordion-body">
-										Stuff here
-									</div>
+							<!-- LIGHTS -->
+							<div class="row">
+								<label for="lightSet" class="col-sm-2 col-form-label">Lights</label>
+								<div class="col-sm">
+									<select id="lightSet" class="form-select form-select-sm" onchange="setLighting(this.value);">
+										<option value="0" selected>One Directional Light</option>
+										<option value="1">Three Directional Lights</option>
+										<option value="2">Eight Point Lights</option>
+										<option value="3">No lights (sky only)</option>
+									</select>
 								</div>
 							</div>
 
-							<!-- HDR FILE -->
-							<div class="accordion-item">
-								<h2 class="accordion-header">
-									<button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
-										&#127748; HDR File
-									</button>
-								</h2>
-								<div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
-									<div class="accordion-body">
+						</div>
+					</div>
+				</div>
 
-										<div class="input-group">
-											<label for="hdrFile" class="input-group-text">HDR</label>
-											<input class="form-control" type="file" id="hdrFile" />
+				<!-- ENVIRONMENT -->
+				<div class="accordion-item">
+					<h2 class="accordion-header">
+						<button class="accordion-button p-3 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#environment-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5>&#9925; Environment</h5>
+						</button>
+					</h2>
+					<div id="environment-accordion" class="accordion-collapse collapse">
+						<div class="accordion-body p-3">
+
+							<h6>&#128269; Mip Level Preview</h6>
+
+							<div class="row">
+								<label for="mipLevelRange" class="col-sm-2 col-form-label">Mip: 0</label>
+								<div class="col p-2 mb-3">
+									<input type="range" class="form-range form-range-sm" min="0" max="16" value="0" id="mipLevelRange" oninput="setSkyMipPreview(this.value); this.parentNode.previousElementSibling.innerHTML = 'Mip: ' + this.value;" />
+								</div>
+							</div>
+							<h6>&#128256; Change environment map</h6>
+
+							<div class="accordion m-1" id="loadAccordion">
+
+								<!-- CHOOSE EXISTING -->
+								<div class="accordion-item">
+									<h2 class="accordion-header">
+										<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#choose-map" aria-expanded="false" aria-controls="collapseTwo">
+											&#128194; Choose Environment
+										</button>
+									</h2>
+									<div id="choose-map" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+										<div class="accordion-body p-2">
+											Not yet implemented
 										</div>
+									</div>
+								</div>
 
-										<button type="button" class="btn btn-primary mt-2" onclick="loadHDR()">Load</button>
+								<!-- SIX FACES -->
+								<div class="accordion-item">
+									<h2 class="accordion-header">
+										<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseOne" aria-expanded="false" aria-controls="collapseOne">
+											&#127922; Load 6 Faces
+										</button>
+									</h2>
+									<div id="collapseOne" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+										<div class="accordion-body p-2">
 
-										<div class="mt-2">
-											<label for="hdrExposure" class="form-label">Exposure Adjust: 0</label>
-											<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="hdrExposure" oninput="setHDRExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust: ' + this.value;" />
+											<div class="input-group text-center">
+												<label for="sixFacesXPos" class="input-group-text" style="min-width:50px;">+X</label>
+												<input class="form-control" type="file" id="sixFacesXPos" />
+											</div>
+
+											<div class="input-group">
+												<label for="sixFacesXNeg" class="input-group-text" style="min-width: 50px;">- X</label>
+												<input class="form-control" type="file" id="sixFacesXNeg" />
+											</div>
+
+											<div class="input-group">
+												<label for="sixFacesYPos" class="input-group-text" style="min-width:50px;">+Y</label>
+												<input class="form-control" type="file" id="sixFacesYPos" />
+											</div>
+
+											<div class="input-group">
+												<label for="sixFacesYNeg" class="input-group-text" style="min-width:50px;">- Y</label>
+												<input class="form-control" type="file" id="sixFacesYNeg" />
+											</div>
+
+											<div class="input-group">
+												<label for="sixFacesZPos" class="input-group-text" style="min-width:50px;">+Z</label>
+												<input class="form-control" type="file" id="sixFacesZPos" />
+											</div>
+
+											<div class="input-group">
+												<label for="sixFacesZNeg" class="input-group-text" style="min-width:50px;">- Z</label>
+												<input class="form-control" type="file" id="sixFacesZNeg" />
+											</div>
+
+											<button type="button" class="btn btn-primary mt-2" onclick="loadSixFaces()">Load</button>
+
 										</div>
+									</div>
+								</div>
 
+								<!-- DDS CUBE MAP -->
+								<div class="accordion-item">
+									<h2 class="accordion-header">
+										<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+											&#128230; Load DDS Cube Map
+										</button>
+									</h2>
+									<div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+										<div class="accordion-body p-2">
+											Not yet implemented
+										</div>
+									</div>
+								</div>
+
+								<!-- HDR FILE -->
+								<div class="accordion-item">
+									<h2 class="accordion-header">
+										<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseThree" aria-expanded="false" aria-controls="collapseThree">
+											&#127748; Load HDR File
+										</button>
+									</h2>
+									<div id="collapseThree" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
+										<div class="accordion-body p-2">
+
+											<div class="input-group">
+												<input class="form-control" type="file" id="hdrFile" aria-describedby="button-load-hdr" aria-label="Load" />
+												
+												<button id="button-load-hdr" type="button" class="btn btn-primary" onclick="loadHDR()">Load</button>
+											</div>
+
+											
+
+											<div class="mt-2">
+												<label for="hdrExposure" class="form-label">Exposure Adjust: 0</label>
+												<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="hdrExposure" oninput="setHDRExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust: ' + this.value;" />
+											</div>
+
+										</div>
 									</div>
 								</div>
 							</div>
 						</div>
 					</div>
-					<!-- END Card: Loading-->
+				</div>
 
-					<!-- CARD: Tonemapping -->
-					<div class="card mb-3">
-						<div class="card-body">
-							<h5 class="card-title">&#127912; Tonemapping</h5>
-							<p>Adjust the final render for HDR environments</p>
+				<!-- SAVE -->
+				<div class="accordion-item">
+					<h2 class="accordion-header">
+						<button class="accordion-button p-3 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#save-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5>&#128190; Save IBL Maps</h5>
+						</button>
+					</h2>
+					<div id="save-accordion" class="accordion-collapse collapse">
+						<div class="accordion-body p-3">
+							<p>Save any of the generated Image-Based Lighting maps</p>
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveSky" onclick="window.saveSkyToFile();" disabled>Save Skybox as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIrr" onclick="window.saveIrrToFile();" disabled>Save Irradiance as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIBL" onclick="window.saveIBLToFile();" disabled>Save IBL Specular as DDS Cube Map</button><br />
+							<button class="btn btn-primary mb-1 w-100" id="buttonSaveLUT" onclick="window.saveLUTToFile();" disabled>Save BRDF Look Up Table as DDS Texture</button>
+						</div>
+					</div>
+				</div>
 
-							<label for="mipLevelRange" class="form-label">Sky Mip Level: 0</label>
-							<input type="range" class="form-range" min="0" max="16" value="0" id="mipLevelRange" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Sky Mip Level: ' + this.value;" />
+				<!-- POST PROCESSING -->
+				<div class="accordion-item">
+					<h2 class="accordion-header">
+						<button class="accordion-button p-3 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#post-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5>&#127909; Post-Processing</h5>
+						</button>
+					</h2>
+					<div id="post-accordion" class="accordion-collapse collapse">
+						<div class="accordion-body p-3">
+							<p>Fine-tune the rendered image in the viewport. This does not affect the IBL maps.</p>
 
-							<label for="exposureRange" class="form-label">Exposure Adjust (HDR only): 0</label>
-							<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust (HDR only): ' + this.value;" />
+							<h6>&#127912; Tonemapping (HDR Only)</h6>
 
-							<label for="tonemapType" class="form-label">Tonemap Type (HDR Only)</label>
+							<label for="exposureRange" class="form-label">Exposure: 0</label>
+							<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure: ' + this.value;" />
+
+							<label for="tonemapType" class="form-label">Type</label>
 							<select id="tonemapType" class="form-select" onchange="setTonemapType(this.value);">
 								<option value="0" selected>None (Linear)</option>
 								<option value="1">Reinhard</option>
@@ -251,42 +246,26 @@
 							</select>
 						</div>
 					</div>
-					<!-- END Card: Tonemapping -->
+				</div>
 
-					<!-- Card: Save IBL Maps -->
-					<div class="card mb-3">
-						<div class="card-body">
-							<h5 class="card-title">&#128190; Save IBL Maps</h5>
-							<p>Save any of the generated Image-Based Lighting maps</p>
-							<button class="btn btn-primary mb-1 w-100" id="buttonSaveSky" onclick="window.saveSkyToFile();" disabled>Save Skybox as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIrr" onclick="window.saveIrrToFile();" disabled>Save Irradiance as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1 w-100" id="buttonSaveIBL" onclick="window.saveIBLToFile();" disabled>Save IBL Specular as DDS Cube Map</button><br />
-							<button class="btn btn-primary mb-1 w-100" id="buttonSaveLUT" onclick="window.saveLUTToFile();" disabled>Save BRDF Look Up Table as DDS Texture</button>
+				<!-- SETTINGS -->
+				<div class="accordion-item">
+					<h2 class="accordion-header">
+						<button class="accordion-button p-3 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5>&#128295; Settings</h5>
+						</button>
+					</h2>
+					<div id="settings-accordion" class="accordion-collapse collapse">
+						<div class="accordion-body p-3">
+
 						</div>
 					</div>
-					<!-- END Card: Save IBL Maps -->
-
-				</div> 
-				<!-- END Environment tab pane -->
-
-				<!-- Controls tab pane -->
-				<div class="tab-pane pt-3" id="controls" role="tabpanel" tabindex="0">
-
-					<!-- CARD: Controls -->
-					<div class="card mb-3">
-						<div class="card-body">
-							<h5 class="card-title">&#127918; Controls</h5>
-							<p>Left-click & drag</p>
-							<p>WASD movement</p>
-						</div>
-					</div>
-
-				</div> 
-				<!-- END Controls tab pane -->
+				</div>
 
 			</div>
 
-			
+
+
 		</div>
 
 		<!-- Content (3D viewport) -->
@@ -295,7 +274,7 @@
 		</div>
 
 	</div>
-	
+
 
 	<!-- END bootstrap -->
 	<script type="module">
@@ -334,7 +313,7 @@
 
 		const MaxLights = 64;
 
-		window.setScene = function(val)
+		window.setScene = function (val)
 		{
 			globalCurrentScene = val;
 		}
@@ -344,7 +323,7 @@
 			globalCurrentLighting = val;
 		}
 
-		window.setTonemapType = function(val)
+		window.setTonemapType = function (val)
 		{
 			globalTonemapType = val;
 		}
@@ -409,9 +388,9 @@
 			// All loaded - Attempt to load as a cube map (assuming NOT hdr)
 			globalSky.LoadCubeMap(await loadTextureCube(globalDevice, globalContext, fileURLs, true, true), false);
 		}
-		
 
-		window.readLocalFile = async function(file)
+
+		window.readLocalFile = async function (file)
 		{
 			return new Promise((resolve, reject) =>
 			{
@@ -425,7 +404,7 @@
 			});
 		}
 
-		window.getLineFromArrayBuffer = function(arrayBuffer, startPos)
+		window.getLineFromArrayBuffer = function (arrayBuffer, startPos)
 		{
 			// Create a character view into the array buffer
 			let charArray = new Uint8Array(arrayBuffer, startPos);
@@ -448,8 +427,8 @@
 			return line;
 		}
 
-		
-		window.loadHDR = async function()
+
+		window.loadHDR = async function ()
 		{
 			let fileInput = document.getElementById("hdrFile");
 			let [width, height, data] = await TextureUtils.LoadHDRFileLocal(fileInput);
@@ -458,7 +437,7 @@
 		}
 
 
-		window.loadTextureCube = async function(device, context, faceURLs, filesAreLocal, generateMips)
+		window.loadTextureCube = async function (device, context, faceURLs, filesAreLocal, generateMips)
 		{
 			let faceTextures = [];
 			let size = -1;
@@ -529,25 +508,25 @@
 			return srv;
 		}
 
-		window.saveSkyToFile = function()
+		window.saveSkyToFile = function ()
 		{
 			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.SkyCubeSRV);
 			TextureUtils.WriteDDSFile("sky_cube.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 		}
 
-		window.saveIrrToFile = function()
+		window.saveIrrToFile = function ()
 		{
 			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.IrradianceCubeSRV);
 			TextureUtils.WriteDDSFile("ibl_irradiance_cube.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 		}
 
-		window.saveIBLToFile = function()
+		window.saveIBLToFile = function ()
 		{
 			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.SpecularIBLCubeSRV);
 			TextureUtils.WriteDDSFile("ibl_specular_cube.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 		}
 
-		window.saveLUTToFile = function()
+		window.saveLUTToFile = function ()
 		{
 			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.BRDFLookUpTableSRV);
 			TextureUtils.WriteDDSFile("brdf_look_up_table.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
@@ -568,7 +547,7 @@
 				DXGI_FORMAT_R8G8B8A8_UNORM);
 
 			let [device, context, swapChain] =
-				D3D11CreateDeviceAndSwapChain(viewportElement, 0, swapChainDesc);                
+				D3D11CreateDeviceAndSwapChain(viewportElement, 0, swapChainDesc);
 			globalDevice = device;
 			globalContext = context;
 
@@ -634,14 +613,14 @@
 			sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 			let clampSampler = device.CreateSamplerState(sampDesc);
 
-			
+
 
 			// Create several solid textures
 			let blackSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 0, 255);
 			let whiteSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 255, 255, 255);
-			let blueSRV  = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 192, 255);
+			let blueSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 192, 255);
 			let greenSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 128, 0, 255);
-			let redSRV   = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 0, 0, 255);
+			let redSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 0, 0, 255);
 			let flatNormalsSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 127, 127, 255, 255);
 
 			// Array of greyscale roughness textures
@@ -711,7 +690,7 @@
 
 
 			// ----------------- Materials --------------------
-			
+
 			let matCobble = new Material(vs, ps, new Vector3(1, 1, 1));
 			matCobble.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png"));
 			matCobble.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_normals.png"));
@@ -888,7 +867,7 @@
 				TextureUtils.WriteDDSFile("spec.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 			}
 
-			
+
 			// Create constant buffers -----------------
 			let cbDesc = new D3D11_BUFFER_DESC(
 				0, // Will be filled in below
@@ -1103,7 +1082,7 @@
 
 				// Set VS constant buffers for main draw
 				context.VSSetConstantBuffers(0, [vsPerFrameCB, vsPerObjectCB]);
-			
+
 				// Set per-frame data and update CB
 				vsPerFrameData.SetData("view", camera.ViewMatrix);
 				vsPerFrameData.SetData("proj", camera.ProjectionMatrix);
@@ -1250,7 +1229,7 @@
 
 				let totalTime = (time - startTime) / 1000;
 				let deltaTime = (time - prevTime) / 1000;
-				
+
 				update(deltaTime, totalTime);
 				draw(deltaTime, totalTime);
 
