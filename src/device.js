@@ -114,10 +114,8 @@ class ID3D11Device extends IUnknown
 	}
 
 
-	// TODO: Respect buffer desc
 	// TODO: Use SubresourceData struct for initial data to match d3d spec?
 	// TODO: Ensure array types for initial data? 
-	// TODO: Full validation of description
 	CreateBuffer(bufferDesc, initialData)
 	{
 		// Validate description
@@ -677,7 +675,7 @@ class ID3D11Device extends IUnknown
 						const mipWidth = Math.max(1, Math.floor(w / div));
 						const mipHeight = Math.max(1, Math.floor(h / div));
 						const mipDepth = Math.max(1, Math.floor(d / div));
-						console.log(mipWidth + " " + mipHeight + " " + mipDepth);
+					
 						// Save this data
 						// TODO: Test this!
 						this.#gl.texSubImage3D(

@@ -93,9 +93,10 @@ class D3D11_BOX
 	 */
 	IsEmpty()
 	{
-		return
+		return ( // Need something on the "return" line for javascript :/
 			this.Right <= this.Left ||
 			this.Bottom <= this.Top ||
-			this.Back <= this.Front;
+			this.Back <= this.Front
+		);
 	}
 }

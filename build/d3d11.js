@@ -1327,10 +1327,11 @@ class D3D11_BOX
 	 */
 	IsEmpty()
 	{
-		return
+		return ( // Need something on the "return" line for javascript :/
 			this.Right <= this.Left ||
 			this.Bottom <= this.Top ||
-			this.Back <= this.Front;
+			this.Back <= this.Front
+		);
 	}
 }
 
@@ -1680,10 +1681,8 @@ class ID3D11Device extends IUnknown
 	}
 
 
-	// TODO: Respect buffer desc
 	// TODO: Use SubresourceData struct for initial data to match d3d spec?
 	// TODO: Ensure array types for initial data? 
-	// TODO: Full validation of description
 	CreateBuffer(bufferDesc, initialData)
 	{
 		// Validate description
@@ -2243,7 +2242,7 @@ class ID3D11Device extends IUnknown
 						const mipWidth = Math.max(1, Math.floor(w / div));
 						const mipHeight = Math.max(1, Math.floor(h / div));
 						const mipDepth = Math.max(1, Math.floor(d / div));
-						console.log(mipWidth + " " + mipHeight + " " + mipDepth);
+					
 						// Save this data
 						// TODO: Test this!
 						this.#gl.texSubImage3D(
@@ -3321,7 +3320,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 	#indexBuffer;
 	#indexBufferFormat;
-	#indexBufferOffset;
 
 	// Vertex Shader ---
 	#vertexShader;
@@ -3401,7 +3399,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 			this.#indexBuffer = null;
 			this.#indexBufferFormat = DXGI_FORMAT_R16_UINT;
-			this.#indexBufferOffset = 0;
 		}
 
 		// Vertex Shader
@@ -3515,8 +3512,11 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#BindBackBufferFramebuffer();
 		this.#BindDepthStencil(depthStencilView);
 
-		// TODO: Turn off scissor and buffer write masks, as
+		// TODO: Turn off buffer write masks, as
 		//       D3D does not take those into account when clearing
+
+		let [width, height] = this.#GetActiveRenderTargetSize();
+		this.#gl.scissor(0, 0, width, height);
 
 		// Set values for clears
 		let mask = 0;
@@ -3535,6 +3535,9 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 
 		// Actual clear
 		this.#gl.clear(mask);
+
+		// Need to update rasterizer due to scissor change
+		this.#scissorRectDirty = true;
 	}
 
 	/**
@@ -3875,12 +3878,13 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	}
 
 
-	// TODO: Validate format! (and offset?)
-	IASetIndexBuffer(indexBuffer, format, offset)
+	// TODO: Validate format!
+	// Note: The D3D11 version takes a third param - offset - which is 
+	//       a byte offset into the buffer.  WebGL has no such param.
+	IASetIndexBuffer(indexBuffer, format)
 	{
 		this.#indexBuffer = indexBuffer;
 		this.#indexBufferFormat = format;
-		this.#indexBufferOffset = offset;
 
 		// Determine if we're binding or unbinding
 		if (indexBuffer == null)
@@ -4090,7 +4094,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		this.#viewportDirty = true; // Need to "re-flip" the viewport!
 	}
 
-	// TODO: Finalize the way we return multiple pieces of data
 	OMGetRenderTargets()
 	{
 		return [this.#renderTargetViews.slice(), this.#depthStencilView];
@@ -4839,7 +4842,6 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 	}
 
-	// TODO: Prepare rest of pipeline
 	Draw(vertexCount, startVertexLocation)
 	{
 		this.#PrepareInputAssembler();
@@ -4855,7 +4857,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			vertexCount);
 	}
 
-	DrawIndexed(indexCount, startIndexLocation, baseVertexLocation)
+	// Note: D3D11 has a third param - baseVertexLocation - that is added to
+	//       each index.  WebGL has no such param (there is an extension that
+	//       was proposed but hasn't been implemented yet)
+	DrawIndexed(indexCount, startIndexLocation)
 	{
 		this.#PrepareInputAssembler();
 		this.#PrepareShaders();
@@ -4872,12 +4877,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 			case DXGI_FORMAT_R32_UINT: format = this.#gl.UNSIGNED_INT; break;
 		}
 
-		// TODO: Vertify offset + startIndex thing
+		// Perform draw
 		this.#gl.drawElements(
 			this.#GetGLPrimitiveType(this.#primitiveTopology),
 			indexCount,
 			format,
-			this.#indexBufferOffset + startIndexLocation);
+			startIndexLocation);
 	}
 
 	/**
