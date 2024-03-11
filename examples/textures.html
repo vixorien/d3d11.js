@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html class="h-100">
+<html class="h-100" data-bs-theme="dark">
 <head>
 	<script src="../build/d3d11.js"></script>
 
@@ -258,6 +258,14 @@
 					<div id="settings-accordion" class="accordion-collapse collapse">
 						<div class="accordion-body p-3">
 
+							<h6>&#127767; Color Mode</h6>
+							<div class="btn-group">
+								<input type="radio" class="btn-check" name="color-mode" id="color-mode-light" autocomplete="off" onchange="setColorMode('light');"/>
+								<label class="btn btn-outline-secondary btn-sm" for="color-mode-light">Light</label>
+
+								<input type="radio" class="btn-check" name="color-mode" id="color-mode-dark" autocomplete="off" checked onchange="setColorMode('dark');" />
+								<label class="btn btn-outline-secondary btn-sm" for="color-mode-dark">Dark</label>
+							</div>
 						</div>
 					</div>
 				</div>
@@ -312,6 +320,11 @@
 		const Lighting_None = 3;
 
 		const MaxLights = 64;
+
+		window.setColorMode = function (mode)
+		{
+			document.documentElement.setAttribute("data-bs-theme", mode);
+		}
 
 		window.setScene = function (val)
 		{
