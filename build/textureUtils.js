@@ -683,7 +683,7 @@ export class TextureUtils
 	 * @returns Array of ???
 	 * TODO: Determine what to return - probably a bunch of info (maybe just a texture_desc + data array?)
 	 */
-	static LoadDDSFileLocal(fileInput)
+	static async LoadDDSFileLocal(fileInput)
 	{
 		// Ensure file has been set
 		if (fileInput.files.length == 0)
