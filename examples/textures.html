@@ -43,30 +43,61 @@
 					<div id="scene-accordion" class="accordion-collapse collapse">
 						<div class="accordion-body p-3">
 
-							<!-- MODEL -->
-							<div class="row">
-								<label for="sceneSet" class="col-sm-2 col-form-label">Model</label>
-								<div class="col-sm">
-									<select id="sceneSet" class="form-select form-select-sm" onchange="setScene(this.value);">
-										<option value="0" selected>Sphere</option>
-										<option value="1">Helix</option>
-										<option value="2">Cube</option>
-										<option value="3">Roughness Grid</option>
-										<option value="4">RGB Grid</option>
-									</select>
-								</div>
+							<!-- LIGHTS -->
+							<div class="input-group input-group-sm mb-2">
+								<label for="lightSet" class="input-group-text">&#128161; Lights</label>
+								<select id="lightSet" class="form-select" onchange="setLighting(this.value);">
+									<option value="0" selected>One Directional</option>
+									<option value="1">Three Directional</option>
+									<option value="2">Eight Point</option>
+									<option value="3">No Lights (Sky Only)</option>
+								</select>
 							</div>
 
-							<!-- LIGHTS -->
-							<div class="row">
-								<label for="lightSet" class="col-sm-2 col-form-label">Lights</label>
-								<div class="col-sm">
-									<select id="lightSet" class="form-select form-select-sm" onchange="setLighting(this.value);">
-										<option value="0" selected>One Directional Light</option>
-										<option value="1">Three Directional Lights</option>
-										<option value="2">Eight Point Lights</option>
-										<option value="3">No lights (sky only)</option>
+							<!-- MODEL -->
+							<div class="input-group input-group-sm mb-3">
+								<label for="sceneSet" class="input-group-text">&#127760; Model</label>
+								<select id="sceneSet" class="form-select" onchange="setScene(this.value);">
+									<option value="0" selected>Sphere</option>
+									<option value="1">Helix</option>
+									<option value="2">Cube</option>
+									<option value="3">Roughness Grid</option>
+									<option value="4">RGB Grid</option>
+								</select>
+							</div>
+
+							<!-- MATERIAL -->
+							<div id="material">
+								<h6>&#127912; Material</h6>
+
+								<!-- TEXTURES -->
+								<div class="input-group input-group-sm">
+									<label for="textureSet" class="input-group-text">Texture Set</label>
+									<select id="textureSet" class="form-select" onchange="setTextureSet(this.value);">
+										<option value="0">None (Custom Values)</option>
+										<option value="1" selected>Cobblestone</option>
+										<option value="2">Bronze</option>
+										<option value="3">Metal Flooring</option>
+										<option value="4">Scratched Paint</option>
 									</select>
+								</div>
+
+								<!-- COLOR PICKER -->
+								<div class="input-group input-group-sm">
+									<label for="material-color" class="input-group-text">Color Tint</label>
+									<input id="material-color" type="color" class="form-control form-control-color" value="#ffffff" title="Color Tint" onchange="" />
+								</div>
+
+								<!-- ROUGHNESS -->
+								<div class="input-group input-group-sm row ms-0">
+									<label for="material-roughness" class="col input-group-text">Roughness: 0.5</label>
+									<input id="material-roughness" type="range" class="col form-control form-range p-3" min="0" max="1" step="0.01" value="0.5" oninput="setMatRoughness(this.value); this.previousElementSibling.innerHTML = 'Roughness: ' + this.value;" />
+								</div>
+
+								<!-- METALNESS -->
+								<div class="row input-group input-group-sm ms-0">
+									<label for="material-metalness" class="col input-group-text">Metalness: 0</label>
+									<input id="material-metalness" type="range" class="col form-control form-range p-3" min="0" max="1" step="0.01" value="0" oninput="setMatMetalness(this.value); this.previousElementSibling.innerHTML = 'Metalness: ' + this.value;" />
 								</div>
 							</div>
 
@@ -86,12 +117,11 @@
 
 							<h6>&#128269; Mip Level Preview</h6>
 
-							<div class="row">
-								<label for="mipLevelRange" class="col-sm-2 col-form-label">Mip: 0</label>
-								<div class="col p-2 mb-3">
-									<input type="range" class="form-range form-range-sm" min="0" max="16" value="0" id="mipLevelRange" oninput="setSkyMipPreview(this.value); this.parentNode.previousElementSibling.innerHTML = 'Mip: ' + this.value;" />
-								</div>
+							<div class="row input-group input-group-sm ms-0 mb-3">
+								<label for="mipLevelRange" class="col-4 input-group-text">Mip: 0</label>
+								<input id="mipLevelRange" type="range" class="col form-control form-range p-3" min="0" max="16" value="0" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Mip: ' + this.value;" />
 							</div>
+
 							<h6>&#128256; Change environment map</h6>
 
 							<div class="accordion m-1" id="loadAccordion">
@@ -182,11 +212,11 @@
 
 											<div class="input-group">
 												<input class="form-control" type="file" id="hdrFile" aria-describedby="button-load-hdr" aria-label="Load" />
-												
+
 												<button id="button-load-hdr" type="button" class="btn btn-primary" onclick="loadHDR()">Load</button>
 											</div>
 
-											
+
 
 											<div class="mt-2">
 												<label for="hdrExposure" class="form-label">Exposure Adjust: 0</label>
@@ -313,6 +343,10 @@
 		let globalCurrentScene = 0;
 		let globalLightings = [];
 		let globalCurrentLighting = 0;
+		let globalMaterials = [];
+		let globalCurrentMaterial = 1;
+		let globalMatRoughness = 0.5;
+		let globalMatMetalness = 0;
 
 		const Lighting_OneDir = 0;
 		const Lighting_ThreeDir = 1;
@@ -320,6 +354,21 @@
 		const Lighting_None = 3;
 
 		const MaxLights = 64;
+
+		window.setMatRoughness = function (val)
+		{
+			globalMatRoughness = val;
+		}
+
+		window.setMatMetalness = function (val)
+		{
+			globalMatMetalness = val;
+		}
+
+		window.setTextureSet = function (val)
+		{
+			globalCurrentMaterial = val;
+		}
 
 		window.setColorMode = function (mode)
 		{
@@ -736,13 +785,26 @@
 			matScratched.SetPSSamplerState(0, sampler);
 			matScratched.SetPSSamplerState(1, clampSampler);
 
-			let mat = matFloor;
+			let matCustom = new Material(vs, ps, new Vector3(1, 1, 1));
+			matCustom.SetPSTextureSRV(0, whiteSRV);
+			matCustom.SetPSTextureSRV(1, flatNormalsSRV);
+			matCustom.SetPSTextureSRV(2, whiteSRV);
+			matCustom.SetPSTextureSRV(3, whiteSRV);
+			matCustom.SetPSSamplerState(0, sampler);
+			matCustom.SetPSSamplerState(1, clampSampler);
+
+			// Order must match UI!
+			globalMaterials.push(matCustom);
+			globalMaterials.push(matCobble);
+			globalMaterials.push(matBronze);
+			globalMaterials.push(matFloor);
+			globalMaterials.push(matScratched);
 
 			// -------------- Entity setup -------------------
 			// --- SPHERE SCENE ---
 			let sphereEntity = new Entity(
 				sphereMesh,
-				mat);
+				matCustom);
 			sphereEntity.Transform.ScaleUniform(7);
 
 			globalScenes.push([sphereEntity]);
@@ -750,7 +812,7 @@
 			// --- HELIX SCENE ---
 			let helixEntity = new Entity(
 				helixMesh,
-				mat);
+				matCustom);
 			helixEntity.Transform.ScaleUniform(3);
 
 			globalScenes.push([helixEntity]);
@@ -758,7 +820,7 @@
 			// --- CUBE SCENE ---
 			let cubeEntity = new Entity(
 				cubeMesh,
-				mat);
+				matCustom);
 			cubeEntity.Transform.ScaleUniform(4);
 
 			globalScenes.push([cubeEntity]);
@@ -916,11 +978,18 @@
 			psPerFrameData.PushMapping("pad2", 1);
 			psPerFrameData.PushMapping("lights", MaxLights * Light.SizeInFloats);
 
-			// PS Per Object = 4 floats (RGB color tint + pad)
-			cbDesc.ByteWidth = 4 * Float32Array.BYTES_PER_ELEMENT;
+			// PS Per Object = 8 floats (RGB color tint + roughness + metalness + float3 padding)
+			cbDesc.ByteWidth = 8 * Float32Array.BYTES_PER_ELEMENT;
 			let psPerObjectCB = device.CreateBuffer(cbDesc, null);
-			let psPerObjectData = new MappedArray(4);
+			let psPerObjectData = new MappedArray(8);
 			psPerObjectData.PushMapping("tint", 3);
+			psPerObjectData.PushMapping("pad", 1);
+			psPerObjectData.PushMapping("roughness", 1);
+			psPerObjectData.PushMapping("metalness", 1);
+
+			// Set initial values
+			psPerObjectData.SetData("roughness", 1);
+			psPerObjectData.SetData("metalness", 1);
 
 
 			// Cbuffer for solid color
@@ -1162,11 +1231,22 @@
 					vsPerObjectData.SetData("world", e.Transform.WorldMatrix);
 					context.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
 
-					psPerObjectData.SetData("tint", e.Material.Color);
-					context.UpdateSubresource(psPerObjectCB, 0, null, psPerObjectData, 0, 0);
+					// Which material?
+					let mat = e.Material;
+					let customMat = false;
+					if (globalCurrentScene == 0 || globalCurrentScene == 1 || globalCurrentScene == 2)
+					{
+						// Use proper material
+						mat = globalMaterials[globalCurrentMaterial];
+						customMat = true;
+					}
 
 					// Set up material
-					e.Material.PrepareMaterial(context);
+					mat.PrepareMaterial(context);
+					psPerObjectData.SetData("tint", mat.Color);
+					psPerObjectData.SetData("roughness", customMat && globalCurrentMaterial == 0 ? [globalMatRoughness] : [1]);
+					psPerObjectData.SetData("metalness", customMat && globalCurrentMaterial == 0 ? [globalMatMetalness] : [1]);
+					context.UpdateSubresource(psPerObjectCB, 0, null, psPerObjectData, 0, 0);
 
 					// Set up IBL
 					context.PSSetShaderResources(4, [
@@ -1175,8 +1255,8 @@
 
 					// Draw
 					context.IASetVertexBuffers(0, [e.Mesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					context.IASetIndexBuffer(e.Mesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-					context.DrawIndexed(e.Mesh.IndexCount, 0, 0);
+					context.IASetIndexBuffer(e.Mesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
+					context.DrawIndexed(e.Mesh.IndexCount, 0);
 				}
 
 				// Main scene draw

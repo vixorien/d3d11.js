@@ -26,6 +26,12 @@ cbuffer perFrame : register(b0)
 cbuffer perObject : register(b1)
 {
 	float3 tint;
+	float padagonia;		// 16 bytes
+	
+	float roughnessScale;
+	float metalnessScale;
+	float paddington;
+	float paddyspub;		// 32 bytes
 }
 
 Texture2D albedoMap			: register(t0);
@@ -47,8 +53,8 @@ float4 main(VertexToPixel input) : SV_TARGET
 	input.tangent = normalize(input.tangent);
 	
 	float3 albedo = pow(albedoMap.Sample(samp, input.uv).rgb, 2.2) * tint;
-	float metal = metalMap.Sample(samp, input.uv).r;
-	float rough = max(roughnessMap.Sample(samp, input.uv).r, MIN_ROUGHNESS);
+	float metal = metalMap.Sample(samp, input.uv).r * metalnessScale;
+	float rough = max(roughnessMap.Sample(samp, input.uv).r * roughnessScale, MIN_ROUGHNESS);
 	float3 normalFromMap = normalMap.Sample(samp, input.uv).rgb;
 	normalFromMap = normalize(normalFromMap * 2.0 - 1.0);
 	
