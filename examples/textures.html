@@ -195,7 +195,13 @@
 									</h2>
 									<div id="collapseTwo" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
 										<div class="accordion-body p-2">
-											Not yet implemented
+
+											<div class="input-group">
+												<input class="form-control" type="file" id="ddsFile" aria-describedby="button-load-dds" aria-label="Load" />
+
+												<button id="button-load-dds" type="button" class="btn btn-primary" onclick="loadDDS()">Load</button>
+											</div>
+
 										</div>
 									</div>
 								</div>
@@ -326,6 +332,7 @@
 		import { Entity } from "../build/entity.js";
 		import { Vertex } from "../build/vertex.js";
 		import { Light } from "../build/light.js";
+		import { Scene } from "../build/scene.js";
 		import { Mesh } from "../build/mesh.js";
 		import { Sky } from "../build/sky.js";
 		import { Input, Keys, MouseButtons } from "../build/input.js";
@@ -496,6 +503,12 @@
 			let [width, height, data] = await TextureUtils.LoadHDRFileLocal(fileInput);
 
 			globalSky.LoadEquirectHDR(width, height, data, globalHDRExposure);
+		}
+
+		window.loadDDS = async function ()
+		{
+			let fileInput = document.getElementById("ddsFile");
+			let TEMPORARY = await TextureUtils.LoadDDSFileLocal(fileInput);
 		}
 
 

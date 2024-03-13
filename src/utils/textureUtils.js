@@ -3,6 +3,69 @@ import { Vector3 } from "./d3dmath.js";
 
 export class TextureUtils
 {
+	// MISC DDS constants
+	static DDS_MAGIC_NUMBER = 0x20534444;
+	static DDS_FOUR_CC_DX10_EXTENDED_HEADER = 0x30315844;
+	static DDS_FOUR_CC_DXT1 = 0x31545844;
+	static DDS_FOUR_CC_DXT2 = 0x32545844;
+	static DDS_FOUR_CC_DXT3 = 0x33545844;
+	static DDS_FOUR_CC_DXT4 = 0x34545844;
+	static DDS_FOUR_CC_DXT5 = 0x35545844;
+
+	// DDS Flags
+	static DDSD_CAPS = 0x1;
+	static DDSD_HEIGHT = 0x2;
+	static DDSD_WIDTH = 0x4;
+	static DDSD_PITCH = 0x8;
+	static DDSD_PIXELFORMAT = 0x1000;
+	static DDSD_MIPMAPCOUNT = 0x20000;
+	static DDSD_LINEARSIZE = 0x80000;
+	static DDSD_DEPTH = 0x800000;
+
+	static DDS_HEADER_FLAGS_TEXTURE =
+		TextureUtils.DDSD_CAPS |
+		TextureUtils.DDSD_HEIGHT |
+		TextureUtils.DDSD_WIDTH |
+		TextureUtils.DDSD_PIXELFORMAT;
+
+	// Caps flags
+	static DDSCAPS_COMPLEX = 0x8; // Has more than once surface: mips, cube, etc.
+	static DDSCAPS_MIPMAP = 0x400000;
+	static DDSCAPS_TEXTURE = 0x1000;
+
+	// Caps2 flags
+	static DDSCAPS2_CUBEMAP = 0x200
+	static DDSCAPS2_CUBEMAP_POSITIVEX = 0x400;
+	static DDSCAPS2_CUBEMAP_NEGATIVEX = 0x800;
+	static DDSCAPS2_CUBEMAP_POSITIVEY = 0x1000;
+	static DDSCAPS2_CUBEMAP_NEGATIVEY = 0x2000;
+	static DDSCAPS2_CUBEMAP_POSITIVEZ = 0x4000;
+	static DDSCAPS2_CUBEMAP_NEGATIVEZ = 0x8000;
+	static DDSCAPS2_VOLUME = 0x200000;
+
+	static DDS_CUBEMAP_ALLFACES =
+		TextureUtils.DDSCAPS2_CUBEMAP |
+		TextureUtils.DDSCAPS2_CUBEMAP_POSITIVEX |
+		TextureUtils.DDSCAPS2_CUBEMAP_NEGATIVEX |
+		TextureUtils.DDSCAPS2_CUBEMAP_POSITIVEY |
+		TextureUtils.DDSCAPS2_CUBEMAP_NEGATIVEY |
+		TextureUtils.DDSCAPS2_CUBEMAP_POSITIVEZ |
+		TextureUtils.DDSCAPS2_CUBEMAP_NEGATIVEZ;
+
+	// Pixel format flags
+	static DDPF_ALPHAPIXELS = 0x1;
+	static DDPF_ALPHA = 0x2;
+	static DDPF_FOURCC = 0x4; // Used when DXT10 header is needed, set FourCC to 'DX10' (backwards?)
+	static DDPF_RGB = 0x40;
+	static DDPF_YUV = 0x200;
+	static DDPF_LUMINANCE = 0x20000;
+
+	// Extended header details
+	static DDS_DIMENSION_TEXTURE1D = 2;
+	static DDS_DIMENSION_TEXTURE2D = 3;
+	static DDS_DIMENSION_TEXTURE3D = 4;
+	static DDS_RESOURCE_MISC_TEXTURECUBE = 0x4;
+
 	/**
 	 * Creates a texture of the specified size and color.  The color format is
 	 * RGBA (8 bits per channel).  Color should be specified as four [0,255] integers.
@@ -706,6 +769,17 @@ export class TextureUtils
 		return TextureUtils.#LoadDDSFile(fileContents);
 	}
 
+
+	static #CheckMasks(masks, r, g, b, a)
+	{
+		return (
+			masks[0] == r &&
+			masks[1] == g &&
+			masks[2] == b &&
+			masks[3] == a
+		);
+	}
+
 	/**
 	 * Loads a DDS file
 	 * Format details here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
@@ -714,14 +788,112 @@ export class TextureUtils
 	 * 
 	 * @returns {any} ???
 	 */
-	static async #LoadDDSFile(data)
+	static async #LoadDDSFile(dataFromFile)
 	{
-		// Genearl format:
-		// - Magic number: 'DDS ' (0x20534444)
-		// - DDS_HEADER
-		// - Maybe DDS_HEADER_DXT10
-		// - BYTE array of data (main surface)
-		// - BYTE array of more data (mips, array slices, etc.)
+		// Read data as uints
+		let data = new Uint32Array(dataFromFile);
+		let offset = 0;
+
+		// Check for magic number
+		if (data[offset] != TextureUtils.DDS_MAGIC_NUMBER)
+		{
+			throw new Error("Invalid header for DDS file");
+		}
+		offset++;
+
+		// Read next header details
+		let headerSize = data[offset++];
+		let flags = data[offset++];
+		let width = data[offset++];
+		let height = data[offset++];
+		let pitch = data[offset++];
+		let depth = data[offset++];
+		let mipLevels = data[offset++];
+
+		// Skip next 11 unused entries
+		offset += 11;
+
+		// Pixel format details
+		let pfSize = data[offset++];
+		let pfFlags = data[offset++];
+		let pfFourCC = data[offset++];
+		let pfRGBBitCount = data[offset++];
+		let pfRBitMask = data[offset++];
+		let pfGBitMask = data[offset++];
+		let pfBBitMask = data[offset++];
+		let pfABitMask = data[offset++];
+
+		// Caps
+		let caps = data[offset++];
+		let caps2 = data[offset++];
+
+		// Skip caps3, caps4 and reserved2
+		offset += 3;
+
+		// Do we need to parse the DX10 extended header?
+		let exDXGIFormat = 0;
+		let exDimensions = 0;
+		let exMisc = 0;
+		let exArraySize = 0;
+		let exMisc2 = 0;
+		if ((pfFlags & TextureUtils.DDPF_FOURCC) == TextureUtils.DDPF_FOURCC &&
+			pfFourCC == TextureUtils.DDS_FOUR_CC_DX10_EXTENDED_HEADER)
+		{
+			exDXGIFormat = data[offset++];
+			exDimensions = data[offset++];
+			exMisc = data[offset++];
+			exArraySize = data[offset++];
+			exMisc2 = data[offset++];
+		}
+
+		// Should be at the pixel data now
+		// But first - figure out the actual format
+
+		// Currently only supporting a subset of formats!
+		let format = DXGI_FORMAT_UNKNOWN;
+		if (exDXGIFormat != 0)
+		{
+			format = exDXGIFormat;
+		}
+		else if ((pfFlags & TextureUtils.DDPF_RGB) == TextureUtils.DDPF_RGB &&
+			pfRGBBitCount == 32)  
+		{
+			// Not a DX10 header, so manual format sussing
+
+			// Look for 32-bit formats first
+			let masks = [pfRBitMask, pfGBitMask, pfBBitMask, pfABitMask];
+			console.log(masks);
+
+			if (TextureUtils.#CheckMasks(masks, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000))
+				format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			else if (TextureUtils.#CheckMasks(masks, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000))
+				format = DXGI_FORMAT_B8G8R8A8_UNORM;
+			else if (TextureUtils.#CheckMasks(masks, 0x00ff0000, 0x0000ff00, 0x000000ff, 0))
+				format = DXGI_FORMAT_B8G8R8X8_UNORM;
+		}
+		else if ((pfFlags & TextureUtils.DDPF_FOURCC) == TextureUtils.DDPF_FOURCC)
+		{
+			// Use FourCC to check texture
+			switch (pfFourCC)
+			{
+				// Block compression (DXT formats)
+				case TextureUtils.DDS_FOUR_CC_DXT1: format = DXGI_FORMAT_BC1_UNORM; break;
+				case TextureUtils.DDS_FOUR_CC_DXT2:
+				case TextureUtils.DDS_FOUR_CC_DXT3: format = DXGI_FORMAT_BC2_UNORM; break;
+				case TextureUtils.DDS_FOUR_CC_DXT4: 
+				case TextureUtils.DDS_FOUR_CC_DXT5: format = DXGI_FORMAT_BC3_UNORM; break;
+
+				// Older D3DFORMAT values
+				case 113: format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+				case 116: format = DXGI_FORMAT_R32G32B32A32_FLOAT;
+			}
+		}
+
+		// Check the format
+		if (format == DXGI_FORMAT_UNKNOWN)
+			throw new Error("Invalid DDS file or format not supported.  Format: " + format);
+
+
 	}
 
 	/**
@@ -741,65 +913,17 @@ export class TextureUtils
 	 */
 	static WriteDDSFile(fileName, width, height, mipLevels, arraySizeOrCubeCount, isCube, dxgiFormat, pixelData)
 	{
-		// Overall Flags
-		const DDSD_CAPS = 0x1;
-		const DDSD_HEIGHT = 0x2;
-		const DDSD_WIDTH = 0x4;
-		const DDSD_PITCH = 0x8;
-		const DDSD_PIXELFORMAT = 0x1000;
-		const DDSD_MIPMAPCOUNT = 0x20000;
-		const DDSD_LINEARSIZE = 0x80000;
-		const DDSD_DEPTH = 0x800000;
-
-		const DDS_HEADER_FLAGS_TEXTURE =
-			DDSD_CAPS | DDSD_HEIGHT | DDSD_WIDTH | DDSD_PIXELFORMAT;
-
-		// Caps flags
-		const DDSCAPS_COMPLEX = 0x8; // Has more than once surface: mips, cube, etc.
-		const DDSCAPS_MIPMAP = 0x400000;
-		const DDSCAPS_TEXTURE = 0x1000;
-
-		// Caps2 flags
-		const DDSCAPS2_CUBEMAP = 0x200
-		const DDSCAPS2_CUBEMAP_POSITIVEX = 0x400;
-		const DDSCAPS2_CUBEMAP_NEGATIVEX = 0x800;
-		const DDSCAPS2_CUBEMAP_POSITIVEY = 0x1000;
-		const DDSCAPS2_CUBEMAP_NEGATIVEY = 0x2000;
-		const DDSCAPS2_CUBEMAP_POSITIVEZ = 0x4000;
-		const DDSCAPS2_CUBEMAP_NEGATIVEZ = 0x8000;
-		const DDSCAPS2_VOLUME = 0x200000;
-
-		const DDS_CUBEMAP_ALLFACES =
-			DDSCAPS2_CUBEMAP |
-			DDSCAPS2_CUBEMAP_POSITIVEX |
-			DDSCAPS2_CUBEMAP_NEGATIVEX |
-			DDSCAPS2_CUBEMAP_POSITIVEY |
-			DDSCAPS2_CUBEMAP_NEGATIVEY |
-			DDSCAPS2_CUBEMAP_POSITIVEZ |
-			DDSCAPS2_CUBEMAP_NEGATIVEZ;
-
-		// Pixel format flags
-		const DDPF_ALPHAPIXELS = 0x1;
-		const DDPF_ALPHA = 0x2;
-		const DDPF_FOURCC = 0x4; // Used when DXT10 header is needed, set FourCC to 'DX10' (backwards?)
-		const DDPF_RGB = 0x40;
-		const DDPF_YUV = 0x200;
-		const DDPF_LUMINANCE = 0x20000;
-
-		// Extended header details
-		const DDS_DIMENSION_TEXTURE1D = 2;
-		const DDS_DIMENSION_TEXTURE2D = 3;
-		const DDS_DIMENSION_TEXTURE3D = 4;
-		const DDS_RESOURCE_MISC_TEXTURECUBE = 0x4;
-
 		// Flags for header
-		let flags = DDS_HEADER_FLAGS_TEXTURE | DDSD_PITCH | (mipLevels > 1 ? DDSD_MIPMAPCOUNT : 0);
+		let flags =
+			TextureUtils.DDS_HEADER_FLAGS_TEXTURE |
+			TextureUtils.DDSD_PITCH |
+			(mipLevels > 1 ? TextureUtils.DDSD_MIPMAPCOUNT : 0);
 		let caps =
-			DDSCAPS_TEXTURE |
-			(mipLevels > 1 || isCube ? DDSCAPS_COMPLEX : 0) |
-			(mipLevels > 1 ? DDSCAPS_MIPMAP : 0);
-		let caps2 = isCube ? DDS_CUBEMAP_ALLFACES : 0;
-		let pixelFormatFlags = DDPF_RGB | DDPF_ALPHAPIXELS;
+			TextureUtils.DDSCAPS_TEXTURE |
+			(mipLevels > 1 || isCube ? TextureUtils.DDSCAPS_COMPLEX : 0) |
+			(mipLevels > 1 ? TextureUtils.DDSCAPS_MIPMAP : 0);
+		let caps2 = isCube ? TextureUtils.DDS_CUBEMAP_ALLFACES : 0;
+		let pixelFormatFlags = TextureUtils.DDPF_RGB | TextureUtils.DDPF_ALPHAPIXELS;
 
 		// Calculations for header
 		let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(dxgiFormat);
@@ -808,7 +932,7 @@ export class TextureUtils
 		// Pitch formula here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
 
 		let header = new Uint32Array([
-			0x20534444, // Magic number for 'DDS '
+			TextureUtils.DDS_MAGIC_NUMBER, // Magic number for DDS files: 'DDS ' (0x20534444)
 
 			// --- Starting standard header ---
 			124, // Header size, always 124
@@ -821,8 +945,8 @@ export class TextureUtils
 			0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, // 11x unused (reserved) entries
 			// --- Pixel format ---
 			/* dwSize        */ 32, // Always 32
-			/* dwFlags       */ DDPF_FOURCC,  // Assuming we're using the extended header for all formats!
-			/* dwFourCC      */ 0x30315844,   // Needs to be "DX10", but left-to-right: '0', '1', 'X', 'D'
+			/* dwFlags       */ TextureUtils.DDPF_FOURCC,  // Assuming we're using the extended header for all formats!
+			/* dwFourCC      */ TextureUtils.DDS_FOUR_CC_DX10_EXTENDED_HEADER,   // Needs to be "DX10", but left-to-right: '0', '1', 'X', 'D'
 			/* dwRGBBitCount */ bitsPerPixel, 
 			/* dwRBitMask    */ 0, // The following are all zeros since the extended header handles format details (right?)
 			/* dwGBitMask    */ 0,
@@ -836,10 +960,10 @@ export class TextureUtils
 
 			// --- Starting DX10 Extended header ---
 			/* DXGI Format */ dxgiFormat,
-			/* Dimensions  */ DDS_DIMENSION_TEXTURE2D, // Assuming 2D only for now!
-			/* Misc (cube) */ isCube ? DDS_RESOURCE_MISC_TEXTURECUBE : 0,
-			/* Elements    */ arraySizeOrCubeCount, // Array elements OR cube count, NEVER cubeCount * 6
-			/* Misc        */ 0 
+			/* Dimensions  */ TextureUtils.DDS_DIMENSION_TEXTURE2D, // Assuming 2D only for now!
+			/* Misc (cube) */ isCube ? TextureUtils.DDS_RESOURCE_MISC_TEXTURECUBE : 0,
+			/* ArraySize   */ arraySizeOrCubeCount, // Array elements OR cube count, NEVER cubeCount * 6
+			/* Misc2       */ 0 
 			// --- End extended header ---
 		]);
 
