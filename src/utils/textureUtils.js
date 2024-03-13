@@ -831,6 +831,7 @@ export class TextureUtils
 		offset += 3;
 
 		// Do we need to parse the DX10 extended header?
+		let hasExtendedHeader = false;
 		let exDXGIFormat = 0;
 		let exDimensions = 0;
 		let exMisc = 0;
@@ -839,6 +840,7 @@ export class TextureUtils
 		if ((pfFlags & TextureUtils.DDPF_FOURCC) == TextureUtils.DDPF_FOURCC &&
 			pfFourCC == TextureUtils.DDS_FOUR_CC_DX10_EXTENDED_HEADER)
 		{
+			hasExtendedHeader = true;
 			exDXGIFormat = data[offset++];
 			exDimensions = data[offset++];
 			exMisc = data[offset++];
@@ -862,7 +864,6 @@ export class TextureUtils
 
 			// Look for 32-bit formats first
 			let masks = [pfRBitMask, pfGBitMask, pfBBitMask, pfABitMask];
-			console.log(masks);
 
 			if (TextureUtils.#CheckMasks(masks, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000))
 				format = DXGI_FORMAT_R8G8B8A8_UNORM;
@@ -893,7 +894,18 @@ export class TextureUtils
 		if (format == DXGI_FORMAT_UNKNOWN)
 			throw new Error("Invalid DDS file or format not supported.  Format: " + format);
 
+		// Validate other data
+		if ((caps2 & TextureUtils.DDS_CUBEMAP_ALLFACES) == 0)
+			throw new Error("Invalid DDS cube map - file not flagged as cube map in header");
 
+		if (hasExtendedHeader && ((exMisc & TextureUtils.DDS_RESOURCE_MISC_TEXTURECUBE) == 0))
+			throw new Error("Invalid DDS cube map - extended header missing cube map flag");
+
+		if (width != height)
+			throw new Error("Invalid DDS cube map - width and height of each face must be the same");
+
+		// Return all the info we have
+		return [width, height, mipLevels, format, new Uint32Array(data[offset])];
 	}
 
 	/**

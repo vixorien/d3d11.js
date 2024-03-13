@@ -267,10 +267,6 @@ export class Sky
 
 	}
 
-	//LoadEquirectNonHDR(width, height, pixelData)
-	//{
-	//}
-
 	LoadEquirectHDR(width, height, pixelData, hdrExposure = 0)
 	{
 		if (width <= 0 || height <= 0 || height != width / 2)
@@ -371,14 +367,9 @@ export class Sky
 		// All done
 		tex.Release(); // Just need the SRV
 		this.#ResetIBLDirtyState(true);
-
-
-		// TESTING
-		//let sh = this.#SHFromCubemap(this.SkyCubeSRV, true);
-		//console.log(sh);
 	}
 
-	LoadDDS()
+	LoadDDS(width, height, mipLevels, format, pixelData)
 	{
 
 	}
