@@ -371,7 +371,7 @@ export class Sky
 		this.#ResetIBLDirtyState(true);
 	}
 
-	LoadDDS(width, height, mipLevels, format, pixelData)
+	LoadDDS(width, height, mipLevels, format, faceDataArrays)
 	{
 		// Clean up existing cube
 		if (this.SkyCubeSRV != null)
@@ -389,7 +389,7 @@ export class Sky
 			D3D11_BIND_SHADER_RESOURCE,
 			0,
 			D3D11_RESOURCE_MISC_TEXTURECUBE);
-		let tex = this.#d3dDevice.CreateTexture2D(desc, [pixelData]);
+		let tex = this.#d3dDevice.CreateTexture2D(desc, faceDataArrays);
 		this.SkyCubeSRV = this.#d3dDevice.CreateShaderResourceView(tex, null);
 
 		// Save the format since we're good

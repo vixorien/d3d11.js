@@ -508,9 +508,9 @@
 		window.loadDDS = async function ()
 		{
 			let fileInput = document.getElementById("ddsFile");
-			let [width, height, mips, format, data] = await TextureUtils.LoadDDSFileLocal(fileInput);
+			let [width, height, mips, format, faceDataArrays] = await TextureUtils.LoadDDSFileLocal(fileInput);
 
-			globalSky.LoadDDS(width, height, mips, format, data);
+			globalSky.LoadDDS(width, height, mips, format, faceDataArrays);
 		}
 
 

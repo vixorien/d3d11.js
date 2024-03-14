@@ -780,6 +780,15 @@ export class TextureUtils
 		);
 	}
 
+	//static FlipBGRA(c)
+	//{
+	//	return (
+	//		(c & 0x000000ff) << 24 |	// Isolate R and shift left
+	//		(c & 0xff00ff00) |			// Keep G and A
+	//		(c & 0x00ff0000) >> 24		// Isolate B and shift right
+	//	);
+	//}
+
 	/**
 	 * Loads a DDS file
 	 * Format details here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
@@ -850,6 +859,7 @@ export class TextureUtils
 
 		// Should be at the pixel data now
 		// But first - figure out the actual format
+		let bgraFlip = false;
 
 		// Currently only supporting a subset of formats!
 		let format = DXGI_FORMAT_UNKNOWN;
@@ -866,11 +876,21 @@ export class TextureUtils
 			let masks = [pfRBitMask, pfGBitMask, pfBBitMask, pfABitMask];
 
 			if (TextureUtils.#CheckMasks(masks, 0x000000ff, 0x0000ff00, 0x00ff0000, 0xff000000))
+			{
 				format = DXGI_FORMAT_R8G8B8A8_UNORM;
+			}
 			else if (TextureUtils.#CheckMasks(masks, 0x00ff0000, 0x0000ff00, 0x000000ff, 0xff000000))
-				format = DXGI_FORMAT_B8G8R8A8_UNORM;
+			{
+				//format = DXGI_FORMAT_B8G8R8A8_UNORM; // Not actually supporting BGRA!
+				format = DXGI_FORMAT_R8G8B8A8_UNORM;
+				bgraFlip = true;
+			}
 			else if (TextureUtils.#CheckMasks(masks, 0x00ff0000, 0x0000ff00, 0x000000ff, 0))
-				format = DXGI_FORMAT_B8G8R8X8_UNORM;
+			{
+				//format = DXGI_FORMAT_B8G8R8X8_UNORM; // Not actually supporting BGRA!
+				format = DXGI_FORMAT_R8G8B8A8_UNORM;
+				bgraFlip = true;
+			}
 		}
 		else if ((pfFlags & TextureUtils.DDPF_FOURCC) == TextureUtils.DDPF_FOURCC)
 		{
@@ -912,8 +932,58 @@ export class TextureUtils
 		if (format == DXGI_FORMAT_B8G8R8A8_UNORM)
 			format = DXGI_FORMAT_R8G8B8A8_UNORM;
 
+		// TODO: Flip on the Y (UGH)
+		// TODO: Convert BGRA to RGBA (UGH)
+
+		// Each face needs its own array!
+		let faceStartByte = offset * 4;
+		let faceSizeInBytes = width * height * 4;
+		let faceDataArrays = [
+			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 0, faceSizeInBytes),
+			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 1, faceSizeInBytes),
+			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 2, faceSizeInBytes),
+			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 3, faceSizeInBytes),
+			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 4, faceSizeInBytes),
+			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 5, faceSizeInBytes)
+		];
+
+		let halfHeight = height / 2;
+		for (let face = 0; face < 6; face++)
+		{
+			for (let h = 0; h < height; h++)
+			{
+				let yFlip = height - h - 1;
+				for (let w = 0; w < width; w++)
+				{
+					// Calculate byte start
+					let pos = h * (width * 4) + (w * 4);
+					let posFlip = yFlip * (width * 4) + (w * 4);
+
+					// Flip Y as we go
+					if (h < halfHeight)
+					{
+						for (let comp = 0; comp < 4; comp++)
+						{
+							let swap = faceDataArrays[face][pos + comp];
+							faceDataArrays[face][pos + comp] = faceDataArrays[face][posFlip + comp];
+							faceDataArrays[face][posFlip + comp] = swap;
+						}
+					}
+
+					if (bgraFlip)
+					{
+						// Convert BGRA to RGBA by flipping R and B
+						let b = faceDataArrays[face][pos + 0];
+						let r = faceDataArrays[face][pos + 2];
+						faceDataArrays[face][pos + 0] = r;
+						faceDataArrays[face][pos + 2] = b;
+					}
+				}
+			}
+		}
+		
 		// Return all the info we have
-		return [width, height, mipLevels, format, new Uint8Array(dataFromFile, offset * 4)];
+		return [width, height, mipLevels, format, faceDataArrays];
 	}
 
 	/**
