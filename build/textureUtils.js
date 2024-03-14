@@ -943,52 +943,143 @@ export class TextureUtils
 			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 4, faceSizeInBytes),
 			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 5, faceSizeInBytes)
 		];
-		
-		let realHeight = compressed ? Math.max(1, Math.floor((height + 3) / 4)) : height;
-		let realWidth = compressed ? Math.max(1, Math.floor((width + 3) / 4)) : width;
-
-		let halfHeight = realHeight / 2;
-		for (let face = 0; face < 6 && !compressed; face++)
+	
+		for (let face = 0; face < 6; face++)
 		{
-			for (let h = 0; h < halfHeight; h++)
-			{
-				let yFlip = realHeight - h - 1;
-				for (let w = 0; w < realWidth; w++)
-				{
-					// Calculate byte start for both pixels
-					let pos = h * (realWidth * 4) + (w * 4);
-					let posFlip = yFlip * (realWidth * 4) + (w * 4);
-
-					// Flip Y as we go
-					TextureUtils.#SwapPixels(faceDataArrays[face], pos, posFlip, bgraFlip);
-				}
-			}
+			if (compressed)
+				TextureUtils.#FlipCompressedTextureData(faceDataArrays[face], compBlockSize, width, height);
+			else
+				TextureUtils.#FlipTextureData(faceDataArrays[face], format, width, height, bgraFlip);
 		}
 		
 		// Return all the info we have
 		return [width, height, mipLevels, format, faceDataArrays];
 	}
 
-
-	static #DecompressImageData(data, blockSize, finalWidth, finalHeight)
+	static #FlipBlock(pixels, blockIndex, blockSize)
 	{
-		// Create output color array (R8G8B8A8)
-		let output = new Uint8Array(finalWidth * finalHeight * 4);
-		let compWidth = Math.max(1, Math.floor((finalWidth + 3) / 4));
-		let compHeight = Math.max(1, Math.floor((finalHeight + 3) / 4));
-
-		// Handle each compressed block
-		for (let y = 0; y < compHeight; y++)
+		// Jump to the correct block
+		let i = blockIndex * blockSize;
+		
+		// Which kind of block?
+		switch (blockSize)
 		{
-			for (let x = 0; x < compWidth; x++)
+			case 8:
+				// Skip ahead to the indices
+				i += 4; // Two 2-byte colors
+
+				// Flip the next four bytes
+				let b0 = pixels[i + 0];
+				let b1 = pixels[i + 1];
+				let b2 = pixels[i + 2];
+				let b3 = pixels[i + 3];
+
+				pixels[i + 0] = b3;
+				pixels[i + 1] = b2;
+				pixels[i + 2] = b1;
+				pixels[i + 3] = b0;
+				break;
+
+			case 16:
+
+				break;
+
+			default:
+				throw new Error("Unsupported compressed texture block size");
+		}
+	}
+
+	static #SwapBlocks(pixels, index0, index1, blockSize)
+	{
+		// Isolate the blocks
+		//let b0 = new Uint8Array(pixels, index0, blockSize);
+		//let b1 = new Uint8Array(pixels, index1, blockSize);
+
+		let b00 = pixels[index0 + 0];
+		let b01 = pixels[index0 + 1];
+		let b02 = pixels[index0 + 2];
+		let b03 = pixels[index0 + 3];
+		let b04 = pixels[index0 + 4];
+		let b05 = pixels[index0 + 5];
+		let b06 = pixels[index0 + 6];
+		let b07 = pixels[index0 + 7];
+
+		let b10 = pixels[index1 + 0];
+		let b11 = pixels[index1 + 1];
+		let b12 = pixels[index1 + 2];
+		let b13 = pixels[index1 + 3];
+		let b14 = pixels[index1 + 4];
+		let b15 = pixels[index1 + 5];
+		let b16 = pixels[index1 + 6];
+		let b17 = pixels[index1 + 7];
+		
+		// Flip them
+		//pixels.set(b0, index1);
+		//pixels.set(b1, index0);
+
+		pixels[index0 + 0] = b10;
+		pixels[index0 + 1] = b11;
+		pixels[index0 + 2] = b12;
+		pixels[index0 + 3] = b13;
+		pixels[index0 + 4] = b14;
+		pixels[index0 + 5] = b15;
+		pixels[index0 + 6] = b16;
+		pixels[index0 + 7] = b17;
+
+		pixels[index1 + 0] = b00;
+		pixels[index1 + 1] = b01;
+		pixels[index1 + 2] = b02;
+		pixels[index1 + 3] = b03;
+		pixels[index1 + 4] = b04;
+		pixels[index1 + 5] = b05;
+		pixels[index1 + 6] = b06;
+		pixels[index1 + 7] = b07;
+	}
+
+	static #FlipCompressedTextureData(pixels, blockSize, width, height)
+	{
+		// Get the real width and height
+		let realWidth = Math.max(1, Math.floor((width + 3) / 4));
+		let realHeight = Math.max(1, Math.floor((height + 3) / 4));
+		let totalBlocks = realWidth * realHeight;
+		
+		let halfHeight = realHeight / 2;
+		for (let h = 0; h < halfHeight; h++)
+		{
+			let yFlip = realHeight - h - 1;
+			for (let w = 0; w < realWidth; w++)
 			{
-				// Grab a block
-				// Decompress into 4x4 set of colors
-				// Place in output array
+				let top = h * (realWidth * blockSize) + (w * blockSize);
+				let bot = yFlip * (realWidth * blockSize) + (w * blockSize);
+				
+				this.#SwapBlocks(pixels, top, bot, blockSize);
 			}
 		}
 
-		return output;
+		for (let b = 0; b < totalBlocks; b++)
+		{
+			TextureUtils.#FlipBlock(pixels, b, blockSize);
+		}
+	}
+
+	static #FlipTextureData(pixels, format, width, height, bgraFlip)
+	{
+		let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(format);
+
+		let halfHeight = height / 2;
+		for (let h = 0; h < halfHeight; h++)
+		{
+			let yFlip = height - h - 1;
+			for (let w = 0; w < width; w++)
+			{
+				// Calculate byte start for both pixels
+				let pos = h * (width * bytesPerPixel) + (w * bytesPerPixel);
+				let posFlip = yFlip * (width * bytesPerPixel) + (w * bytesPerPixel);
+
+				// Flip Y as we go
+				TextureUtils.#SwapPixels(pixels, pos, posFlip, bgraFlip);
+			}
+		}
 	}
 
 	static #SwapPixels(pixels, index0, index1, bgraFlip)
