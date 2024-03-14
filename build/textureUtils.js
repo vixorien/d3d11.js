@@ -815,9 +815,11 @@ export class TextureUtils
 		let flags = data[offset++];
 		let width = data[offset++];
 		let height = data[offset++];
-		let pitch = data[offset++];
+		let pitchOrLinearSize = data[offset++];
 		let depth = data[offset++];
 		let mipLevels = data[offset++];
+		if (mipLevels <= 1)
+			mipLevels = 1;
 
 		// Skip next 11 unused entries
 		offset += 11;
@@ -860,6 +862,8 @@ export class TextureUtils
 		// Should be at the pixel data now
 		// But first - figure out the actual format
 		let bgraFlip = false;
+		let compressed = false;
+		let compBlockSize = 0;
 
 		// Currently only supporting a subset of formats!
 		let format = DXGI_FORMAT_UNKNOWN;
@@ -898,11 +902,11 @@ export class TextureUtils
 			switch (pfFourCC)
 			{
 				// Block compression (DXT formats)
-				case TextureUtils.DDS_FOUR_CC_DXT1: format = DXGI_FORMAT_BC1_UNORM; break;
+				case TextureUtils.DDS_FOUR_CC_DXT1: format = DXGI_FORMAT_BC1_UNORM; compressed = true; compBlockSize = 8; break;
 				case TextureUtils.DDS_FOUR_CC_DXT2:
-				case TextureUtils.DDS_FOUR_CC_DXT3: format = DXGI_FORMAT_BC2_UNORM; break;
+				case TextureUtils.DDS_FOUR_CC_DXT3: format = DXGI_FORMAT_BC2_UNORM; compressed = true; compBlockSize = 16; break;
 				case TextureUtils.DDS_FOUR_CC_DXT4: 
-				case TextureUtils.DDS_FOUR_CC_DXT5: format = DXGI_FORMAT_BC3_UNORM; break;
+				case TextureUtils.DDS_FOUR_CC_DXT5: format = DXGI_FORMAT_BC3_UNORM; compressed = true; compBlockSize = 16; break;
 
 				// Older D3DFORMAT values
 				case 113: format = DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -928,16 +932,18 @@ export class TextureUtils
 		// - Array of cube maps ? Should we disallow?
 		// - Just using the first mip, I think?
 
-		// Just for testing - flipping format!
-		if (format == DXGI_FORMAT_B8G8R8A8_UNORM)
-			format = DXGI_FORMAT_R8G8B8A8_UNORM;
-
-		// TODO: Flip on the Y (UGH)
-		// TODO: Convert BGRA to RGBA (UGH)
-
 		// Each face needs its own array!
 		let faceStartByte = offset * 4;
 		let faceSizeInBytes = width * height * 4;
+		if (compressed)
+		{
+			// Can't rely on linear size from file - figure it out ourselves
+			faceSizeInBytes =
+				Math.max(1, Math.floor((width + 3) / 4)) *
+				Math.max(1, Math.floor((height + 3) / 4)) *
+				compBlockSize;
+		}
+
 		let faceDataArrays = [
 			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 0, faceSizeInBytes),
 			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 1, faceSizeInBytes),
@@ -946,44 +952,55 @@ export class TextureUtils
 			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 4, faceSizeInBytes),
 			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 5, faceSizeInBytes)
 		];
+		
+		let realHeight = compressed ? Math.max(1, Math.floor((height + 3) / 4)) : height;
 
-		let halfHeight = height / 2;
-		for (let face = 0; face < 6; face++)
+		let halfHeight = realHeight / 2;
+		for (let face = 0; face < 6 && !compressed; face++)
 		{
-			for (let h = 0; h < height; h++)
+			for (let h = 0; h < halfHeight; h++)
 			{
-				let yFlip = height - h - 1;
+				let yFlip = realHeight - h - 1;
 				for (let w = 0; w < width; w++)
 				{
-					// Calculate byte start
+					// Calculate byte start for both pixels
 					let pos = h * (width * 4) + (w * 4);
 					let posFlip = yFlip * (width * 4) + (w * 4);
 
 					// Flip Y as we go
-					if (h < halfHeight)
-					{
-						for (let comp = 0; comp < 4; comp++)
-						{
-							let swap = faceDataArrays[face][pos + comp];
-							faceDataArrays[face][pos + comp] = faceDataArrays[face][posFlip + comp];
-							faceDataArrays[face][posFlip + comp] = swap;
-						}
-					}
-
-					if (bgraFlip)
-					{
-						// Convert BGRA to RGBA by flipping R and B
-						let b = faceDataArrays[face][pos + 0];
-						let r = faceDataArrays[face][pos + 2];
-						faceDataArrays[face][pos + 0] = r;
-						faceDataArrays[face][pos + 2] = b;
-					}
+					TextureUtils.#SwapPixels(faceDataArrays[face], pos, posFlip, bgraFlip);
 				}
 			}
 		}
 		
 		// Return all the info we have
 		return [width, height, mipLevels, format, faceDataArrays];
+	}
+
+	static #SwapPixels(pixels, index0, index1, bgraFlip)
+	{
+		// Read index 0's pixel components
+		let r0 = pixels[index0 + 0];
+		let g0 = pixels[index0 + 1];
+		let b0 = pixels[index0 + 2];
+		let a0 = pixels[index0 + 3];
+
+		// Read index 1's pixel components
+		let r1 = pixels[index1 + 0];
+		let g1 = pixels[index1 + 1];
+		let b1 = pixels[index1 + 2];
+		let a1 = pixels[index1 + 3];
+
+		// Swap 0 and 1, and possibly R and B
+		pixels[index0 + 0] = bgraFlip ? b1 : r1;
+		pixels[index0 + 1] = g1;
+		pixels[index0 + 2] = bgraFlip ? r1 : b1;
+		pixels[index0 + 3] = a1;
+
+		pixels[index1 + 0] = bgraFlip ? b0 : r0;
+		pixels[index1 + 1] = g0;
+		pixels[index1 + 2] = bgraFlip ? r0 : b0;
+		pixels[index1 + 3] = a0;
 	}
 
 	/**

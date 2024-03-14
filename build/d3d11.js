@@ -2067,6 +2067,7 @@ class ID3D11Device extends IUnknown
 		const type = glFormatDetails.Type;
 		const isDepth = glFormatDetails.IsDepth;
 		const hasStencil = glFormatDetails.HasStencil;
+		const isCompressed = glFormatDetails.IsCompressed;
 		const hasMipmaps = desc.MipLevels > 1;
 
 		// Grab the texture type and bind so we can reserve the resource
@@ -2186,16 +2187,31 @@ class ID3D11Device extends IUnknown
 							const mipHeight = Math.max(1, Math.floor(h / div));
 
 							// Save this data
-							this.#gl.texSubImage2D(
-								cubeFaces[face],
-								mip,
-								0,
-								0,
-								mipWidth,
-								mipHeight,
-								format,
-								type,
-								initialData[mip + face * desc.MipLevels]);
+							if (isCompressed)
+							{
+								this.#gl.compressedTexSubImage2D(
+									cubeFaces[face],
+									mip,
+									0,
+									0,
+									mipWidth,
+									mipHeight,
+									format,
+									initialData[mip + face * desc.MipLevels]);
+							}
+							else
+							{
+								this.#gl.texSubImage2D(
+									cubeFaces[face],
+									mip,
+									0,
+									0,
+									mipWidth,
+									mipHeight,
+									format,
+									type,
+									initialData[mip + face * desc.MipLevels]);
+							}
 						}
 					}
 					break;
@@ -2218,18 +2234,35 @@ class ID3D11Device extends IUnknown
 
 							// Save this data
 							// TODO: Test this!
-							this.#gl.texSubImage3D(
-								glTextureType,
-								mip,
-								0,		// X offset
-								0,		// Y offset
-								arraySlice,	// Z offset (array index here)
-								mipWidth,	// X size
-								mipHeight,	// Y size
-								1,			// Z size (or a single slice here)
-								format,
-								type,
-								initialData[mip + arraySlice * desc.MipLevels]);
+							if (isCompressed)
+							{
+								this.#gl.compressedTexSubImage3D(
+									glTextureType,
+									mip,
+									0,
+									0,
+									arraySlice,
+									mipWidth,
+									mipHeight,
+									1,
+									format,
+									initialData[mip + arraySlice * desc.MipLevels]);
+							}
+							else
+							{
+								this.#gl.texSubImage3D(
+									glTextureType,
+									mip,
+									0,		// X offset
+									0,		// Y offset
+									arraySlice,	// Z offset (array index here)
+									mipWidth,	// X size
+									mipHeight,	// Y size
+									1,			// Z size (or a single slice here)
+									format,
+									type,
+									initialData[mip + arraySlice * desc.MipLevels]);
+							}
 						}
 					}
 					break;
@@ -2251,18 +2284,35 @@ class ID3D11Device extends IUnknown
 					
 						// Save this data
 						// TODO: Test this!
-						this.#gl.texSubImage3D(
-							glTextureType,
-							mip,
-							0,	// X offset
-							0,	// Y offset
-							0,	// Z offset
-							mipWidth,	// X size
-							mipHeight,	// Y size
-							mipDepth,	// Z size
-							format,
-							type,
-							initialData[mip]);
+						if (isCompressed)
+						{
+							this.#gl.compressedTexSubImage3D(
+								glTextureType,
+								mip,
+								0,
+								0,
+								0,
+								mipWidth,
+								mipHeight,
+								mipDepth,
+								format,
+								initialData[mip + arraySlice * desc.MipLevels]);
+						}
+						else
+						{
+							this.#gl.texSubImage3D(
+								glTextureType,
+								mip,
+								0,	// X offset
+								0,	// Y offset
+								0,	// Z offset
+								mipWidth,	// X size
+								mipHeight,	// Y size
+								mipDepth,	// Z size
+								format,
+								type,
+								initialData[mip]);
+						}
 					}
 					break;
 			}
@@ -2506,7 +2556,8 @@ class ID3D11Device extends IUnknown
 			Format: null,
 			InternalFormat: null,
 			IsDepth: false,
-			HasStencil: false
+			HasStencil: false,
+			IsCompressed: false
 		};
 
 		switch (dxgiFormat)
@@ -2565,6 +2616,34 @@ class ID3D11Device extends IUnknown
 				glFormatDetails.Type = this.#gl.FLOAT;
 				glFormatDetails.Format = this.#gl.RGBA;
 				glFormatDetails.InternalFormat = this.#gl.RGBA32F;
+				break;
+
+			// --- COMPRESSED ---------------------
+			case DXGI_FORMAT_BC1_UNORM:
+				if (this.#compressedTextureExt == null)
+					throw new Error("DXT compressed texture formats not supported by your device");
+
+				glFormatDetails.Format = this.#compressedTextureExt.COMPRESSED_RGBA_S3TC_DXT1_EXT;
+				glFormatDetails.InternalFormat = this.#compressedTextureExt.COMPRESSED_RGBA_S3TC_DXT1_EXT;
+				glFormatDetails.IsCompressed = true;
+				break;
+
+			case DXGI_FORMAT_BC2_UNORM:
+				if (this.#compressedTextureExt == null)
+					throw new Error("DXT compressed texture formats not supported by your device");
+
+				glFormatDetails.Format = this.#compressedTextureExt.COMPRESSED_RGBA_S3TC_DXT3_EXT;
+				glFormatDetails.InternalFormat = this.#compressedTextureExt.COMPRESSED_RGBA_S3TC_DXT3_EXT;
+				glFormatDetails.IsCompressed = true;
+				break;
+
+			case DXGI_FORMAT_BC3_UNORM:
+				if (this.#compressedTextureExt == null)
+					throw new Error("DXT compressed texture formats not supported by your device");
+
+				glFormatDetails.Format = this.#compressedTextureExt.COMPRESSED_RGBA_S3TC_DXT5_EXT;
+				glFormatDetails.InternalFormat = this.#compressedTextureExt.COMPRESSED_RGBA_S3TC_DXT5_EXT;
+				glFormatDetails.IsCompressed = true;
 				break;
 
 			default:
@@ -3016,6 +3095,9 @@ class ID3D11Device extends IUnknown
 			case DXGI_FORMAT_R16G16_FLOAT:
 			case DXGI_FORMAT_R16G16B16A16_FLOAT:
 			case DXGI_FORMAT_R32G32B32A32_FLOAT:
+			case DXGI_FORMAT_BC1_UNORM:
+			case DXGI_FORMAT_BC2_UNORM:
+			case DXGI_FORMAT_BC3_UNORM:
 				break;
 
 			default:
@@ -3181,6 +3263,14 @@ class ID3D11Device extends IUnknown
 			// Non-float color buffers
 			case DXGI_FORMAT_R8G8B8A8_UNORM:
 			case DXGI_FORMAT_R8G8B8A8_UNORM_SRGB:
+				break;
+
+			// Compressed color formats
+			case DXGI_FORMAT_BC1_UNORM:
+			case DXGI_FORMAT_BC2_UNORM:
+			case DXGI_FORMAT_BC3_UNORM:
+				if (this.#compressedTextureExt == null)
+					throw new Error("DXT compressed texture formats not supported by your device");
 				break;
 
 			// Float color buffers
