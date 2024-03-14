@@ -247,6 +247,8 @@ export class Sky
 
 	LoadCubeMap(cubeSRV, isHDR = false)
 	{
+		// TODO: Clean up existing sky cube?
+
 		// Save cube and grab format straight from SRV
 		this.SkyCubeSRV = cubeSRV;
 		this.SkyColorFormat = cubeSRV.GetDesc().Format;
@@ -371,7 +373,34 @@ export class Sky
 
 	LoadDDS(width, height, mipLevels, format, pixelData)
 	{
+		// Clean up existing cube
+		if (this.SkyCubeSRV != null)
+			this.SkyCubeSRV.Release();
 
+		// Describe and make the texture + SRV
+		let desc = new D3D11_TEXTURE2D_DESC(
+			width,
+			height,
+			1,
+			6,
+			format,
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_SHADER_RESOURCE,
+			0,
+			D3D11_RESOURCE_MISC_TEXTURECUBE);
+		let tex = this.#d3dDevice.CreateTexture2D(desc, [pixelData]);
+		this.SkyCubeSRV = this.#d3dDevice.CreateShaderResourceView(tex, null);
+
+		// Save the format since we're good
+		this.SkyColorFormat = format;
+		this.SkyCubeSize = width;
+
+		// Clean up texture resource and other setup
+		// TODO: Handle HDR/non-HDR switch
+		tex.Release();
+		this.#isHDR = false;
+		this.#ResetIBLDirtyState(true);
 	}
 
 	SetHDRExposure(exp)

@@ -904,8 +904,19 @@ export class TextureUtils
 		if (width != height)
 			throw new Error("Invalid DDS cube map - width and height of each face must be the same");
 
+		// TODO:
+		// - Array of cube maps ? Should we disallow?
+		// - Just using the first mip, I think?
+
+		// Just for testing - flipping format!
+		if (format == DXGI_FORMAT_B8G8R8A8_UNORM)
+			format = DXGI_FORMAT_R8G8B8A8_UNORM;
+
+		// TODO: Flip on the Y (UGH)
+		// TODO: Convert BGRA to RGBA (UGH)
+
 		// Return all the info we have
-		return [width, height, mipLevels, format, new Uint32Array(data[offset])];
+		return [width, height, mipLevels, format, new Uint8Array(dataFromFile, offset * 4)];
 	}
 
 	/**
