@@ -780,15 +780,6 @@ export class TextureUtils
 		);
 	}
 
-	//static FlipBGRA(c)
-	//{
-	//	return (
-	//		(c & 0x000000ff) << 24 |	// Isolate R and shift left
-	//		(c & 0xff00ff00) |			// Keep G and A
-	//		(c & 0x00ff0000) >> 24		// Isolate B and shift right
-	//	);
-	//}
-
 	/**
 	 * Loads a DDS file
 	 * Format details here: https://learn.microsoft.com/en-us/windows/win32/direct3ddds/dx-graphics-dds-pguide
@@ -954,6 +945,7 @@ export class TextureUtils
 		];
 		
 		let realHeight = compressed ? Math.max(1, Math.floor((height + 3) / 4)) : height;
+		let realWidth = compressed ? Math.max(1, Math.floor((width + 3) / 4)) : width;
 
 		let halfHeight = realHeight / 2;
 		for (let face = 0; face < 6 && !compressed; face++)
@@ -961,11 +953,11 @@ export class TextureUtils
 			for (let h = 0; h < halfHeight; h++)
 			{
 				let yFlip = realHeight - h - 1;
-				for (let w = 0; w < width; w++)
+				for (let w = 0; w < realWidth; w++)
 				{
 					// Calculate byte start for both pixels
-					let pos = h * (width * 4) + (w * 4);
-					let posFlip = yFlip * (width * 4) + (w * 4);
+					let pos = h * (realWidth * 4) + (w * 4);
+					let posFlip = yFlip * (realWidth * 4) + (w * 4);
 
 					// Flip Y as we go
 					TextureUtils.#SwapPixels(faceDataArrays[face], pos, posFlip, bgraFlip);
@@ -975,6 +967,28 @@ export class TextureUtils
 		
 		// Return all the info we have
 		return [width, height, mipLevels, format, faceDataArrays];
+	}
+
+
+	static #DecompressImageData(data, blockSize, finalWidth, finalHeight)
+	{
+		// Create output color array (R8G8B8A8)
+		let output = new Uint8Array(finalWidth * finalHeight * 4);
+		let compWidth = Math.max(1, Math.floor((finalWidth + 3) / 4));
+		let compHeight = Math.max(1, Math.floor((finalHeight + 3) / 4));
+
+		// Handle each compressed block
+		for (let y = 0; y < compHeight; y++)
+		{
+			for (let x = 0; x < compWidth; x++)
+			{
+				// Grab a block
+				// Decompress into 4x4 set of colors
+				// Place in output array
+			}
+		}
+
+		return output;
 	}
 
 	static #SwapPixels(pixels, index0, index1, bgraFlip)
