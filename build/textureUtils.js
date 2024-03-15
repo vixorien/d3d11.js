@@ -893,11 +893,25 @@ export class TextureUtils
 			switch (pfFourCC)
 			{
 				// Block compression (DXT formats)
-				case TextureUtils.DDS_FOUR_CC_DXT1: format = DXGI_FORMAT_BC1_UNORM; compressed = true; compBlockSize = 8; break;
+				case TextureUtils.DDS_FOUR_CC_DXT1:
+					format = DXGI_FORMAT_BC1_UNORM;
+					compressed = true;
+					compBlockSize = 8;
+					break;
+
 				case TextureUtils.DDS_FOUR_CC_DXT2:
-				case TextureUtils.DDS_FOUR_CC_DXT3: format = DXGI_FORMAT_BC2_UNORM; compressed = true; compBlockSize = 16; break;
+				case TextureUtils.DDS_FOUR_CC_DXT3:
+					format = DXGI_FORMAT_BC2_UNORM;
+					compressed = true;
+					compBlockSize = 16;
+					break;
+
 				case TextureUtils.DDS_FOUR_CC_DXT4: 
-				case TextureUtils.DDS_FOUR_CC_DXT5: format = DXGI_FORMAT_BC3_UNORM; compressed = true; compBlockSize = 16; break;
+				case TextureUtils.DDS_FOUR_CC_DXT5:
+					format = DXGI_FORMAT_BC3_UNORM;
+					compressed = true;
+					compBlockSize = 16;
+					break;
 
 				// Older D3DFORMAT values
 				case 113: format = DXGI_FORMAT_R16G16B16A16_FLOAT;
@@ -935,6 +949,9 @@ export class TextureUtils
 				compBlockSize;
 		}
 
+		// Calc mip size
+
+
 		let faceDataArrays = [
 			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 0, faceSizeInBytes),
 			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 1, faceSizeInBytes),
@@ -947,122 +964,158 @@ export class TextureUtils
 		for (let face = 0; face < 6; face++)
 		{
 			if (compressed)
-				TextureUtils.#FlipCompressedTextureData(faceDataArrays[face], compBlockSize, width, height);
+				TextureUtils.#FlipCompressedTextureData(faceDataArrays[face], width, height, format);
 			else
-				TextureUtils.#FlipTextureData(faceDataArrays[face], format, width, height, bgraFlip);
+				TextureUtils.#FlipTextureData(faceDataArrays[face], width, height, format, bgraFlip);
 		}
 		
 		// Return all the info we have
 		return [width, height, mipLevels, format, faceDataArrays];
 	}
 
-	static #FlipBlock(pixels, blockIndex, blockSize)
+	static #SwapAndFlipBlocks(pixels, index0, index1, format)
 	{
-		// Jump to the correct block
-		let i = blockIndex * blockSize;
-		
-		// Which kind of block?
-		switch (blockSize)
+		switch (format)
 		{
-			case 8:
-				// Skip ahead to the indices
-				i += 4; // Two 2-byte colors
+			case DXGI_FORMAT_BC1_UNORM:
+				{
+					// Grab data at index 0
+					let b00 = pixels[index0 + 0];
+					let b01 = pixels[index0 + 1];
+					let b02 = pixels[index0 + 2];
+					let b03 = pixels[index0 + 3];
+					let b04 = pixels[index0 + 4];
+					let b05 = pixels[index0 + 5];
+					let b06 = pixels[index0 + 6];
+					let b07 = pixels[index0 + 7];
 
-				// Flip the next four bytes
-				let b0 = pixels[i + 0];
-				let b1 = pixels[i + 1];
-				let b2 = pixels[i + 2];
-				let b3 = pixels[i + 3];
+					// Overwrite data at index 0 with index 1
+					// Note: Flipping the last 4 to flip the block on Y
+					pixels[index0 + 0] = pixels[index1 + 0];
+					pixels[index0 + 1] = pixels[index1 + 1];
+					pixels[index0 + 2] = pixels[index1 + 2];
+					pixels[index0 + 3] = pixels[index1 + 3];
+					pixels[index0 + 4] = pixels[index1 + 7]; // Flipped
+					pixels[index0 + 5] = pixels[index1 + 6]; // Flipped
+					pixels[index0 + 6] = pixels[index1 + 5]; // Flipped
+					pixels[index0 + 7] = pixels[index1 + 4]; // Flipped
 
-				pixels[i + 0] = b3;
-				pixels[i + 1] = b2;
-				pixels[i + 2] = b1;
-				pixels[i + 3] = b0;
+					// Overwrite index 1
+					// Note: Flipping the last 4 to flip the block on Y
+					pixels[index1 + 0] = b00;
+					pixels[index1 + 1] = b01;
+					pixels[index1 + 2] = b02;
+					pixels[index1 + 3] = b03;
+					pixels[index1 + 4] = b07; // Flipped
+					pixels[index1 + 5] = b06; // Flipped
+					pixels[index1 + 6] = b05; // Flipped
+					pixels[index1 + 7] = b04; // Flipped
+				}
 				break;
 
-			case 16:
+			case DXGI_FORMAT_BC2_UNORM:
+				{
+					// Grab data at index 0
+					let a00 = pixels[index0 + 0];
+					let a01 = pixels[index0 + 1];
+					let a02 = pixels[index0 + 2];
+					let a03 = pixels[index0 + 3];
+					let a04 = pixels[index0 + 4];
+					let a05 = pixels[index0 + 5];
+					let a06 = pixels[index0 + 6];
+					let a07 = pixels[index0 + 7];
+					let b00 = pixels[index0 + 8];
+					let b01 = pixels[index0 + 9];
+					let b02 = pixels[index0 + 10];
+					let b03 = pixels[index0 + 11];
+					let b04 = pixels[index0 + 12];
+					let b05 = pixels[index0 + 13];
+					let b06 = pixels[index0 + 14];
+					let b07 = pixels[index0 + 15];
 
+					// Overwrite data at index 0 with index 1
+					// Note: Flipping the alpha section and the last 4 bytes to flip the block on Y
+					pixels[index0 + 0] = pixels[index1 + 6];
+					pixels[index0 + 1] = pixels[index1 + 7];
+
+					pixels[index0 + 2] = pixels[index1 + 4];
+					pixels[index0 + 3] = pixels[index1 + 5];
+
+					pixels[index0 + 4] = pixels[index1 + 2];
+					pixels[index0 + 5] = pixels[index1 + 3];
+
+					pixels[index0 + 6] = pixels[index1 + 0]; 
+					pixels[index0 + 7] = pixels[index1 + 1];
+
+					pixels[index0 + 8] = pixels[index1 + 8]; 
+					pixels[index0 + 9] = pixels[index1 + 9]; 
+					pixels[index0 + 10] = pixels[index1 + 10];
+					pixels[index0 + 11] = pixels[index1 + 11];
+					pixels[index0 + 12] = pixels[index1 + 15]; // Flipped
+					pixels[index0 + 13] = pixels[index1 + 14]; // Flipped
+					pixels[index0 + 14] = pixels[index1 + 13]; // Flipped
+					pixels[index0 + 15] = pixels[index1 + 12]; // Flipped
+
+					// Overwrite index 1
+					// Note: Flipping the last 4 to flip the block on Y
+					pixels[index1 + 0] = a06;
+					pixels[index1 + 1] = a07;
+										 
+					pixels[index1 + 2] = a04;
+					pixels[index1 + 3] = a05;
+										 
+					pixels[index1 + 4] = a02;
+					pixels[index1 + 5] = a03;
+
+					pixels[index1 + 6] = a00;
+					pixels[index1 + 7] = a01;
+
+					pixels[index1 + 8] = b00;
+					pixels[index1 + 9] = b01;
+					pixels[index1 + 10] = b02;
+					pixels[index1 + 11] = b03;
+					pixels[index1 + 12] = b07; // Flipped
+					pixels[index1 + 13] = b06; // Flipped
+					pixels[index1 + 14] = b05; // Flipped
+					pixels[index1 + 15] = b04; // Flipped
+				}
 				break;
 
-			default:
-				throw new Error("Unsupported compressed texture block size");
+			case DXGI_FORMAT_BC3_UNORM:
+				throw new Error("BC3 not yet implemented");
 		}
 	}
 
-	static #SwapBlocks(pixels, index0, index1, blockSize)
-	{
-		// Isolate the blocks
-		//let b0 = new Uint8Array(pixels, index0, blockSize);
-		//let b1 = new Uint8Array(pixels, index1, blockSize);
-
-		let b00 = pixels[index0 + 0];
-		let b01 = pixels[index0 + 1];
-		let b02 = pixels[index0 + 2];
-		let b03 = pixels[index0 + 3];
-		let b04 = pixels[index0 + 4];
-		let b05 = pixels[index0 + 5];
-		let b06 = pixels[index0 + 6];
-		let b07 = pixels[index0 + 7];
-
-		let b10 = pixels[index1 + 0];
-		let b11 = pixels[index1 + 1];
-		let b12 = pixels[index1 + 2];
-		let b13 = pixels[index1 + 3];
-		let b14 = pixels[index1 + 4];
-		let b15 = pixels[index1 + 5];
-		let b16 = pixels[index1 + 6];
-		let b17 = pixels[index1 + 7];
-		
-		// Flip them
-		//pixels.set(b0, index1);
-		//pixels.set(b1, index0);
-
-		pixels[index0 + 0] = b10;
-		pixels[index0 + 1] = b11;
-		pixels[index0 + 2] = b12;
-		pixels[index0 + 3] = b13;
-		pixels[index0 + 4] = b14;
-		pixels[index0 + 5] = b15;
-		pixels[index0 + 6] = b16;
-		pixels[index0 + 7] = b17;
-
-		pixels[index1 + 0] = b00;
-		pixels[index1 + 1] = b01;
-		pixels[index1 + 2] = b02;
-		pixels[index1 + 3] = b03;
-		pixels[index1 + 4] = b04;
-		pixels[index1 + 5] = b05;
-		pixels[index1 + 6] = b06;
-		pixels[index1 + 7] = b07;
-	}
-
-	static #FlipCompressedTextureData(pixels, blockSize, width, height)
+	static #FlipCompressedTextureData(pixels, width, height, format)
 	{
 		// Get the real width and height
-		let realWidth = Math.max(1, Math.floor((width + 3) / 4));
-		let realHeight = Math.max(1, Math.floor((height + 3) / 4));
-		let totalBlocks = realWidth * realHeight;
-		
-		let halfHeight = realHeight / 2;
-		for (let h = 0; h < halfHeight; h++)
+		let blocksX = Math.max(1, Math.floor((width + 3) / 4));
+		let blocksY = Math.max(1, Math.floor((height + 3) / 4));
+		let blockSize = 0;
+		switch (format)
 		{
-			let yFlip = realHeight - h - 1;
-			for (let w = 0; w < realWidth; w++)
+			case DXGI_FORMAT_BC1_UNORM: blockSize = 8; break;
+			case DXGI_FORMAT_BC2_UNORM: blockSize = 16; break;
+			case DXGI_FORMAT_BC3_UNORM: blockSize = 16; break;
+			default: throw new Error("Invalid or unsupported format");
+		}
+		
+		let halfY = blocksY / 2;
+		for (let h = 0; h < halfY; h++)
+		{
+			let yFlip = blocksY - h - 1;
+			for (let w = 0; w < blocksX; w++)
 			{
-				let top = h * (realWidth * blockSize) + (w * blockSize);
-				let bot = yFlip * (realWidth * blockSize) + (w * blockSize);
+				let top = h * (blocksX * blockSize) + (w * blockSize);
+				let bot = yFlip * (blocksX * blockSize) + (w * blockSize);
 				
-				this.#SwapBlocks(pixels, top, bot, blockSize);
+				this.#SwapAndFlipBlocks(pixels, top, bot, format);
 			}
 		}
 
-		for (let b = 0; b < totalBlocks; b++)
-		{
-			TextureUtils.#FlipBlock(pixels, b, blockSize);
-		}
 	}
 
-	static #FlipTextureData(pixels, format, width, height, bgraFlip)
+	static #FlipTextureData(pixels, width, height, format, bgraFlip)
 	{
 		let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(format);
 
