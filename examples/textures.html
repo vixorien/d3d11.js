@@ -10,11 +10,23 @@
 			width: 250px !important;
 		}
 
+		.canvas-container {
+			position: relative;
+		}
+
 		.canvas-fill-parent {
 			width: 100%;
 			height: 100%;
 			max-height: 100vh;
 			outline: none;
+		}
+
+		.over-canvas {
+			position: absolute;
+			top: 0px;
+			left: 0px;
+			z-index: 2;
+			margin: 0 auto;
 		}
 	</style>
 </head>
@@ -313,8 +325,15 @@
 		</div>
 
 		<!-- Content (3D viewport) -->
-		<div class="col m-0 p-0">
+		<div class="col m-0 p-0 canvas-container">
 			<canvas id="viewport" tabindex="1" class="canvas-fill-parent"></canvas>
+
+			<div id="loading-container" class="card m-3 opacity-75 invisible over-canvas">
+				<div class="card-body">
+					<div class="spinner-border spinner-border-sm me-2"></div>
+					<span id="loading-text">Loading!</span>
+				</div>
+			</div>
 		</div>
 
 	</div>
@@ -1057,7 +1076,20 @@
 			let ppCB = device.CreateBuffer(ppCBDesc, null);
 			let ppData = new Float32Array(4);
 
+			function showSkyLoading(text)
+			{
+				let load = document.getElementById("loading-container");
+				load.classList.remove("invisible");
 
+				let loadText = document.getElementById("loading-text");
+				loadText.innerHTML = text;
+			}
+
+			function hideSkyLoading()
+			{
+				let load = document.getElementById("loading-container");
+				load.classList.add("invisible");
+			}
 
 			function update(deltaTime, totalTime)
 			{
@@ -1084,6 +1116,16 @@
 
 				if (saveLUT.disabled && globalSky.BRDFLookUpTableReady) saveLUT.disabled = false;
 				else if (!saveLUT.disabled && !globalSky.BRDFLookUpTableReady) saveLUT.disabled = true;
+
+				// Set up loading messages based on order of IBL map creation
+				if (!globalSky.BRDFLookUpTableReady)
+					showSkyLoading("Generating environment BRDF look up table");
+				else if (!globalSky.IrradianceReady)
+					showSkyLoading("Generating environment irradiance map");
+				else if (!globalSky.SpecularIBLReady)
+					showSkyLoading("Generating environment specular convolution map");
+				else
+					hideSkyLoading();
 
 				// Update the point lights
 				for (let i = 0; i < globalLightings[Lighting_EightPoints].length; i++)
