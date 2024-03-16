@@ -48,27 +48,18 @@
 				<!-- SCENE -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button collapsed p-3" type="button" data-bs-toggle="collapse" data-bs-target="#scene-accordion" aria-expanded="false" aria-controls="flush-collapseOne">
-							<h5>&#127758; Scene</h5>
+						<button class="accordion-button collapsed p-2" type="button" data-bs-toggle="collapse" data-bs-target="#scene-accordion" aria-expanded="false" aria-controls="flush-collapseOne">
+							<h5 class="m-0">&#127758; Scene</h5>
 						</button>
 					</h2>
 					<div id="scene-accordion" class="accordion-collapse collapse">
 						<div class="accordion-body p-3">
 
-							<!-- LIGHTS -->
-							<div class="input-group input-group-sm mb-2">
-								<label for="lightSet" class="input-group-text">&#128161; Lights</label>
-								<select id="lightSet" class="form-select" onchange="setLighting(this.value);">
-									<option value="0" selected>One Directional</option>
-									<option value="1">Three Directional</option>
-									<option value="2">Eight Point</option>
-									<option value="3">No Lights (Sky Only)</option>
-								</select>
-							</div>
+							<h6>&#127760; Model</h6>
 
 							<!-- MODEL -->
 							<div class="input-group input-group-sm mb-3">
-								<label for="sceneSet" class="input-group-text">&#127760; Model</label>
+								<!--<label for="sceneSet" class="input-group-text">&#127760; Model</label>-->
 								<select id="sceneSet" class="form-select" onchange="setScene(this.value);">
 									<option value="0" selected>Sphere</option>
 									<option value="1">Helix</option>
@@ -83,9 +74,9 @@
 								<h6>&#127912; Material</h6>
 
 								<!-- TEXTURES -->
-								<div class="input-group input-group-sm">
-									<label for="textureSet" class="input-group-text">Texture Set</label>
-									<select id="textureSet" class="form-select" onchange="setTextureSet(this.value);">
+								<div class="input-group input-group-sm row ms-0">
+									<label for="textureSet" class="col input-group-text">Texture Set</label>
+									<select id="textureSet" class="col form-select px-3" onchange="setTextureSet(this.value);">
 										<option value="0">None (Custom Values)</option>
 										<option value="1" selected>Cobblestone</option>
 										<option value="2">Bronze</option>
@@ -95,9 +86,9 @@
 								</div>
 
 								<!-- COLOR PICKER -->
-								<div class="input-group input-group-sm">
-									<label for="material-color" class="input-group-text">Color Tint</label>
-									<input id="material-color" type="color" class="form-control form-control-color" value="#ffffff" title="Color Tint" onchange="" />
+								<div class="input-group input-group-sm row ms-0">
+									<label for="material-color" class="col input-group-text">Color Tint</label>
+									<input id="material-color" type="color" class="col form-control form-control-color px-3" value="#ffffff" title="Color Tint" onchange="" />
 								</div>
 
 								<!-- ROUGHNESS -->
@@ -120,21 +111,33 @@
 				<!-- ENVIRONMENT -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button p-3 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#environment-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
-							<h5>&#9925; Environment</h5>
+						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#environment-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5 class="m-0">&#9925; Environment</h5>
 						</button>
 					</h2>
 					<div id="environment-accordion" class="accordion-collapse collapse">
 						<div class="accordion-body p-3">
 
-							<h6>&#128269; Mip Level Preview</h6>
+							<!-- LIGHTS -->
+							<h6>&#128161; Lights</h6>
+							<div class="input-group input-group-sm mb-3">
+								<!--<label for="lightSet" class="input-group-text">&#128161; Lights</label>-->
+								<select id="lightSet" class="form-select" onchange="setLighting(this.value);">
+									<option value="0" selected>One Directional</option>
+									<option value="1">Three Directional</option>
+									<option value="2">Eight Point</option>
+									<option value="3">No Lights (Sky Only)</option>
+								</select>
+							</div>
+
+							<h6>&#128269; Environment Mip Preview</h6>
 
 							<div class="row input-group input-group-sm ms-0 mb-3">
 								<label for="mipLevelRange" class="col-4 input-group-text">Mip: 0</label>
 								<input id="mipLevelRange" type="range" class="col form-control form-range p-3" min="0" max="16" value="0" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Mip: ' + this.value;" />
 							</div>
 
-							<h6>&#128256; Change environment map</h6>
+							<h6>&#128256; Change Environment Map</h6>
 
 							<div class="accordion m-1" id="loadAccordion">
 
@@ -252,8 +255,8 @@
 				<!-- SAVE -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button p-3 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#save-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
-							<h5>&#128190; Save IBL Maps</h5>
+						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#save-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5 class="m-0">&#128190; Save IBL Maps</h5>
 						</button>
 					</h2>
 					<div id="save-accordion" class="accordion-collapse collapse">
@@ -270,8 +273,8 @@
 				<!-- POST PROCESSING -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button p-3 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#post-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
-							<h5>&#127909; Post-Processing</h5>
+						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#post-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5 class="m-0">&#127909; Post-Processing</h5>
 						</button>
 					</h2>
 					<div id="post-accordion" class="accordion-collapse collapse">
@@ -299,8 +302,8 @@
 				<!-- SETTINGS -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button p-3 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
-							<h5>&#128295; Settings</h5>
+						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5 class="m-0">&#128295; Settings</h5>
 						</button>
 					</h2>
 					<div id="settings-accordion" class="accordion-collapse collapse">
