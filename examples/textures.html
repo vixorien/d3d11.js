@@ -130,13 +130,28 @@
 								</select>
 							</div>
 
-							<h6>&#128269; Environment Mip Preview</h6>
+							<!-- SKY MIP PREVIEW -->
+							<h6>&#128269; Skybox Mip Preview</h6>
 
 							<div class="row input-group input-group-sm ms-0 mb-3">
-								<label for="mipLevelRange" class="col-4 input-group-text">Mip: 0</label>
-								<input id="mipLevelRange" type="range" class="col form-control form-range p-3" min="0" max="16" value="0" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Mip: ' + this.value;" />
+								<label for="mipLevelRange" class="col-4 input-group-text">Mip Level: 0</label>
+								<input id="mipLevelRange" type="range" class="col form-control form-range p-3" min="0" max="16" value="0" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Mip Level: ' + this.value;" />
 							</div>
 
+							<!-- SKY MIP PREVIEW -->
+							<h6>&#128083; View IBL Assets</h6>
+
+							<div class="input-group input-group-sm mb-3">
+								<select id="iblCubePreview" class="form-select" onchange="setIBLPreview(this.value);">
+									<option value="0" selected>None</option>
+									<option value="1">Env. BRDF Look Up Table (2D)</option>
+									<option value="2">Irradiance (Cube)</option>
+									<option value="3">Specular (Cube)</option>
+								</select>
+							</div>
+
+
+							<!-- CHANGE ENV MAP -->
 							<h6>&#128256; Change Environment Map</h6>
 
 							<div class="accordion m-1" id="loadAccordion">
@@ -363,6 +378,8 @@
 		let globalSky = null;
 		let globalHDRExposure = 0;
 		let globalSkyMipLevelPreview = 0;
+		let globalIBLPreview = 0;
+		let globalIBLPreviewSize = 300;
 		let globalTonemapType = 0;
 		let globalTonemapExposure = 0;
 		let globalDevice = null;
@@ -402,6 +419,11 @@
 		window.setColorMode = function (mode)
 		{
 			document.documentElement.setAttribute("data-bs-theme", mode);
+		}
+
+		window.setIBLPreview = function (val)
+		{
+			globalIBLPreview = val;
 		}
 
 		window.setScene = function (val)
@@ -1335,14 +1357,18 @@
 					globalSky.Draw(camera.ViewMatrix, camera.ProjectionMatrix, globalSkyMipLevelPreview);
 				}
 
-				// Preview cube
+				// Preview cube for irradiance (2) or specular (3)
+				if (globalIBLPreview == 2 || globalIBLPreview == 3)
 				{
 					context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1, 0);
 
 					// Viewport
+					let offset = 10;
 					let [oldVP] = context.RSGetViewports();
-					let size = 300;
-					let vpCorner = new D3D11_VIEWPORT(viewportElement.clientWidth - size, 0, size, size, 0, 1);
+					let vpCorner = new D3D11_VIEWPORT(
+						viewportElement.clientWidth - globalIBLPreviewSize - offset, offset,
+						globalIBLPreviewSize, globalIBLPreviewSize,
+						0, 1);
 					context.RSSetViewports([vpCorner]);
 
 					// Set up shaders
@@ -1365,7 +1391,7 @@
 					//solidData.set([1,1,1], 0);
 					//context.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
 					//context.PSSetConstantBuffers(0, [solidCB]);
-					context.PSSetShaderResources(0, [globalSky.IrradianceCubeSRV]);
+					context.PSSetShaderResources(0, [globalIBLPreview == 2 ? globalSky.IrradianceCubeSRV : globalSky.SpecularIBLCubeSRV]);
 
 					// Draw
 					context.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
@@ -1392,22 +1418,24 @@
 					context.Draw(3, 0);
 				}
 
-				// Draw "UI"
+				// Env BRDF preview (1)
+				if (globalIBLPreview == 1)
 				{
-					//quadData.set([
-					//	100, 100, // Position in pixels
-					//	800, 400, // Size in pixels
-					//	viewportElement.clientWidth, viewportElement.clientHeight // Window size
-					//]);
-					//context.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
+					let offset = 10;
+					quadData.set([
+						viewportElement.clientWidth - globalIBLPreviewSize - offset, offset, // Position in pixels
+						globalIBLPreviewSize, globalIBLPreviewSize, // Size in pixels
+						viewportElement.clientWidth, viewportElement.clientHeight // Window size
+					]);
+					context.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
 
-					//context.VSSetShader(quadVS);
-					//context.VSSetConstantBuffers(0, [quadCB]);
+					context.VSSetShader(quadVS);
+					context.VSSetConstantBuffers(0, [quadCB]);
 
-					//context.PSSetShader(simpleTexturePS);
-					//context.PSSetShaderResources(0, [globalSky.EquirectSRV]);
+					context.PSSetShader(simpleTexturePS);
+					context.PSSetShaderResources(0, [globalSky.BRDFLookUpTableSRV]);
 
-					//context.Draw(6, 0);
+					context.Draw(6, 0);
 				}
 
 				// Flush the frame

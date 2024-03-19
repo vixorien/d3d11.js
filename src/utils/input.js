@@ -24,6 +24,7 @@ export class Input
 	#boundMouseDownHandler;
 	#boundMouseUpHandler;
 	#boundMouseMoveHandler;
+	#boundMouseOutHandler;
 	#boundMouseWheelHandler;
 
 	constructor(element)
@@ -42,6 +43,7 @@ export class Input
 		element.addEventListener("mousedown", this.#boundMouseDownHandler = this.#MouseDownHandler.bind(this));
 		element.addEventListener("mouseup", this.#boundMouseUpHandler = this.#MouseUpHandler.bind(this));
 		element.addEventListener("mousemove", this.#boundMouseMoveHandler = this.#MouseMoveHandler.bind(this));
+		element.addEventListener("mouseout", this.#boundMouseOutHandler = this.#MouseOutHandler.bind(this));
 		element.addEventListener("wheel", this.#boundMouseWheelHandler = this.#MouseWheelHandler.bind(this));
 	}
 
@@ -130,6 +132,11 @@ export class Input
 		// Save new mouse data
 		this.#mouseX = e.clientX;
 		this.#mouseY = e.clientY;
+	}
+
+	#MouseOutHandler(e)
+	{
+		this.#mouseButtons.fill(false);
 	}
 
 	#MouseWheelHandler(e)
