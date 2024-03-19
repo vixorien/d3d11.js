@@ -752,6 +752,8 @@
 			let quadVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/QuadVS.hlsl"));
 			let fullscreenVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/FullscreenVS.hlsl"));
 			let simpleTexturePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
+			let cubePreviewPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewPS.hlsl"));
+			let cubePreviewVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewVS.hlsl"));
 
 			let equirectToCubePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
 
@@ -1331,6 +1333,47 @@
 				// Skybox
 				{
 					globalSky.Draw(camera.ViewMatrix, camera.ProjectionMatrix, globalSkyMipLevelPreview);
+				}
+
+				// Preview cube
+				{
+					context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1, 0);
+
+					// Viewport
+					let [oldVP] = context.RSGetViewports();
+					let size = 300;
+					let vpCorner = new D3D11_VIEWPORT(viewportElement.clientWidth - size, 0, size, size, 0, 1);
+					context.RSSetViewports([vpCorner]);
+
+					// Set up shaders
+					context.VSSetShader(cubePreviewVS);
+					context.PSSetShader(cubePreviewPS);
+
+					// Set VS constant buffers for main draw
+					context.VSSetConstantBuffers(0, [vsPerFrameCB]);
+
+					// Set per-frame data and update CB
+					vsPerFrameData.SetData("view", Matrix4x4.ViewPositionLH(
+						Vector3.Multiply(camera.Forward, -2.5),
+						Vector3.Zero,
+						Vector3.UnitY
+					));
+					vsPerFrameData.SetData("proj", Matrix4x4.PerspectiveFovLH(Math.PI / 4, 1, 0.1, 100));
+					context.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
+
+					// Pixel data
+					//solidData.set([1,1,1], 0);
+					//context.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
+					//context.PSSetConstantBuffers(0, [solidCB]);
+					context.PSSetShaderResources(0, [globalSky.IrradianceCubeSRV]);
+
+					// Draw
+					context.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+					context.IASetIndexBuffer(cubeMesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
+					context.DrawIndexed(cubeMesh.IndexCount, 0);
+
+					// Reset state
+					context.RSSetViewports([oldVP]);
 				}
 
 				// Finalize post processing if necessary
