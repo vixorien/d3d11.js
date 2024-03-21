@@ -758,8 +758,8 @@
 			let cubeMesh = await Mesh.LoadFromFile(device, "../assets/meshes/cube.obj");
 
 			// Camera
-			let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
-			//let camera = new OrbitCamera(10, viewportElement.clientWidth / viewportElement.clientHeight);
+			//let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
+			let camera = new OrbitCamera(10, viewportElement.clientWidth / viewportElement.clientHeight);
 
 
 			// Create shaders
