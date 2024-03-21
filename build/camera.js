@@ -148,9 +148,10 @@ export class OrbitCamera extends Camera
 	#viewMatrix;
 
 	// Velocity
-	#velocityPitch;
-	#velocityYaw;
+	#velocityOrbit;
+	#velocityRotate;
 	#velocityDistance;
+	#velocityPosition;
 
 	constructor(distance, aspectRatio, fov = Math.PI / 4, nearClip = 0.01, farClip = 100)
 	{
@@ -162,9 +163,10 @@ export class OrbitCamera extends Camera
 		this.#pitchYawRoll = Vector3.Zero;
 		this.#forwardVector = Vector3.UnitZ;
 
-		this.#velocityPitch = 0;
-		this.#velocityYaw = 0;
 		this.#velocityDistance = 0;
+		this.#velocityOrbit = Vector3.Zero;
+		this.#velocityRotate = Vector3.Zero;
+		this.#velocityPosition = Vector3.Zero;
 
 		this.#updateView();
 	}
@@ -177,10 +179,36 @@ export class OrbitCamera extends Camera
 			this.#velocityDistance += wheel * 0.01;
 		}
 
-		if (input.IsMouseDown(MouseButtons.Left))// || input.IsMouseDown(MouseButtons.Right))
+		if (input.IsMouseDown(MouseButtons.Left))
 		{
-			this.#velocityPitch += input.GetMouseDeltaY() * 0.0005;
-			this.#velocityYaw += input.GetMouseDeltaX() * 0.0005;
+			this.#velocityOrbit.x += input.GetMouseDeltaY() * 0.0005;
+			this.#velocityOrbit.y += input.GetMouseDeltaX() * 0.0005;
+		}
+		else if (input.IsMouseDown(MouseButtons.Right))
+		{
+			let speed = 2 * dt;
+			let cameraMoveRelative = Vector3.Zero;
+			let cameraMoveAbsolute = Vector3.Zero;
+			let anyMove = false;
+			if (input.IsKeyDown(Keys.A)) { anyMove = true; cameraMoveRelative.x -= speed; }
+			if (input.IsKeyDown(Keys.D)) { anyMove = true; cameraMoveRelative.x += speed; }
+			if (input.IsKeyDown(Keys.W)) { anyMove = true; cameraMoveRelative.z += speed; }
+			if (input.IsKeyDown(Keys.S)) { anyMove = true; cameraMoveRelative.z -= speed; }
+			if (input.IsKeyDown(Keys.Space)) { anyMove = true; cameraMoveAbsolute.y += speed; }
+			if (input.IsKeyDown(Keys.X)) { anyMove = true; cameraMoveAbsolute.y -= speed; }
+
+			if (anyMove)
+			{
+				// Relative movement based on rotation
+				let moveRelative = Vector3.Rotate(cameraMoveRelative, this.#pitchYawRoll.x, this.#pitchYawRoll.y, 0);
+				this.#velocityPosition = Vector3.Add(this.#velocityPosition, moveRelative);
+
+				// Absolute movement
+				this.#velocityPosition = Vector3.Add(this.#velocityPosition, cameraMoveAbsolute);
+			}
+
+			this.#velocityRotate.x += input.GetMouseDeltaY() * 0.0005;
+			this.#velocityRotate.y += input.GetMouseDeltaX() * 0.0005;
 		}
 
 		// Distance velocity
@@ -190,10 +218,16 @@ export class OrbitCamera extends Camera
 			this.#velocityDistance *= 0.7;
 		}
 
-		// Rotation velocity
+		// Rotate velocity
 		{
-			this.#pitchYawRoll.x += this.#velocityPitch;
-			this.#pitchYawRoll.y += this.#velocityYaw;
+			// TODO: Begin moving focus position based on this rotation
+
+			this.#velocityRotate = Vector3.Multiply(this.#velocityRotate, 0.9);
+		}
+
+		// Orbit velocity
+		{
+			this.#pitchYawRoll = Vector3.Add(this.#pitchYawRoll, this.#velocityOrbit);
 
 			// Limit pitch
 			let offset = 0.1;
@@ -203,8 +237,13 @@ export class OrbitCamera extends Camera
 			else if (this.#pitchYawRoll.x > halfPI - offset)
 				this.#pitchYawRoll.x = halfPI - offset;
 
-			this.#velocityPitch *= 0.9;
-			this.#velocityYaw *= 0.9;
+			this.#velocityOrbit = Vector3.Multiply(this.#velocityOrbit, 0.9);
+		}
+
+		// Position velocity
+		{
+			this.#focusPosition = Vector3.Add(this.#focusPosition, this.#velocityPosition);
+			this.#velocityPosition = Vector3.Multiply(this.#velocityPosition, 0.9);
 		}
 
 		// Update the view matrix 
