@@ -222,22 +222,30 @@ export class OrbitCamera extends Camera
 		{
 			// TODO: Begin moving focus position based on this rotation
 
+			// Rotate the forward vector
+			this.#pitchYawRoll = Vector3.Add(this.#pitchYawRoll, this.#velocityRotate);
+
+			// Move the focus position according to this new forward vector
+			let newFwd = Vector3.Transform(Vector3.UnitZ, Matrix4x4.RotationAnglesV(this.#pitchYawRoll));
+			this.#focusPosition = Vector3.Add(this.#position, Vector3.Multiply(newFwd, this.#distance));
+
 			this.#velocityRotate = Vector3.Multiply(this.#velocityRotate, 0.9);
 		}
 
 		// Orbit velocity
 		{
 			this.#pitchYawRoll = Vector3.Add(this.#pitchYawRoll, this.#velocityOrbit);
+			this.#velocityOrbit = Vector3.Multiply(this.#velocityOrbit, 0.9);
+		}
 
-			// Limit pitch
+		// Limit pitch
+		{
 			let offset = 0.1;
 			let halfPI = Math.PI / 2;
 			if (this.#pitchYawRoll.x < -halfPI + offset)
 				this.#pitchYawRoll.x = -halfPI + offset;
 			else if (this.#pitchYawRoll.x > halfPI - offset)
 				this.#pitchYawRoll.x = halfPI - offset;
-
-			this.#velocityOrbit = Vector3.Multiply(this.#velocityOrbit, 0.9);
 		}
 
 		// Position velocity

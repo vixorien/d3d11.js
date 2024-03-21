@@ -1122,6 +1122,14 @@
 			{
 				camera.Update(input, deltaTime);
 
+				// Handle cursor for canvas (None = grab; Left = grabbing; Right = move)
+				if (input.IsMouseDown(MouseButtons.Left))
+					viewportElement.style.cursor = "grabbing";
+				else if (input.IsMouseDown(MouseButtons.Right))
+					viewportElement.style.cursor = "move";
+				else
+					viewportElement.style.cursor = "grab";
+
 				// Check for any progressive IBL updates
 				globalSky.Update();
 
