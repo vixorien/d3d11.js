@@ -161,14 +161,15 @@ export class OrbitCamera extends Camera
 
 		this.#focusPosition = Vector3.Zero;
 		this.#pitchYawRoll = Vector3.Zero;
-		this.#forwardVector = Vector3.UnitZ;
+
+		this.#updateForward();
+		this.#updatePosition();
+		this.#updateView();
 
 		this.#velocityDistance = 0;
 		this.#velocityOrbit = Vector3.Zero;
 		this.#velocityRotate = Vector3.Zero;
 		this.#velocityPosition = Vector3.Zero;
-
-		this.#updateView();
 	}
 
 	Update(input, dt)
@@ -211,17 +212,8 @@ export class OrbitCamera extends Camera
 			this.#velocityRotate.y += input.GetMouseDeltaX() * 0.0005;
 		}
 
-		// Distance velocity
-		{
-			this.#distance += this.#velocityDistance;
-			this.#distance = Math.max(this.#distance, 0.1);
-			this.#velocityDistance *= 0.7;
-		}
-
 		// Rotate velocity
 		{
-			// TODO: Begin moving focus position based on this rotation
-
 			// Rotate the forward vector
 			this.#pitchYawRoll = Vector3.Add(this.#pitchYawRoll, this.#velocityRotate);
 
@@ -248,26 +240,42 @@ export class OrbitCamera extends Camera
 				this.#pitchYawRoll.x = halfPI - offset;
 		}
 
+		// Distance velocity
+		{
+			this.#distance += this.#velocityDistance;
+			this.#distance = Math.max(this.#distance, 0.1);
+			this.#velocityDistance *= 0.7;
+		}
+
 		// Position velocity
 		{
 			this.#focusPosition = Vector3.Add(this.#focusPosition, this.#velocityPosition);
 			this.#velocityPosition = Vector3.Multiply(this.#velocityPosition, 0.9);
 		}
 
+		// Final forward vector and position update based on changes
+		{
+			this.#updateForward();
+			this.#updatePosition();
+		}
+
 		// Update the view matrix 
 		this.#updateView();
 	}
 
-	#updateView()
+	#updatePosition()
 	{
-		// Update forward vector
+		this.#position = Vector3.Add(this.#focusPosition, Vector3.Multiply(this.#forwardVector, -this.#distance));
+	}
+
+	#updateForward()
+	{
 		let mat = Matrix4x4.RotationAnglesV(this.#pitchYawRoll);
 		this.#forwardVector = Vector3.Normalize(Vector3.Transform(Vector3.UnitZ, mat));
+	}
 
-		// Update position
-		this.#position = Vector3.Add(this.#focusPosition, Vector3.Multiply(this.#forwardVector, -this.#distance));
-
-		// Finally update the view matrix
+	#updateView()
+	{
 		this.#viewMatrix = Matrix4x4.ViewPositionLH(
 			this.#position,
 			this.#focusPosition,
