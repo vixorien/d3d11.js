@@ -143,11 +143,14 @@ export class OrbitCamera extends Camera
 	#focusPosition;
 	#pitchYawRoll;
 	#forwardVector;
+	#rightVector;
+	#upVector;
 
 	// Matrices
 	#viewMatrix;
 
 	// Velocity
+	#velocityPan;
 	#velocityOrbit;
 	#velocityRotate;
 	#velocityDistance;
@@ -162,16 +165,15 @@ export class OrbitCamera extends Camera
 		this.#focusPosition = Vector3.Zero;
 		this.#pitchYawRoll = Vector3.Zero;
 
-		this.#updateForward();
+		this.#updateVectors();
 		this.#updatePosition();
 		this.#updateView();
 
 		this.#velocityDistance = 0;
+		this.#velocityPan = Vector3.Zero;
 		this.#velocityOrbit = Vector3.Zero;
 		this.#velocityRotate = Vector3.Zero;
 		this.#velocityPosition = Vector3.Zero;
-
-		
 	}
 
 	Update(input, dt)
@@ -186,6 +188,11 @@ export class OrbitCamera extends Camera
 		{
 			this.#velocityOrbit.x += input.GetMouseDeltaY() * 0.0005;
 			this.#velocityOrbit.y += input.GetMouseDeltaX() * 0.0005;
+		}
+		else if (input.IsMouseDown(MouseButtons.Middle))
+		{
+			this.#velocityPan.x += input.GetMouseDeltaX() * -0.001;
+			this.#velocityPan.y += input.GetMouseDeltaY() * 0.001;
 		}
 		else if (input.IsMouseDown(MouseButtons.Right))
 		{
@@ -249,6 +256,17 @@ export class OrbitCamera extends Camera
 			this.#velocityDistance *= 0.7;
 		}
 
+		// Pan velocity
+		{
+			let pan = Vector3.Add(
+				Vector3.Multiply(this.#rightVector, this.#velocityPan.x),
+				Vector3.Multiply(this.#upVector, this.#velocityPan.y));
+
+			this.#focusPosition = Vector3.Add(this.#focusPosition, pan);
+
+			this.#velocityPan = Vector3.Multiply(this.#velocityPan, 0.9);
+		}
+
 		// Position velocity
 		{
 			this.#focusPosition = Vector3.Add(this.#focusPosition, this.#velocityPosition);
@@ -257,7 +275,7 @@ export class OrbitCamera extends Camera
 
 		// Final forward vector and position update based on changes
 		{
-			this.#updateForward();
+			this.#updateVectors();
 			this.#updatePosition();
 		}
 
@@ -270,9 +288,11 @@ export class OrbitCamera extends Camera
 		this.#position = Vector3.Add(this.#focusPosition, Vector3.Multiply(this.#forwardVector, -this.#distance));
 	}
 
-	#updateForward()
+	#updateVectors()
 	{
 		let mat = Matrix4x4.RotationAnglesV(this.#pitchYawRoll);
+		this.#upVector = Vector3.Normalize(Vector3.Transform(Vector3.UnitY, mat));
+		this.#rightVector = Vector3.Normalize(Vector3.Transform(Vector3.UnitX, mat));
 		this.#forwardVector = Vector3.Normalize(Vector3.Transform(Vector3.UnitZ, mat));
 	}
 

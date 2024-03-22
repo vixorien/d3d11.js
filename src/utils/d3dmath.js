@@ -285,7 +285,7 @@ export class Matrix4x4 extends Float32Array
 
 		mat[0] = cosR * cosY + sinR * sinP * sinY;
 		mat[1] = sinR * cosP;
-		mat[2] = sinR * sinP * cosY + cosR * sinY;
+		mat[2] = sinR * sinP * cosY - cosR * sinY;
 		mat[3] = 0;
 
 		mat[4] = cosR * sinP * sinY - sinR * cosY;
