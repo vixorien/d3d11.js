@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using NUglify.JavaScript;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 
 // Notes for me
@@ -13,6 +14,7 @@ namespace Fuse
 	{
 		public string[] Input { get; set; }
 		public string Output { get; set; }
+		public bool Minify { get; set; }
 	}
 
 	/// <summary>
@@ -34,7 +36,8 @@ namespace Fuse
 	//             "./src/fuseMe3.js",
 	//             "./src/fuseMe4.js",
 	//          ],
-	//          output: "./build/out.js"  <-- Single string
+	//          output: "./build/out.js",  <-- Single string
+	//			minify: true               <-- bool, optional (default is false)
 	//       },
 	//       {
 	//          input: [                  <-- Array of one string (effectively a rename or copy)
@@ -53,13 +56,16 @@ namespace Fuse
 
 	internal class Program
 	{
+		// Just need one
+		static HttpClient client = new HttpClient();
+
 		static void Log(string message)
 		{
 			string now = DateTime.Now.ToString();
 			Console.WriteLine($"{now}: {message}");
 		}
 
-		static void Main(string[] args)
+		static async Task Main(string[] args)
 		{
 			// Need a single argument: the config file
 			if (args.Length == 0)
@@ -176,6 +182,15 @@ namespace Fuse
 						}
 
 						File.WriteAllText(path + "/" + f.Output, combined);
+
+						// Also attempt to minify if necessary
+						if (f.Minify)
+						{
+							string minFile = GetMinifiedFilename(f.Output);
+							//string minJS = NUglify.Uglify.Js(combined).Code; // Needs more testing - output may be malformed?
+							string minJS = await Minify(combined);
+							File.WriteAllText(path + "/" + minFile, minJS);
+						}
 					}
 					catch (Exception e)
 					{
@@ -202,6 +217,28 @@ namespace Fuse
 			{
 				Log("All fuses failed; see above");
 			}
+		}
+
+		static string GetMinifiedFilename(string filename)
+		{
+			string path = Path.GetDirectoryName(filename);
+			string noExt = Path.GetFileNameWithoutExtension(filename);
+			string ext = Path.GetExtension(filename);
+
+			return
+				(string.IsNullOrEmpty(path) ? "" : path + "/") +
+				noExt + ".min" + ext;
+		}
+
+		static async Task<string> Minify(string js)
+		{
+			// Data key/value pair to send and the encoded version
+			Dictionary<string, string> data = new Dictionary<string, string>() { { "input", js } };
+			FormUrlEncodedContent content = new FormUrlEncodedContent(data);
+
+			// Perform the post and grab the response
+			HttpResponseMessage response = await client.PostAsync("https://www.toptal.com/developers/javascript-minifier/api/raw", content);
+			return await response.Content.ReadAsStringAsync();
 		}
 	}
 }
