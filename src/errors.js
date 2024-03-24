@@ -3,6 +3,9 @@
 // -------------- D3D11 & d3d11.js Errors --------------
 // -----------------------------------------------------
 
+// See: https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3d11-graphics-reference-returnvalues
+// See: https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-error
+
 // --- Example Errors ---
 //
 // 1. Invalid array size on texture2d creation:

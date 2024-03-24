@@ -1,34 +1,3 @@
-// Errors and such
-// See: https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3d11-graphics-reference-returnvalues
-// See: https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-error
-
-// WebGL2 state diagram: https://webgl2fundamentals.org/webgl/lessons/resources/webgl-state-diagram.html
-
-// WebGL2 reference: https://www.khronos.org/files/webgl20-reference-guide.pdf
-
-// WebGL2 Report: https://webglreport.com/?v=2
-
-// Random webgl notes:
-//
-// Drawing
-//  - glDrawElements() --> DrawIndexed()
-//  - glDrawArrays() --> Draw()
-//
-// Uniform buffers
-//  - vec3 ALWAYS pads out to a vec4!!!
-
-
-// General javascript thoughts:
-// - Description objects should always be copied (as if it were passed by value)
-// - Could enforce abstract base classes by checking constructors: https://stackoverflow.com/questions/597769/how-do-i-create-an-abstract-base-class-in-javascript
-//   - Could we even prevent instantiation of higher level
-//     interfaces by using anonymous classes when instantiating?
-//     Probably a javascript no-no, but might test it.
-// - On the topic of arrays vs. single element params:
-//   - In C++, sometimes you want to send in an array and sometimes a single element (one-element array, essentially)
-//   - Might be nice to just support both here, rather than requiring an array wrapper for single elements
-//   - Could check using Array.isArray() pretty easily!
-
 
 // -----------------------------------------------------
 // ------------- "Enums" & Other Constants -------------

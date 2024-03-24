@@ -3,6 +3,9 @@
 // ----------------------- Views -----------------------
 // -----------------------------------------------------
 
+/**
+ * A view interface specifies the parts of a resource the pipeline can access during rendering
+ */
 class ID3D11View extends ID3D11DeviceChild
 {
 	#resource;
@@ -52,7 +55,9 @@ class ID3D11View extends ID3D11DeviceChild
 	}
 }
 
-
+/**
+ * View of a texture resource for depth-stencil testing
+ */
 class ID3D11DepthStencilView extends ID3D11View
 {
 	constructor(device, resource, desc)
@@ -69,7 +74,9 @@ class ID3D11DepthStencilView extends ID3D11View
 }
 
 
-// still a work in progress until we get actual textures
+/**
+ * View of a texture resource for render output
+ */
 class ID3D11RenderTargetView extends ID3D11View
 {
 	constructor(device, resource, desc)
@@ -85,7 +92,9 @@ class ID3D11RenderTargetView extends ID3D11View
 	}
 }
 
-// Work in progress!
+/**
+ * View of a set of subresources available to a shader during rendering
+ */
 class ID3D11ShaderResourceView extends ID3D11View
 {
 	constructor(device, resource, desc)
