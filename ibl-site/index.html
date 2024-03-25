@@ -322,7 +322,7 @@
 				<div class="accordion-item">
 					<h2 class="accordion-header">
 						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
-							<h5 class="m-0">&#128295; Settings</h5>
+							<h5 class="m-0">&#9881;&#65039; Settings</h5>
 						</button>
 					</h2>
 					<div id="settings-accordion" class="accordion-collapse collapse">
@@ -330,12 +330,27 @@
 
 							<h6>&#127767; Color Mode</h6>
 							<div class="btn-group">
-								<input type="radio" class="btn-check" name="color-mode" id="color-mode-light" autocomplete="off" onchange="setColorMode('light');"/>
+								<input type="radio" class="btn-check" name="color-mode" id="color-mode-light" autocomplete="off" onchange="setColorMode('light');" />
 								<label class="btn btn-outline-secondary btn-sm" for="color-mode-light">Light</label>
 
 								<input type="radio" class="btn-check" name="color-mode" id="color-mode-dark" autocomplete="off" checked onchange="setColorMode('dark');" />
 								<label class="btn btn-outline-secondary btn-sm" for="color-mode-dark">Dark</label>
 							</div>
+						</div>
+					</div>
+				</div>
+
+				<!-- ABOUT -->
+				<div class="accordion-item">
+					<h2 class="accordion-header">
+						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#about-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5 class="m-0">&#129516; About</h5>
+						</button>
+					</h2>
+					<div id="about-accordion" class="accordion-collapse collapse">
+						<div class="accordion-body p-3">
+							Powered by <a href="https://github.com/vixorien/d3d11.js">2-3 Graphics APIs in a Trench Coat</a>
+							
 						</div>
 					</div>
 				</div>
