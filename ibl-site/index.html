@@ -82,6 +82,10 @@
 										<option value="2">Bronze</option>
 										<option value="3">Metal Flooring</option>
 										<option value="4">Scratched Paint</option>
+										<option value="5">Metal Plate</option>
+										<option value="6">Slabs</option>
+										<option value="7">Stone</option>
+										<option value="8">Wood</option>
 									</select>
 								</div>
 
@@ -127,10 +131,10 @@
 							<div class="input-group input-group-sm mb-3">
 								<!--<label for="lightSet" class="input-group-text">&#128161; Lights</label>-->
 								<select id="lightSet" class="form-select" onchange="setLighting(this.value);">
-									<option value="0" selected>One Directional</option>
-									<option value="1">Three Directional</option>
-									<option value="2">Eight Point</option>
-									<option value="3">No Lights (Sky Only)</option>
+									<option value="0" selected>No Lights (Sky Only)</option>
+									<option value="1">One Directional Light</option>
+									<option value="2">Three Directional Lights</option>
+									<option value="3">Eight Point Lights</option>
 								</select>
 							</div>
 
@@ -414,10 +418,10 @@
 		let globalMatMetalness = 0;
 		let globalMatColor = [1, 1, 1];
 
-		const Lighting_OneDir = 0;
-		const Lighting_ThreeDir = 1;
-		const Lighting_EightPoints = 2;
-		const Lighting_None = 3;
+		const Lighting_None = 0;
+		const Lighting_OneDir = 1;
+		const Lighting_ThreeDir = 2;
+		const Lighting_EightPoints = 3;
 
 		const MaxLights = 64;
 
@@ -797,7 +801,7 @@
 
 			// Camera
 			//let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
-			let camera = new OrbitCamera(10, viewportElement.clientWidth / viewportElement.clientHeight);
+			let camera = new OrbitCamera(15, viewportElement.clientWidth / viewportElement.clientHeight);
 
 
 			// Create shaders
@@ -824,20 +828,20 @@
 
 
 			// Load a cube map
-			let skySRV = await loadTextureCube(
-				device,
-				context,
-				[
-					"../assets/skies/cloudsblue/right.png",
-					"../assets/skies/cloudsblue/left.png",
-					"../assets/skies/cloudsblue/up.png",
-					"../assets/skies/cloudsblue/down.png",
-					"../assets/skies/cloudsblue/front.png",
-					"../assets/skies/cloudsblue/back.png"
-				],
-				false,
-				true
-			);
+			//let skySRV = await loadTextureCube(
+			//	device,
+			//	context,
+			//	[
+			//		"../assets/skies/cloudsblue/right.png",
+			//		"../assets/skies/cloudsblue/left.png",
+			//		"../assets/skies/cloudsblue/up.png",
+			//		"../assets/skies/cloudsblue/down.png",
+			//		"../assets/skies/cloudsblue/front.png",
+			//		"../assets/skies/cloudsblue/back.png"
+			//	],
+			//	false,
+			//	true
+			//);
 
 			// Create the sky object
 			globalSky = new Sky(device, context,
@@ -847,15 +851,20 @@
 				DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
 				equirectToCubePS, mipReducePS, fullscreenVS,
 				true, 128);
-			globalSky.LoadCubeMap(skySRV, false);
+
+			let [width, height, data] = await TextureUtils.LoadHDRFile("../assets/skies/partly_cloudy_2k.hdr");
+			globalSky.LoadEquirectHDR(width, height, data, globalHDRExposure);
+			//globalSky.LoadCubeMap(skySRV, false);
 
 
 			// ----------------- Materials --------------------
+			let metal0 = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metal_0.png");
+			let metal1 = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metal_1.png");
 
 			let matCobble = new Material(vs, ps, new Vector3(1, 1, 1));
 			matCobble.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png"));
 			matCobble.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_normals.png"));
-			matCobble.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_metal.png"));
+			matCobble.SetPSTextureSRV(2, metal0);
 			matCobble.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_roughness.png"));
 			matCobble.SetPSSamplerState(0, sampler);
 			matCobble.SetPSSamplerState(1, clampSampler);
@@ -863,7 +872,7 @@
 			let matBronze = new Material(vs, ps, new Vector3(1, 1, 1));
 			matBronze.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_albedo.png"));
 			matBronze.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_normals.png"));
-			matBronze.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_metal.png"));
+			matBronze.SetPSTextureSRV(2, metal1);
 			matBronze.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_roughness.png"));
 			matBronze.SetPSSamplerState(0, sampler);
 			matBronze.SetPSSamplerState(1, clampSampler);
@@ -884,6 +893,38 @@
 			matScratched.SetPSSamplerState(0, sampler);
 			matScratched.SetPSSamplerState(1, clampSampler);
 
+			let matMetalPlate = new Material(vs, ps, new Vector3(1, 1, 1));
+			matMetalPlate.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metalplate_albedo.png"));
+			matMetalPlate.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metalplate_normals.png"));
+			matMetalPlate.SetPSTextureSRV(2, metal1);
+			matMetalPlate.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metalplate_rough.png"));
+			matMetalPlate.SetPSSamplerState(0, sampler);
+			matMetalPlate.SetPSSamplerState(1, clampSampler);
+
+			let matSlab = new Material(vs, ps, new Vector3(1, 1, 1));
+			matSlab.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/slab_albedo.png"));
+			matSlab.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/slab_normals.png"));
+			matSlab.SetPSTextureSRV(2, metal0);
+			matSlab.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/slab_rough.png"));
+			matSlab.SetPSSamplerState(0, sampler);
+			matSlab.SetPSSamplerState(1, clampSampler);
+
+			let matStone = new Material(vs, ps, new Vector3(1, 1, 1));
+			matStone.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/stonetiles_albedo.png"));
+			matStone.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/stonetiles_normals.png"));
+			matStone.SetPSTextureSRV(2, metal0);
+			matStone.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/stonetiles_rough.png"));
+			matStone.SetPSSamplerState(0, sampler);
+			matStone.SetPSSamplerState(1, clampSampler);
+
+			let matWood = new Material(vs, ps, new Vector3(1, 1, 1));
+			matWood.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/wood_albedo.png"));
+			matWood.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/wood_normals.png"));
+			matWood.SetPSTextureSRV(2, metal0);
+			matWood.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/wood_rough.png"));
+			matWood.SetPSSamplerState(0, sampler);
+			matWood.SetPSSamplerState(1, clampSampler);
+
 			let matCustom = new Material(vs, ps, new Vector3(1, 1, 1));
 			matCustom.SetPSTextureSRV(0, whiteSRV);
 			matCustom.SetPSTextureSRV(1, flatNormalsSRV);
@@ -898,6 +939,10 @@
 			globalMaterials.push(matBronze);
 			globalMaterials.push(matFloor);
 			globalMaterials.push(matScratched);
+			globalMaterials.push(matMetalPlate);
+			globalMaterials.push(matSlab);
+			globalMaterials.push(matStone);
+			globalMaterials.push(matWood);
 
 			// -------------- Entity setup -------------------
 			// --- SPHERE SCENE ---

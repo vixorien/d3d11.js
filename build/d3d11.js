@@ -1,34 +1,3 @@
-// Errors and such
-// See: https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3d11-graphics-reference-returnvalues
-// See: https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-error
-
-// WebGL2 state diagram: https://webgl2fundamentals.org/webgl/lessons/resources/webgl-state-diagram.html
-
-// WebGL2 reference: https://www.khronos.org/files/webgl20-reference-guide.pdf
-
-// WebGL2 Report: https://webglreport.com/?v=2
-
-// Random webgl notes:
-//
-// Drawing
-//  - glDrawElements() --> DrawIndexed()
-//  - glDrawArrays() --> Draw()
-//
-// Uniform buffers
-//  - vec3 ALWAYS pads out to a vec4!!!
-
-
-// General javascript thoughts:
-// - Description objects should always be copied (as if it were passed by value)
-// - Could enforce abstract base classes by checking constructors: https://stackoverflow.com/questions/597769/how-do-i-create-an-abstract-base-class-in-javascript
-//   - Could we even prevent instantiation of higher level
-//     interfaces by using anonymous classes when instantiating?
-//     Probably a javascript no-no, but might test it.
-// - On the topic of arrays vs. single element params:
-//   - In C++, sometimes you want to send in an array and sometimes a single element (one-element array, essentially)
-//   - Might be nice to just support both here, rather than requiring an array wrapper for single elements
-//   - Could check using Array.isArray() pretty easily!
-
 
 // -----------------------------------------------------
 // ------------- "Enums" & Other Constants -------------
@@ -371,6 +340,9 @@ const DXGI_FORMAT_B8G8R8X8_UNORM = 88;      // 32-bit, 8-per-channel reversed BG
 // -----------------------------------------------------
 // -------------- D3D11 & d3d11.js Errors --------------
 // -----------------------------------------------------
+
+// See: https://learn.microsoft.com/en-us/windows/win32/direct3d11/d3d11-graphics-reference-returnvalues
+// See: https://learn.microsoft.com/en-us/windows/win32/direct3ddxgi/dxgi-error
 
 // --- Example Errors ---
 //
@@ -5873,6 +5845,9 @@ class ID3D11Texture3D extends ID3D11Resource
 // ----------------------- Views -----------------------
 // -----------------------------------------------------
 
+/**
+ * A view interface specifies the parts of a resource the pipeline can access during rendering
+ */
 class ID3D11View extends ID3D11DeviceChild
 {
 	#resource;
@@ -5922,7 +5897,9 @@ class ID3D11View extends ID3D11DeviceChild
 	}
 }
 
-
+/**
+ * View of a texture resource for depth-stencil testing
+ */
 class ID3D11DepthStencilView extends ID3D11View
 {
 	constructor(device, resource, desc)
@@ -5939,7 +5916,9 @@ class ID3D11DepthStencilView extends ID3D11View
 }
 
 
-// still a work in progress until we get actual textures
+/**
+ * View of a texture resource for render output
+ */
 class ID3D11RenderTargetView extends ID3D11View
 {
 	constructor(device, resource, desc)
@@ -5955,7 +5934,9 @@ class ID3D11RenderTargetView extends ID3D11View
 	}
 }
 
-// Work in progress!
+/**
+ * View of a set of subresources available to a shader during rendering
+ */
 class ID3D11ShaderResourceView extends ID3D11View
 {
 	constructor(device, resource, desc)

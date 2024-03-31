@@ -238,7 +238,16 @@ export class TextureUtils
 		return srv;
 	}
 
-	
+	static async LoadHDRFile(fileURL)
+	{
+		// Read the file
+		// Fetch and grab the binary data, then turn into an image
+		const resp = await fetch(fileURL);
+		const contents = await resp.arrayBuffer();
+
+		// Convert the data
+		return TextureUtils.#LoadHDRFile(contents);
+	}
 
 	static #GetArrayForReadback(dxgiFormat, pixelCount)
 	{
