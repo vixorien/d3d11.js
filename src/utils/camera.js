@@ -182,6 +182,16 @@ export class OrbitCamera extends Camera
 		this.#velocityPosition = Vector3.Zero;
 	}
 
+	ResetFocusPosition()
+	{
+		// Offset for reset
+		let resetOffset = this.#focusPosition;
+
+		// Reset both the focus and current position
+		this.#focusPosition = Vector3.Zero;
+		this.#position = Vector3.Subtract(this.#position, resetOffset);
+	}
+
 	Update(input, dt)
 	{
 		let wheel = input.GetMouseWheel();

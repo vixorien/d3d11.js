@@ -344,8 +344,8 @@
 
 							<h6>&#127909; Camera</h6>
 							<div class="row input-group input-group-sm ms-0 mb-3">
-								<label for="fovRange" class="col-4 input-group-text">Field of View: 45</label>
-								<input id="fovRange" type="range" class="col form-control form-range p-3" min="20" max="120" value="45" oninput="setFov(this.value); this.previousElementSibling.innerHTML = 'Field of View: ' + this.value;" />
+								<label for="fovRange" class="col-4 input-group-text">FoV: 45</label>
+								<input id="fovRange" type="range" class="col form-control form-range p-3" min="20" max="120" value="45" oninput="setFov(this.value); this.previousElementSibling.innerHTML = 'FoV: ' + this.value;" />
 							</div>
 
 							<h6>&#127767; Color Mode</h6>
@@ -1229,6 +1229,9 @@
 
 			function update(deltaTime, totalTime)
 			{
+				if (input.GetDoubleClick())
+					camera.ResetFocusPosition();
+
 				camera.Update(input, deltaTime);
 
 				// Handle cursor for canvas (None = grab; Left = grabbing; Right = move)

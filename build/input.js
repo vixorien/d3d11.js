@@ -13,6 +13,7 @@ export class Input
 	#deltaMouseX;
 	#deltaMouseY;
 	#mouseWheel;
+	#doubleClick;
 
 	// For removal
 	#boundFocusOutHandler;
@@ -21,6 +22,7 @@ export class Input
 	#boundKeyDownHandler;
 	#boundKeyUpHandler;
 
+	#boundDoubleClickHandler;
 	#boundMouseDownHandler;
 	#boundMouseUpHandler;
 	#boundMouseMoveHandler;
@@ -33,6 +35,7 @@ export class Input
 		this.#mouseButtons = new Array(5).fill(false);
 
 		this.#mouseWheel = 0;
+		this.#doubleClick = false;
 
 		element.addEventListener("focusout", this.#boundFocusOutHandler = this.#FocusOutHandler.bind(this));
 		element.addEventListener("contextmenu", this.#boundContextMenuHandler = this.#ContextMenuHandler.bind(this));
@@ -40,6 +43,7 @@ export class Input
 		element.addEventListener("keydown", this.#boundKeyDownHandler = this.#KeyDownHandler.bind(this));
 		element.addEventListener("keyup", this.#boundKeyUpHandler = this.#KeyUpHandler.bind(this));
 
+		element.addEventListener("dblclick", this.#boundDoubleClickHandler = this.#DoubleClickHandler.bind(this));
 		element.addEventListener("mousedown", this.#boundMouseDownHandler = this.#MouseDownHandler.bind(this));
 		element.addEventListener("mouseup", this.#boundMouseUpHandler = this.#MouseUpHandler.bind(this));
 		element.addEventListener("mousemove", this.#boundMouseMoveHandler = this.#MouseMoveHandler.bind(this));
@@ -55,6 +59,7 @@ export class Input
 		this.#deltaMouseY = 0;
 		this.#prevMouseX = this.#mouseX;
 		this.#prevMouseY = this.#mouseY;
+		this.#doubleClick = false;
 	}
 
 	#FocusOutHandler(e)
@@ -75,6 +80,7 @@ export class Input
 		this.#deltaMouseY = 0;
 
 		this.#mouseWheel = 0;
+		this.#doubleClick = false;
 	}
 
 	// ------------------------------
@@ -112,6 +118,11 @@ export class Input
 	// ------------------------------
 	// ------------ Mouse -----------
 	// ------------------------------
+
+	#DoubleClickHandler(e)
+	{
+		this.#doubleClick = true;
+	}
 
 	#MouseDownHandler(e)
 	{
@@ -167,6 +178,7 @@ export class Input
 	GetMouseDeltaX() { return this.#deltaMouseX; }
 	GetMouseDeltaY() { return this.#deltaMouseY; }
 	GetMouseWheel() { return this.#mouseWheel; }
+	GetDoubleClick() { return this.#doubleClick; }
 }
 
 export class Keys
