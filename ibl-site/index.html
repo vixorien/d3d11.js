@@ -316,18 +316,25 @@
 
 							<h6>&#127912; Tonemapping (HDR Only)</h6>
 
-							<label for="exposureRange" class="form-label">Exposure: 0</label>
-							<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="exposureRange" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure: ' + this.value;" />
+							<div class="row input-group input-group-sm ms-0 mb-3">
+								<label for="exposureRange" class="col-4 input-group-text">Exposure: 0</label>
+								<input id="exposureRange" type="range" class="col form-control form-range p-3" min="-10" max="10" step="0.01" value="0" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure: ' + this.value;" />
+							</div>
 
 							<label for="tonemapType" class="form-label">Type</label>
 							<select id="tonemapType" class="form-select" onchange="setTonemapType(this.value);">
-								<option value="0" selected>None (Linear)</option>
+								<option value="0" selected>None</option>
 								<option value="1">Reinhard</option>
 								<option value="2">Reinhard (White Point)</option>
-								<option value="3">Exposure</option>
-								<option value="4">Uncharted 2</option>
-								<option value="5">Aces</option>
+								<option value="3">Uncharted 2</option>
+								<option value="4">Aces</option>
 							</select>
+
+							<div class="row input-group input-group-sm ms-0 mb-3 d-none" id="white-point-controls">
+								<label for="whitePointRange" class="col-4 input-group-text">White Point: 1</label>
+								<input id="whitePointRange" type="range" class="col form-control form-range p-3" min="0" max="10" step="0.01" value="1" oninput="setWhitePoint(this.value); this.previousElementSibling.innerHTML = 'White Point: ' + this.value;" />
+							</div>
+
 						</div>
 					</div>
 				</div>
@@ -423,6 +430,7 @@
 		let globalIBLPreviewSize = 300;
 		let globalTonemapType = 0;
 		let globalTonemapExposure = 0;
+		let globalTonemapWhitePoint = 1;
 		let globalDevice = null;
 		let globalContext = null;
 
@@ -444,6 +452,11 @@
 		const Lighting_EightPoints = 3;
 
 		const MaxLights = 64;
+
+		window.setWhitePoint = function (val)
+		{
+			globalTonemapWhitePoint = val;
+		}
 
 		window.setMatRoughness = function (val)
 		{
@@ -507,6 +520,14 @@
 		window.setTonemapType = function (val)
 		{
 			globalTonemapType = val;
+
+			let wp = document.getElementById("white-point-controls");
+
+			// Show if tonemap is Reinhard White Point or Uncharted 2
+			if (val == 2 || val == 3)
+				wp.classList.remove("d-none");
+			else
+				wp.classList.add("d-none");
 		}
 
 		window.setExposure = function (val)
@@ -1533,8 +1554,9 @@
 					context.PSSetShaderResources(0, [ppSRV]);
 					context.PSSetConstantBuffers(0, [ppCB]);
 					ppData.set([
-						globalTonemapType, // Tonemap type
-						globalTonemapExposure // Exposure
+						globalTonemapType,
+						globalTonemapExposure, 
+						globalTonemapWhitePoint
 					], 0);
 					context.UpdateSubresource(ppCB, 0, null, ppData, 0, 0);
 					context.Draw(3, 0);

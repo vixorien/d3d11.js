@@ -8,6 +8,7 @@ cbuffer psData : register(b0)
 {
 	float tonemapType;
 	float exposure;
+	float whitePoint;
 }
 
 Texture2D pixels : register(t0);
@@ -24,7 +25,7 @@ float3 AcesTonemap(float3 color)
 	return saturate((color * (a * color + b)) / (color * (c * color + d) + e));
 }
 
-// http://frictionalgames.blogspot.com/2012/09/tech-feature-hdr-lightning.html
+// http://filmicworlds.com/blog/filmic-tonemapping-operators/
 float3 Uncharted2Tonemap(float3 color)
 {
 	float A = 0.15f;
@@ -44,16 +45,10 @@ float3 ReinhardTonemap(float3 color)
 }
 
 // https://64.github.io/tonemapping/
-float3 ReinhardWhitePoint(float3 color, float whitePoint)
+float3 ReinhardWhitePoint(float3 color, float wp)
 {
-	float3 num = color * (1.0f + (color / float3(whitePoint * whitePoint)));
+	float3 num = color * (1.0f + (color / float3(wp * wp)));
 	return num / (1.0f + color);
-}
-
-// http://learnopengl.com/#!Advanced-Lighting/HDR
-float3 ExposureTonemap(float3 color)
-{
-	return 1.0f - exp(-color);
 }
 
 float4 main(VertexToPixel input) : SV_TARGET
@@ -62,9 +57,8 @@ float4 main(VertexToPixel input) : SV_TARGET
 	const int TONEMAP_LINEAR = 0;
 	const int TONEMAP_REINHARD = 1;
 	const int TONEMAP_REINHARD_WHITE_POINT = 2;
-	const int TONEMAP_EXPOSURE = 3;
-	const int TONEMAP_UNCHARTED = 4;
-	const int TONEMAP_ACES = 5;
+	const int TONEMAP_UNCHARTED = 3;
+	const int TONEMAP_ACES = 4;
 
 	// Grab the color and apply exposure before tonemapping
 	float3 color = pixels.Sample(samp, input.uv).rgb; // Assuming we're in linear space here
@@ -76,9 +70,8 @@ float4 main(VertexToPixel input) : SV_TARGET
 	default:
 	case TONEMAP_LINEAR: break; // Just return color as-is
 	case TONEMAP_REINHARD: color = ReinhardTonemap(color); break;
-	case TONEMAP_REINHARD_WHITE_POINT: color = ReinhardWhitePoint(color, 1.0f); break;
-	case TONEMAP_EXPOSURE: color = ExposureTonemap(color); break;
-	case TONEMAP_UNCHARTED: color = Uncharted2Tonemap(color); break;
+	case TONEMAP_REINHARD_WHITE_POINT: color = ReinhardWhitePoint(color, whitePoint); break;
+	case TONEMAP_UNCHARTED: color = Uncharted2Tonemap(color) / Uncharted2Tonemap((float3)whitePoint); break;
 	case TONEMAP_ACES: color = AcesTonemap(color); break;
 	}
 
