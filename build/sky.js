@@ -119,9 +119,11 @@ export class Sky
 		this.#skyVS = skyVS;
 		this.#skyMesh = skyMesh;
 
-		this.SkyCubeSRV = null;
-		this.SkyCubeSize = 0;
-		this.SkyColorFormat = DXGI_FORMAT_UNKNOWN
+		// Setting up a default (solid white) sky cube
+		this.SkyCubeSize = 4;
+		this.SkyColorFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+		this.SkyCubeSRV = TextureUtils.CreateTextureCube(d3dDevice, this.SkyCubeSize, this.SkyColorFormat, 0, true, true);
+		this.#ClearAllSubresources(this.SkyCubeSRV, [1, 1, 1, 1]);
 
 		this.BRDFLookUpTableColorFormat = brdfLutColorFormat;
 		this.BRDFLookUpTableSize = brdfLutSize;
@@ -508,7 +510,7 @@ export class Sky
 			1,
 			1,
 			true);
-		this.#ClearAllSubresources(this.BRDFLookUpTableSRV, [0.5, 0.5, 0.5, 1]);
+		this.#ClearAllSubresources(this.BRDFLookUpTableSRV, [1, 1, 1, 1]);
 	}
 
 	#CreateIrradianceTexture()
@@ -522,7 +524,7 @@ export class Sky
 			this.IrradianceColorFormat,
 			1,
 			true);
-		this.#ClearAllSubresources(this.IrradianceCubeSRV, [0.25, 0.25, 0.25, 1]);
+		this.#ClearAllSubresources(this.IrradianceCubeSRV, [1, 1, 1, 1]);
 	}
 
 	#CreateSpecularIBLTexture()
@@ -537,7 +539,7 @@ export class Sky
 			this.SpecularIBLMipsTotal,
 			true,
 			true);
-		this.#ClearAllSubresources(this.SpecularIBLCubeSRV, [1,1,1,1]);
+		this.#ClearAllSubresources(this.SpecularIBLCubeSRV, [1, 1, 1, 1]);
 	}
 
 	#GetNumTiles(tileSize, fullWidth, fullHeight)

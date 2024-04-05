@@ -40,6 +40,12 @@ class Camera
 		this.#projDirty = false;
 	}
 
+	SetFov(fov)
+	{
+		this.#fov = fov;
+		this.#projDirty = true;
+	}
+
 }
 
 export class FPSCamera extends Camera

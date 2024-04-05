@@ -40,7 +40,7 @@
 		<div class="col-3 h-100 overflow-y-auto">
 
 			<!-- Overall title-->
-			<h1>Cube Maps</h1>
+			<h1>Image-Based Lighting</h1>
 
 			<!-- Testing accordian navigation -->
 			<div class="accordion" id="main-nav">
@@ -48,7 +48,7 @@
 				<!-- SCENE -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button collapsed p-2" type="button" data-bs-toggle="collapse" data-bs-target="#scene-accordion" aria-expanded="false" aria-controls="flush-collapseOne">
+						<button class="accordion-button collapsed p-2 bg-gradient" type="button" data-bs-toggle="collapse" data-bs-target="#scene-accordion" aria-expanded="false" aria-controls="flush-collapseOne">
 							<h5 class="m-0">&#127758; Scene</h5>
 						</button>
 					</h2>
@@ -77,7 +77,7 @@
 								<div class="input-group input-group-sm row ms-0">
 									<label for="textureSet" class="col input-group-text">Texture Set</label>
 									<select id="textureSet" class="col form-select px-3" onchange="setTextureSet(this.value);">
-										<option value="0">Custom Values (No Textures)</option>
+										<option value="0">Custom (No Textures)</option>
 										<option value="1" selected>Cobblestone</option>
 										<option value="2">Bronze</option>
 										<option value="3">Metal Flooring</option>
@@ -119,24 +119,13 @@
 				<!-- ENVIRONMENT -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#environment-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+						<button class="accordion-button p-2 collapsed bg-gradient" type="button" data-bs-toggle="collapse" data-bs-target="#environment-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
 							<h5 class="m-0">&#9925; Environment</h5>
 						</button>
 					</h2>
 					<div id="environment-accordion" class="accordion-collapse collapse">
 						<div class="accordion-body p-3">
 
-							<!-- LIGHTS -->
-							<h6>&#128161; Lights</h6>
-							<div class="input-group input-group-sm mb-3">
-								<!--<label for="lightSet" class="input-group-text">&#128161; Lights</label>-->
-								<select id="lightSet" class="form-select" onchange="setLighting(this.value);">
-									<option value="0" selected>No Lights (Sky Only)</option>
-									<option value="1">One Directional Light</option>
-									<option value="2">Three Directional Lights</option>
-									<option value="3">Eight Point Lights</option>
-								</select>
-							</div>
 
 							<!-- SKY MIP PREVIEW -->
 							<h6>&#128269; Skybox Mip Preview</h6>
@@ -162,7 +151,7 @@
 							<!-- CHANGE ENV MAP -->
 							<h6>&#128256; Change Environment Map</h6>
 
-							<div class="accordion m-1" id="loadAccordion">
+							<div class="accordion m-1 mb-3" id="loadAccordion">
 
 								<!-- CHOOSE EXISTING -->
 								<div class="accordion-item">
@@ -279,6 +268,19 @@
 									</div>
 								</div>
 							</div>
+
+							<!-- LIGHTS -->
+							<h6>&#128161; Additional Lights</h6>
+							<div class="input-group input-group-sm">
+								<!--<label for="lightSet" class="input-group-text">&#128161; Lights</label>-->
+								<select id="lightSet" class="form-select" onchange="setLighting(this.value);">
+									<option value="0" selected>No Lights (Sky Only)</option>
+									<option value="1">One Directional Light</option>
+									<option value="2">Three Directional Lights</option>
+									<option value="3">Eight Point Lights</option>
+								</select>
+							</div>
+
 						</div>
 					</div>
 				</div>
@@ -286,7 +288,7 @@
 				<!-- SAVE -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#save-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+						<button class="accordion-button p-2 collapsed bg-gradient" type="button" data-bs-toggle="collapse" data-bs-target="#save-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
 							<h5 class="m-0">&#128190; Save IBL Maps</h5>
 						</button>
 					</h2>
@@ -304,8 +306,8 @@
 				<!-- POST PROCESSING -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#post-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
-							<h5 class="m-0">&#127909; Post-Processing</h5>
+						<button class="accordion-button p-2 collapsed bg-gradient" type="button" data-bs-toggle="collapse" data-bs-target="#post-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+							<h5 class="m-0">&#128250; Post-Processing</h5>
 						</button>
 					</h2>
 					<div id="post-accordion" class="accordion-collapse collapse">
@@ -333,12 +335,18 @@
 				<!-- SETTINGS -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#settings-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+						<button class="accordion-button p-2 collapsed bg-gradient" type="button" data-bs-toggle="collapse" data-bs-target="#settings-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
 							<h5 class="m-0">&#9881;&#65039; Settings</h5>
 						</button>
 					</h2>
 					<div id="settings-accordion" class="accordion-collapse collapse">
 						<div class="accordion-body p-3">
+
+							<h6>&#127909; Camera</h6>
+							<div class="row input-group input-group-sm ms-0 mb-3">
+								<label for="fovRange" class="col-4 input-group-text">Field of View: 45</label>
+								<input id="fovRange" type="range" class="col form-control form-range p-3" min="20" max="120" value="45" oninput="setFov(this.value); this.previousElementSibling.innerHTML = 'Field of View: ' + this.value;" />
+							</div>
 
 							<h6>&#127767; Color Mode</h6>
 							<div class="btn-group">
@@ -348,6 +356,8 @@
 								<input type="radio" class="btn-check" name="color-mode" id="color-mode-dark" autocomplete="off" checked onchange="setColorMode('dark');" />
 								<label class="btn btn-outline-secondary btn-sm" for="color-mode-dark">Dark</label>
 							</div>
+
+
 						</div>
 					</div>
 				</div>
@@ -355,7 +365,7 @@
 				<!-- ABOUT -->
 				<div class="accordion-item">
 					<h2 class="accordion-header">
-						<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#about-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
+						<button class="accordion-button p-2 collapsed bg-gradient" type="button" data-bs-toggle="collapse" data-bs-target="#about-accordion" aria-expanded="false" aria-controls="flush-collapseTwo">
 							<h5 class="m-0">&#129516; About</h5>
 						</button>
 					</h2>
@@ -416,6 +426,8 @@
 		let globalDevice = null;
 		let globalContext = null;
 
+		let camera = null;
+
 		let globalScenes = [];
 		let globalCurrentScene = 0;
 		let globalLightings = [];
@@ -464,6 +476,12 @@
 			else
 				element.classList.add("d-none");
 		
+		}
+
+		window.setFov = function (fov)
+		{
+			// Convert to radians first
+			camera.SetFov(fov * Math.PI / 180);
 		}
 
 		window.setColorMode = function (mode)
@@ -809,7 +827,7 @@
 
 			// Camera
 			//let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
-			let camera = new OrbitCamera(15, viewportElement.clientWidth / viewportElement.clientHeight);
+			camera = new OrbitCamera(15, viewportElement.clientWidth / viewportElement.clientHeight);
 
 
 			// Create shaders
@@ -1194,7 +1212,7 @@
 			let ppCB = device.CreateBuffer(ppCBDesc, null);
 			let ppData = new Float32Array(4);
 
-			function showSkyLoading(text)
+			function showLoading(text)
 			{
 				let load = document.getElementById("loading-container");
 				load.classList.remove("invisible");
@@ -1203,7 +1221,7 @@
 				loadText.innerHTML = text;
 			}
 
-			function hideSkyLoading()
+			function hideLoading()
 			{
 				let load = document.getElementById("loading-container");
 				load.classList.add("invisible");
@@ -1247,13 +1265,13 @@
 
 				// Set up loading messages based on order of IBL map creation
 				if (!globalSky.BRDFLookUpTableReady)
-					showSkyLoading("Generating environment BRDF look up table");
+					showLoading("Generating environment BRDF look up table");
 				else if (!globalSky.IrradianceReady)
-					showSkyLoading("Generating environment irradiance map");
+					showLoading("Generating environment irradiance map");
 				else if (!globalSky.SpecularIBLReady)
-					showSkyLoading("Generating environment specular convolution map");
+					showLoading("Generating environment specular convolution map");
 				else
-					hideSkyLoading();
+					hideLoading();
 
 				// Update the point lights
 				for (let i = 0; i < globalLightings[Lighting_EightPoints].length; i++)
