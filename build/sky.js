@@ -483,7 +483,7 @@ export class Sky
 					a,
 					1); // Just one array element this time
 				let rtv = this.#d3dDevice.CreateRenderTargetView(res, rtvDesc);
-
+				
 				// Clear and release
 				this.#d3dContext.ClearRenderTargetView(rtv, color);
 				rtv.Release();
@@ -508,7 +508,7 @@ export class Sky
 			1,
 			1,
 			true);
-		this.#ClearAllSubresources(this.BRDFLookUpTableSRV, [1, 1, 1, 1]);
+		this.#ClearAllSubresources(this.BRDFLookUpTableSRV, [0.5, 0.5, 0.5, 1]);
 	}
 
 	#CreateIrradianceTexture()
@@ -522,7 +522,7 @@ export class Sky
 			this.IrradianceColorFormat,
 			1,
 			true);
-		this.#ClearAllSubresources(this.BRDFLookUpTableSRV, [1, 1, 1, 1]);
+		this.#ClearAllSubresources(this.IrradianceCubeSRV, [0.25, 0.25, 0.25, 1]);
 	}
 
 	#CreateSpecularIBLTexture()
@@ -537,7 +537,7 @@ export class Sky
 			this.SpecularIBLMipsTotal,
 			true,
 			true);
-		this.#ClearAllSubresources(this.BRDFLookUpTableSRV, [1, 1, 1, 1]);
+		this.#ClearAllSubresources(this.SpecularIBLCubeSRV, [1,1,1,1]);
 	}
 
 	#GetNumTiles(tileSize, fullWidth, fullHeight)
