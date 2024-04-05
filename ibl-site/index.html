@@ -168,12 +168,20 @@
 								<div class="accordion-item">
 									<h2 class="accordion-header">
 										<button class="accordion-button p-2 collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#choose-map" aria-expanded="false" aria-controls="collapseTwo">
-											&#128194; Choose Environment
+											&#128194; Example Environments
 										</button>
 									</h2>
 									<div id="choose-map" class="accordion-collapse collapse" data-bs-parent="#loadAccordion">
 										<div class="accordion-body p-2">
-											Not yet implemented
+
+											<div class="input-group input-group-sm">
+												<select id="existingEnvMapSelection" class="form-select" onchange="setExistingEnvMap(this.value);">
+													<option value="0" selected>White Furnace</option>
+													<option value="1">Other</option>
+													<option value="2">Other 2</option>
+												</select>
+											</div>
+
 										</div>
 									</div>
 								</div>
