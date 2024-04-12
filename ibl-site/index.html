@@ -135,10 +135,10 @@
 								<input id="mipLevelRange" type="range" class="col form-control form-range p-3" min="0" max="16" value="0" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Mip Level: ' + this.value;" />
 							</div>
 
-							<!-- SKY MIP PREVIEW -->
-							<h6>&#128083; View IBL Assets</h6>
+							<!-- IBL ASSET PREVIEW -->
+							<h6>&#128083; Show IBL Assets</h6>
 
-							<div class="input-group input-group-sm mb-3">
+							<div class="input-group input-group-sm">
 								<select id="iblCubePreview" class="form-select" onchange="setIBLPreview(this.value);">
 									<option value="0" selected>None</option>
 									<option value="1">Env. BRDF Look Up Table (2D)</option>
@@ -147,9 +147,14 @@
 								</select>
 							</div>
 
+							<div class="row input-group input-group-sm ms-0 d-none" id="ibl-prev-mip-controls">
+								<label for="iblPrevMipRange" class="col-4 input-group-text">Mip Level: 0</label>
+								<input id="iblPrevMipRange" type="range" class="col form-control form-range p-3" min="0" max="16" value="0" oninput="setIblMipPreview(this.value); this.previousElementSibling.innerHTML = 'Mip Level: ' + this.value;" />
+							</div>
+
 
 							<!-- CHANGE ENV MAP -->
-							<h6>&#128256; Change Environment Map</h6>
+							<h6 class="mt-3">&#128256; Change Environment Map</h6>
 
 							<div class="accordion m-1 mb-3" id="loadAccordion">
 
@@ -257,8 +262,6 @@
 												<button id="button-load-hdr" type="button" class="btn btn-primary" onclick="loadHDR()">Load</button>
 											</div>
 
-
-
 											<div class="mt-2">
 												<label for="hdrExposure" class="form-label">Exposure Adjust: 0</label>
 												<input type="range" class="form-range" min="-10" max="10" step="0.001" value="0" id="hdrExposure" oninput="setHDRExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure Adjust: ' + this.value;" />
@@ -332,8 +335,8 @@
 							</select>
 
 							<div class="row input-group input-group-sm ms-0 mb-3 d-none" id="white-point-controls">
-								<label for="whitePointRange" class="col-4 input-group-text">White Point: 1</label>
-								<input id="whitePointRange" type="range" class="col form-control form-range p-3" min="0" max="10" step="0.01" value="1" oninput="setWhitePoint(this.value); this.previousElementSibling.innerHTML = 'White Point: ' + this.value;" />
+								<label for="whitePointRange" class="col-4 input-group-text">White Point: 10</label>
+								<input id="whitePointRange" type="range" class="col form-control form-range p-3" min="0" max="20" step="0.01" value="10" oninput="setWhitePoint(this.value); this.previousElementSibling.innerHTML = 'White Point: ' + this.value;" />
 							</div>
 
 						</div>
@@ -434,11 +437,12 @@
 		let skyMipLevelPreview = 0;
 		let iblPreview = 0;
 		let iblPreviewSize = 300;
+		let iblMipPreview = 0;
 
 		// Tone mapping
 		let tonemapType = 0;
 		let tonemapExposure = 0;
-		let tonemapWhitePoint = 1;
+		let tonemapWhitePoint = 10;
 
 		// Scene-related
 		let camera = null;
@@ -511,6 +515,18 @@
 		window.setIBLPreview = function (val)
 		{
 			iblPreview = val;
+
+			let el = document.getElementById("ibl-prev-mip-controls");
+
+			if (val == 3)
+				el.classList.remove("d-none");
+			else
+				el.classList.add("d-none");
+		}
+
+		window.setIblMipPreview = function (val)
+		{
+			iblMipPreview = val;
 		}
 
 		window.setScene = function (val)
@@ -545,6 +561,8 @@
 		{
 			skyMipLevelPreview = val;
 		}
+
+		
 
 		window.setHDRExposure = function (val)
 		{
@@ -748,879 +766,881 @@
 			TextureUtils.WriteDDSFile("brdf_look_up_table.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 		}
 
-		//async function main()
-		//{
-			// Grab canvas html element
-			let viewportElement = document.getElementById("viewport");
 
-			// Input manager setup
-			let input = new Input(viewportElement);
+		// Grab canvas html element
+		let viewportElement = document.getElementById("viewport");
 
-			// Init the API
-			const swapChainDesc = new DXGI_SWAP_CHAIN_DESC(
-				viewportElement.clientWidth,
-				viewportElement.clientHeight,
-				DXGI_FORMAT_R8G8B8A8_UNORM);
+		// Input manager setup
+		let input = new Input(viewportElement);
 
-			[d3dDevice, d3dContext, d3dSwapChain] =
-				D3D11CreateDeviceAndSwapChain(viewportElement, 0, swapChainDesc);
+		// Init the API
+		const swapChainDesc = new DXGI_SWAP_CHAIN_DESC(
+			viewportElement.clientWidth,
+			viewportElement.clientHeight,
+			DXGI_FORMAT_R8G8B8A8_UNORM);
 
-			// Set up initial viewport
-			let viewport = new D3D11_VIEWPORT(0, 0, viewportElement.clientWidth, viewportElement.clientHeight, 0, 1);
-			d3dContext.RSSetViewports([viewport]);
+		[d3dDevice, d3dContext, d3dSwapChain] =
+			D3D11CreateDeviceAndSwapChain(viewportElement, 0, swapChainDesc);
 
-			// Make an RTV of the back buffer
-			let backBuffer = d3dSwapChain.GetBuffer();
-			let rtv = d3dDevice.CreateRenderTargetView(backBuffer, null);
-			backBuffer.Release();
+		// Set up initial viewport
+		let viewport = new D3D11_VIEWPORT(0, 0, viewportElement.clientWidth, viewportElement.clientHeight, 0, 1);
+		d3dContext.RSSetViewports([viewport]);
 
-			// Create a depth buffer
-			let depthDesc = new D3D11_TEXTURE2D_DESC(
-				viewportElement.clientWidth,
-				viewportElement.clientHeight,
-				1,
-				1,
-				DXGI_FORMAT_D24_UNORM_S8_UINT,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_DEPTH_STENCIL,
-				0,
-				0);
-			let depthBuffer = d3dDevice.CreateTexture2D(depthDesc, null);
+		// Make an RTV of the back buffer
+		let backBuffer = d3dSwapChain.GetBuffer();
+		let rtv = d3dDevice.CreateRenderTargetView(backBuffer, null);
+		backBuffer.Release();
 
-			// Default DSV
-			let depthDSV = d3dDevice.CreateDepthStencilView(depthBuffer, null);
-			depthBuffer.Release();
+		// Create a depth buffer
+		let depthDesc = new D3D11_TEXTURE2D_DESC(
+			viewportElement.clientWidth,
+			viewportElement.clientHeight,
+			1,
+			1,
+			DXGI_FORMAT_D24_UNORM_S8_UINT,
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_DEPTH_STENCIL,
+			0,
+			0);
+		let depthBuffer = d3dDevice.CreateTexture2D(depthDesc, null);
 
-			// Set the default render targets
-			d3dContext.OMSetRenderTargets([rtv], depthDSV);
+		// Default DSV
+		let depthDSV = d3dDevice.CreateDepthStencilView(depthBuffer, null);
+		depthBuffer.Release();
 
-			// Ensure we're set for triangles
-			d3dContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+		// Set the default render targets
+		d3dContext.OMSetRenderTargets([rtv], depthDSV);
 
-			// Create an input layout
-			let inputElements = [];
-			inputElements[0] = new D3D11_INPUT_ELEMENT_DESC("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			inputElements[1] = new D3D11_INPUT_ELEMENT_DESC("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 3 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			inputElements[2] = new D3D11_INPUT_ELEMENT_DESC("NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 5 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			inputElements[3] = new D3D11_INPUT_ELEMENT_DESC("TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 8 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			let inputLayout = d3dDevice.CreateInputLayout(inputElements);
-			d3dContext.IASetInputLayout(inputLayout);
+		// Ensure we're set for triangles
+		d3dContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
-			// Create a sampler
-			let sampDesc = new D3D11_SAMPLER_DESC(
-				D3D11_FILTER_ANISOTROPIC,
-				D3D11_TEXTURE_ADDRESS_WRAP,
-				D3D11_TEXTURE_ADDRESS_WRAP,
-				D3D11_TEXTURE_ADDRESS_WRAP,
-				0,
-				16,
-				0,
-				0,
-				0,
-				D3D11_FLOAT32_MAX);
-			let sampler = d3dDevice.CreateSamplerState(sampDesc);
+		// Create an input layout
+		let inputElements = [];
+		inputElements[0] = new D3D11_INPUT_ELEMENT_DESC("POSITION", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 0, D3D11_INPUT_PER_VERTEX_DATA, 0);
+		inputElements[1] = new D3D11_INPUT_ELEMENT_DESC("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 3 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
+		inputElements[2] = new D3D11_INPUT_ELEMENT_DESC("NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 5 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
+		inputElements[3] = new D3D11_INPUT_ELEMENT_DESC("TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 8 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
+		let inputLayout = d3dDevice.CreateInputLayout(inputElements);
+		d3dContext.IASetInputLayout(inputLayout);
 
-			// Make a clamp sampler, too
-			sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-			sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-			sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-			let clampSampler = d3dDevice.CreateSamplerState(sampDesc);
+		// Create a sampler
+		let sampDesc = new D3D11_SAMPLER_DESC(
+			D3D11_FILTER_ANISOTROPIC,
+			D3D11_TEXTURE_ADDRESS_WRAP,
+			D3D11_TEXTURE_ADDRESS_WRAP,
+			D3D11_TEXTURE_ADDRESS_WRAP,
+			0,
+			16,
+			0,
+			0,
+			0,
+			D3D11_FLOAT32_MAX);
+		let sampler = d3dDevice.CreateSamplerState(sampDesc);
 
+		// Make a clamp sampler, too
+		sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+		sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+		sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+		let clampSampler = d3dDevice.CreateSamplerState(sampDesc);
 
 
-			// Create several solid textures
-			let blackSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 0, 0, 0, 255);
-			let whiteSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 255, 255, 255, 255);
-			let blueSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 0, 0, 192, 255);
-			let greenSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 0, 128, 0, 255);
-			let redSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 255, 0, 0, 255);
-			let flatNormalsSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 127, 127, 255, 255);
 
-			// Array of greyscale roughness textures
-			let solidRoughSRVs = [];
-			for (let i = 0; i < 11; i++)
+		// Create several solid textures
+		let blackSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 0, 0, 0, 255);
+		let whiteSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 255, 255, 255, 255);
+		let blueSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 0, 0, 192, 255);
+		let greenSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 0, 128, 0, 255);
+		let redSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 255, 0, 0, 255);
+		let flatNormalsSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 127, 127, 255, 255);
+
+		// Array of greyscale roughness textures
+		let solidRoughSRVs = [];
+		for (let i = 0; i < 11; i++)
+		{
+			let r = Math.floor((i / 10.0) * 255);
+			solidRoughSRVs.push(TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, r, r, r, 255));
+		}
+
+		// Mesh loading
+		let sphereMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/sphere_blender.obj");
+		let helixMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/helix.obj");
+		let cubeMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/cube.obj");
+
+		// Camera
+		//let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
+		camera = new OrbitCamera(15, viewportElement.clientWidth / viewportElement.clientHeight);
+
+
+		// Create shaders
+		let ps = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
+		let vs = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
+		let solidPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
+		let mipReducePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/MipReducePS.hlsl"));
+		let skyVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyVS.hlsl"));
+		let skyPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyPS.hlsl"));
+		let tonemapPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/TonemapPS.hlsl"));
+		let postprocPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/BlurPS.hlsl"));
+		let quadVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/QuadVS.hlsl"));
+		let fullscreenVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/FullscreenVS.hlsl"));
+		let simpleTexturePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
+		let cubePreviewPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewPS.hlsl"));
+		let cubePreviewVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewVS.hlsl"));
+
+		let equirectToCubePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
+
+		// Shaders for IBL
+		let brdfLutPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
+		let iblIrradiancePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
+		let iblSpecularPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
+
+
+		// Load a cube map
+		//let skySRV = await loadTextureCube(
+		//	d3dDevice,
+		//	d3dContext,
+		//	[
+		//		"../assets/skies/cloudsblue/right.png",
+		//		"../assets/skies/cloudsblue/left.png",
+		//		"../assets/skies/cloudsblue/up.png",
+		//		"../assets/skies/cloudsblue/down.png",
+		//		"../assets/skies/cloudsblue/front.png",
+		//		"../assets/skies/cloudsblue/back.png"
+		//	],
+		//	false,
+		//	true
+		//);
+
+		// Create the sky object
+		sky = new Sky(d3dDevice, d3dContext,
+			skyVS, skyPS, cubeMesh,
+			DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
+			DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
+			DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
+			equirectToCubePS, mipReducePS, fullscreenVS,
+			true, 128);
+
+		let [width, height, data] = await TextureUtils.LoadHDRFile("../assets/skies/partly_cloudy_2k.hdr");
+		sky.LoadEquirectHDR(width, height, data, hdrExposure);
+		//sky.LoadCubeMap(skySRV, false);
+
+
+		// ----------------- Materials --------------------
+		let metal0 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_0.png");
+		let metal1 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_1.png");
+
+		let matCobble = new Material(vs, ps, new Vector3(1, 1, 1));
+		matCobble.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_albedo.png"));
+		matCobble.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_normals.png"));
+		matCobble.SetPSTextureSRV(2, metal0);
+		matCobble.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_roughness.png"));
+		matCobble.SetPSSamplerState(0, sampler);
+		matCobble.SetPSSamplerState(1, clampSampler);
+
+		let matBronze = new Material(vs, ps, new Vector3(1, 1, 1));
+		matBronze.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_albedo.png"));
+		matBronze.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_normals.png"));
+		matBronze.SetPSTextureSRV(2, metal1);
+		matBronze.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_roughness.png"));
+		matBronze.SetPSSamplerState(0, sampler);
+		matBronze.SetPSSamplerState(1, clampSampler);
+
+		let matFloor = new Material(vs, ps, new Vector3(1, 1, 1));
+		matFloor.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_albedo.png"));
+		matFloor.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_normals.png"));
+		matFloor.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_metal.png"));
+		matFloor.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_roughness.png"));
+		matFloor.SetPSSamplerState(0, sampler);
+		matFloor.SetPSSamplerState(1, clampSampler);
+
+		let matScratched = new Material(vs, ps, new Vector3(1, 1, 1));
+		matScratched.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_albedo.png"));
+		matScratched.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_normals.png"));
+		matScratched.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_metal.png"));
+		matScratched.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_roughness.png"));
+		matScratched.SetPSSamplerState(0, sampler);
+		matScratched.SetPSSamplerState(1, clampSampler);
+
+		let matMetalPlate = new Material(vs, ps, new Vector3(1, 1, 1));
+		matMetalPlate.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_albedo.png"));
+		matMetalPlate.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_normals.png"));
+		matMetalPlate.SetPSTextureSRV(2, metal1);
+		matMetalPlate.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_rough.png"));
+		matMetalPlate.SetPSSamplerState(0, sampler);
+		matMetalPlate.SetPSSamplerState(1, clampSampler);
+
+		let matSlab = new Material(vs, ps, new Vector3(1, 1, 1));
+		matSlab.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_albedo.png"));
+		matSlab.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_normals.png"));
+		matSlab.SetPSTextureSRV(2, metal0);
+		matSlab.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_rough.png"));
+		matSlab.SetPSSamplerState(0, sampler);
+		matSlab.SetPSSamplerState(1, clampSampler);
+
+		let matStone = new Material(vs, ps, new Vector3(1, 1, 1));
+		matStone.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_albedo.png"));
+		matStone.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_normals.png"));
+		matStone.SetPSTextureSRV(2, metal0);
+		matStone.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_rough.png"));
+		matStone.SetPSSamplerState(0, sampler);
+		matStone.SetPSSamplerState(1, clampSampler);
+
+		let matWood = new Material(vs, ps, new Vector3(1, 1, 1));
+		matWood.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_albedo.png"));
+		matWood.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_normals.png"));
+		matWood.SetPSTextureSRV(2, metal0);
+		matWood.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_rough.png"));
+		matWood.SetPSSamplerState(0, sampler);
+		matWood.SetPSSamplerState(1, clampSampler);
+
+		let matCustom = new Material(vs, ps, new Vector3(1, 1, 1));
+		matCustom.SetPSTextureSRV(0, whiteSRV);
+		matCustom.SetPSTextureSRV(1, flatNormalsSRV);
+		matCustom.SetPSTextureSRV(2, whiteSRV);
+		matCustom.SetPSTextureSRV(3, whiteSRV);
+		matCustom.SetPSSamplerState(0, sampler);
+		matCustom.SetPSSamplerState(1, clampSampler);
+
+		// Order must match UI!
+		materails.push(matCustom);
+		materails.push(matCobble);
+		materails.push(matBronze);
+		materails.push(matFloor);
+		materails.push(matScratched);
+		materails.push(matMetalPlate);
+		materails.push(matSlab);
+		materails.push(matStone);
+		materails.push(matWood);
+
+		// -------------- Entity setup -------------------
+		// --- SPHERE SCENE ---
+		let sphereEntity = new Entity(
+			sphereMesh,
+			matCustom);
+		sphereEntity.Transform.ScaleUniform(7);
+
+		scenes.push([sphereEntity]);
+
+		// --- HELIX SCENE ---
+		let helixEntity = new Entity(
+			helixMesh,
+			matCustom);
+		helixEntity.Transform.ScaleUniform(3);
+
+		scenes.push([helixEntity]);
+
+		// --- CUBE SCENE ---
+		let cubeEntity = new Entity(
+			cubeMesh,
+			matCustom);
+		cubeEntity.Transform.ScaleUniform(4);
+
+		scenes.push([cubeEntity]);
+
+		// --- ROUGHNESS SPHERES ---
+		let roughRowTextures = [
+			// Albedo,	normals,        metals
+			[whiteSRV, flatNormalsSRV, whiteSRV], // Metal
+			[whiteSRV, flatNormalsSRV, blackSRV], // White plastic
+			[blackSRV, flatNormalsSRV, blackSRV]  // Black plastic
+		];
+
+		let spacing = 1.1;
+		let startY = roughRowTextures.length / 2;
+		let roughScene = [];
+		for (let row = 0; row < roughRowTextures.length; row++)
+		{
+			for (let col = 0; col < 11; col++)
 			{
-				let r = Math.floor((i / 10.0) * 255);
-				solidRoughSRVs.push(TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, r, r, r, 255));
+				let m = new Material(vs, ps, new Vector3(1, 1, 1));
+				m.SetPSTextureSRV(0, roughRowTextures[row][0]);
+				m.SetPSTextureSRV(1, roughRowTextures[row][1]);
+				m.SetPSTextureSRV(2, roughRowTextures[row][2]);
+				m.SetPSTextureSRV(3, solidRoughSRVs[col]);
+				m.SetPSSamplerState(0, sampler);
+				m.SetPSSamplerState(1, clampSampler);
+
+				let e = new Entity(sphereMesh, m);
+				e.Transform.SetPosition((col - 5) * spacing, startY - row * spacing, 0);
+				e.Transform.SetScaleUniform(1);
+
+				roughScene.push(e);
 			}
-
-			// Mesh loading
-			let sphereMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/sphere_blender.obj");
-			let helixMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/helix.obj");
-			let cubeMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/cube.obj");
-
-			// Camera
-			//let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
-			camera = new OrbitCamera(15, viewportElement.clientWidth / viewportElement.clientHeight);
+		}
+		scenes.push(roughScene);
 
 
-			// Create shaders
-			let ps = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
-			let vs = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
-			let solidPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
-			let mipReducePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/MipReducePS.hlsl"));
-			let skyVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyVS.hlsl"));
-			let skyPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyPS.hlsl"));
-			let tonemapPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/TonemapPS.hlsl"));
-			let postprocPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/BlurPS.hlsl"));
-			let quadVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/QuadVS.hlsl"));
-			let fullscreenVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/FullscreenVS.hlsl"));
-			let simpleTexturePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
-			let cubePreviewPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewPS.hlsl"));
-			let cubePreviewVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewVS.hlsl"));
+		// --- RGB SPHERES ---
+		let rgbRowTextures = [
+			// Albedo,	normals,        metals
+			[whiteSRV, flatNormalsSRV, blackSRV], // White plastic
+			[redSRV, flatNormalsSRV, blackSRV],   // Red plastic
+			[greenSRV, flatNormalsSRV, blackSRV], // Green plastic
+			[blueSRV, flatNormalsSRV, blackSRV],  // Blue plastic
+			[blackSRV, flatNormalsSRV, blackSRV]  // Black plastic
+		];
 
-			let equirectToCubePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
-
-			// Shaders for IBL
-			let brdfLutPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
-			let iblIrradiancePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
-			let iblSpecularPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
-
-
-			// Load a cube map
-			//let skySRV = await loadTextureCube(
-			//	d3dDevice,
-			//	d3dContext,
-			//	[
-			//		"../assets/skies/cloudsblue/right.png",
-			//		"../assets/skies/cloudsblue/left.png",
-			//		"../assets/skies/cloudsblue/up.png",
-			//		"../assets/skies/cloudsblue/down.png",
-			//		"../assets/skies/cloudsblue/front.png",
-			//		"../assets/skies/cloudsblue/back.png"
-			//	],
-			//	false,
-			//	true
-			//);
-
-			// Create the sky object
-			sky = new Sky(d3dDevice, d3dContext,
-				skyVS, skyPS, cubeMesh,
-				DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
-				DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
-				DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
-				equirectToCubePS, mipReducePS, fullscreenVS,
-				true, 128);
-
-			let [width, height, data] = await TextureUtils.LoadHDRFile("../assets/skies/partly_cloudy_2k.hdr");
-			sky.LoadEquirectHDR(width, height, data, hdrExposure);
-			//sky.LoadCubeMap(skySRV, false);
-
-
-			// ----------------- Materials --------------------
-			let metal0 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_0.png");
-			let metal1 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_1.png");
-
-			let matCobble = new Material(vs, ps, new Vector3(1, 1, 1));
-			matCobble.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_albedo.png"));
-			matCobble.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_normals.png"));
-			matCobble.SetPSTextureSRV(2, metal0);
-			matCobble.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_roughness.png"));
-			matCobble.SetPSSamplerState(0, sampler);
-			matCobble.SetPSSamplerState(1, clampSampler);
-
-			let matBronze = new Material(vs, ps, new Vector3(1, 1, 1));
-			matBronze.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_albedo.png"));
-			matBronze.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_normals.png"));
-			matBronze.SetPSTextureSRV(2, metal1);
-			matBronze.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_roughness.png"));
-			matBronze.SetPSSamplerState(0, sampler);
-			matBronze.SetPSSamplerState(1, clampSampler);
-
-			let matFloor = new Material(vs, ps, new Vector3(1, 1, 1));
-			matFloor.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_albedo.png"));
-			matFloor.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_normals.png"));
-			matFloor.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_metal.png"));
-			matFloor.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_roughness.png"));
-			matFloor.SetPSSamplerState(0, sampler);
-			matFloor.SetPSSamplerState(1, clampSampler);
-
-			let matScratched = new Material(vs, ps, new Vector3(1, 1, 1));
-			matScratched.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_albedo.png"));
-			matScratched.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_normals.png"));
-			matScratched.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_metal.png"));
-			matScratched.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_roughness.png"));
-			matScratched.SetPSSamplerState(0, sampler);
-			matScratched.SetPSSamplerState(1, clampSampler);
-
-			let matMetalPlate = new Material(vs, ps, new Vector3(1, 1, 1));
-			matMetalPlate.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_albedo.png"));
-			matMetalPlate.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_normals.png"));
-			matMetalPlate.SetPSTextureSRV(2, metal1);
-			matMetalPlate.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_rough.png"));
-			matMetalPlate.SetPSSamplerState(0, sampler);
-			matMetalPlate.SetPSSamplerState(1, clampSampler);
-
-			let matSlab = new Material(vs, ps, new Vector3(1, 1, 1));
-			matSlab.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_albedo.png"));
-			matSlab.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_normals.png"));
-			matSlab.SetPSTextureSRV(2, metal0);
-			matSlab.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_rough.png"));
-			matSlab.SetPSSamplerState(0, sampler);
-			matSlab.SetPSSamplerState(1, clampSampler);
-
-			let matStone = new Material(vs, ps, new Vector3(1, 1, 1));
-			matStone.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_albedo.png"));
-			matStone.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_normals.png"));
-			matStone.SetPSTextureSRV(2, metal0);
-			matStone.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_rough.png"));
-			matStone.SetPSSamplerState(0, sampler);
-			matStone.SetPSSamplerState(1, clampSampler);
-
-			let matWood = new Material(vs, ps, new Vector3(1, 1, 1));
-			matWood.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_albedo.png"));
-			matWood.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_normals.png"));
-			matWood.SetPSTextureSRV(2, metal0);
-			matWood.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_rough.png"));
-			matWood.SetPSSamplerState(0, sampler);
-			matWood.SetPSSamplerState(1, clampSampler);
-
-			let matCustom = new Material(vs, ps, new Vector3(1, 1, 1));
-			matCustom.SetPSTextureSRV(0, whiteSRV);
-			matCustom.SetPSTextureSRV(1, flatNormalsSRV);
-			matCustom.SetPSTextureSRV(2, whiteSRV);
-			matCustom.SetPSTextureSRV(3, whiteSRV);
-			matCustom.SetPSSamplerState(0, sampler);
-			matCustom.SetPSSamplerState(1, clampSampler);
-
-			// Order must match UI!
-			materails.push(matCustom);
-			materails.push(matCobble);
-			materails.push(matBronze);
-			materails.push(matFloor);
-			materails.push(matScratched);
-			materails.push(matMetalPlate);
-			materails.push(matSlab);
-			materails.push(matStone);
-			materails.push(matWood);
-
-			// -------------- Entity setup -------------------
-			// --- SPHERE SCENE ---
-			let sphereEntity = new Entity(
-				sphereMesh,
-				matCustom);
-			sphereEntity.Transform.ScaleUniform(7);
-
-			scenes.push([sphereEntity]);
-
-			// --- HELIX SCENE ---
-			let helixEntity = new Entity(
-				helixMesh,
-				matCustom);
-			helixEntity.Transform.ScaleUniform(3);
-
-			scenes.push([helixEntity]);
-
-			// --- CUBE SCENE ---
-			let cubeEntity = new Entity(
-				cubeMesh,
-				matCustom);
-			cubeEntity.Transform.ScaleUniform(4);
-
-			scenes.push([cubeEntity]);
-
-			// --- ROUGHNESS SPHERES ---
-			let roughRowTextures = [
-				// Albedo,	normals,        metals
-				[whiteSRV, flatNormalsSRV, whiteSRV], // Metal
-				[whiteSRV, flatNormalsSRV, blackSRV], // White plastic
-				[blackSRV, flatNormalsSRV, blackSRV]  // Black plastic
-			];
-
-			let spacing = 1.1;
-			let startY = roughRowTextures.length / 2;
-			let roughScene = [];
-			for (let row = 0; row < roughRowTextures.length; row++)
+		startY = rgbRowTextures.length / 2;
+		let rgbScene = [];
+		for (let row = 0; row < rgbRowTextures.length; row++)
+		{
+			for (let col = 0; col < 11; col++)
 			{
-				for (let col = 0; col < 11; col++)
-				{
-					let m = new Material(vs, ps, new Vector3(1, 1, 1));
-					m.SetPSTextureSRV(0, roughRowTextures[row][0]);
-					m.SetPSTextureSRV(1, roughRowTextures[row][1]);
-					m.SetPSTextureSRV(2, roughRowTextures[row][2]);
-					m.SetPSTextureSRV(3, solidRoughSRVs[col]);
-					m.SetPSSamplerState(0, sampler);
-					m.SetPSSamplerState(1, clampSampler);
+				let m = new Material(vs, ps, new Vector3(1, 1, 1));
+				m.SetPSTextureSRV(0, rgbRowTextures[row][0]);
+				m.SetPSTextureSRV(1, rgbRowTextures[row][1]);
+				m.SetPSTextureSRV(2, rgbRowTextures[row][2]);
+				m.SetPSTextureSRV(3, solidRoughSRVs[col]);
+				m.SetPSSamplerState(0, sampler);
+				m.SetPSSamplerState(1, clampSampler);
 
-					let e = new Entity(sphereMesh, m);
-					e.Transform.SetPosition((col - 5) * spacing, startY - row * spacing, 0);
-					e.Transform.SetScaleUniform(1);
+				let e = new Entity(sphereMesh, m);
+				e.Transform.SetPosition((col - 5) * spacing, startY - row * spacing, 0);
+				e.Transform.SetScaleUniform(1);
 
-					roughScene.push(e);
-				}
+				rgbScene.push(e);
 			}
-			scenes.push(roughScene);
+		}
+		scenes.push(rgbScene);
 
 
-			// --- RGB SPHERES ---
-			let rgbRowTextures = [
-				// Albedo,	normals,        metals
-				[whiteSRV, flatNormalsSRV, blackSRV], // White plastic
-				[redSRV, flatNormalsSRV, blackSRV],   // Red plastic
-				[greenSRV, flatNormalsSRV, blackSRV], // Green plastic
-				[blueSRV, flatNormalsSRV, blackSRV],  // Blue plastic
-				[blackSRV, flatNormalsSRV, blackSRV]  // Black plastic
-			];
+		// ----------- Lighting setups ---------------
 
-			startY = rgbRowTextures.length / 2;
-			let rgbScene = [];
-			for (let row = 0; row < rgbRowTextures.length; row++)
+		// --- No lights ---
+		lightingSetups[Lighting_None] = [];
+
+		// --- One Dir Light ---
+		lightingSetups[Lighting_OneDir] = [
+			new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1)))
+		];
+
+		// --- Three Dir Lights ---
+		lightingSetups[Lighting_ThreeDir] = [
+			new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1))),
+			new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(-1, -0.1, -0.1))),
+			new Light(Light.TypeDirectional, Vector3.One, 0.3, Vector3.Normalize(new Vector3(0, 1, -0.5)))
+		];
+
+		// --- Eight Point Lights ---
+		lightingSetups[Lighting_EightPoints] = [];
+		for (let i = 0; i < 8; i++)
+		{
+			let color = Vector3.One;
+			if (i % 4 == 1) color = Vector3.UnitX;
+			else if (i % 4 == 2) color = Vector3.UnitY;
+			else if (i % 4 == 3) color = Vector3.UnitZ;
+
+			let offset = (i / 4) * Math.PI * 2;
+			let s = Math.sin(offset);
+			let c = Math.cos(offset);
+
+			let pos = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
+
+			lightingSetups[Lighting_EightPoints].push(new Light(
+				Light.TypePoint,
+				color,
+				1.0,
+				Vector3.Zero,
+				pos,
+				10
+			));
+		}
+
+		// Texture saving test
+		let ddsTest = false;
+		if (ddsTest)
+		{
+			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(d3dDevice, d3dContext, irrSRV);
+			TextureUtils.WriteDDSFile("spec.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
+		}
+
+
+		// Create constant buffers -----------------
+		let cbDesc = new D3D11_BUFFER_DESC(
+			0, // Will be filled in below
+			D3D11_USAGE_DYNAMIC,
+			D3D11_BIND_CONSTANT_BUFFER,
+			D3D11_CPU_ACCESS_WRITE,
+			0, 0);
+
+		// VS Per Frame = 2 matrices (view & proj)
+		cbDesc.ByteWidth = 16 * 2 * Float32Array.BYTES_PER_ELEMENT;
+		let vsPerFrameCB = d3dDevice.CreateBuffer(cbDesc, null);
+		let vsPerFrameData = new MappedArray(16 * 2);
+		vsPerFrameData.PushMapping("view", 16);
+		vsPerFrameData.PushMapping("proj", 16);
+
+		// VS Per Object = 1 matrix (world)
+		cbDesc.ByteWidth = 16 * Float32Array.BYTES_PER_ELEMENT;
+		let vsPerObjectCB = d3dDevice.CreateBuffer(cbDesc, null);
+		let vsPerObjectData = new MappedArray(16);
+		vsPerObjectData.PushMapping("world", 16);
+
+		// PS Per Frame = 8 floats + 64 lights
+		cbDesc.ByteWidth =
+			8 * Float32Array.BYTES_PER_ELEMENT +
+			MaxLights * Light.SizeInBytes;
+		let psPerFrameCB = d3dDevice.CreateBuffer(cbDesc, null);
+		let psPerFrameData = new MappedArray(cbDesc.ByteWidth / Float32Array.BYTES_PER_ELEMENT);
+		psPerFrameData.PushMapping("cameraPos", 3);
+		psPerFrameData.PushMapping("pad", 1);
+		psPerFrameData.PushMapping("iblSpecMips", 1);
+		psPerFrameData.PushMapping("lightCount", 1);
+		psPerFrameData.PushMapping("envIsHDR", 1);
+		psPerFrameData.PushMapping("pad2", 1);
+		psPerFrameData.PushMapping("lights", MaxLights * Light.SizeInFloats);
+
+		// PS Per Object = 8 floats (RGB color tint + roughness + metalness + float3 padding)
+		cbDesc.ByteWidth = 8 * Float32Array.BYTES_PER_ELEMENT;
+		let psPerObjectCB = d3dDevice.CreateBuffer(cbDesc, null);
+		let psPerObjectData = new MappedArray(8);
+		psPerObjectData.PushMapping("tint", 3);
+		psPerObjectData.PushMapping("pad", 1);
+		psPerObjectData.PushMapping("roughness", 1);
+		psPerObjectData.PushMapping("metalness", 1);
+
+		// Set initial values
+		psPerObjectData.SetData("roughness", 1);
+		psPerObjectData.SetData("metalness", 1);
+
+		// PS IBL prev data
+		cbDesc.ByteWidth = 4 * Float32Array.BYTES_PER_ELEMENT;
+		let psIBLPrevCB = d3dDevice.CreateBuffer(cbDesc, null);
+		let psIBLPrevData = new MappedArray(4);
+		psIBLPrevData.PushMapping("mipLevel", 1);
+
+		// Cbuffer for solid color
+		let solidCBDesc = new D3D11_BUFFER_DESC(
+			4 * Float32Array.BYTES_PER_ELEMENT,
+			D3D11_USAGE_DYNAMIC,
+			D3D11_BIND_CONSTANT_BUFFER,
+			D3D11_CPU_ACCESS_WRITE,
+			0, 0);
+		let solidCB = d3dDevice.CreateBuffer(solidCBDesc, null);
+		let solidData = new Float32Array(4);
+		solidData.set([1, 1, 1], 0);
+		d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
+
+
+		// Cbuffer for quad UI
+		let quadCBDesc = new D3D11_BUFFER_DESC(
+			8 * Float32Array.BYTES_PER_ELEMENT,
+			D3D11_USAGE_DYNAMIC,
+			D3D11_BIND_CONSTANT_BUFFER,
+			D3D11_CPU_ACCESS_WRITE,
+			0, 0);
+		let quadCB = d3dDevice.CreateBuffer(quadCBDesc, null);
+		let quadData = new Float32Array(8);
+
+		// Post process resources
+		let ppTexDesc = new D3D11_TEXTURE2D_DESC(
+			viewportElement.width,
+			viewportElement.height,
+			1,
+			1,
+			DXGI_FORMAT_R32G32B32A32_FLOAT,
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
+			0,
+			0);
+		let ppTexture = d3dDevice.CreateTexture2D(ppTexDesc, [null]);
+		let ppSRV = d3dDevice.CreateShaderResourceView(ppTexture, null);
+		let ppRTV = d3dDevice.CreateRenderTargetView(ppTexture, null);
+		ppTexture.Release();
+
+		// Post process constant buffer
+		let ppCBDesc = new D3D11_BUFFER_DESC(
+			Float32Array.BYTES_PER_ELEMENT * 4,
+			D3D11_USAGE_DYNAMIC,
+			D3D11_BIND_CONSTANT_BUFFER,
+			D3D11_CPU_ACCESS_WRITE,
+			0, 0);
+		let ppCB = d3dDevice.CreateBuffer(ppCBDesc, null);
+		let ppData = new Float32Array(4);
+
+		function showLoading(text)
+		{
+			let load = document.getElementById("loading-container");
+			load.classList.remove("invisible");
+
+			let loadText = document.getElementById("loading-text");
+			loadText.innerHTML = text;
+		}
+
+		function hideLoading()
+		{
+			let load = document.getElementById("loading-container");
+			load.classList.add("invisible");
+		}
+
+		function update(deltaTime, totalTime)
+		{
+			if (input.GetDoubleClick())
+				camera.ResetFocusPosition();
+
+			camera.Update(input, deltaTime);
+
+			// Handle cursor for canvas (None = grab; Left = grabbing; Right = move)
+			if (input.IsMouseDown(MouseButtons.Left))
+				viewportElement.style.cursor = "grabbing";
+			else if (input.IsMouseDown(MouseButtons.Middle))
+				viewportElement.style.cursor = "move";
+			else if (input.IsMouseDown(MouseButtons.Right))
+				viewportElement.style.cursor = "url('../assets/cursors/wasd.png') 16 16, move";
+			else
+				viewportElement.style.cursor = "grab";
+
+			// Check for any progressive IBL updates
+			sky.Update();
+
+			// Check for sky assets being ready
+			let saveSky = document.getElementById("buttonSaveSky");
+			let saveIBL = document.getElementById("buttonSaveIBL");
+			let saveIrr = document.getElementById("buttonSaveIrr");
+			let saveLUT = document.getElementById("buttonSaveLUT");
+
+			// TODO: Tie disabling to the actual new skybox load
+			if (saveSky.disabled && sky.SkyCubeSRV != null) saveSky.disabled = false;
+			else if (!saveSky.disabled && sky.SkyCubeSRV == null) saveSky.disabled = true;
+
+			if (saveIBL.disabled && sky.SpecularIBLReady) saveIBL.disabled = false;
+			else if (!saveIBL.disabled && !sky.SpecularIBLReady) saveIBL.disabled = true;
+
+			if (saveIrr.disabled && sky.IrradianceReady) saveIrr.disabled = false;
+			else if (!saveIrr.disabled && !sky.IrradianceReady) saveIrr.disabled = true;
+
+			if (saveLUT.disabled && sky.BRDFLookUpTableReady) saveLUT.disabled = false;
+			else if (!saveLUT.disabled && !sky.BRDFLookUpTableReady) saveLUT.disabled = true;
+
+			// Set up loading messages based on order of IBL map creation
+			if (!sky.BRDFLookUpTableReady)
+				showLoading("Generating environment BRDF look up table");
+			else if (!sky.IrradianceReady)
+				showLoading("Generating environment irradiance map");
+			else if (!sky.SpecularIBLReady)
+				showLoading("Generating environment specular convolution map");
+			else
+				hideLoading();
+
+			// Update the point lights
+			for (let i = 0; i < lightingSetups[Lighting_EightPoints].length; i++)
 			{
-				for (let col = 0; col < 11; col++)
-				{
-					let m = new Material(vs, ps, new Vector3(1, 1, 1));
-					m.SetPSTextureSRV(0, rgbRowTextures[row][0]);
-					m.SetPSTextureSRV(1, rgbRowTextures[row][1]);
-					m.SetPSTextureSRV(2, rgbRowTextures[row][2]);
-					m.SetPSTextureSRV(3, solidRoughSRVs[col]);
-					m.SetPSSamplerState(0, sampler);
-					m.SetPSSamplerState(1, clampSampler);
-
-					let e = new Entity(sphereMesh, m);
-					e.Transform.SetPosition((col - 5) * spacing, startY - row * spacing, 0);
-					e.Transform.SetScaleUniform(1);
-
-					rgbScene.push(e);
-				}
-			}
-			scenes.push(rgbScene);
-
-
-			// ----------- Lighting setups ---------------
-
-			// --- No lights ---
-			lightingSetups[Lighting_None] = [];
-
-			// --- One Dir Light ---
-			lightingSetups[Lighting_OneDir] = [
-				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1)))
-			];
-
-			// --- Three Dir Lights ---
-			lightingSetups[Lighting_ThreeDir] = [
-				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1))),
-				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(-1, -0.1, -0.1))),
-				new Light(Light.TypeDirectional, Vector3.One, 0.3, Vector3.Normalize(new Vector3(0, 1, -0.5)))
-			];
-
-			// --- Eight Point Lights ---
-			lightingSetups[Lighting_EightPoints] = [];
-			for (let i = 0; i < 8; i++)
-			{
-				let color = Vector3.One;
-				if (i % 4 == 1) color = Vector3.UnitX;
-				else if (i % 4 == 2) color = Vector3.UnitY;
-				else if (i % 4 == 3) color = Vector3.UnitZ;
-
 				let offset = (i / 4) * Math.PI * 2;
-				let s = Math.sin(offset);
-				let c = Math.cos(offset);
+				let s = Math.sin(totalTime + offset);
+				let c = Math.cos(totalTime + offset);
 
-				let pos = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
+				lightingSetups[Lighting_EightPoints][i].Position = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
+			}
+		}
 
-				lightingSetups[Lighting_EightPoints].push(new Light(
-					Light.TypePoint,
-					color,
-					1.0,
-					Vector3.Zero,
-					pos,
-					10
-				));
+		function checkForResize()
+		{
+			// Has the window changed size?
+			if (viewportElement.width != viewportElement.clientWidth ||
+				viewportElement.height != viewportElement.clientHeight)
+			{
+				// Need to resize, so first release all references
+				rtv.Release(); // Back buffer
+				depthDSV.Release(); // Depth buffer
+
+				// Ask the swap chain to resize and update the canvas
+				viewportElement.width = viewportElement.clientWidth;
+				viewportElement.height = viewportElement.clientHeight;
+				d3dSwapChain.ResizeBuffers(viewportElement.clientWidth, viewportElement.clientHeight);
+
+				// Make new RTV
+				let bb = d3dSwapChain.GetBuffer();
+				rtv = d3dDevice.CreateRenderTargetView(bb, null);
+				bb.Release();
+
+				// Make new depth buffer
+				let depthDesc = new D3D11_TEXTURE2D_DESC(
+					viewportElement.clientWidth,
+					viewportElement.clientHeight,
+					1,
+					1,
+					DXGI_FORMAT_D24_UNORM_S8_UINT,
+					new DXGI_SAMPLE_DESC(1, 0),
+					D3D11_USAGE_DEFAULT,
+					D3D11_BIND_DEPTH_STENCIL,
+					0,
+					0);
+				let depthBuffer = d3dDevice.CreateTexture2D(depthDesc, null);
+
+				// Default DSV
+				depthDSV = d3dDevice.CreateDepthStencilView(depthBuffer, null);
+				depthBuffer.Release();
+
+				// Set the new views
+				d3dContext.OMSetRenderTargets([rtv], depthDSV);
+
+				// Update aspect ratio and camera
+				camera.AspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
+
+				// Update rendering viewport, too
+				viewport.Width = viewportElement.clientWidth;
+				viewport.Height = viewportElement.clientHeight;
+				d3dContext.RSSetViewports([viewport]);
+
+				// Create new post processing resource, too
+				ppSRV.Release();
+				ppRTV.Release();
+				let ppTexDesc = new D3D11_TEXTURE2D_DESC(
+					viewportElement.width,
+					viewportElement.height,
+					1,
+					1,
+					DXGI_FORMAT_R32G32B32A32_FLOAT,
+					new DXGI_SAMPLE_DESC(1, 0),
+					D3D11_USAGE_DEFAULT,
+					D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
+					0,
+					0);
+				let ppTexture = d3dDevice.CreateTexture2D(ppTexDesc, [null]);
+				ppSRV = d3dDevice.CreateShaderResourceView(ppTexture, null);
+				ppRTV = d3dDevice.CreateRenderTargetView(ppTexture, null);
+				ppTexture.Release();
+			}
+		}
+
+
+		function draw(deltaTime, totalTime)
+		{
+			checkForResize();
+
+			// Set up tone mapping if necessary
+			if (sky.IsHDR())
+			{
+				d3dContext.OMSetRenderTargets([ppRTV], depthDSV);
 			}
 
-			// Texture saving test
-			let ddsTest = false;
-			if (ddsTest)
+			// Set VS constant buffers for main draw
+			d3dContext.VSSetConstantBuffers(0, [vsPerFrameCB, vsPerObjectCB]);
+
+			// Set per-frame data and update CB
+			vsPerFrameData.SetData("view", camera.ViewMatrix);
+			vsPerFrameData.SetData("proj", camera.ProjectionMatrix);
+			d3dContext.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
+
+			// Clear the frame
+			let black = [0, 0, 0, 1];
+			let cornflowerBlue = [0.39, 0.58, 0.93, 1];
+			d3dContext.ClearRenderTargetView(rtv, black);
+			d3dContext.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
+
+			// Light sphere draws
+			if (currentLighting == Lighting_EightPoints)
 			{
-				let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(d3dDevice, d3dContext, irrSRV);
-				TextureUtils.WriteDDSFile("spec.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
-			}
+				// Swap to sphere buffers
+				d3dContext.VSSetShader(vs);
+				d3dContext.PSSetShader(solidPS);
+				d3dContext.PSSetConstantBuffers(0, [solidCB]);
+				d3dContext.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+				d3dContext.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
+				let sMat = Matrix4x4.ScaleUniform(0.5);
 
-			// Create constant buffers -----------------
-			let cbDesc = new D3D11_BUFFER_DESC(
-				0, // Will be filled in below
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-
-			// VS Per Frame = 2 matrices (view & proj)
-			cbDesc.ByteWidth = 16 * 2 * Float32Array.BYTES_PER_ELEMENT;
-			let vsPerFrameCB = d3dDevice.CreateBuffer(cbDesc, null);
-			let vsPerFrameData = new MappedArray(16 * 2);
-			vsPerFrameData.PushMapping("view", 16);
-			vsPerFrameData.PushMapping("proj", 16);
-
-			// VS Per Object = 1 matrix (world)
-			cbDesc.ByteWidth = 16 * Float32Array.BYTES_PER_ELEMENT;
-			let vsPerObjectCB = d3dDevice.CreateBuffer(cbDesc, null);
-			let vsPerObjectData = new MappedArray(16);
-			vsPerObjectData.PushMapping("world", 16);
-
-			// PS Per Frame = 8 floats + 64 lights
-			cbDesc.ByteWidth =
-				8 * Float32Array.BYTES_PER_ELEMENT +
-				MaxLights * Light.SizeInBytes;
-			let psPerFrameCB = d3dDevice.CreateBuffer(cbDesc, null);
-			let psPerFrameData = new MappedArray(cbDesc.ByteWidth / Float32Array.BYTES_PER_ELEMENT);
-			psPerFrameData.PushMapping("cameraPos", 3);
-			psPerFrameData.PushMapping("pad", 1);
-			psPerFrameData.PushMapping("iblSpecMips", 1);
-			psPerFrameData.PushMapping("lightCount", 1);
-			psPerFrameData.PushMapping("envIsHDR", 1);
-			psPerFrameData.PushMapping("pad2", 1);
-			psPerFrameData.PushMapping("lights", MaxLights * Light.SizeInFloats);
-
-			// PS Per Object = 8 floats (RGB color tint + roughness + metalness + float3 padding)
-			cbDesc.ByteWidth = 8 * Float32Array.BYTES_PER_ELEMENT;
-			let psPerObjectCB = d3dDevice.CreateBuffer(cbDesc, null);
-			let psPerObjectData = new MappedArray(8);
-			psPerObjectData.PushMapping("tint", 3);
-			psPerObjectData.PushMapping("pad", 1);
-			psPerObjectData.PushMapping("roughness", 1);
-			psPerObjectData.PushMapping("metalness", 1);
-
-			// Set initial values
-			psPerObjectData.SetData("roughness", 1);
-			psPerObjectData.SetData("metalness", 1);
-
-
-			// Cbuffer for solid color
-			let solidCBDesc = new D3D11_BUFFER_DESC(
-				4 * Float32Array.BYTES_PER_ELEMENT,
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-			let solidCB = d3dDevice.CreateBuffer(solidCBDesc, null);
-			let solidData = new Float32Array(4);
-			solidData.set([1, 1, 1], 0);
-			d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
-
-
-			// Cbuffer for quad UI
-			let quadCBDesc = new D3D11_BUFFER_DESC(
-				8 * Float32Array.BYTES_PER_ELEMENT,
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-			let quadCB = d3dDevice.CreateBuffer(quadCBDesc, null);
-			let quadData = new Float32Array(8);
-
-			// Post process resources
-			let ppTexDesc = new D3D11_TEXTURE2D_DESC(
-				viewportElement.width,
-				viewportElement.height,
-				1,
-				1,
-				DXGI_FORMAT_R32G32B32A32_FLOAT,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
-				0,
-				0);
-			let ppTexture = d3dDevice.CreateTexture2D(ppTexDesc, [null]);
-			let ppSRV = d3dDevice.CreateShaderResourceView(ppTexture, null);
-			let ppRTV = d3dDevice.CreateRenderTargetView(ppTexture, null);
-			ppTexture.Release();
-
-			// Post process constant buffer
-			let ppCBDesc = new D3D11_BUFFER_DESC(
-				Float32Array.BYTES_PER_ELEMENT * 4,
-				D3D11_USAGE_DYNAMIC,
-				D3D11_BIND_CONSTANT_BUFFER,
-				D3D11_CPU_ACCESS_WRITE,
-				0, 0);
-			let ppCB = d3dDevice.CreateBuffer(ppCBDesc, null);
-			let ppData = new Float32Array(4);
-
-			function showLoading(text)
-			{
-				let load = document.getElementById("loading-container");
-				load.classList.remove("invisible");
-
-				let loadText = document.getElementById("loading-text");
-				loadText.innerHTML = text;
-			}
-
-			function hideLoading()
-			{
-				let load = document.getElementById("loading-container");
-				load.classList.add("invisible");
-			}
-
-			function update(deltaTime, totalTime)
-			{
-				if (input.GetDoubleClick())
-					camera.ResetFocusPosition();
-
-				camera.Update(input, deltaTime);
-
-				// Handle cursor for canvas (None = grab; Left = grabbing; Right = move)
-				if (input.IsMouseDown(MouseButtons.Left))
-					viewportElement.style.cursor = "grabbing";
-				else if (input.IsMouseDown(MouseButtons.Middle))
-					viewportElement.style.cursor = "move";
-				else if (input.IsMouseDown(MouseButtons.Right))
-					viewportElement.style.cursor = "url('../assets/cursors/wasd.png') 16 16, move";
-				else
-					viewportElement.style.cursor = "grab";
-
-				// Check for any progressive IBL updates
-				sky.Update();
-
-				// Check for sky assets being ready
-				let saveSky = document.getElementById("buttonSaveSky");
-				let saveIBL = document.getElementById("buttonSaveIBL");
-				let saveIrr = document.getElementById("buttonSaveIrr");
-				let saveLUT = document.getElementById("buttonSaveLUT");
-
-				// TODO: Tie disabling to the actual new skybox load
-				if (saveSky.disabled && sky.SkyCubeSRV != null) saveSky.disabled = false;
-				else if (!saveSky.disabled && sky.SkyCubeSRV == null) saveSky.disabled = true;
-
-				if (saveIBL.disabled && sky.SpecularIBLReady) saveIBL.disabled = false;
-				else if (!saveIBL.disabled && !sky.SpecularIBLReady) saveIBL.disabled = true;
-
-				if (saveIrr.disabled && sky.IrradianceReady) saveIrr.disabled = false;
-				else if (!saveIrr.disabled && !sky.IrradianceReady) saveIrr.disabled = true;
-
-				if (saveLUT.disabled && sky.BRDFLookUpTableReady) saveLUT.disabled = false;
-				else if (!saveLUT.disabled && !sky.BRDFLookUpTableReady) saveLUT.disabled = true;
-
-				// Set up loading messages based on order of IBL map creation
-				if (!sky.BRDFLookUpTableReady)
-					showLoading("Generating environment BRDF look up table");
-				else if (!sky.IrradianceReady)
-					showLoading("Generating environment irradiance map");
-				else if (!sky.SpecularIBLReady)
-					showLoading("Generating environment specular convolution map");
-				else
-					hideLoading();
-
-				// Update the point lights
 				for (let i = 0; i < lightingSetups[Lighting_EightPoints].length; i++)
 				{
-					let offset = (i / 4) * Math.PI * 2;
-					let s = Math.sin(totalTime + offset);
-					let c = Math.cos(totalTime + offset);
+					let light = lightingSetups[Lighting_EightPoints][i];
 
-					lightingSetups[Lighting_EightPoints][i].Position = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
-				}
-			}
-
-			function checkForResize()
-			{
-				// Has the window changed size?
-				if (viewportElement.width != viewportElement.clientWidth ||
-					viewportElement.height != viewportElement.clientHeight)
-				{
-					// Need to resize, so first release all references
-					rtv.Release(); // Back buffer
-					depthDSV.Release(); // Depth buffer
-
-					// Ask the swap chain to resize and update the canvas
-					viewportElement.width = viewportElement.clientWidth;
-					viewportElement.height = viewportElement.clientHeight;
-					d3dSwapChain.ResizeBuffers(viewportElement.clientWidth, viewportElement.clientHeight);
-
-					// Make new RTV
-					let bb = d3dSwapChain.GetBuffer();
-					rtv = d3dDevice.CreateRenderTargetView(bb, null);
-					bb.Release();
-
-					// Make new depth buffer
-					let depthDesc = new D3D11_TEXTURE2D_DESC(
-						viewportElement.clientWidth,
-						viewportElement.clientHeight,
-						1,
-						1,
-						DXGI_FORMAT_D24_UNORM_S8_UINT,
-						new DXGI_SAMPLE_DESC(1, 0),
-						D3D11_USAGE_DEFAULT,
-						D3D11_BIND_DEPTH_STENCIL,
-						0,
-						0);
-					let depthBuffer = d3dDevice.CreateTexture2D(depthDesc, null);
-
-					// Default DSV
-					depthDSV = d3dDevice.CreateDepthStencilView(depthBuffer, null);
-					depthBuffer.Release();
-
-					// Set the new views
-					d3dContext.OMSetRenderTargets([rtv], depthDSV);
-
-					// Update aspect ratio and camera
-					camera.AspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
-
-					// Update rendering viewport, too
-					viewport.Width = viewportElement.clientWidth;
-					viewport.Height = viewportElement.clientHeight;
-					d3dContext.RSSetViewports([viewport]);
-
-					// Create new post processing resource, too
-					ppSRV.Release();
-					ppRTV.Release();
-					let ppTexDesc = new D3D11_TEXTURE2D_DESC(
-						viewportElement.width,
-						viewportElement.height,
-						1,
-						1,
-						DXGI_FORMAT_R32G32B32A32_FLOAT,
-						new DXGI_SAMPLE_DESC(1, 0),
-						D3D11_USAGE_DEFAULT,
-						D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
-						0,
-						0);
-					let ppTexture = d3dDevice.CreateTexture2D(ppTexDesc, [null]);
-					ppSRV = d3dDevice.CreateShaderResourceView(ppTexture, null);
-					ppRTV = d3dDevice.CreateRenderTargetView(ppTexture, null);
-					ppTexture.Release();
-				}
-			}
-
-
-			function draw(deltaTime, totalTime)
-			{
-				checkForResize();
-
-				// Set up tone mapping if necessary
-				if (sky.IsHDR())
-				{
-					d3dContext.OMSetRenderTargets([ppRTV], depthDSV);
-				}
-
-				// Set VS constant buffers for main draw
-				d3dContext.VSSetConstantBuffers(0, [vsPerFrameCB, vsPerObjectCB]);
-
-				// Set per-frame data and update CB
-				vsPerFrameData.SetData("view", camera.ViewMatrix);
-				vsPerFrameData.SetData("proj", camera.ProjectionMatrix);
-				d3dContext.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
-
-				// Clear the frame
-				let black = [0, 0, 0, 1];
-				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
-				d3dContext.ClearRenderTargetView(rtv, black);
-				d3dContext.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
-
-				// Light sphere draws
-				if (currentLighting == Lighting_EightPoints)
-				{
-					// Swap to sphere buffers
-					d3dContext.VSSetShader(vs);
-					d3dContext.PSSetShader(solidPS);
-					d3dContext.PSSetConstantBuffers(0, [solidCB]);
-					d3dContext.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					d3dContext.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-					let sMat = Matrix4x4.ScaleUniform(0.5);
-
-					for (let i = 0; i < lightingSetups[Lighting_EightPoints].length; i++)
-					{
-						let light = lightingSetups[Lighting_EightPoints][i];
-
-						// Set per-object VS data
-						vsPerObjectData.SetData(
-							"world",
-							Matrix4x4.Multiply(sMat, Matrix4x4.Translation(light.Position.x, light.Position.y, light.Position.z)));
-						d3dContext.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
-
-						// Update data for this draw
-						solidData.set(light.Color, 0);
-						d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
-
-						// Draw sphere
-						d3dContext.DrawIndexed(sphereMesh.IndexCount, 0, 0);
-					}
-				}
-
-				// Pipeline for next several draws
-				d3dContext.VSSetShader(vs);
-				d3dContext.PSSetShader(ps);
-				d3dContext.PSSetConstantBuffers(0, [psPerFrameCB, psPerObjectCB]);
-
-				// Set per-frame PS data and update CB
-				psPerFrameData.SetData("cameraPos", camera.Position);
-				psPerFrameData.SetData("iblSpecMips", [sky.SpecularIBLMipsTotal]);
-				psPerFrameData.SetData("lightCount", [lightingSetups[currentLighting].length]);
-				psPerFrameData.SetData("envIsHDR", [sky.IsHDR() ? 1 : 0]);
-				for (let i = 0; i < lightingSetups[currentLighting].length; i++)
-					psPerFrameData.SetData("lights", lightingSetups[currentLighting][i], i * Light.SizeInFloats);
-				d3dContext.UpdateSubresource(psPerFrameCB, 0, null, psPerFrameData, 0, 0);
-
-				function DrawEntity(e)
-				{
-					// Set shaders
-					d3dContext.VSSetShader(e.Material.VertexShader);
-					d3dContext.PSSetShader(e.Material.PixelShader);
-
-					// Update vertex data
-					vsPerObjectData.SetData("world", e.Transform.WorldMatrix);
+					// Set per-object VS data
+					vsPerObjectData.SetData(
+						"world",
+						Matrix4x4.Multiply(sMat, Matrix4x4.Translation(light.Position.x, light.Position.y, light.Position.z)));
 					d3dContext.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
 
-					// Which material?
-					let mat = e.Material;
-					let customMat = false;
-					if (currentScene == 0 || currentScene == 1 || currentScene == 2)
-					{
-						// Use proper material
-						mat = materails[currentMaterial];
-						customMat = true;
-					}
+					// Update data for this draw
+					solidData.set(light.Color, 0);
+					d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
 
-					// Set up material
-					mat.PrepareMaterial(d3dContext);
-					psPerObjectData.SetData("tint", customMat && currentMaterial == 0 ? customMatColor : mat.Color);
-					psPerObjectData.SetData("roughness", customMat && currentMaterial == 0 ? [customMatRoughness] : [1]);
-					psPerObjectData.SetData("metalness", customMat && currentMaterial == 0 ? [customMatMetalness] : [1]);
-					d3dContext.UpdateSubresource(psPerObjectCB, 0, null, psPerObjectData, 0, 0);
-
-					// Set up IBL
-					d3dContext.PSSetShaderResources(4, [
-						sky.BRDFLookUpTableSRV, sky.IrradianceCubeSRV, sky.SpecularIBLCubeSRV
-					]);
-
-					// Draw
-					d3dContext.IASetVertexBuffers(0, [e.Mesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					d3dContext.IASetIndexBuffer(e.Mesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
-					d3dContext.DrawIndexed(e.Mesh.IndexCount, 0);
+					// Draw sphere
+					d3dContext.DrawIndexed(sphereMesh.IndexCount, 0, 0);
 				}
-
-				// Main scene draw
-				{
-					for (let i = 0; i < scenes[currentScene].length; i++)
-					{
-						DrawEntity(scenes[currentScene][i]);
-					}
-				}
-
-
-				// Skybox
-				{
-					sky.Draw(camera.ViewMatrix, camera.ProjectionMatrix, skyMipLevelPreview);
-				}
-
-				// Preview cube for irradiance (2) or specular (3)
-				if (iblPreview == 2 || iblPreview == 3)
-				{
-					d3dContext.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1, 0);
-
-					// Viewport
-					let offset = 10;
-					let [oldVP] = d3dContext.RSGetViewports();
-					let vpCorner = new D3D11_VIEWPORT(
-						viewportElement.clientWidth - iblPreviewSize - offset, offset,
-						iblPreviewSize, iblPreviewSize,
-						0, 1);
-					d3dContext.RSSetViewports([vpCorner]);
-
-					// Set up shaders
-					d3dContext.VSSetShader(cubePreviewVS);
-					d3dContext.PSSetShader(cubePreviewPS);
-
-					// Set VS constant buffers for main draw
-					d3dContext.VSSetConstantBuffers(0, [vsPerFrameCB]);
-
-					// Set per-frame data and update CB
-					vsPerFrameData.SetData("view", Matrix4x4.ViewPositionLH(
-						Vector3.Multiply(camera.Forward, -2.5),
-						Vector3.Zero,
-						Vector3.UnitY
-					));
-					vsPerFrameData.SetData("proj", Matrix4x4.PerspectiveFovLH(Math.PI / 4, 1, 0.1, 100));
-					d3dContext.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
-
-					// Pixel data
-					//solidData.set([1,1,1], 0);
-					//d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
-					//d3dContext.PSSetConstantBuffers(0, [solidCB]);
-					d3dContext.PSSetShaderResources(0, [iblPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV]);
-
-					// Draw
-					d3dContext.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					d3dContext.IASetIndexBuffer(cubeMesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
-					d3dContext.DrawIndexed(cubeMesh.IndexCount, 0);
-
-					// Reset state
-					d3dContext.RSSetViewports([oldVP]);
-				}
-
-				// Finalize post processing if necessary
-				if (sky.IsHDR())
-				{
-					d3dContext.OMSetRenderTargets([rtv], null);
-					d3dContext.VSSetShader(fullscreenVS);
-					d3dContext.PSSetShader(tonemapPS);
-					d3dContext.PSSetShaderResources(0, [ppSRV]);
-					d3dContext.PSSetConstantBuffers(0, [ppCB]);
-					ppData.set([
-						tonemapType,
-						tonemapExposure, 
-						tonemapWhitePoint
-					], 0);
-					d3dContext.UpdateSubresource(ppCB, 0, null, ppData, 0, 0);
-					d3dContext.Draw(3, 0);
-				}
-
-				// Env BRDF preview (1)
-				if (iblPreview == 1)
-				{
-					let offset = 10;
-					quadData.set([
-						viewportElement.clientWidth - iblPreviewSize - offset, offset, // Position in pixels
-						iblPreviewSize, iblPreviewSize, // Size in pixels
-						viewportElement.clientWidth, viewportElement.clientHeight // Window size
-					]);
-					d3dContext.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
-
-					d3dContext.VSSetShader(quadVS);
-					d3dContext.VSSetConstantBuffers(0, [quadCB]);
-
-					d3dContext.PSSetShader(simpleTexturePS);
-					d3dContext.PSSetShaderResources(0, [sky.BRDFLookUpTableSRV]);
-
-					d3dContext.Draw(6, 0);
-				}
-
-				// Flush the frame
-				d3dSwapChain.Present();
-
-				d3dContext.OMSetRenderTargets([rtv], depthDSV);
 			}
 
-			let startTime = -1;
-			let prevTime = 0;
-			function frameloop(time)
+			// Pipeline for next several draws
+			d3dContext.VSSetShader(vs);
+			d3dContext.PSSetShader(ps);
+			d3dContext.PSSetConstantBuffers(0, [psPerFrameCB, psPerObjectCB]);
+
+			// Set per-frame PS data and update CB
+			psPerFrameData.SetData("cameraPos", camera.Position);
+			psPerFrameData.SetData("iblSpecMips", [sky.SpecularIBLMipsTotal]);
+			psPerFrameData.SetData("lightCount", [lightingSetups[currentLighting].length]);
+			psPerFrameData.SetData("envIsHDR", [sky.IsHDR() ? 1 : 0]);
+			for (let i = 0; i < lightingSetups[currentLighting].length; i++)
+				psPerFrameData.SetData("lights", lightingSetups[currentLighting][i], i * Light.SizeInFloats);
+			d3dContext.UpdateSubresource(psPerFrameCB, 0, null, psPerFrameData, 0, 0);
+
+			function DrawEntity(e)
 			{
-				if (startTime == -1)
+				// Set shaders
+				d3dContext.VSSetShader(e.Material.VertexShader);
+				d3dContext.PSSetShader(e.Material.PixelShader);
+
+				// Update vertex data
+				vsPerObjectData.SetData("world", e.Transform.WorldMatrix);
+				d3dContext.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
+
+				// Which material?
+				let mat = e.Material;
+				let customMat = false;
+				if (currentScene == 0 || currentScene == 1 || currentScene == 2)
 				{
-					startTime = time;
-					prevTime = time;
+					// Use proper material
+					mat = materails[currentMaterial];
+					customMat = true;
 				}
 
-				let totalTime = (time - startTime) / 1000;
-				let deltaTime = (time - prevTime) / 1000;
+				// Set up material
+				mat.PrepareMaterial(d3dContext);
+				psPerObjectData.SetData("tint", customMat && currentMaterial == 0 ? customMatColor : mat.Color);
+				psPerObjectData.SetData("roughness", customMat && currentMaterial == 0 ? [customMatRoughness] : [1]);
+				psPerObjectData.SetData("metalness", customMat && currentMaterial == 0 ? [customMatMetalness] : [1]);
+				d3dContext.UpdateSubresource(psPerObjectCB, 0, null, psPerObjectData, 0, 0);
 
-				update(deltaTime, totalTime);
-				draw(deltaTime, totalTime);
+				// Set up IBL
+				d3dContext.PSSetShaderResources(4, [
+					sky.BRDFLookUpTableSRV, sky.IrradianceCubeSRV, sky.SpecularIBLCubeSRV
+				]);
 
-				// End of frame work
-				window.requestAnimationFrame(frameloop);
-				input.EndOfFrame();
+				// Draw
+				d3dContext.IASetVertexBuffers(0, [e.Mesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+				d3dContext.IASetIndexBuffer(e.Mesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
+				d3dContext.DrawIndexed(e.Mesh.IndexCount, 0);
+			}
 
+			// Main scene draw
+			{
+				for (let i = 0; i < scenes[currentScene].length; i++)
+				{
+					DrawEntity(scenes[currentScene][i]);
+				}
+			}
+
+
+			// Skybox
+			{
+				sky.Draw(camera.ViewMatrix, camera.ProjectionMatrix, skyMipLevelPreview);
+			}
+
+			// Preview cube for irradiance (2) or specular (3)
+			if (iblPreview == 2 || iblPreview == 3)
+			{
+				d3dContext.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1, 0);
+
+				// Viewport
+				let offset = 10;
+				let [oldVP] = d3dContext.RSGetViewports();
+				let vpCorner = new D3D11_VIEWPORT(
+					viewportElement.clientWidth - iblPreviewSize - offset, offset,
+					iblPreviewSize, iblPreviewSize,
+					0, 1);
+				d3dContext.RSSetViewports([vpCorner]);
+
+				// Set up shaders
+				d3dContext.VSSetShader(cubePreviewVS);
+				d3dContext.PSSetShader(cubePreviewPS);
+
+				// Set VS constant buffers for main draw
+				d3dContext.VSSetConstantBuffers(0, [vsPerFrameCB]);
+
+				// Set per-frame data and update CB
+				vsPerFrameData.SetData("view", Matrix4x4.ViewPositionLH(
+					Vector3.Multiply(camera.Forward, -2.5),
+					Vector3.Zero,
+					Vector3.UnitY
+				));
+				vsPerFrameData.SetData("proj", Matrix4x4.PerspectiveFovLH(Math.PI / 4, 1, 0.1, 100));
+				d3dContext.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
+
+				// Pixel data
+				psIBLPrevData.SetData("mipLevel", iblMipPreview);
+				d3dContext.UpdateSubresource(psIBLPrevCB, 0, null, psIBLPrevData, 0, 0);
+				d3dContext.PSSetConstantBuffers(0, [psIBLPrevCB]);
+
+				// Texture
+				d3dContext.PSSetShaderResources(0, [iblPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV]);
+
+				// Draw
+				d3dContext.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+				d3dContext.IASetIndexBuffer(cubeMesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
+				d3dContext.DrawIndexed(cubeMesh.IndexCount, 0);
+
+				// Reset state
+				d3dContext.RSSetViewports([oldVP]);
+			}
+
+			// Finalize post processing if necessary
+			if (sky.IsHDR())
+			{
+				d3dContext.OMSetRenderTargets([rtv], null);
+				d3dContext.VSSetShader(fullscreenVS);
+				d3dContext.PSSetShader(tonemapPS);
+				d3dContext.PSSetShaderResources(0, [ppSRV]);
+				d3dContext.PSSetConstantBuffers(0, [ppCB]);
+				ppData.set([
+					tonemapType,
+					tonemapExposure, 
+					tonemapWhitePoint
+				], 0);
+				d3dContext.UpdateSubresource(ppCB, 0, null, ppData, 0, 0);
+				d3dContext.Draw(3, 0);
+			}
+
+			// Env BRDF preview (1)
+			if (iblPreview == 1)
+			{
+				let offset = 10;
+				quadData.set([
+					viewportElement.clientWidth - iblPreviewSize - offset, offset, // Position in pixels
+					iblPreviewSize, iblPreviewSize, // Size in pixels
+					viewportElement.clientWidth, viewportElement.clientHeight // Window size
+				]);
+				d3dContext.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
+
+				d3dContext.VSSetShader(quadVS);
+				d3dContext.VSSetConstantBuffers(0, [quadCB]);
+
+				d3dContext.PSSetShader(simpleTexturePS);
+				d3dContext.PSSetShaderResources(0, [sky.BRDFLookUpTableSRV]);
+
+				d3dContext.Draw(6, 0);
+			}
+
+			// Flush the frame
+			d3dSwapChain.Present();
+
+			d3dContext.OMSetRenderTargets([rtv], depthDSV);
+		}
+
+		let startTime = -1;
+		let prevTime = 0;
+		function frameloop(time)
+		{
+			if (startTime == -1)
+			{
+				startTime = time;
 				prevTime = time;
 			}
 
+			let totalTime = (time - startTime) / 1000;
+			let deltaTime = (time - prevTime) / 1000;
+
+			update(deltaTime, totalTime);
+			draw(deltaTime, totalTime);
+
+			// End of frame work
 			window.requestAnimationFrame(frameloop);
+			input.EndOfFrame();
 
-		//}
+			prevTime = time;
+		}
 
+		window.requestAnimationFrame(frameloop);
 
-		//main();
 	</script>
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 </body>
