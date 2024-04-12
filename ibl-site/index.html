@@ -423,29 +423,34 @@
 		import { Sky } from "../build/sky.js";
 		import { Input, Keys, MouseButtons } from "../build/input.js";
 
-		// Global vars we can use in window functions
-		let globalSky = null;
-		let globalHDRExposure = 0;
-		let globalSkyMipLevelPreview = 0;
-		let globalIBLPreview = 0;
-		let globalIBLPreviewSize = 300;
-		let globalTonemapType = 0;
-		let globalTonemapExposure = 0;
-		let globalTonemapWhitePoint = 1;
-		let globalDevice = null;
-		let globalContext = null;
+		// D3D objects
+		let d3dDevice = null;
+		let d3dContext = null;
+		let d3dSwapChain = null;
 
+		// Sky / Environment
+		let sky = null;
+		let hdrExposure = 0;
+		let skyMipLevelPreview = 0;
+		let iblPreview = 0;
+		let iblPreviewSize = 300;
+
+		// Tone mapping
+		let tonemapType = 0;
+		let tonemapExposure = 0;
+		let tonemapWhitePoint = 1;
+
+		// Scene-related
 		let camera = null;
-
-		let globalScenes = [];
-		let globalCurrentScene = 0;
-		let globalLightings = [];
-		let globalCurrentLighting = 0;
-		let globalMaterials = [];
-		let globalCurrentMaterial = 1;
-		let globalMatRoughness = 0.5;
-		let globalMatMetalness = 0;
-		let globalMatColor = [1, 1, 1];
+		let scenes = [];
+		let currentScene = 0;
+		let lightingSetups = [];
+		let currentLighting = 0;
+		let materails = [];
+		let currentMaterial = 1;
+		let customMatRoughness = 0.5;
+		let customMatMetalness = 0;
+		let customMatColor = [1, 1, 1];
 
 		const Lighting_None = 0;
 		const Lighting_OneDir = 1;
@@ -456,17 +461,17 @@
 
 		window.setWhitePoint = function (val)
 		{
-			globalTonemapWhitePoint = val;
+			tonemapWhitePoint = val;
 		}
 
 		window.setMatRoughness = function (val)
 		{
-			globalMatRoughness = val;
+			customMatRoughness = val;
 		}
 
 		window.setMatMetalness = function (val)
 		{
-			globalMatMetalness = val;
+			customMatMetalness = val;
 		}
 
 		window.setMatColor = function (val)
@@ -475,12 +480,12 @@
 			let g = parseInt(val.substring(3, 5), 16) / 255.0;
 			let b = parseInt(val.substring(5, 7), 16) / 255.0;
 
-			globalMatColor = [r, g, b];
+			customMatColor = [r, g, b];
 		}
 
 		window.setTextureSet = function (val)
 		{
-			globalCurrentMaterial = val;
+			currentMaterial = val;
 
 			let element = document.getElementById("custom-material-controls");
 
@@ -505,22 +510,22 @@
 
 		window.setIBLPreview = function (val)
 		{
-			globalIBLPreview = val;
+			iblPreview = val;
 		}
 
 		window.setScene = function (val)
 		{
-			globalCurrentScene = val;
+			currentScene = val;
 		}
 
 		window.setLighting = function (val)
 		{
-			globalCurrentLighting = val;
+			currentLighting = val;
 		}
 
 		window.setTonemapType = function (val)
 		{
-			globalTonemapType = val;
+			tonemapType = val;
 
 			let wp = document.getElementById("white-point-controls");
 
@@ -533,19 +538,19 @@
 
 		window.setExposure = function (val)
 		{
-			globalTonemapExposure = val;
+			tonemapExposure = val;
 		}
 
 		window.setSkyMipPreview = function (val)
 		{
-			globalSkyMipLevelPreview = val;
+			skyMipLevelPreview = val;
 		}
 
 		window.setHDRExposure = function (val)
 		{
 			// Adjust exposure and re-create all PBR assets
-			globalHDRExposure = val;
-			globalSky.SetHDRExposure(val);
+			hdrExposure = val;
+			sky.SetHDRExposure(val);
 		}
 
 		window.loadSixFaces = async function ()
@@ -589,7 +594,7 @@
 			}
 
 			// All loaded - Attempt to load as a cube map (assuming NOT hdr)
-			globalSky.LoadCubeMap(await loadTextureCube(globalDevice, globalContext, fileURLs, true, true), false);
+			sky.LoadCubeMap(await loadTextureCube(d3dDevice, d3dContext, fileURLs, true, true), false);
 		}
 
 
@@ -636,7 +641,7 @@
 			let fileInput = document.getElementById("hdrFile");
 			let [width, height, data] = await TextureUtils.LoadHDRFileLocal(fileInput);
 
-			globalSky.LoadEquirectHDR(width, height, data, globalHDRExposure);
+			sky.LoadEquirectHDR(width, height, data, hdrExposure);
 		}
 
 		window.loadDDS = async function ()
@@ -644,11 +649,11 @@
 			let fileInput = document.getElementById("ddsFile");
 			let [width, height, mips, format, faceDataArrays] = await TextureUtils.LoadDDSFileLocal(fileInput);
 
-			globalSky.LoadDDS(width, height, mips, format, faceDataArrays);
+			sky.LoadDDS(width, height, mips, format, faceDataArrays);
 		}
 
 
-		window.loadTextureCube = async function (device, context, faceURLs, filesAreLocal, generateMips)
+		window.loadTextureCube = async function (d3dDevice, d3dContext, faceURLs, filesAreLocal, generateMips)
 		{
 			let faceTextures = [];
 			let size = -1;
@@ -704,14 +709,14 @@
 				D3D11_BIND_SHADER_RESOURCE | (generateMips ? D3D11_BIND_RENDER_TARGET : 0),
 				0,
 				D3D11_RESOURCE_MISC_TEXTURECUBE | (generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0));
-			let texture = device.CreateTexture2D(desc, faceTextures);
+			let texture = d3dDevice.CreateTexture2D(desc, faceTextures);
 
-			let srv = device.CreateShaderResourceView(texture, null);
+			let srv = d3dDevice.CreateShaderResourceView(texture, null);
 
 			// Generate mip maps for the enviroment map for later IBL steps
 			if (generateMips)
 			{
-				context.GenerateMips(srv);
+				d3dContext.GenerateMips(srv);
 			}
 
 			// Release the texture
@@ -721,30 +726,30 @@
 
 		window.saveSkyToFile = function ()
 		{
-			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.SkyCubeSRV);
+			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(d3dDevice, d3dContext, sky.SkyCubeSRV);
 			TextureUtils.WriteDDSFile("sky_cube.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 		}
 
 		window.saveIrrToFile = function ()
 		{
-			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.IrradianceCubeSRV);
+			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(d3dDevice, d3dContext, sky.IrradianceCubeSRV);
 			TextureUtils.WriteDDSFile("ibl_irradiance_cube.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 		}
 
 		window.saveIBLToFile = function ()
 		{
-			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.SpecularIBLCubeSRV);
+			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(d3dDevice, d3dContext, sky.SpecularIBLCubeSRV);
 			TextureUtils.WriteDDSFile("ibl_specular_cube.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 		}
 
 		window.saveLUTToFile = function ()
 		{
-			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(globalDevice, globalContext, globalSky.BRDFLookUpTableSRV);
+			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(d3dDevice, d3dContext, sky.BRDFLookUpTableSRV);
 			TextureUtils.WriteDDSFile("brdf_look_up_table.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 		}
 
-		async function main()
-		{
+		//async function main()
+		//{
 			// Grab canvas html element
 			let viewportElement = document.getElementById("viewport");
 
@@ -757,18 +762,16 @@
 				viewportElement.clientHeight,
 				DXGI_FORMAT_R8G8B8A8_UNORM);
 
-			let [device, context, swapChain] =
+			[d3dDevice, d3dContext, d3dSwapChain] =
 				D3D11CreateDeviceAndSwapChain(viewportElement, 0, swapChainDesc);
-			globalDevice = device;
-			globalContext = context;
 
 			// Set up initial viewport
 			let viewport = new D3D11_VIEWPORT(0, 0, viewportElement.clientWidth, viewportElement.clientHeight, 0, 1);
-			context.RSSetViewports([viewport]);
+			d3dContext.RSSetViewports([viewport]);
 
 			// Make an RTV of the back buffer
-			let backBuffer = swapChain.GetBuffer();
-			let rtv = device.CreateRenderTargetView(backBuffer, null);
+			let backBuffer = d3dSwapChain.GetBuffer();
+			let rtv = d3dDevice.CreateRenderTargetView(backBuffer, null);
 			backBuffer.Release();
 
 			// Create a depth buffer
@@ -783,17 +786,17 @@
 				D3D11_BIND_DEPTH_STENCIL,
 				0,
 				0);
-			let depthBuffer = device.CreateTexture2D(depthDesc, null);
+			let depthBuffer = d3dDevice.CreateTexture2D(depthDesc, null);
 
 			// Default DSV
-			let depthDSV = device.CreateDepthStencilView(depthBuffer, null);
+			let depthDSV = d3dDevice.CreateDepthStencilView(depthBuffer, null);
 			depthBuffer.Release();
 
 			// Set the default render targets
-			context.OMSetRenderTargets([rtv], depthDSV);
+			d3dContext.OMSetRenderTargets([rtv], depthDSV);
 
 			// Ensure we're set for triangles
-			context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+			d3dContext.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
 
 			// Create an input layout
 			let inputElements = [];
@@ -801,8 +804,8 @@
 			inputElements[1] = new D3D11_INPUT_ELEMENT_DESC("TEXCOORD", 0, DXGI_FORMAT_R32G32_FLOAT, 0, 3 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
 			inputElements[2] = new D3D11_INPUT_ELEMENT_DESC("NORMAL", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 5 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
 			inputElements[3] = new D3D11_INPUT_ELEMENT_DESC("TANGENT", 0, DXGI_FORMAT_R32G32B32_FLOAT, 0, 8 * Float32Array.BYTES_PER_ELEMENT, D3D11_INPUT_PER_VERTEX_DATA, 0);
-			let inputLayout = device.CreateInputLayout(inputElements);
-			context.IASetInputLayout(inputLayout);
+			let inputLayout = d3dDevice.CreateInputLayout(inputElements);
+			d3dContext.IASetInputLayout(inputLayout);
 
 			// Create a sampler
 			let sampDesc = new D3D11_SAMPLER_DESC(
@@ -816,36 +819,36 @@
 				0,
 				0,
 				D3D11_FLOAT32_MAX);
-			let sampler = device.CreateSamplerState(sampDesc);
+			let sampler = d3dDevice.CreateSamplerState(sampDesc);
 
 			// Make a clamp sampler, too
 			sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
 			sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
 			sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-			let clampSampler = device.CreateSamplerState(sampDesc);
+			let clampSampler = d3dDevice.CreateSamplerState(sampDesc);
 
 
 
 			// Create several solid textures
-			let blackSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 0, 255);
-			let whiteSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 255, 255, 255);
-			let blueSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 0, 192, 255);
-			let greenSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 0, 128, 0, 255);
-			let redSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 255, 0, 0, 255);
-			let flatNormalsSRV = TextureUtils.CreateSolidTexture2D(device, 2, 2, 127, 127, 255, 255);
+			let blackSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 0, 0, 0, 255);
+			let whiteSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 255, 255, 255, 255);
+			let blueSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 0, 0, 192, 255);
+			let greenSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 0, 128, 0, 255);
+			let redSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 255, 0, 0, 255);
+			let flatNormalsSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 127, 127, 255, 255);
 
 			// Array of greyscale roughness textures
 			let solidRoughSRVs = [];
 			for (let i = 0; i < 11; i++)
 			{
 				let r = Math.floor((i / 10.0) * 255);
-				solidRoughSRVs.push(TextureUtils.CreateSolidTexture2D(device, 2, 2, r, r, r, 255));
+				solidRoughSRVs.push(TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, r, r, r, 255));
 			}
 
 			// Mesh loading
-			let sphereMesh = await Mesh.LoadFromFile(device, "../assets/meshes/sphere_blender.obj");
-			let helixMesh = await Mesh.LoadFromFile(device, "../assets/meshes/helix.obj");
-			let cubeMesh = await Mesh.LoadFromFile(device, "../assets/meshes/cube.obj");
+			let sphereMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/sphere_blender.obj");
+			let helixMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/helix.obj");
+			let cubeMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/cube.obj");
 
 			// Camera
 			//let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
@@ -853,32 +856,32 @@
 
 
 			// Create shaders
-			let ps = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
-			let vs = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
-			let solidPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
-			let mipReducePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/MipReducePS.hlsl"));
-			let skyVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyVS.hlsl"));
-			let skyPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyPS.hlsl"));
-			let tonemapPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/TonemapPS.hlsl"));
-			let postprocPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/BlurPS.hlsl"));
-			let quadVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/QuadVS.hlsl"));
-			let fullscreenVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/FullscreenVS.hlsl"));
-			let simpleTexturePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
-			let cubePreviewPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewPS.hlsl"));
-			let cubePreviewVS = device.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewVS.hlsl"));
+			let ps = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
+			let vs = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
+			let solidPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
+			let mipReducePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/MipReducePS.hlsl"));
+			let skyVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyVS.hlsl"));
+			let skyPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyPS.hlsl"));
+			let tonemapPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/TonemapPS.hlsl"));
+			let postprocPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/BlurPS.hlsl"));
+			let quadVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/QuadVS.hlsl"));
+			let fullscreenVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/FullscreenVS.hlsl"));
+			let simpleTexturePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
+			let cubePreviewPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewPS.hlsl"));
+			let cubePreviewVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewVS.hlsl"));
 
-			let equirectToCubePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
+			let equirectToCubePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
 
 			// Shaders for IBL
-			let brdfLutPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
-			let iblIrradiancePS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
-			let iblSpecularPS = device.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
+			let brdfLutPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
+			let iblIrradiancePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
+			let iblSpecularPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
 
 
 			// Load a cube map
 			//let skySRV = await loadTextureCube(
-			//	device,
-			//	context,
+			//	d3dDevice,
+			//	d3dContext,
 			//	[
 			//		"../assets/skies/cloudsblue/right.png",
 			//		"../assets/skies/cloudsblue/left.png",
@@ -892,7 +895,7 @@
 			//);
 
 			// Create the sky object
-			globalSky = new Sky(device, context,
+			sky = new Sky(d3dDevice, d3dContext,
 				skyVS, skyPS, cubeMesh,
 				DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
 				DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
@@ -901,75 +904,75 @@
 				true, 128);
 
 			let [width, height, data] = await TextureUtils.LoadHDRFile("../assets/skies/partly_cloudy_2k.hdr");
-			globalSky.LoadEquirectHDR(width, height, data, globalHDRExposure);
-			//globalSky.LoadCubeMap(skySRV, false);
+			sky.LoadEquirectHDR(width, height, data, hdrExposure);
+			//sky.LoadCubeMap(skySRV, false);
 
 
 			// ----------------- Materials --------------------
-			let metal0 = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metal_0.png");
-			let metal1 = await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metal_1.png");
+			let metal0 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_0.png");
+			let metal1 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_1.png");
 
 			let matCobble = new Material(vs, ps, new Vector3(1, 1, 1));
-			matCobble.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_albedo.png"));
-			matCobble.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_normals.png"));
+			matCobble.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_albedo.png"));
+			matCobble.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_normals.png"));
 			matCobble.SetPSTextureSRV(2, metal0);
-			matCobble.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/cobblestone_roughness.png"));
+			matCobble.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_roughness.png"));
 			matCobble.SetPSSamplerState(0, sampler);
 			matCobble.SetPSSamplerState(1, clampSampler);
 
 			let matBronze = new Material(vs, ps, new Vector3(1, 1, 1));
-			matBronze.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_albedo.png"));
-			matBronze.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_normals.png"));
+			matBronze.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_albedo.png"));
+			matBronze.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_normals.png"));
 			matBronze.SetPSTextureSRV(2, metal1);
-			matBronze.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/bronze_roughness.png"));
+			matBronze.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_roughness.png"));
 			matBronze.SetPSSamplerState(0, sampler);
 			matBronze.SetPSSamplerState(1, clampSampler);
 
 			let matFloor = new Material(vs, ps, new Vector3(1, 1, 1));
-			matFloor.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/floor_albedo.png"));
-			matFloor.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/floor_normals.png"));
-			matFloor.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/floor_metal.png"));
-			matFloor.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/floor_roughness.png"));
+			matFloor.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_albedo.png"));
+			matFloor.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_normals.png"));
+			matFloor.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_metal.png"));
+			matFloor.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_roughness.png"));
 			matFloor.SetPSSamplerState(0, sampler);
 			matFloor.SetPSSamplerState(1, clampSampler);
 
 			let matScratched = new Material(vs, ps, new Vector3(1, 1, 1));
-			matScratched.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/scratched_albedo.png"));
-			matScratched.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/scratched_normals.png"));
-			matScratched.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/scratched_metal.png"));
-			matScratched.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/scratched_roughness.png"));
+			matScratched.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_albedo.png"));
+			matScratched.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_normals.png"));
+			matScratched.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_metal.png"));
+			matScratched.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_roughness.png"));
 			matScratched.SetPSSamplerState(0, sampler);
 			matScratched.SetPSSamplerState(1, clampSampler);
 
 			let matMetalPlate = new Material(vs, ps, new Vector3(1, 1, 1));
-			matMetalPlate.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metalplate_albedo.png"));
-			matMetalPlate.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metalplate_normals.png"));
+			matMetalPlate.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_albedo.png"));
+			matMetalPlate.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_normals.png"));
 			matMetalPlate.SetPSTextureSRV(2, metal1);
-			matMetalPlate.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/metalplate_rough.png"));
+			matMetalPlate.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_rough.png"));
 			matMetalPlate.SetPSSamplerState(0, sampler);
 			matMetalPlate.SetPSSamplerState(1, clampSampler);
 
 			let matSlab = new Material(vs, ps, new Vector3(1, 1, 1));
-			matSlab.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/slab_albedo.png"));
-			matSlab.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/slab_normals.png"));
+			matSlab.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_albedo.png"));
+			matSlab.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_normals.png"));
 			matSlab.SetPSTextureSRV(2, metal0);
-			matSlab.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/slab_rough.png"));
+			matSlab.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_rough.png"));
 			matSlab.SetPSSamplerState(0, sampler);
 			matSlab.SetPSSamplerState(1, clampSampler);
 
 			let matStone = new Material(vs, ps, new Vector3(1, 1, 1));
-			matStone.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/stonetiles_albedo.png"));
-			matStone.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/stonetiles_normals.png"));
+			matStone.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_albedo.png"));
+			matStone.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_normals.png"));
 			matStone.SetPSTextureSRV(2, metal0);
-			matStone.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/stonetiles_rough.png"));
+			matStone.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_rough.png"));
 			matStone.SetPSSamplerState(0, sampler);
 			matStone.SetPSSamplerState(1, clampSampler);
 
 			let matWood = new Material(vs, ps, new Vector3(1, 1, 1));
-			matWood.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/wood_albedo.png"));
-			matWood.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/wood_normals.png"));
+			matWood.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_albedo.png"));
+			matWood.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_normals.png"));
 			matWood.SetPSTextureSRV(2, metal0);
-			matWood.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(device, context, "../assets/textures/wood_rough.png"));
+			matWood.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_rough.png"));
 			matWood.SetPSSamplerState(0, sampler);
 			matWood.SetPSSamplerState(1, clampSampler);
 
@@ -982,15 +985,15 @@
 			matCustom.SetPSSamplerState(1, clampSampler);
 
 			// Order must match UI!
-			globalMaterials.push(matCustom);
-			globalMaterials.push(matCobble);
-			globalMaterials.push(matBronze);
-			globalMaterials.push(matFloor);
-			globalMaterials.push(matScratched);
-			globalMaterials.push(matMetalPlate);
-			globalMaterials.push(matSlab);
-			globalMaterials.push(matStone);
-			globalMaterials.push(matWood);
+			materails.push(matCustom);
+			materails.push(matCobble);
+			materails.push(matBronze);
+			materails.push(matFloor);
+			materails.push(matScratched);
+			materails.push(matMetalPlate);
+			materails.push(matSlab);
+			materails.push(matStone);
+			materails.push(matWood);
 
 			// -------------- Entity setup -------------------
 			// --- SPHERE SCENE ---
@@ -999,7 +1002,7 @@
 				matCustom);
 			sphereEntity.Transform.ScaleUniform(7);
 
-			globalScenes.push([sphereEntity]);
+			scenes.push([sphereEntity]);
 
 			// --- HELIX SCENE ---
 			let helixEntity = new Entity(
@@ -1007,7 +1010,7 @@
 				matCustom);
 			helixEntity.Transform.ScaleUniform(3);
 
-			globalScenes.push([helixEntity]);
+			scenes.push([helixEntity]);
 
 			// --- CUBE SCENE ---
 			let cubeEntity = new Entity(
@@ -1015,7 +1018,7 @@
 				matCustom);
 			cubeEntity.Transform.ScaleUniform(4);
 
-			globalScenes.push([cubeEntity]);
+			scenes.push([cubeEntity]);
 
 			// --- ROUGHNESS SPHERES ---
 			let roughRowTextures = [
@@ -1047,7 +1050,7 @@
 					roughScene.push(e);
 				}
 			}
-			globalScenes.push(roughScene);
+			scenes.push(roughScene);
 
 
 			// --- RGB SPHERES ---
@@ -1081,28 +1084,28 @@
 					rgbScene.push(e);
 				}
 			}
-			globalScenes.push(rgbScene);
+			scenes.push(rgbScene);
 
 
 			// ----------- Lighting setups ---------------
 
 			// --- No lights ---
-			globalLightings[Lighting_None] = [];
+			lightingSetups[Lighting_None] = [];
 
 			// --- One Dir Light ---
-			globalLightings[Lighting_OneDir] = [
+			lightingSetups[Lighting_OneDir] = [
 				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1)))
 			];
 
 			// --- Three Dir Lights ---
-			globalLightings[Lighting_ThreeDir] = [
+			lightingSetups[Lighting_ThreeDir] = [
 				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1))),
 				new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(-1, -0.1, -0.1))),
 				new Light(Light.TypeDirectional, Vector3.One, 0.3, Vector3.Normalize(new Vector3(0, 1, -0.5)))
 			];
 
 			// --- Eight Point Lights ---
-			globalLightings[Lighting_EightPoints] = [];
+			lightingSetups[Lighting_EightPoints] = [];
 			for (let i = 0; i < 8; i++)
 			{
 				let color = Vector3.One;
@@ -1116,7 +1119,7 @@
 
 				let pos = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
 
-				globalLightings[Lighting_EightPoints].push(new Light(
+				lightingSetups[Lighting_EightPoints].push(new Light(
 					Light.TypePoint,
 					color,
 					1.0,
@@ -1130,7 +1133,7 @@
 			let ddsTest = false;
 			if (ddsTest)
 			{
-				let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(device, context, irrSRV);
+				let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(d3dDevice, d3dContext, irrSRV);
 				TextureUtils.WriteDDSFile("spec.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
 			}
 
@@ -1145,14 +1148,14 @@
 
 			// VS Per Frame = 2 matrices (view & proj)
 			cbDesc.ByteWidth = 16 * 2 * Float32Array.BYTES_PER_ELEMENT;
-			let vsPerFrameCB = device.CreateBuffer(cbDesc, null);
+			let vsPerFrameCB = d3dDevice.CreateBuffer(cbDesc, null);
 			let vsPerFrameData = new MappedArray(16 * 2);
 			vsPerFrameData.PushMapping("view", 16);
 			vsPerFrameData.PushMapping("proj", 16);
 
 			// VS Per Object = 1 matrix (world)
 			cbDesc.ByteWidth = 16 * Float32Array.BYTES_PER_ELEMENT;
-			let vsPerObjectCB = device.CreateBuffer(cbDesc, null);
+			let vsPerObjectCB = d3dDevice.CreateBuffer(cbDesc, null);
 			let vsPerObjectData = new MappedArray(16);
 			vsPerObjectData.PushMapping("world", 16);
 
@@ -1160,7 +1163,7 @@
 			cbDesc.ByteWidth =
 				8 * Float32Array.BYTES_PER_ELEMENT +
 				MaxLights * Light.SizeInBytes;
-			let psPerFrameCB = device.CreateBuffer(cbDesc, null);
+			let psPerFrameCB = d3dDevice.CreateBuffer(cbDesc, null);
 			let psPerFrameData = new MappedArray(cbDesc.ByteWidth / Float32Array.BYTES_PER_ELEMENT);
 			psPerFrameData.PushMapping("cameraPos", 3);
 			psPerFrameData.PushMapping("pad", 1);
@@ -1172,7 +1175,7 @@
 
 			// PS Per Object = 8 floats (RGB color tint + roughness + metalness + float3 padding)
 			cbDesc.ByteWidth = 8 * Float32Array.BYTES_PER_ELEMENT;
-			let psPerObjectCB = device.CreateBuffer(cbDesc, null);
+			let psPerObjectCB = d3dDevice.CreateBuffer(cbDesc, null);
 			let psPerObjectData = new MappedArray(8);
 			psPerObjectData.PushMapping("tint", 3);
 			psPerObjectData.PushMapping("pad", 1);
@@ -1191,10 +1194,10 @@
 				D3D11_BIND_CONSTANT_BUFFER,
 				D3D11_CPU_ACCESS_WRITE,
 				0, 0);
-			let solidCB = device.CreateBuffer(solidCBDesc, null);
+			let solidCB = d3dDevice.CreateBuffer(solidCBDesc, null);
 			let solidData = new Float32Array(4);
 			solidData.set([1, 1, 1], 0);
-			context.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
+			d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
 
 
 			// Cbuffer for quad UI
@@ -1204,7 +1207,7 @@
 				D3D11_BIND_CONSTANT_BUFFER,
 				D3D11_CPU_ACCESS_WRITE,
 				0, 0);
-			let quadCB = device.CreateBuffer(quadCBDesc, null);
+			let quadCB = d3dDevice.CreateBuffer(quadCBDesc, null);
 			let quadData = new Float32Array(8);
 
 			// Post process resources
@@ -1219,9 +1222,9 @@
 				D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
 				0,
 				0);
-			let ppTexture = device.CreateTexture2D(ppTexDesc, [null]);
-			let ppSRV = device.CreateShaderResourceView(ppTexture, null);
-			let ppRTV = device.CreateRenderTargetView(ppTexture, null);
+			let ppTexture = d3dDevice.CreateTexture2D(ppTexDesc, [null]);
+			let ppSRV = d3dDevice.CreateShaderResourceView(ppTexture, null);
+			let ppRTV = d3dDevice.CreateRenderTargetView(ppTexture, null);
 			ppTexture.Release();
 
 			// Post process constant buffer
@@ -1231,7 +1234,7 @@
 				D3D11_BIND_CONSTANT_BUFFER,
 				D3D11_CPU_ACCESS_WRITE,
 				0, 0);
-			let ppCB = device.CreateBuffer(ppCBDesc, null);
+			let ppCB = d3dDevice.CreateBuffer(ppCBDesc, null);
 			let ppData = new Float32Array(4);
 
 			function showLoading(text)
@@ -1267,7 +1270,7 @@
 					viewportElement.style.cursor = "grab";
 
 				// Check for any progressive IBL updates
-				globalSky.Update();
+				sky.Update();
 
 				// Check for sky assets being ready
 				let saveSky = document.getElementById("buttonSaveSky");
@@ -1276,36 +1279,36 @@
 				let saveLUT = document.getElementById("buttonSaveLUT");
 
 				// TODO: Tie disabling to the actual new skybox load
-				if (saveSky.disabled && globalSky.SkyCubeSRV != null) saveSky.disabled = false;
-				else if (!saveSky.disabled && globalSky.SkyCubeSRV == null) saveSky.disabled = true;
+				if (saveSky.disabled && sky.SkyCubeSRV != null) saveSky.disabled = false;
+				else if (!saveSky.disabled && sky.SkyCubeSRV == null) saveSky.disabled = true;
 
-				if (saveIBL.disabled && globalSky.SpecularIBLReady) saveIBL.disabled = false;
-				else if (!saveIBL.disabled && !globalSky.SpecularIBLReady) saveIBL.disabled = true;
+				if (saveIBL.disabled && sky.SpecularIBLReady) saveIBL.disabled = false;
+				else if (!saveIBL.disabled && !sky.SpecularIBLReady) saveIBL.disabled = true;
 
-				if (saveIrr.disabled && globalSky.IrradianceReady) saveIrr.disabled = false;
-				else if (!saveIrr.disabled && !globalSky.IrradianceReady) saveIrr.disabled = true;
+				if (saveIrr.disabled && sky.IrradianceReady) saveIrr.disabled = false;
+				else if (!saveIrr.disabled && !sky.IrradianceReady) saveIrr.disabled = true;
 
-				if (saveLUT.disabled && globalSky.BRDFLookUpTableReady) saveLUT.disabled = false;
-				else if (!saveLUT.disabled && !globalSky.BRDFLookUpTableReady) saveLUT.disabled = true;
+				if (saveLUT.disabled && sky.BRDFLookUpTableReady) saveLUT.disabled = false;
+				else if (!saveLUT.disabled && !sky.BRDFLookUpTableReady) saveLUT.disabled = true;
 
 				// Set up loading messages based on order of IBL map creation
-				if (!globalSky.BRDFLookUpTableReady)
+				if (!sky.BRDFLookUpTableReady)
 					showLoading("Generating environment BRDF look up table");
-				else if (!globalSky.IrradianceReady)
+				else if (!sky.IrradianceReady)
 					showLoading("Generating environment irradiance map");
-				else if (!globalSky.SpecularIBLReady)
+				else if (!sky.SpecularIBLReady)
 					showLoading("Generating environment specular convolution map");
 				else
 					hideLoading();
 
 				// Update the point lights
-				for (let i = 0; i < globalLightings[Lighting_EightPoints].length; i++)
+				for (let i = 0; i < lightingSetups[Lighting_EightPoints].length; i++)
 				{
 					let offset = (i / 4) * Math.PI * 2;
 					let s = Math.sin(totalTime + offset);
 					let c = Math.cos(totalTime + offset);
 
-					globalLightings[Lighting_EightPoints][i].Position = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
+					lightingSetups[Lighting_EightPoints][i].Position = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
 				}
 			}
 
@@ -1322,11 +1325,11 @@
 					// Ask the swap chain to resize and update the canvas
 					viewportElement.width = viewportElement.clientWidth;
 					viewportElement.height = viewportElement.clientHeight;
-					swapChain.ResizeBuffers(viewportElement.clientWidth, viewportElement.clientHeight);
+					d3dSwapChain.ResizeBuffers(viewportElement.clientWidth, viewportElement.clientHeight);
 
 					// Make new RTV
-					let bb = swapChain.GetBuffer();
-					rtv = device.CreateRenderTargetView(bb, null);
+					let bb = d3dSwapChain.GetBuffer();
+					rtv = d3dDevice.CreateRenderTargetView(bb, null);
 					bb.Release();
 
 					// Make new depth buffer
@@ -1341,14 +1344,14 @@
 						D3D11_BIND_DEPTH_STENCIL,
 						0,
 						0);
-					let depthBuffer = device.CreateTexture2D(depthDesc, null);
+					let depthBuffer = d3dDevice.CreateTexture2D(depthDesc, null);
 
 					// Default DSV
-					depthDSV = device.CreateDepthStencilView(depthBuffer, null);
+					depthDSV = d3dDevice.CreateDepthStencilView(depthBuffer, null);
 					depthBuffer.Release();
 
 					// Set the new views
-					context.OMSetRenderTargets([rtv], depthDSV);
+					d3dContext.OMSetRenderTargets([rtv], depthDSV);
 
 					// Update aspect ratio and camera
 					camera.AspectRatio = viewportElement.clientWidth / viewportElement.clientHeight;
@@ -1356,7 +1359,7 @@
 					// Update rendering viewport, too
 					viewport.Width = viewportElement.clientWidth;
 					viewport.Height = viewportElement.clientHeight;
-					context.RSSetViewports([viewport]);
+					d3dContext.RSSetViewports([viewport]);
 
 					// Create new post processing resource, too
 					ppSRV.Release();
@@ -1372,9 +1375,9 @@
 						D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
 						0,
 						0);
-					let ppTexture = device.CreateTexture2D(ppTexDesc, [null]);
-					ppSRV = device.CreateShaderResourceView(ppTexture, null);
-					ppRTV = device.CreateRenderTargetView(ppTexture, null);
+					let ppTexture = d3dDevice.CreateTexture2D(ppTexDesc, [null]);
+					ppSRV = d3dDevice.CreateShaderResourceView(ppTexture, null);
+					ppRTV = d3dDevice.CreateRenderTargetView(ppTexture, null);
 					ppTexture.Release();
 				}
 			}
@@ -1385,142 +1388,142 @@
 				checkForResize();
 
 				// Set up tone mapping if necessary
-				if (globalSky.IsHDR())
+				if (sky.IsHDR())
 				{
-					context.OMSetRenderTargets([ppRTV], depthDSV);
+					d3dContext.OMSetRenderTargets([ppRTV], depthDSV);
 				}
 
 				// Set VS constant buffers for main draw
-				context.VSSetConstantBuffers(0, [vsPerFrameCB, vsPerObjectCB]);
+				d3dContext.VSSetConstantBuffers(0, [vsPerFrameCB, vsPerObjectCB]);
 
 				// Set per-frame data and update CB
 				vsPerFrameData.SetData("view", camera.ViewMatrix);
 				vsPerFrameData.SetData("proj", camera.ProjectionMatrix);
-				context.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
+				d3dContext.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
 
 				// Clear the frame
 				let black = [0, 0, 0, 1];
 				let cornflowerBlue = [0.39, 0.58, 0.93, 1];
-				context.ClearRenderTargetView(rtv, black);
-				context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
+				d3dContext.ClearRenderTargetView(rtv, black);
+				d3dContext.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
 
 				// Light sphere draws
-				if (globalCurrentLighting == Lighting_EightPoints)
+				if (currentLighting == Lighting_EightPoints)
 				{
 					// Swap to sphere buffers
-					context.VSSetShader(vs);
-					context.PSSetShader(solidPS);
-					context.PSSetConstantBuffers(0, [solidCB]);
-					context.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					context.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
+					d3dContext.VSSetShader(vs);
+					d3dContext.PSSetShader(solidPS);
+					d3dContext.PSSetConstantBuffers(0, [solidCB]);
+					d3dContext.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+					d3dContext.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
 
 					let sMat = Matrix4x4.ScaleUniform(0.5);
 
-					for (let i = 0; i < globalLightings[Lighting_EightPoints].length; i++)
+					for (let i = 0; i < lightingSetups[Lighting_EightPoints].length; i++)
 					{
-						let light = globalLightings[Lighting_EightPoints][i];
+						let light = lightingSetups[Lighting_EightPoints][i];
 
 						// Set per-object VS data
 						vsPerObjectData.SetData(
 							"world",
 							Matrix4x4.Multiply(sMat, Matrix4x4.Translation(light.Position.x, light.Position.y, light.Position.z)));
-						context.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
+						d3dContext.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
 
 						// Update data for this draw
 						solidData.set(light.Color, 0);
-						context.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
+						d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
 
 						// Draw sphere
-						context.DrawIndexed(sphereMesh.IndexCount, 0, 0);
+						d3dContext.DrawIndexed(sphereMesh.IndexCount, 0, 0);
 					}
 				}
 
 				// Pipeline for next several draws
-				context.VSSetShader(vs);
-				context.PSSetShader(ps);
-				context.PSSetConstantBuffers(0, [psPerFrameCB, psPerObjectCB]);
+				d3dContext.VSSetShader(vs);
+				d3dContext.PSSetShader(ps);
+				d3dContext.PSSetConstantBuffers(0, [psPerFrameCB, psPerObjectCB]);
 
 				// Set per-frame PS data and update CB
 				psPerFrameData.SetData("cameraPos", camera.Position);
-				psPerFrameData.SetData("iblSpecMips", [globalSky.SpecularIBLMipsTotal]);
-				psPerFrameData.SetData("lightCount", [globalLightings[globalCurrentLighting].length]);
-				psPerFrameData.SetData("envIsHDR", [globalSky.IsHDR() ? 1 : 0]);
-				for (let i = 0; i < globalLightings[globalCurrentLighting].length; i++)
-					psPerFrameData.SetData("lights", globalLightings[globalCurrentLighting][i], i * Light.SizeInFloats);
-				context.UpdateSubresource(psPerFrameCB, 0, null, psPerFrameData, 0, 0);
+				psPerFrameData.SetData("iblSpecMips", [sky.SpecularIBLMipsTotal]);
+				psPerFrameData.SetData("lightCount", [lightingSetups[currentLighting].length]);
+				psPerFrameData.SetData("envIsHDR", [sky.IsHDR() ? 1 : 0]);
+				for (let i = 0; i < lightingSetups[currentLighting].length; i++)
+					psPerFrameData.SetData("lights", lightingSetups[currentLighting][i], i * Light.SizeInFloats);
+				d3dContext.UpdateSubresource(psPerFrameCB, 0, null, psPerFrameData, 0, 0);
 
 				function DrawEntity(e)
 				{
 					// Set shaders
-					context.VSSetShader(e.Material.VertexShader);
-					context.PSSetShader(e.Material.PixelShader);
+					d3dContext.VSSetShader(e.Material.VertexShader);
+					d3dContext.PSSetShader(e.Material.PixelShader);
 
 					// Update vertex data
 					vsPerObjectData.SetData("world", e.Transform.WorldMatrix);
-					context.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
+					d3dContext.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
 
 					// Which material?
 					let mat = e.Material;
 					let customMat = false;
-					if (globalCurrentScene == 0 || globalCurrentScene == 1 || globalCurrentScene == 2)
+					if (currentScene == 0 || currentScene == 1 || currentScene == 2)
 					{
 						// Use proper material
-						mat = globalMaterials[globalCurrentMaterial];
+						mat = materails[currentMaterial];
 						customMat = true;
 					}
 
 					// Set up material
-					mat.PrepareMaterial(context);
-					psPerObjectData.SetData("tint", customMat && globalCurrentMaterial == 0 ? globalMatColor : mat.Color);
-					psPerObjectData.SetData("roughness", customMat && globalCurrentMaterial == 0 ? [globalMatRoughness] : [1]);
-					psPerObjectData.SetData("metalness", customMat && globalCurrentMaterial == 0 ? [globalMatMetalness] : [1]);
-					context.UpdateSubresource(psPerObjectCB, 0, null, psPerObjectData, 0, 0);
+					mat.PrepareMaterial(d3dContext);
+					psPerObjectData.SetData("tint", customMat && currentMaterial == 0 ? customMatColor : mat.Color);
+					psPerObjectData.SetData("roughness", customMat && currentMaterial == 0 ? [customMatRoughness] : [1]);
+					psPerObjectData.SetData("metalness", customMat && currentMaterial == 0 ? [customMatMetalness] : [1]);
+					d3dContext.UpdateSubresource(psPerObjectCB, 0, null, psPerObjectData, 0, 0);
 
 					// Set up IBL
-					context.PSSetShaderResources(4, [
-						globalSky.BRDFLookUpTableSRV, globalSky.IrradianceCubeSRV, globalSky.SpecularIBLCubeSRV
+					d3dContext.PSSetShaderResources(4, [
+						sky.BRDFLookUpTableSRV, sky.IrradianceCubeSRV, sky.SpecularIBLCubeSRV
 					]);
 
 					// Draw
-					context.IASetVertexBuffers(0, [e.Mesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					context.IASetIndexBuffer(e.Mesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
-					context.DrawIndexed(e.Mesh.IndexCount, 0);
+					d3dContext.IASetVertexBuffers(0, [e.Mesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+					d3dContext.IASetIndexBuffer(e.Mesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
+					d3dContext.DrawIndexed(e.Mesh.IndexCount, 0);
 				}
 
 				// Main scene draw
 				{
-					for (let i = 0; i < globalScenes[globalCurrentScene].length; i++)
+					for (let i = 0; i < scenes[currentScene].length; i++)
 					{
-						DrawEntity(globalScenes[globalCurrentScene][i]);
+						DrawEntity(scenes[currentScene][i]);
 					}
 				}
 
 
 				// Skybox
 				{
-					globalSky.Draw(camera.ViewMatrix, camera.ProjectionMatrix, globalSkyMipLevelPreview);
+					sky.Draw(camera.ViewMatrix, camera.ProjectionMatrix, skyMipLevelPreview);
 				}
 
 				// Preview cube for irradiance (2) or specular (3)
-				if (globalIBLPreview == 2 || globalIBLPreview == 3)
+				if (iblPreview == 2 || iblPreview == 3)
 				{
-					context.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1, 0);
+					d3dContext.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1, 0);
 
 					// Viewport
 					let offset = 10;
-					let [oldVP] = context.RSGetViewports();
+					let [oldVP] = d3dContext.RSGetViewports();
 					let vpCorner = new D3D11_VIEWPORT(
-						viewportElement.clientWidth - globalIBLPreviewSize - offset, offset,
-						globalIBLPreviewSize, globalIBLPreviewSize,
+						viewportElement.clientWidth - iblPreviewSize - offset, offset,
+						iblPreviewSize, iblPreviewSize,
 						0, 1);
-					context.RSSetViewports([vpCorner]);
+					d3dContext.RSSetViewports([vpCorner]);
 
 					// Set up shaders
-					context.VSSetShader(cubePreviewVS);
-					context.PSSetShader(cubePreviewPS);
+					d3dContext.VSSetShader(cubePreviewVS);
+					d3dContext.PSSetShader(cubePreviewPS);
 
 					// Set VS constant buffers for main draw
-					context.VSSetConstantBuffers(0, [vsPerFrameCB]);
+					d3dContext.VSSetConstantBuffers(0, [vsPerFrameCB]);
 
 					// Set per-frame data and update CB
 					vsPerFrameData.SetData("view", Matrix4x4.ViewPositionLH(
@@ -1529,64 +1532,64 @@
 						Vector3.UnitY
 					));
 					vsPerFrameData.SetData("proj", Matrix4x4.PerspectiveFovLH(Math.PI / 4, 1, 0.1, 100));
-					context.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
+					d3dContext.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
 
 					// Pixel data
 					//solidData.set([1,1,1], 0);
-					//context.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
-					//context.PSSetConstantBuffers(0, [solidCB]);
-					context.PSSetShaderResources(0, [globalIBLPreview == 2 ? globalSky.IrradianceCubeSRV : globalSky.SpecularIBLCubeSRV]);
+					//d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
+					//d3dContext.PSSetConstantBuffers(0, [solidCB]);
+					d3dContext.PSSetShaderResources(0, [iblPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV]);
 
 					// Draw
-					context.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-					context.IASetIndexBuffer(cubeMesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
-					context.DrawIndexed(cubeMesh.IndexCount, 0);
+					d3dContext.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+					d3dContext.IASetIndexBuffer(cubeMesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
+					d3dContext.DrawIndexed(cubeMesh.IndexCount, 0);
 
 					// Reset state
-					context.RSSetViewports([oldVP]);
+					d3dContext.RSSetViewports([oldVP]);
 				}
 
 				// Finalize post processing if necessary
-				if (globalSky.IsHDR())
+				if (sky.IsHDR())
 				{
-					context.OMSetRenderTargets([rtv], null);
-					context.VSSetShader(fullscreenVS);
-					context.PSSetShader(tonemapPS);
-					context.PSSetShaderResources(0, [ppSRV]);
-					context.PSSetConstantBuffers(0, [ppCB]);
+					d3dContext.OMSetRenderTargets([rtv], null);
+					d3dContext.VSSetShader(fullscreenVS);
+					d3dContext.PSSetShader(tonemapPS);
+					d3dContext.PSSetShaderResources(0, [ppSRV]);
+					d3dContext.PSSetConstantBuffers(0, [ppCB]);
 					ppData.set([
-						globalTonemapType,
-						globalTonemapExposure, 
-						globalTonemapWhitePoint
+						tonemapType,
+						tonemapExposure, 
+						tonemapWhitePoint
 					], 0);
-					context.UpdateSubresource(ppCB, 0, null, ppData, 0, 0);
-					context.Draw(3, 0);
+					d3dContext.UpdateSubresource(ppCB, 0, null, ppData, 0, 0);
+					d3dContext.Draw(3, 0);
 				}
 
 				// Env BRDF preview (1)
-				if (globalIBLPreview == 1)
+				if (iblPreview == 1)
 				{
 					let offset = 10;
 					quadData.set([
-						viewportElement.clientWidth - globalIBLPreviewSize - offset, offset, // Position in pixels
-						globalIBLPreviewSize, globalIBLPreviewSize, // Size in pixels
+						viewportElement.clientWidth - iblPreviewSize - offset, offset, // Position in pixels
+						iblPreviewSize, iblPreviewSize, // Size in pixels
 						viewportElement.clientWidth, viewportElement.clientHeight // Window size
 					]);
-					context.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
+					d3dContext.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
 
-					context.VSSetShader(quadVS);
-					context.VSSetConstantBuffers(0, [quadCB]);
+					d3dContext.VSSetShader(quadVS);
+					d3dContext.VSSetConstantBuffers(0, [quadCB]);
 
-					context.PSSetShader(simpleTexturePS);
-					context.PSSetShaderResources(0, [globalSky.BRDFLookUpTableSRV]);
+					d3dContext.PSSetShader(simpleTexturePS);
+					d3dContext.PSSetShaderResources(0, [sky.BRDFLookUpTableSRV]);
 
-					context.Draw(6, 0);
+					d3dContext.Draw(6, 0);
 				}
 
 				// Flush the frame
-				swapChain.Present();
+				d3dSwapChain.Present();
 
-				context.OMSetRenderTargets([rtv], depthDSV);
+				d3dContext.OMSetRenderTargets([rtv], depthDSV);
 			}
 
 			let startTime = -1;
@@ -1594,7 +1597,10 @@
 			function frameloop(time)
 			{
 				if (startTime == -1)
+				{
 					startTime = time;
+					prevTime = time;
+				}
 
 				let totalTime = (time - startTime) / 1000;
 				let deltaTime = (time - prevTime) / 1000;
@@ -1611,10 +1617,10 @@
 
 			window.requestAnimationFrame(frameloop);
 
-		}
+		//}
 
 
-		main();
+		//main();
 	</script>
 	<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js" integrity="sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL" crossorigin="anonymous"></script>
 </body>
