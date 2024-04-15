@@ -247,27 +247,27 @@
 							<div class="input-group input-group-sm ms-0">
 								<label class="input-group-text">Size</label>
 
-								<input id="brdf-lut-res-0" name="brdf-lut-res" type="radio" class="btn-check" autocomplete="off" checked>
+								<input id="brdf-lut-res-0" name="brdf-lut-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeLutSize(this.value);" checked>
 								<label for="brdf-lut-res-0" class="btn btn-outline-secondary">2048</label>
 
-								<input id="brdf-lut-res-1" name="brdf-lut-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="brdf-lut-res-1" name="brdf-lut-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeLutSize(this.value);" >
 								<label for="brdf-lut-res-1" class="btn btn-outline-secondary">1024</label>
 
-								<input id="brdf-lut-res-2" name="brdf-lut-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="brdf-lut-res-2" name="brdf-lut-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeLutSize(this.value);" >
 								<label for="brdf-lut-res-2" class="btn btn-outline-secondary">512</label>
 
-								<input id="brdf-lut-res-3" name="brdf-lut-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="brdf-lut-res-3" name="brdf-lut-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeLutSize(this.value);" >
 								<label for="brdf-lut-res-3" class="btn btn-outline-secondary">256</label>
 
-								<input id="brdf-lut-res-4" name="brdf-lut-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="brdf-lut-res-4" name="brdf-lut-res" type="radio" class="btn-check" value="128" autocomplete="off" onchange="changeLutSize(this.value);" >
 								<label for="brdf-lut-res-4" class="btn btn-outline-secondary">128</label>
 
-								<input id="brdf-lut-res-5" name="brdf-lut-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="brdf-lut-res-5" name="brdf-lut-res" type="radio" class="btn-check" value="64" autocomplete="off" onchange="changeLutSize(this.value);" >
 								<label for="brdf-lut-res-5" class="btn btn-outline-secondary">64</label>
 							</div>
 
 							<div class="form-check mb-3">
-								<input id="brdf-lut-multiscatter" class="form-check-input" type="checkbox" value="" checked />
+								<input id="brdf-lut-multiscatter" class="form-check-input" type="checkbox" checked />
 								<label for="brdf-lut-multiscatter" class="form-check-label">Multiscattering Compensation</label>
 							</div>
 
@@ -277,46 +277,46 @@
 							<div class="input-group input-group-sm ms-0 mb-3">
 								<label class="input-group-text">Size</label>
 
-								<input id="irr-res-0" name="irr-res" type="radio" class="btn-check" autocomplete="off" checked>
+								<input id="irr-res-0" name="irr-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeIrrSize(this.value);" checked>
 								<label for="irr-res-0" class="btn btn-outline-secondary">2048</label>
 
-								<input id="irr-res-1" name="irr-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="irr-res-1" name="irr-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeIrrSize(this.value);">
 								<label for="irr-res-1" class="btn btn-outline-secondary">1024</label>
 
-								<input id="irr-res-2" name="irr-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="irr-res-2" name="irr-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeIrrSize(this.value);">
 								<label for="irr-res-2" class="btn btn-outline-secondary">512</label>
 
-								<input id="irr-res-3" name="irr-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="irr-res-3" name="irr-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeIrrSize(this.value);">
 								<label for="irr-res-3" class="btn btn-outline-secondary">256</label>
 
-								<input id="irr-res-4" name="irr-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="irr-res-4" name="irr-res" type="radio" class="btn-check" value="128" autocomplete="off" onchange="changeIrrSize(this.value);">
 								<label for="irr-res-4" class="btn btn-outline-secondary">128</label>
 
-								<input id="irr-res-5" name="irr-res" type="radio" class="btn-check" autocomplete="off">
+								<input id="irr-res-5" name="irr-res" type="radio" class="btn-check" value="64" autocomplete="off" onchange="changeIrrSize(this.value);">
 								<label for="irr-res-5" class="btn btn-outline-secondary">64</label>
 							</div>
 
 							<!-- Specular (Largest Mip) -->
-							<p class="mb-0">Specular Map</p>
+							<p class="mb-0">Specular Map - Total Mip Levels: <span id="spec-mip-levels">8</span></p>
 							<div class="input-group input-group-sm ms-0 mb-1">
 								<label class="input-group-text">Size</label>
 
-								<input id="spec-res-large-0" name="spec-res-large" type="radio" class="btn-check" autocomplete="off" checked>
+								<input id="spec-res-large-0" name="spec-res-large" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
 								<label for="spec-res-large-0" class="btn btn-outline-secondary">2048</label>
 
-								<input id="spec-res-large-1" name="spec-res-large" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-large-1" name="spec-res-large" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeSpecIBLSize(this.value);" checked>
 								<label for="spec-res-large-1" class="btn btn-outline-secondary">1024</label>
 
-								<input id="spec-res-large-2" name="spec-res-large" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-large-2" name="spec-res-large" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
 								<label for="spec-res-large-2" class="btn btn-outline-secondary">512</label>
 
-								<input id="spec-res-large-3" name="spec-res-large" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-large-3" name="spec-res-large" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
 								<label for="spec-res-large-3" class="btn btn-outline-secondary">256</label>
 
-								<input id="spec-res-large-4" name="spec-res-large" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-large-4" name="spec-res-large" type="radio" class="btn-check" value="128" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
 								<label for="spec-res-large-4" class="btn btn-outline-secondary">128</label>
 
-								<input id="spec-res-large-5" name="spec-res-large" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-large-5" name="spec-res-large" type="radio" class="btn-check" value="64" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
 								<label for="spec-res-large-5" class="btn btn-outline-secondary">64</label>
 							</div>
 
@@ -324,22 +324,22 @@
 							<div class="input-group input-group-sm ms-0 mb-3">
 								<label class="input-group-text">Smallest Mip</label>
 
-								<input id="spec-res-small-0" name="spec-res-small" type="radio" class="btn-check" autocomplete="off" checked>
+								<input id="spec-res-small-0" name="spec-res-small" type="radio" class="btn-check" value="32" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-0" class="btn btn-outline-secondary">32</label>
 
-								<input id="spec-res-small-1" name="spec-res-small" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-small-1" name="spec-res-small" type="radio" class="btn-check" value="16" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-1" class="btn btn-outline-secondary">16</label>
 
-								<input id="spec-res-small-2" name="spec-res-small" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-small-2" name="spec-res-small" type="radio" class="btn-check" value="8" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);" checked>
 								<label for="spec-res-small-2" class="btn btn-outline-secondary">8</label>
 
-								<input id="spec-res-small-3" name="spec-res-small" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-small-3" name="spec-res-small" type="radio" class="btn-check" value="4" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-3" class="btn btn-outline-secondary">4</label>
 
-								<input id="spec-res-small-4" name="spec-res-small" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-small-4" name="spec-res-small" type="radio" class="btn-check" value="2" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-4" class="btn btn-outline-secondary">2</label>
 
-								<input id="spec-res-small-5" name="spec-res-small" type="radio" class="btn-check" autocomplete="off">
+								<input id="spec-res-small-5" name="spec-res-small" type="radio" class="btn-check" value="1" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-5" class="btn btn-outline-secondary">1</label>
 							</div>
 
@@ -353,7 +353,7 @@
 							</div>
 
 							<!-- IBL ASSET PREVIEW -->
-							<h6>&#128083; Show IBL Assets</h6>
+							<h6>&#128083; Preview IBL Assets</h6>
 
 							<div class="input-group input-group-sm">
 								<select id="iblCubePreview" class="form-select" onchange="setIBLPreview(this.value);">
@@ -578,6 +578,28 @@
 					show("load-hdr-controls");
 					break;
 			}
+		}
+
+		window.changeLutSize = function (val)
+		{
+			sky.SetBRDFLookUpTableSize(val);
+		}
+
+		window.changeIrrSize = function (val)
+		{
+			sky.SetIrradianceSize(val);
+		}
+
+		window.changeSpecIBLSize = function (val)
+		{
+			sky.SetSpecularIBLSize(val);
+			document.getElementById("spec-mip-levels").innerHTML = sky.SpecularIBLMipsTotal;
+		}
+
+		window.changeSpecIBLSmallestMip = function (val)
+		{
+			sky.SetSpecularIBLSmallestMipSize(val);
+			document.getElementById("spec-mip-levels").innerHTML = sky.SpecularIBLMipsTotal;
 		}
 
 		window.setWhitePoint = function (val)
@@ -961,6 +983,9 @@
 		sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 		let clampSampler = d3dDevice.CreateSamplerState(sampDesc);
 
+		// And a pointer sampler
+		sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		let pointSampler = d3dDevice.CreateSamplerState(sampDesc);
 
 
 		// Create several solid textures
@@ -1680,6 +1705,7 @@
 
 				// Texture
 				d3dContext.PSSetShaderResources(0, [iblPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV]);
+				d3dContext.PSSetSamplers(0, [pointSampler]);
 
 				// Draw
 				d3dContext.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
@@ -1723,6 +1749,7 @@
 
 				d3dContext.PSSetShader(simpleTexturePS);
 				d3dContext.PSSetShaderResources(0, [sky.BRDFLookUpTableSRV]);
+				d3dContext.PSSetSamplers(0, [clampSampler]);
 
 				d3dContext.Draw(6, 0);
 			}

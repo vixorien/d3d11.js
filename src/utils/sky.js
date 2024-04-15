@@ -6,6 +6,12 @@ import { Mesh } from "./mesh.js";
 
 export class Sky
 {
+	// Custom events
+	#skychangeevent = new Event("skychange");
+	#irrchangeevent = new Event("skychange");
+	#specchangeevent = new Event("skychange");
+	#brdfchangeevent = new Event("skychange");
+
 	// SRVs and details
 	SkyCubeSRV;
 	SkyCubeSize;
@@ -310,9 +316,6 @@ export class Sky
 		// Save the format!
 		this.SkyColorFormat = format;
 
-		// Generate mips for the equirect
-		//this.#d3dContext.GenerateMips(this.#equirectSRV);
-
 		// How many total mips?
 		let totalMips = Math.max(Math.log2(width), Math.log2(height));
 
@@ -414,6 +417,48 @@ export class Sky
 			this.#CopyEquirectToCube(); // Update sky cube with new exposure
 			this.#ResetIBLDirtyState(true); // Re-create IBL to match
 		}
+	}
+
+	SetBRDFLookUpTableSize(size)
+	{
+		this.BRDFLookUpTableSize = size;
+		this.#CreateBrdfLutTexture();
+		this.#lutDirty = true;
+	}
+
+	SetIrradianceSize(size)
+	{
+		this.IrradianceCubeSize = size;
+		this.#CreateIrradianceTexture();
+		this.#irrDirty = true;
+	}
+
+	SetSpecularIBLSize(size)
+	{
+		// What is the largest mip level?
+		let largestMip = Math.floor(Math.log2(size)) + 1;
+		this.SpecularIBLCubeSize = size;
+
+		// Recalc total mips
+		this.SpecularIBLMipsTotal = largestMip - this.SpecularIBLMipsToSkip;
+
+		// Trigger recreation
+		this.#CreateSpecularIBLTexture();
+		this.#specDirty = true;
+	}
+
+	SetSpecularIBLSmallestMipSize(size)
+	{
+		// How many mips are we skipping?
+		this.SpecularIBLMipsToSkip = Math.floor(Math.log2(size));
+
+		// Update total mips
+		let largestMip = Math.floor(Math.log2(this.SpecularIBLCubeSize)) + 1;
+		this.SpecularIBLMipsTotal = largestMip - this.SpecularIBLMipsToSkip;
+
+		// Trigger recreation
+		this.#CreateSpecularIBLTexture();
+		this.#specDirty = true;
 	}
 
 	Update()
@@ -802,6 +847,7 @@ export class Sky
 			// What's the tile size we need?
 			// TODO: Move this lower to ensure we're using the right mip?
 			let mipSize = Math.pow(2, this.SpecularIBLMipsTotal + this.SpecularIBLMipsToSkip - 1 - startMip);
+			mipSize = Math.max(mipSize, 1);
 
 			let tileSize = mipSize;
 			if (tileSize > this.#maxUpdateTileSize && this.#maxUpdateTileSize > 0)
@@ -839,7 +885,7 @@ export class Sky
 		{
 			// Set the viewport for this mip size
 			let mipSize = Math.pow(2, this.SpecularIBLMipsTotal + this.SpecularIBLMipsToSkip - 1 - mip);
-
+			mipSize = Math.max(mipSize, 1);
 			let vp = new D3D11_VIEWPORT(0, 0, mipSize, mipSize, 0, 1);
 			this.#d3dContext.RSSetViewports([vp]);
 
