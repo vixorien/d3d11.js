@@ -424,6 +424,7 @@ export class Sky
 		this.BRDFLookUpTableSize = size;
 		this.#CreateBrdfLutTexture();
 		this.#lutDirty = true;
+		this.#lutTileUpdate = 0;
 	}
 
 	SetIrradianceSize(size)
@@ -431,6 +432,8 @@ export class Sky
 		this.IrradianceCubeSize = size;
 		this.#CreateIrradianceTexture();
 		this.#irrDirty = true;
+		this.#irrFaceUpdate = 0;
+		this.#irrTileUpdate = 0;
 	}
 
 	SetSpecularIBLSize(size)
@@ -445,6 +448,9 @@ export class Sky
 		// Trigger recreation
 		this.#CreateSpecularIBLTexture();
 		this.#specDirty = true;
+		this.#specMipUpdate = 0;
+		this.#specFaceUpdate = 0;
+		this.#specTileUpdate = 0;
 	}
 
 	SetSpecularIBLSmallestMipSize(size)
@@ -459,6 +465,9 @@ export class Sky
 		// Trigger recreation
 		this.#CreateSpecularIBLTexture();
 		this.#specDirty = true;
+		this.#specMipUpdate = 0;
+		this.#specFaceUpdate = 0;
+		this.#specTileUpdate = 0;
 	}
 
 	Update()
