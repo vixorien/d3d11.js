@@ -131,9 +131,6 @@ float D_GGX(float3 n, float3 h, float roughness)
 
 
 
-
-
-
 // Convolution method (similar to specular IBL)
 float3 Convolution(float3 zDir)
 {
@@ -153,7 +150,7 @@ float3 Convolution(float3 zDir)
 	// Note the scaled cube size, which helps
 	// immensely with HDR convolution "speckles"
 	float PI = 3.14159265359f;
-	float scaledCubeSize = cubeSize * 4.0;
+	float scaledCubeSize = cubeSize * 6.0;
 	float solidAngleTexel = 4.0f * PI / (6.0f * scaledCubeSize * scaledCubeSize);
 
 	// Sample the texture cube MANY times
@@ -177,8 +174,8 @@ float3 Convolution(float3 zDir)
 			// Select the proper mip level, as done here: https://chetanjags.wordpress.com/2015/08/26/image-based-lighting/
 			float D = D_GGX(N, H, roughness);
 			float pdf = (D * nDotH_and_hDotV / (4.0f * nDotH_and_hDotV)) + 0.0001f;
-			float solidAngleSample = 1.0f / (float(MAX_IBL_SAMPLES) * pdf + 0.0001f);
-			float mipToSample = /*0.5f * */log2(solidAngleSample / solidAngleTexel); // Removed 0.5 factor to help with speckle problem
+			float solidAngleSample = 1.0f / (float(MAX_IBL_SAMPLES) * pdf + 0.00001f);
+			float mipToSample = 0.5f * log2(solidAngleSample / solidAngleTexel);
 
 			float3 thisColor = EnvironmentMap.SampleLevel(BasicSampler, L, mipToSample).rgb;
 			finalColor += nDotL * (envIsHDR == 1.0 ? thisColor : pow(thisColor, 2.2));

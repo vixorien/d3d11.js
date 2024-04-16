@@ -247,10 +247,10 @@
 							<div class="input-group input-group-sm ms-0">
 								<label class="input-group-text">Size</label>
 
-								<input id="brdf-lut-res-0" name="brdf-lut-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeLutSize(this.value);" checked>
+								<input id="brdf-lut-res-0" name="brdf-lut-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeLutSize(this.value);">
 								<label for="brdf-lut-res-0" class="btn btn-outline-secondary">2048</label>
 
-								<input id="brdf-lut-res-1" name="brdf-lut-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeLutSize(this.value);" >
+								<input id="brdf-lut-res-1" name="brdf-lut-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeLutSize(this.value);" checked>
 								<label for="brdf-lut-res-1" class="btn btn-outline-secondary">1024</label>
 
 								<input id="brdf-lut-res-2" name="brdf-lut-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeLutSize(this.value);" >
@@ -277,7 +277,7 @@
 							<div class="input-group input-group-sm ms-0 mb-3">
 								<label class="input-group-text">Size</label>
 
-								<input id="irr-res-0" name="irr-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeIrrSize(this.value);" checked>
+								<input id="irr-res-0" name="irr-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeIrrSize(this.value);">
 								<label for="irr-res-0" class="btn btn-outline-secondary">2048</label>
 
 								<input id="irr-res-1" name="irr-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeIrrSize(this.value);">
@@ -286,7 +286,7 @@
 								<input id="irr-res-2" name="irr-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeIrrSize(this.value);">
 								<label for="irr-res-2" class="btn btn-outline-secondary">512</label>
 
-								<input id="irr-res-3" name="irr-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeIrrSize(this.value);">
+								<input id="irr-res-3" name="irr-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeIrrSize(this.value);" checked>
 								<label for="irr-res-3" class="btn btn-outline-secondary">256</label>
 
 								<input id="irr-res-4" name="irr-res" type="radio" class="btn-check" value="128" autocomplete="off" onchange="changeIrrSize(this.value);">
@@ -304,10 +304,10 @@
 								<input id="spec-res-large-0" name="spec-res-large" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
 								<label for="spec-res-large-0" class="btn btn-outline-secondary">2048</label>
 
-								<input id="spec-res-large-1" name="spec-res-large" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeSpecIBLSize(this.value);" checked>
+								<input id="spec-res-large-1" name="spec-res-large" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
 								<label for="spec-res-large-1" class="btn btn-outline-secondary">1024</label>
 
-								<input id="spec-res-large-2" name="spec-res-large" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
+								<input id="spec-res-large-2" name="spec-res-large" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeSpecIBLSize(this.value);" checked>
 								<label for="spec-res-large-2" class="btn btn-outline-secondary">512</label>
 
 								<input id="spec-res-large-3" name="spec-res-large" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
@@ -1057,7 +1057,7 @@
 		sky = new Sky(d3dDevice, d3dContext,
 			skyVS, skyPS, cubeMesh,
 			DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
-			DXGI_FORMAT_R32G32B32A32_FLOAT, 64, iblIrradiancePS,
+			DXGI_FORMAT_R32G32B32A32_FLOAT, 256, iblIrradiancePS,
 			DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
 			equirectToCubePS, mipReducePS, fullscreenVS,
 			true, 128);
