@@ -524,7 +524,7 @@
 		let hdrExposure = 0;
 		let skyMipLevelPreview = 0;
 		let iblPreview = 0;
-		let iblPreviewSize = 300;
+		let iblPreviewSize = 250;
 		let iblMipPreview = 0;
 
 		// Tone mapping
@@ -1546,6 +1546,75 @@
 			}
 		}
 
+		function drawPreviewCube(x, y, size, srv, mip = 0, clearDepth = true)
+		{
+			if (clearDepth)
+			{
+				d3dContext.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1, 0);
+			}
+
+			// Viewport
+			let offset = 10;
+			let [oldVP] = d3dContext.RSGetViewports();
+			let vpCorner = new D3D11_VIEWPORT(
+				x, y,
+				size, size,
+				0, 1);
+			d3dContext.RSSetViewports([vpCorner]);
+
+			// Set up shaders
+			d3dContext.VSSetShader(cubePreviewVS);
+			d3dContext.PSSetShader(cubePreviewPS);
+
+			// Set VS constant buffers for main draw
+			d3dContext.VSSetConstantBuffers(0, [vsPerFrameCB]);
+
+			// Set per-frame data and update CB
+			vsPerFrameData.SetData("view", Matrix4x4.ViewPositionLH(
+				Vector3.Multiply(camera.Forward, -2.5),
+				Vector3.Zero,
+				Vector3.UnitY
+			));
+			vsPerFrameData.SetData("proj", Matrix4x4.PerspectiveFovLH(Math.PI / 4, 1, 0.1, 100));
+			d3dContext.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
+
+			// Pixel data
+			psIBLPrevData.SetData("mipLevel", [mip]);
+			d3dContext.UpdateSubresource(psIBLPrevCB, 0, null, psIBLPrevData, 0, 0);
+			d3dContext.PSSetConstantBuffers(0, [psIBLPrevCB]);
+
+			// Texture
+			d3dContext.PSSetShaderResources(0, [srv]);
+			d3dContext.PSSetSamplers(0, [pointSampler]);
+
+			// Draw
+			d3dContext.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+			d3dContext.IASetIndexBuffer(cubeMesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
+			d3dContext.DrawIndexed(cubeMesh.IndexCount, 0);
+
+			// Reset state
+			d3dContext.RSSetViewports([oldVP]);
+		}
+
+		function drawTextureQuad(x, y, width, height, srv)
+		{
+			quadData.set([
+				x, y, // Position in pixels
+				width, height, // Size in pixels
+				viewportElement.clientWidth, viewportElement.clientHeight // Window size
+			]);
+			d3dContext.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
+
+			d3dContext.VSSetShader(quadVS);
+			d3dContext.VSSetConstantBuffers(0, [quadCB]);
+
+			d3dContext.PSSetShader(simpleTexturePS);
+			d3dContext.PSSetShaderResources(0, [srv]);
+			d3dContext.PSSetSamplers(0, [clampSampler]);
+
+			d3dContext.Draw(6, 0);
+		}
+
 
 		function draw(deltaTime, totalTime)
 		{
@@ -1662,64 +1731,66 @@
 				}
 			}
 
-
 			// Skybox
 			{
 				sky.Draw(camera.ViewMatrix, camera.ProjectionMatrix, skyMipLevelPreview);
 			}
 
-			let iblPreviewOverride = iblPreview;
-			if (!sky.BRDFLookUpTableReady) iblPreviewOverride = 1;
-			else if (!sky.IrradianceReady) iblPreviewOverride = 2;
-			else if (!sky.SpecularIBLReady) iblPreviewOverride = 3;
+			// Any loading previews?
+			//let loadingOffsetX = 10;
+			//let loadingOffsetY = 100;
+			//if (!sky.BRDFLookUpTableReady)
+			//{
+			//	loadingOffset += 100;
+			//}
+
+			//if (!sky.IrradianceReady)
+			//{
+			//	drawPreviewCube(
+			//		10,
+			//		loadingOffset,
+			//		100,
+			//		sky.IrradianceCubeSRV,
+			//		0);
+			//	loadingOffset += 100;
+			//}
+
+			//if (!sky.SpecularIBLReady)
+			//{
+			//	drawPreviewCube(
+			//		10,
+			//		loadingOffset,
+			//		100,
+			//		sky.SpecularIBLCubeSRV,
+			//		sky.SpecularMipUpdate);
+			//	loadingOffset += 100;
+			//}
+
+			let iblPreviewOverride =
+				!sky.BRDFLookUpTableReady ||
+				!sky.IrradianceReady ||
+				!sky.SpecularIBLReady;
 
 			// Preview cube for irradiance (2) or specular (3)
-			if (iblPreviewOverride == 2 || iblPreviewOverride == 3)
+			let previewBorder = 10;
+			let brdfOffset = previewBorder;
+			let irrOffset = brdfOffset + iblPreviewSize;
+			let specOffset = irrOffset + iblPreviewSize;
+			if (iblPreview != 0 || iblPreviewOverride)//iblPreview == 2 || iblPreview == 3)
 			{
-				d3dContext.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1, 0);
+				drawPreviewCube(
+					viewportElement.clientWidth - iblPreviewSize - previewBorder,
+					irrOffset,
+					iblPreviewSize,
+					sky.IrradianceCubeSRV,
+					iblMipPreview);
 
-				// Viewport
-				let offset = 10;
-				let [oldVP] = d3dContext.RSGetViewports();
-				let vpCorner = new D3D11_VIEWPORT(
-					viewportElement.clientWidth - iblPreviewSize - offset, offset,
-					iblPreviewSize, iblPreviewSize,
-					0, 1);
-				d3dContext.RSSetViewports([vpCorner]);
-
-				// Set up shaders
-				d3dContext.VSSetShader(cubePreviewVS);
-				d3dContext.PSSetShader(cubePreviewPS);
-
-				// Set VS constant buffers for main draw
-				d3dContext.VSSetConstantBuffers(0, [vsPerFrameCB]);
-
-				// Set per-frame data and update CB
-				vsPerFrameData.SetData("view", Matrix4x4.ViewPositionLH(
-					Vector3.Multiply(camera.Forward, -2.5),
-					Vector3.Zero,
-					Vector3.UnitY
-				));
-				vsPerFrameData.SetData("proj", Matrix4x4.PerspectiveFovLH(Math.PI / 4, 1, 0.1, 100));
-				d3dContext.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
-
-				// Pixel data
-				psIBLPrevData.SetData("mipLevel", [iblMipPreview]);
-				console.log(psIBLPrevData);
-				d3dContext.UpdateSubresource(psIBLPrevCB, 0, null, psIBLPrevData, 0, 0);
-				d3dContext.PSSetConstantBuffers(0, [psIBLPrevCB]);
-
-				// Texture
-				d3dContext.PSSetShaderResources(0, [iblPreviewOverride == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV]);
-				d3dContext.PSSetSamplers(0, [pointSampler]);
-
-				// Draw
-				d3dContext.IASetVertexBuffers(0, [cubeMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-				d3dContext.IASetIndexBuffer(cubeMesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
-				d3dContext.DrawIndexed(cubeMesh.IndexCount, 0);
-
-				// Reset state
-				d3dContext.RSSetViewports([oldVP]);
+				drawPreviewCube(
+					viewportElement.clientWidth - iblPreviewSize - previewBorder,
+					specOffset,
+					iblPreviewSize,
+					sky.SpecularIBLCubeSRV,
+					iblMipPreview);
 			}
 
 			// Finalize post processing if necessary
@@ -1740,25 +1811,25 @@
 			}
 
 			// Env BRDF preview (1)
-			if (iblPreviewOverride == 1)
+			if (iblPreview != 0 || iblPreviewOverride)
 			{
-				let offset = 10;
-				quadData.set([
-					viewportElement.clientWidth - iblPreviewSize - offset, offset, // Position in pixels
-					iblPreviewSize, iblPreviewSize, // Size in pixels
-					viewportElement.clientWidth, viewportElement.clientHeight // Window size
-				]);
-				d3dContext.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
-
-				d3dContext.VSSetShader(quadVS);
-				d3dContext.VSSetConstantBuffers(0, [quadCB]);
-
-				d3dContext.PSSetShader(simpleTexturePS);
-				d3dContext.PSSetShaderResources(0, [sky.BRDFLookUpTableSRV]);
-				d3dContext.PSSetSamplers(0, [clampSampler]);
-
-				d3dContext.Draw(6, 0);
+				drawTextureQuad(
+					viewportElement.clientWidth - iblPreviewSize - previewBorder,
+					brdfOffset,
+					iblPreviewSize,
+					iblPreviewSize, 
+					sky.BRDFLookUpTableSRV);
 			}
+
+			//if (!sky.BRDFLookUpTableReady)
+			//{
+			//	drawTextureQuad(
+			//		10,
+			//		50,
+			//		100,
+			//		100,
+			//		sky.BRDFLookUpTableSRV);
+			//}
 
 			// Flush the frame
 			d3dSwapChain.Present();

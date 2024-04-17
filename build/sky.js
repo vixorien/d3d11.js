@@ -36,6 +36,8 @@ export class Sky
 	get SpecularIBLReady() { return this.SkyCubeSRV != null && !this.#specDirty; }
 	get BRDFLookUpTableReady() { return !this.#lutDirty; }
 
+	get SpecularMipUpdate() { return this.#specMipUpdate; }
+
 	// TESTING
 	get EquirectSRV() { return this.#equirectSRV; }
 
