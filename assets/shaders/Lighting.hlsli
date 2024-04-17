@@ -124,6 +124,24 @@ float G_SchlickGGX(float3 n, float3 v, float roughness)
 	return 1.0 / (NdotV * (1.0 - k) + k);
 }
 
+// Specular G
+// http://graphicrants.blogspot.com/2013/08/specular-brdf-reference.html
+float G1_Schlick(float Roughness, float NdotV)
+{
+	float k = Roughness * Roughness;
+	k /= 2.0f; // Schlick-GGX version of k - Used in UE4
+
+	// Staying the same
+	return NdotV / (NdotV * (1.0f - k) + k);
+}
+
+// Specular G
+// http://blog.selfshadow.com/publications/s2013-shading-course/karis/s2013_pbs_epic_notes_v2.pdf
+float G_Smith(float Roughness, float NdotV, float NdotL)
+{
+	return G1_Schlick(Roughness, NdotV) * G1_Schlick(Roughness, NdotL);
+}
+
 // Cook-Torrance Microfacet BRDF (Specular)
 //
 // f(l,v) = D(h)F(v,h)G(l,v,h) / 4(n dot l)(n dot v)

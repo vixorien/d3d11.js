@@ -1699,7 +1699,8 @@
 				d3dContext.UpdateSubresource(vsPerFrameCB, 0, null, vsPerFrameData, 0, 0);
 
 				// Pixel data
-				psIBLPrevData.SetData("mipLevel", iblMipPreview);
+				psIBLPrevData.SetData("mipLevel", [iblMipPreview]);
+				console.log(psIBLPrevData);
 				d3dContext.UpdateSubresource(psIBLPrevCB, 0, null, psIBLPrevData, 0, 0);
 				d3dContext.PSSetConstantBuffers(0, [psIBLPrevCB]);
 
