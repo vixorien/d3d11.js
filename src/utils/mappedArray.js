@@ -20,7 +20,6 @@ export class MappedArray extends Float32Array
 		// Get offset of this name
 		if (!this.#mapping.hasOwnProperty(name))
 			throw new Error("Name not found in map");
-		console.log("NAME: " + name + " " + Array.isArray(data));
 
 		// Is this already a real array or an array-like object?
 		let isArray = Array.isArray(data) || ArrayBuffer.isView(data);
