@@ -214,6 +214,13 @@
 
 							</div>
 
+							<!-- SKY MIP PREVIEW -->
+							<h6>&#128269; Skybox Mip Preview</h6>
+
+							<div class="row input-group input-group-sm ms-0 mb-3">
+								<label for="mipLevelRange" class="col-2 input-group-text">Mip: 0</label>
+								<input id="mipLevelRange" type="range" class="col form-control form-range p-3" min="0" max="16" value="0" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Mip: ' + this.value;" />
+							</div>
 
 							<!-- LIGHTS -->
 							<h6>&#128161; Additional Lights</h6>
@@ -235,7 +242,7 @@
 				<div class="accordion-item">
 					<h2 class="accordion-header">
 						<button class="accordion-button p-2 collapsed bg-gradient" type="button" data-bs-toggle="collapse" data-bs-target="#ibl-accordion" aria-expanded="false" aria-controls="ibl-accordion">
-							<h5 class="m-0">&#x1F5BC;&#xFE0F; Image-Based Lighting</h5>
+							<h5 class="m-0">&#x1F5BC;&#xFE0F; IBL Options</h5>
 						</button>
 					</h2>
 					<div id="ibl-accordion" class="accordion-collapse collapse">
@@ -245,7 +252,7 @@
 							<!-- BRDF Look up table -->
 							<p class="mb-0">Environment BRDF Lookup Table</p>
 							<div class="input-group input-group-sm ms-0">
-								<label class="input-group-text">Size</label>
+								<label class="input-group-text col">Size</label>
 
 								<input id="brdf-lut-res-0" name="brdf-lut-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeLutSize(this.value);">
 								<label for="brdf-lut-res-0" class="btn btn-outline-secondary">2048</label>
@@ -253,29 +260,31 @@
 								<input id="brdf-lut-res-1" name="brdf-lut-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeLutSize(this.value);" checked>
 								<label for="brdf-lut-res-1" class="btn btn-outline-secondary">1024</label>
 
-								<input id="brdf-lut-res-2" name="brdf-lut-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeLutSize(this.value);" >
+								<input id="brdf-lut-res-2" name="brdf-lut-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeLutSize(this.value);">
 								<label for="brdf-lut-res-2" class="btn btn-outline-secondary">512</label>
 
-								<input id="brdf-lut-res-3" name="brdf-lut-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeLutSize(this.value);" >
+								<input id="brdf-lut-res-3" name="brdf-lut-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeLutSize(this.value);">
 								<label for="brdf-lut-res-3" class="btn btn-outline-secondary">256</label>
 
-								<input id="brdf-lut-res-4" name="brdf-lut-res" type="radio" class="btn-check" value="128" autocomplete="off" onchange="changeLutSize(this.value);" >
+								<input id="brdf-lut-res-4" name="brdf-lut-res" type="radio" class="btn-check" value="128" autocomplete="off" onchange="changeLutSize(this.value);">
 								<label for="brdf-lut-res-4" class="btn btn-outline-secondary">128</label>
 
-								<input id="brdf-lut-res-5" name="brdf-lut-res" type="radio" class="btn-check" value="64" autocomplete="off" onchange="changeLutSize(this.value);" >
+								<input id="brdf-lut-res-5" name="brdf-lut-res" type="radio" class="btn-check" value="64" autocomplete="off" onchange="changeLutSize(this.value);">
 								<label for="brdf-lut-res-5" class="btn btn-outline-secondary">64</label>
 							</div>
 
-							<div class="form-check mb-3">
-								<input id="brdf-lut-multiscatter" class="form-check-input" type="checkbox" checked />
-								<label for="brdf-lut-multiscatter" class="form-check-label">Multiscattering Compensation</label>
+							<div class="input-group input-group-sm mb-3">
+								<label for="brdf-lut-multiscatter" class="input-group-text col">Multiscattering Compensation</label>
+								<div class="input-group-text">
+									<input id="brdf-lut-multiscatter" class="form-check-input" type="checkbox" checked />
+								</div>
 							</div>
 
 
 							<!-- Irradiance -->
 							<p class="mb-0">Irradiance (Diffuse) Map</p>
 							<div class="input-group input-group-sm ms-0 mb-3">
-								<label class="input-group-text">Size</label>
+								<label class="input-group-text col">Size</label>
 
 								<input id="irr-res-0" name="irr-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeIrrSize(this.value);">
 								<label for="irr-res-0" class="btn btn-outline-secondary">2048</label>
@@ -297,9 +306,9 @@
 							</div>
 
 							<!-- Specular (Largest Mip) -->
-							<p class="mb-0">Specular Map - Total Mip Levels: <span id="spec-mip-levels">8</span></p>
+							<p class="mb-0">Specular Map - Total Mip Levels: <span id="spec-mip-levels">7</span></p>
 							<div class="input-group input-group-sm ms-0 mb-1">
-								<label class="input-group-text">Size</label>
+								<label class="input-group-text col">Size</label>
 
 								<input id="spec-res-large-0" name="spec-res-large" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
 								<label for="spec-res-large-0" class="btn btn-outline-secondary">2048</label>
@@ -322,7 +331,7 @@
 
 							<!-- Specular (Smallest Mip) -->
 							<div class="input-group input-group-sm ms-0 mb-3">
-								<label class="input-group-text">Smallest Mip</label>
+								<label class="input-group-text col">Smallest Mip</label>
 
 								<input id="spec-res-small-0" name="spec-res-small" type="radio" class="btn-check" value="32" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-0" class="btn btn-outline-secondary">32</label>
@@ -343,25 +352,26 @@
 								<label for="spec-res-small-5" class="btn btn-outline-secondary">1</label>
 							</div>
 
-
-							<!-- SKY MIP PREVIEW -->
-							<h6>&#128269; Skybox Mip Preview</h6>
-
-							<div class="row input-group input-group-sm ms-0 mb-3">
-								<label for="mipLevelRange" class="col-2 input-group-text">Mip: 0</label>
-								<input id="mipLevelRange" type="range" class="col form-control form-range p-3" min="0" max="16" value="0" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Mip: ' + this.value;" />
-							</div>
-
 							<!-- IBL ASSET PREVIEW -->
-							<h6>&#128083; Preview IBL Assets</h6>
+							<h6>&#128269; Preview IBL Assets</h6>
 
 							<div class="input-group input-group-sm">
-								<select id="iblCubePreview" class="form-select" onchange="setIBLPreview(this.value);">
-									<option value="0" selected>None</option>
-									<option value="1">Env. BRDF Look Up Table (2D)</option>
-									<option value="2">Irradiance (Cube)</option>
-									<option value="3">Specular (Cube)</option>
-								</select>
+								<label for="preview-brdf-lut" class="input-group-text col">Env. BRDF Lookup Table (2D)</label>
+								<div class="input-group-text">
+									<input id="preview-brdf-lut" class="form-check-input" type="checkbox" onchange="setLutPreview(this.checked);"/>
+								</div>
+							</div>
+							<div class="input-group input-group-sm">
+								<label for="preview-irr" class="input-group-text col">Irradiance (Cube)</label>
+								<div class="input-group-text">
+									<input id="preview-irr" class="form-check-input" type="checkbox" onchange="setIrrPreview(this.checked);" />
+								</div>
+							</div>
+							<div class="input-group input-group-sm">
+								<label for="preview-spec" class="input-group-text col">Specular (Cube)</label>
+								<div class="input-group-text">
+									<input id="preview-spec" class="form-check-input" type="checkbox" onchange="setSpecPreview(this.checked);" />
+								</div>
 							</div>
 
 							<div class="row input-group input-group-sm ms-0 d-none" id="ibl-prev-mip-controls">
@@ -523,8 +533,11 @@
 		let sky = null;
 		let hdrExposure = 0;
 		let skyMipLevelPreview = 0;
-		let iblPreview = 0;
+		let previewLut = false;
+		let previewIrr = false;
+		let previewSpec = false;
 		let iblPreviewSize = 250;
+		let iblPreviewBorder = 10;
 		let iblMipPreview = 0;
 
 		// Tone mapping
@@ -651,13 +664,22 @@
 			document.documentElement.setAttribute("data-bs-theme", mode);
 		}
 
-		window.setIBLPreview = function (val)
+		window.setLutPreview = function (val)
 		{
-			iblPreview = val;
+			previewLut = val;
+		}
+
+		window.setIrrPreview = function (val)
+		{
+			previewIrr = val;
+		}
+
+		window.setSpecPreview = function (val)
+		{
+			previewSpec = val;
 
 			let el = document.getElementById("ibl-prev-mip-controls");
-
-			if (val == 3)
+			if (val == true)
 				el.classList.remove("d-none");
 			else
 				el.classList.add("d-none");
@@ -1766,31 +1788,45 @@
 			//	loadingOffset += 100;
 			//}
 
-			let iblPreviewOverride =
-				!sky.BRDFLookUpTableReady ||
-				!sky.IrradianceReady ||
-				!sky.SpecularIBLReady;
-
-			// Preview cube for irradiance (2) or specular (3)
-			let previewBorder = 10;
-			let brdfOffset = previewBorder;
-			let irrOffset = brdfOffset + iblPreviewSize;
-			let specOffset = irrOffset + iblPreviewSize;
-			if (iblPreview != 0 || iblPreviewOverride)//iblPreview == 2 || iblPreview == 3)
+			// Preview cubes for irradiance and/or specular
+			let irrOffset = previewLut == true ? iblPreviewSize : 0;
+			let specOffset = irrOffset + (previewIrr == true ? iblPreviewSize : 0);
+			if (previewIrr)
 			{
 				drawPreviewCube(
-					viewportElement.clientWidth - iblPreviewSize - previewBorder,
+					viewportElement.clientWidth - iblPreviewSize - iblPreviewBorder,
 					irrOffset,
 					iblPreviewSize,
 					sky.IrradianceCubeSRV,
 					iblMipPreview);
+			}
 
+			if (previewSpec)
+			{
 				drawPreviewCube(
-					viewportElement.clientWidth - iblPreviewSize - previewBorder,
+					viewportElement.clientWidth - iblPreviewSize - iblPreviewBorder,
 					specOffset,
 					iblPreviewSize,
 					sky.SpecularIBLCubeSRV,
 					iblMipPreview);
+			}
+
+
+			// Any loading preview?
+			let iblLoadingPreview = 0;
+			if (!sky.BRDFLookUpTableReady) iblLoadingPreview = 1;
+			else if (!sky.IrradianceReady) iblLoadingPreview = 2;
+			else if (!sky.SpecularIBLReady) iblLoadingPreview = 3;
+
+			// Preview cube during loading
+			if (iblLoadingPreview == 2 || iblLoadingPreview == 3)
+			{
+				drawPreviewCube(
+					iblPreviewBorder,
+					75,
+					iblPreviewSize,
+					iblLoadingPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV,
+					iblLoadingPreview == 2 ? 0 : sky.SpecularMipUpdate);
 			}
 
 			// Finalize post processing if necessary
@@ -1810,26 +1846,26 @@
 				d3dContext.Draw(3, 0);
 			}
 
-			// Env BRDF preview (1)
-			if (iblPreview != 0 || iblPreviewOverride)
+			// Env BRDF Lookup Table preview - Always on top
+			if (previewLut)
 			{
 				drawTextureQuad(
-					viewportElement.clientWidth - iblPreviewSize - previewBorder,
-					brdfOffset,
+					viewportElement.clientWidth - iblPreviewSize - iblPreviewBorder,
+					iblPreviewBorder,
 					iblPreviewSize,
 					iblPreviewSize, 
 					sky.BRDFLookUpTableSRV);
 			}
 
-			//if (!sky.BRDFLookUpTableReady)
-			//{
-			//	drawTextureQuad(
-			//		10,
-			//		50,
-			//		100,
-			//		100,
-			//		sky.BRDFLookUpTableSRV);
-			//}
+			if (iblLoadingPreview == 1)
+			{
+				drawTextureQuad(
+					iblPreviewBorder,
+					75,
+					iblPreviewSize,
+					iblPreviewSize,
+					sky.BRDFLookUpTableSRV);
+			}
 
 			// Flush the frame
 			d3dSwapChain.Present();
