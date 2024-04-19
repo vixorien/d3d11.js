@@ -1,5 +1,6 @@
 
 #include "../assets/shaders/IBL.hlsli"
+#include "../assets/shaders/CubeMaps.hlsli"
 
 cbuffer externalData : register(b0)
 {
@@ -61,21 +62,8 @@ float3 Convolution(float3 zDir)
 
 float4 main(VertexToPixel input) : SV_TARGET
 {
-	// Get a -1 to 1 range on x/y
-	float2 o = input.uv * 2.0 - 1.0;
-
-	// Figure out the z ("normal" of this pixel)
-	float3 zDir;
-	switch (int(faceIndex))
-	{
-	default:
-	case 0: zDir = float3(+1, -o.y, -o.x); break;
-	case 1: zDir = float3(-1, -o.y, +o.x); break;
-	case 2: zDir = float3(+o.x, +1, +o.y); break;
-	case 3: zDir = float3(+o.x, -1, -o.y); break;
-	case 4: zDir = float3(+o.x, -o.y, +1); break;
-	case 5: zDir = float3(-o.x, -o.y, -1); break;
-	}
+	// Get the cube map sample direction
+	float3 zDir = UVtoCubeDirection(input.uv, (int)faceIndex);
 	zDir = normalize(zDir);
 
 	return float4(Convolution(zDir), 1);

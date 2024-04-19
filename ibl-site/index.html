@@ -1050,6 +1050,7 @@
 		let simpleTexturePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
 		let cubePreviewPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewPS.hlsl"));
 		let cubePreviewVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewVS.hlsl"));
+		let cubeFacePreviewPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/CubeFacePreviewPS.hlsl"));
 
 		let equirectToCubePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
 
@@ -1367,11 +1368,12 @@
 		psPerObjectData.SetData("roughness", 1);
 		psPerObjectData.SetData("metalness", 1);
 
-		// PS IBL prev data
+		// PS IBL prev data - for both cube preview and cube face preview
 		cbDesc.ByteWidth = 4 * Float32Array.BYTES_PER_ELEMENT;
 		let psIBLPrevCB = d3dDevice.CreateBuffer(cbDesc, null);
 		let psIBLPrevData = new MappedArray(4);
 		psIBLPrevData.PushMapping("mipLevel", 1);
+		psIBLPrevData.PushMapping("faceIndex", 1);
 
 		// Cbuffer for solid color
 		let solidCBDesc = new D3D11_BUFFER_DESC(
@@ -1637,6 +1639,31 @@
 			d3dContext.Draw(6, 0);
 		}
 
+		function drawCubeFaceQuad(x, y, width, height, srv, face, mip)
+		{
+			quadData.set([
+				x, y, // Position in pixels
+				width, height, // Size in pixels
+				viewportElement.clientWidth, viewportElement.clientHeight // Window size
+			]);
+			d3dContext.UpdateSubresource(quadCB, 0, null, quadData, 0, 0);
+
+			d3dContext.VSSetShader(quadVS);
+			d3dContext.VSSetConstantBuffers(0, [quadCB]);
+
+			d3dContext.PSSetShader(cubeFacePreviewPS);
+			d3dContext.PSSetShaderResources(0, [srv]);
+			d3dContext.PSSetSamplers(0, [pointSampler]);
+
+			// Set up PS cbuffer
+			psIBLPrevData.SetData("mipLevel", [mip]);
+			psIBLPrevData.SetData("faceIndex", [face]);
+			d3dContext.UpdateSubresource(psIBLPrevCB, 0, null, psIBLPrevData, 0, 0);
+			d3dContext.PSSetConstantBuffers(0, [psIBLPrevCB]);
+
+			d3dContext.Draw(6, 0);
+		}
+
 
 		function draw(deltaTime, totalTime)
 		{
@@ -1758,36 +1785,6 @@
 				sky.Draw(camera.ViewMatrix, camera.ProjectionMatrix, skyMipLevelPreview);
 			}
 
-			// Any loading previews?
-			//let loadingOffsetX = 10;
-			//let loadingOffsetY = 100;
-			//if (!sky.BRDFLookUpTableReady)
-			//{
-			//	loadingOffset += 100;
-			//}
-
-			//if (!sky.IrradianceReady)
-			//{
-			//	drawPreviewCube(
-			//		10,
-			//		loadingOffset,
-			//		100,
-			//		sky.IrradianceCubeSRV,
-			//		0);
-			//	loadingOffset += 100;
-			//}
-
-			//if (!sky.SpecularIBLReady)
-			//{
-			//	drawPreviewCube(
-			//		10,
-			//		loadingOffset,
-			//		100,
-			//		sky.SpecularIBLCubeSRV,
-			//		sky.SpecularMipUpdate);
-			//	loadingOffset += 100;
-			//}
-
 			// Preview cubes for irradiance and/or specular
 			let irrOffset = previewLut == true ? iblPreviewSize : 0;
 			let specOffset = irrOffset + (previewIrr == true ? iblPreviewSize : 0);
@@ -1819,15 +1816,15 @@
 			else if (!sky.SpecularIBLReady) iblLoadingPreview = 3;
 
 			// Preview cube during loading
-			if (iblLoadingPreview == 2 || iblLoadingPreview == 3)
-			{
-				drawPreviewCube(
-					iblPreviewBorder,
-					75,
-					iblPreviewSize,
-					iblLoadingPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV,
-					iblLoadingPreview == 2 ? 0 : sky.SpecularMipUpdate);
-			}
+			//if (iblLoadingPreview == 2 || iblLoadingPreview == 3)
+			//{
+			//	drawPreviewCube(
+			//		iblPreviewBorder,
+			//		75,
+			//		iblPreviewSize,
+			//		iblLoadingPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV,
+			//		iblLoadingPreview == 2 ? 0 : sky.SpecularMipUpdate);
+			//}
 
 			// Finalize post processing if necessary
 			if (sky.IsHDR())
@@ -1857,6 +1854,7 @@
 					sky.BRDFLookUpTableSRV);
 			}
 
+			// === IBL Loading Previews ===
 			if (iblLoadingPreview == 1)
 			{
 				drawTextureQuad(
@@ -1865,6 +1863,17 @@
 					iblPreviewSize,
 					iblPreviewSize,
 					sky.BRDFLookUpTableSRV);
+			}
+			else if (iblLoadingPreview > 1)
+			{
+				drawCubeFaceQuad(
+					iblPreviewBorder,
+					75,
+					iblPreviewSize,
+					iblPreviewSize,
+					iblLoadingPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV,
+					iblLoadingPreview == 2 ? sky.IrradianceFaceUpdate : sky.SpecularFaceUpdate,
+					iblLoadingPreview == 2 ? 0 : sky.SpecularMipUpdate);
 			}
 
 			// Flush the frame

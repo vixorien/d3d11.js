@@ -7,7 +7,6 @@ struct VertexToPixel_Sky
 cbuffer data : register(b0)
 {
 	float mipLevel;
-	float envIsHDR;
 }
 
 TextureCube SkyTexture		: register(t0);
