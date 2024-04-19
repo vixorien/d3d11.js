@@ -6,12 +6,6 @@ import { Mesh } from "./mesh.js";
 
 export class Sky
 {
-	// Custom events
-	#skychangeevent = new Event("skychange");
-	#irrchangeevent = new Event("skychange");
-	#specchangeevent = new Event("skychange");
-	#brdfchangeevent = new Event("skychange");
-
 	// SRVs and details
 	SkyCubeSRV;
 	SkyCubeSize;
@@ -40,6 +34,8 @@ export class Sky
 	get SpecularFaceUpdate() { return this.#specFaceUpdate; }
 	get SpecularMipUpdate() { return this.#specMipUpdate; }
 
+	get MultiscatterCompensation() { return this.#multiscatterComp; }
+
 	// TESTING
 	get EquirectSRV() { return this.#equirectSRV; }
 
@@ -67,6 +63,7 @@ export class Sky
 	#skyVS;
 	#skyPS;
 	#skyMesh;
+	#multiscatterComp;
 
 	// Pre-calc shaders
 	#irrPS;
@@ -161,6 +158,7 @@ export class Sky
 		this.#isHDR = false;
 		this.#hdrExposure = 0;
 		this.#equirectSRV = null;
+		this.#multiscatterComp = true;
 
 		// Create samplers for rendering
 		let sampDesc = new D3D11_SAMPLER_DESC(
@@ -474,6 +472,18 @@ export class Sky
 		this.#specTileUpdate = 0;
 	}
 
+	SetMultiscatterCompensation(ms)
+	{
+		// Need to update?
+		if (this.#multiscatterComp != ms)
+		{
+			this.#lutDirty = true;
+			this.#lutTileUpdate = 0;
+		}
+
+		this.#multiscatterComp = ms;
+	}
+
 	Update()
 	{
 		// Perform any asset updates if necessary, ensuring
@@ -662,6 +672,11 @@ export class Sky
 			}
 		}
 
+		// Set cb data
+		this.#cbPSData.set([this.#multiscatterComp]);
+		this.#d3dContext.UpdateSubresource(this.#cbPS, 0, null, this.#cbPSData, 0, 0);
+		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
+
 		// Draw
 		this.#d3dContext.PSSetShader(this.#brdfLutPS);
 		this.#d3dContext.VSSetShader(this.#fullscreenVS);
@@ -671,7 +686,6 @@ export class Sky
 		if (singleTileUpdate)
 		{
 			this.#d3dContext.RSSetState(null);
-			//this.#d3dContext.RSSetScissorRects([null]);
 
 			this.#lutTileUpdate++;
 			if (this.#lutTileUpdate >= numTiles)

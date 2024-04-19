@@ -49,7 +49,7 @@
 		<div class="col-3 h-100 overflow-y-auto left-column-min-width">
 
 			<!-- Overall title-->
-			<h1>Image-Based Lighting</h1>
+			<div class="text-center"><h2>Image-Based.Lighting</h2></div>
 
 			<!-- Testing accordian navigation -->
 			<div class="accordion" id="main-nav">
@@ -276,7 +276,7 @@
 							<div class="input-group input-group-sm mb-3">
 								<label for="brdf-lut-multiscatter" class="input-group-text col">Multiscattering Compensation</label>
 								<div class="input-group-text">
-									<input id="brdf-lut-multiscatter" class="form-check-input" type="checkbox" checked />
+									<input id="brdf-lut-multiscatter" class="form-check-input" type="checkbox" checked onchange="setMultiscatter(this.checked);"/>
 								</div>
 							</div>
 
@@ -537,7 +537,7 @@
 		let previewIrr = false;
 		let previewSpec = false;
 		let iblPreviewSize = 250;
-		let iblPreviewBorder = 10;
+		let iblPreviewBorder = 25;
 		let iblMipPreview = 0;
 
 		// Tone mapping
@@ -723,7 +723,10 @@
 			skyMipLevelPreview = val;
 		}
 
-
+		window.setMultiscatter = function (val)
+		{
+			sky.SetMultiscatterCompensation(val);
+		}
 
 		window.setHDRExposure = function (val)
 		{
@@ -1032,7 +1035,6 @@
 		let cubeMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/cube.obj");
 
 		// Camera
-		//let camera = new FPSCamera(0, 0, -10, viewportElement.clientWidth / viewportElement.clientHeight);
 		camera = new OrbitCamera(15, viewportElement.clientWidth / viewportElement.clientHeight);
 
 
@@ -1059,23 +1061,6 @@
 		let iblIrradiancePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
 		let iblSpecularPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
 
-
-		// Load a cube map
-		//let skySRV = await loadTextureCube(
-		//	d3dDevice,
-		//	d3dContext,
-		//	[
-		//		"../assets/skies/cloudsblue/right.png",
-		//		"../assets/skies/cloudsblue/left.png",
-		//		"../assets/skies/cloudsblue/up.png",
-		//		"../assets/skies/cloudsblue/down.png",
-		//		"../assets/skies/cloudsblue/front.png",
-		//		"../assets/skies/cloudsblue/back.png"
-		//	],
-		//	false,
-		//	true
-		//);
-
 		// Create the sky object
 		sky = new Sky(d3dDevice, d3dContext,
 			skyVS, skyPS, cubeMesh,
@@ -1087,7 +1072,6 @@
 
 		let [width, height, data] = await TextureUtils.LoadHDRFile("../assets/skies/partly_cloudy_2k.hdr");
 		sky.LoadEquirectHDR(width, height, data, hdrExposure);
-		//sky.LoadCubeMap(skySRV, false);
 
 
 		// ----------------- Materials --------------------
@@ -1129,7 +1113,7 @@
 		let matMetalPlate = new Material(vs, ps, new Vector3(1, 1, 1));
 		matMetalPlate.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_albedo.png"));
 		matMetalPlate.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_normals.png"));
-		matMetalPlate.SetPSTextureSRV(2, metal1);
+		matMetalPlate.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_metal.png")); 
 		matMetalPlate.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_rough.png"));
 		matMetalPlate.SetPSSamplerState(0, sampler);
 		matMetalPlate.SetPSSamplerState(1, clampSampler);
@@ -1311,15 +1295,6 @@
 			));
 		}
 
-		// Texture saving test
-		let ddsTest = false;
-		if (ddsTest)
-		{
-			let [w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels] = TextureUtils.ReadPixelDataFromSRV(d3dDevice, d3dContext, irrSRV);
-			TextureUtils.WriteDDSFile("spec.dds", w, h, mips, arrSizeOrCubeCount, isCube, dxgiFormat, pixels);
-		}
-
-
 		// Create constant buffers -----------------
 		let cbDesc = new D3D11_BUFFER_DESC(
 			0, // Will be filled in below
@@ -1352,7 +1327,7 @@
 		psPerFrameData.PushMapping("iblSpecMips", 1);
 		psPerFrameData.PushMapping("lightCount", 1);
 		psPerFrameData.PushMapping("envIsHDR", 1);
-		psPerFrameData.PushMapping("pad2", 1);
+		psPerFrameData.PushMapping("multiscatter", 1);
 		psPerFrameData.PushMapping("lights", MaxLights * Light.SizeInFloats);
 
 		// PS Per Object = 8 floats (RGB color tint + roughness + metalness + float3 padding)
@@ -1730,6 +1705,7 @@
 			psPerFrameData.SetData("iblSpecMips", [sky.SpecularIBLMipsTotal]);
 			psPerFrameData.SetData("lightCount", [lightingSetups[currentLighting].length]);
 			psPerFrameData.SetData("envIsHDR", [sky.IsHDR() ? 1 : 0]);
+			psPerFrameData.SetData("multiscatter", [sky.MultiscatterCompensation ? 1 : 0]);
 			for (let i = 0; i < lightingSetups[currentLighting].length; i++)
 				psPerFrameData.SetData("lights", lightingSetups[currentLighting][i], i * Light.SizeInFloats);
 			d3dContext.UpdateSubresource(psPerFrameCB, 0, null, psPerFrameData, 0, 0);
@@ -1809,23 +1785,6 @@
 			}
 
 
-			// Any loading preview?
-			let iblLoadingPreview = 0;
-			if (!sky.BRDFLookUpTableReady) iblLoadingPreview = 1;
-			else if (!sky.IrradianceReady) iblLoadingPreview = 2;
-			else if (!sky.SpecularIBLReady) iblLoadingPreview = 3;
-
-			// Preview cube during loading
-			//if (iblLoadingPreview == 2 || iblLoadingPreview == 3)
-			//{
-			//	drawPreviewCube(
-			//		iblPreviewBorder,
-			//		75,
-			//		iblPreviewSize,
-			//		iblLoadingPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV,
-			//		iblLoadingPreview == 2 ? 0 : sky.SpecularMipUpdate);
-			//}
-
 			// Finalize post processing if necessary
 			if (sky.IsHDR())
 			{
@@ -1855,25 +1814,37 @@
 			}
 
 			// === IBL Loading Previews ===
-			if (iblLoadingPreview == 1)
+			let loadingPreviewY = document.getElementById("loading-container").getBoundingClientRect().bottom + iblPreviewBorder;
+			if (!sky.BRDFLookUpTableReady == 1)
 			{
 				drawTextureQuad(
 					iblPreviewBorder,
-					75,
+					loadingPreviewY,
 					iblPreviewSize,
 					iblPreviewSize,
 					sky.BRDFLookUpTableSRV);
 			}
-			else if (iblLoadingPreview > 1)
+			else if (!sky.IrradianceReady)
 			{
 				drawCubeFaceQuad(
 					iblPreviewBorder,
-					75,
+					loadingPreviewY,
 					iblPreviewSize,
 					iblPreviewSize,
-					iblLoadingPreview == 2 ? sky.IrradianceCubeSRV : sky.SpecularIBLCubeSRV,
-					iblLoadingPreview == 2 ? sky.IrradianceFaceUpdate : sky.SpecularFaceUpdate,
-					iblLoadingPreview == 2 ? 0 : sky.SpecularMipUpdate);
+					sky.IrradianceCubeSRV,
+					sky.IrradianceFaceUpdate,
+					0);
+			}
+			else if (!sky.SpecularIBLReady)
+			{
+				drawCubeFaceQuad(
+					iblPreviewBorder,
+					loadingPreviewY,
+					iblPreviewSize,
+					iblPreviewSize,
+					sky.SpecularIBLCubeSRV,
+					sky.SpecularFaceUpdate,
+					sky.SpecularMipUpdate);
 			}
 
 			// Flush the frame
@@ -1886,6 +1857,7 @@
 		let prevTime = 0;
 		function frameloop(time)
 		{
+			// First frame check
 			if (startTime == -1)
 			{
 				startTime = time;

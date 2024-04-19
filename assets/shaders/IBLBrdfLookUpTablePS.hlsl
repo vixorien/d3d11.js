@@ -1,6 +1,11 @@
 
 #include "../assets/shaders/IBL.hlsli"
 
+cbuffer ExternalData : register(b0)
+{
+	float multiscatter;
+}
+
 struct VertexToPixel
 {
 	float4 position		: SV_POSITION;
@@ -72,6 +77,6 @@ float4 main(VertexToPixel input) : SV_TARGET
 	float nDotV = input.uv.x;
 	
 	// Handle this pixel and save
-	float2 brdf = IntegrateBRDF(roughness, nDotV, true);
+	float2 brdf = IntegrateBRDF(roughness, nDotV, (bool)multiscatter);
 	return float4(brdf, 0, 1);
 }
