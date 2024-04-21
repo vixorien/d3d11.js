@@ -37,6 +37,11 @@
 			z-index: 2;
 			margin: 0 auto;
 		}
+
+		.hover-pointer {
+			cursor:pointer;
+		}
+
 	</style>
 </head>
 <body class="h-100 m-0 p-0">
@@ -356,21 +361,21 @@
 							<h6>&#128269; Preview IBL Assets</h6>
 
 							<div class="input-group input-group-sm">
-								<label for="preview-brdf-lut" class="input-group-text col">Env. BRDF Lookup Table (2D)</label>
+								<label for="preview-brdf-lut" class="input-group-text col hover-pointer">Env. BRDF Lookup Table (2D)</label>
 								<div class="input-group-text">
-									<input id="preview-brdf-lut" class="form-check-input" type="checkbox" onchange="setLutPreview(this.checked);"/>
+									<input id="preview-brdf-lut" class="form-check-input hover-pointer" type="checkbox" onchange="setLutPreview(this.checked);"/>
 								</div>
 							</div>
 							<div class="input-group input-group-sm">
-								<label for="preview-irr" class="input-group-text col">Irradiance (Cube)</label>
+								<label for="preview-irr" class="input-group-text col hover-pointer">Irradiance (Cube)</label>
 								<div class="input-group-text">
-									<input id="preview-irr" class="form-check-input" type="checkbox" onchange="setIrrPreview(this.checked);" />
+									<input id="preview-irr" class="form-check-input hover-pointer" type="checkbox" onchange="setIrrPreview(this.checked);" />
 								</div>
 							</div>
 							<div class="input-group input-group-sm">
-								<label for="preview-spec" class="input-group-text col">Specular (Cube)</label>
+								<label for="preview-spec" class="input-group-text col hover-pointer">Specular (Cube)</label>
 								<div class="input-group-text">
-									<input id="preview-spec" class="form-check-input" type="checkbox" onchange="setSpecPreview(this.checked);" />
+									<input id="preview-spec" class="form-check-input hover-pointer" type="checkbox" onchange="setSpecPreview(this.checked);" />
 								</div>
 							</div>
 
@@ -417,24 +422,24 @@
 
 							<h6>&#127912; Tonemapping</h6>
 
-							<p>Exposure is applied before any tonemapping.</p>
-							<div class="row input-group input-group-sm ms-0 mb-3">
+							<p>Exposure is applied prior to tonemapping.</p>
+							<div class="row input-group input-group-sm ms-0">
 								<label for="exposureRange" class="col-4 input-group-text">Exposure: 0</label>
 								<input id="exposureRange" type="range" class="col form-control form-range p-3" min="-10" max="10" step="0.01" value="0" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure: ' + this.value;" />
 							</div>
-
-							<label for="tonemapType" class="form-label">Type</label>
-							<select id="tonemapType" class="form-select" onchange="setTonemapType(this.value);">
-								<option value="0" selected>None</option>
-								<option value="1">Reinhard</option>
-								<option value="2">Reinhard (White Point)</option>
-								<option value="3">Uncharted 2</option>
-								<option value="4">Aces</option>
-							</select>
-
-							<div class="row input-group input-group-sm ms-0 mb-3 d-none" id="white-point-controls">
-								<label for="whitePointRange" class="col-4 input-group-text">White Point: 10</label>
-								<input id="whitePointRange" type="range" class="col form-control form-range p-3" min="0" max="20" step="0.01" value="10" oninput="setWhitePoint(this.value); this.previousElementSibling.innerHTML = 'White Point: ' + this.value;" />
+							<div class="input-group input-group-sm">
+								<label for="tonemapType" class="col-4 input-group-text">Tonemap Type</label>
+								<select id="tonemapType" class="form-select" onchange="setTonemapType(this.value);">
+									<option value="0" selected>None</option>
+									<option value="1">Reinhard</option>
+									<option value="2">Reinhard (White Point)</option>
+									<option value="3">Uncharted 2</option>
+									<option value="4">Aces</option>
+								</select>
+							</div>
+							<div class="row input-group input-group-sm ms-0 d-none" id="white-point-controls">
+								<label for="whitePointRange" class="col-4 input-group-text">White Point: 2</label>
+								<input id="whitePointRange" type="range" class="col form-control form-range p-3" min="0" max="20" step="0.01" value="2" oninput="setWhitePoint(this.value); this.previousElementSibling.innerHTML = 'White Point: ' + this.value;" />
 							</div>
 
 						</div>
@@ -538,12 +543,13 @@
 		let previewSpec = false;
 		let iblPreviewSize = 250;
 		let iblPreviewBorder = 25;
+		let iblPreviewCubeCamDist = 2.3;
 		let iblMipPreview = 0;
 
 		// Tone mapping
 		let tonemapType = 0;
 		let tonemapExposure = 0;
-		let tonemapWhitePoint = 10;
+		let tonemapWhitePoint = 2;
 
 		// Scene-related
 		let camera = null;
@@ -1570,7 +1576,7 @@
 
 			// Set per-frame data and update CB
 			vsPerFrameData.SetData("view", Matrix4x4.ViewPositionLH(
-				Vector3.Multiply(camera.Forward, -2.5),
+				Vector3.Multiply(camera.Forward, -iblPreviewCubeCamDist),
 				Vector3.Zero,
 				Vector3.UnitY
 			));
@@ -1762,7 +1768,7 @@
 			}
 
 			// Preview cubes for irradiance and/or specular
-			let irrOffset = previewLut == true ? iblPreviewSize : 0;
+			let irrOffset = previewLut == true ? iblPreviewSize + iblPreviewBorder * 2 : iblPreviewBorder;
 			let specOffset = irrOffset + (previewIrr == true ? iblPreviewSize : 0);
 			if (previewIrr)
 			{
