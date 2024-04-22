@@ -257,7 +257,9 @@ export class Sky
 
 	LoadCubeMap(cubeSRV, isHDR = false)
 	{
-		// TODO: Clean up existing sky cube?
+		// Clean up existing cube
+		if (this.SkyCubeSRV != null)
+			this.SkyCubeSRV.Release();
 
 		// Save cube and grab format straight from SRV
 		this.SkyCubeSRV = cubeSRV;
@@ -271,11 +273,6 @@ export class Sky
 		// Other setup
 		this.#isHDR = isHDR;
 		this.#ResetIBLDirtyState(true);
-
-	}
-
-	LoadSixFaces()
-	{
 
 	}
 
@@ -1029,7 +1026,7 @@ export class Sky
 
 		// Do we need to recreate the cube map?
 		let idealCubeSize = equirectDesc.Width / 4;
-		if (this.SkyCubeSize != idealCubeSize)
+		if (this.SkyCubeSize != idealCubeSize || this.SkyColorFormat != equirectDesc.Format)
 		{
 			// Release if necessary
 			if (this.SkyCubeSRV != null)
@@ -1039,11 +1036,12 @@ export class Sky
 			this.SkyCubeSRV = TextureUtils.CreateTextureCube(
 				this.#d3dDevice,
 				idealCubeSize,
-				this.SkyColorFormat,
+				equirectDesc.Format,
 				0); // All mips down to 1x1!
 
-			// Save new size
+			// Save new size and format
 			this.SkyCubeSize = idealCubeSize;
+			this.SkyColorFormat = equirectDesc.Format;
 		}
 		
 		// Grab the texture itself

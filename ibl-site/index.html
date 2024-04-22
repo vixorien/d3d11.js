@@ -253,9 +253,23 @@
 					<div id="ibl-accordion" class="accordion-collapse collapse">
 						<div class="accordion-body p-3">
 
+							<!-- HDR Status -->
+							<h6>Dynamic Range</h6>
+							<div class="input-group input-group-sm">
+								<label for="hdr-status" class="input-group-text col">Environment is HDR?</label>
+								<span id="hdr-status" class="input-group-text">No</span>
+							</div>
+
+							<div class="row input-group input-group-sm ms-0">
+								<label for="ibl-exposure-range" class="col-5 input-group-text">IBL Exposure: 0</label>
+								<input id="ibl-exposure-range" type="range" class="col form-control form-range p-3" min="-10" max="10" step="0.01" value="0" oninput="setIBLExposure(this.value); this.previousElementSibling.innerHTML = 'IBL Exposure: ' + this.value;" />
+								<p>Bake exposure into the environment and IBL maps</p>
+							</div>
+							
+
 							<!-- RESOLUTIONS -->
 							<!-- BRDF Look up table -->
-							<h6>&#128200; Environment BRDF Lookup Table</h6>
+							<h6 class="mt-3">&#128200; Environment BRDF Lookup Table</h6>
 							<div class="input-group input-group-sm ms-0">
 								<label class="input-group-text col">Size</label>
 
@@ -425,7 +439,7 @@
 							<p>Exposure is applied prior to tonemapping.</p>
 							<div class="row input-group input-group-sm ms-0">
 								<label for="exposureRange" class="col-4 input-group-text">Exposure: 0</label>
-								<input id="exposureRange" type="range" class="col form-control form-range p-3" min="-10" max="10" step="0.01" value="0" oninput="setExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure: ' + this.value;" />
+								<input id="exposureRange" type="range" class="col form-control form-range p-3" min="-10" max="10" step="0.01" value="0" oninput="setTonemapExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure: ' + this.value;" />
 							</div>
 							<div class="input-group input-group-sm">
 								<label for="tonemapType" class="col-4 input-group-text">Tonemap Type</label>
@@ -719,7 +733,7 @@
 				wp.classList.add("d-none");
 		}
 
-		window.setExposure = function (val)
+		window.setTonemapExposure = function (val)
 		{
 			tonemapExposure = val;
 		}
@@ -734,7 +748,7 @@
 			sky.SetMultiscatterCompensation(val);
 		}
 
-		window.setHDRExposure = function (val)
+		window.setIBLExposure = function (val)
 		{
 			// Adjust exposure and re-create all PBR assets
 			hdrExposure = val;
