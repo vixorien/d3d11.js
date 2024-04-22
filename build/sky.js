@@ -388,7 +388,7 @@ export class Sky
 		let desc = new D3D11_TEXTURE2D_DESC(
 			width,
 			height,
-			1,
+			mipLevels,
 			6,
 			format,
 			new DXGI_SAMPLE_DESC(1, 0),
@@ -404,9 +404,8 @@ export class Sky
 		this.SkyCubeSize = width;
 
 		// Clean up texture resource and other setup
-		// TODO: Handle HDR/non-HDR switch
 		tex.Release();
-		this.#isHDR = false;
+		this.#isHDR = (format == DXGI_FORMAT_R16G16B16A16_FLOAT || format == DXGI_FORMAT_R32G32B32A32_FLOAT);
 		this.#ResetIBLDirtyState(true);
 	}
 

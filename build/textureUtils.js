@@ -944,11 +944,13 @@ export class TextureUtils
 
 		// TODO:
 		// - Array of cube maps ? Should we disallow?
-		// - Just using the first mip, I think?
+		// - TEST NEW LOADING WITH COMPRESSION - Not really taking compressed size into account anymore
 
 		// Each face needs its own array!
-		let faceStartByte = offset * 4;
-		let faceSizeInBytes = width * height * 4;
+		let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(format);
+		let faceStartByte = offset * 4; // Convert offset to bytes
+		let faceSizeInChannels = width * height * 4;
+		let faceSizeInBytes = width * height * bytesPerPixel;
 		if (compressed)
 		{
 			// Can't rely on linear size from file - figure it out ourselves
@@ -958,26 +960,42 @@ export class TextureUtils
 				compBlockSize;
 		}
 
-		// Calc mip size
-
-
-		let faceDataArrays = [
-			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 0, faceSizeInBytes),
-			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 1, faceSizeInBytes),
-			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 2, faceSizeInBytes),
-			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 3, faceSizeInBytes),
-			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 4, faceSizeInBytes),
-			new Uint8Array(dataFromFile, faceStartByte + faceSizeInBytes * 5, faceSizeInBytes)
-		];
-	
-		for (let face = 0; face < 6; face++)
+		let faceDataArrays = [];
+		let dataByteOffset = faceStartByte;
+		for (let f = 0; f < 6; f++)
 		{
-			if (compressed)
-				TextureUtils.#FlipCompressedTextureData(faceDataArrays[face], width, height, format);
-			else
-				TextureUtils.#FlipTextureData(faceDataArrays[face], width, height, format, bgraFlip);
+			for (let m = 0; m < mipLevels; m++)
+			{
+				// Calculate sizes for this mip
+				let div = Math.pow(2, m);
+				let mipWidth = Math.max(1, Math.floor(width / div));
+				let mipHeight = Math.max(1, Math.floor(height / div));
+				let mipElements = mipWidth * mipHeight * 4; // 4 channels
+
+				// Determine the type of data to store
+				let mipData;
+				switch (format)
+				{
+					case DXGI_FORMAT_R32G32B32A32_FLOAT: mipData = new Float32Array(dataFromFile, dataByteOffset, mipElements); break;
+					case DXGI_FORMAT_R16G16B16A16_FLOAT: mipData = new Uint16Array(dataFromFile, dataByteOffset, mipElements); break;
+					default: mipData = new Uint8Array(dataFromFile, dataByteOffset, mipElements); break;
+					// TODO: Handle other formats
+				}
+
+				// Offset past this mip
+				dataByteOffset += mipWidth * mipHeight * bytesPerPixel;
+
+				// Flip
+				if (compressed)
+					TextureUtils.#FlipCompressedTextureData(mipData, mipWidth, mipHeight, format);
+				else
+					TextureUtils.#FlipTextureData(mipData, mipWidth, mipHeight, format, bgraFlip);
+
+				// Push into overall data array
+				faceDataArrays.push(mipData);
+			}
 		}
-		
+
 		// Return all the info we have
 		return [width, height, mipLevels, format, faceDataArrays];
 	}
@@ -1126,7 +1144,7 @@ export class TextureUtils
 
 	static #FlipTextureData(pixels, width, height, format, bgraFlip)
 	{
-		let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(format);
+		let bytesPerPixel = 4;// TextureUtils.GetDXGIFormatBytesPerPixel(format);
 
 		let halfHeight = height / 2;
 		for (let h = 0; h < halfHeight; h++)

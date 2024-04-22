@@ -836,7 +836,6 @@
 		{
 			let fileInput = document.getElementById("ddsFile");
 			let [width, height, mips, format, faceDataArrays] = await TextureUtils.LoadDDSFileLocal(fileInput);
-
 			sky.LoadDDS(width, height, mips, format, faceDataArrays);
 		}
 
