@@ -35,6 +35,7 @@ export class Sky
 	get SpecularMipUpdate() { return this.#specMipUpdate; }
 
 	get MultiscatterCompensation() { return this.#multiscatterComp; }
+	get IsHDR() { return this.#isHDR; }
 
 	// TESTING
 	get EquirectSRV() { return this.#equirectSRV; }
@@ -238,11 +239,6 @@ export class Sky
 		this.#lutTileUpdate = 0;
 	}
 
-	IsHDR()
-	{
-		return this.#isHDR;
-	}
-
 	#ResetIBLDirtyState(dirty)
 	{
 		this.#irrDirty = dirty;
@@ -271,7 +267,7 @@ export class Sky
 		cubeRes.Release();
 
 		// Other setup
-		this.#isHDR = isHDR;
+		this.#isHDR = (this.SkyColorFormat == DXGI_FORMAT_R16G16B16A16_FLOAT || this.SkyColorFormat == DXGI_FORMAT_R32G32B32A32_FLOAT);;
 		this.#ResetIBLDirtyState(true);
 
 	}

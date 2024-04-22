@@ -254,16 +254,15 @@
 						<div class="accordion-body p-3">
 
 							<!-- HDR Status -->
-							<h6>Dynamic Range</h6>
+							<h6>&#128248; Dynamic Range</h6>
 							<div class="input-group input-group-sm">
-								<label for="hdr-status" class="input-group-text col">Environment is HDR?</label>
+								<span class="input-group-text col">Environment is HDR?</span>
 								<span id="hdr-status" class="input-group-text">No</span>
 							</div>
 
-							<div class="row input-group input-group-sm ms-0">
-								<label for="ibl-exposure-range" class="col-5 input-group-text">IBL Exposure: 0</label>
-								<input id="ibl-exposure-range" type="range" class="col form-control form-range p-3" min="-10" max="10" step="0.01" value="0" oninput="setIBLExposure(this.value); this.previousElementSibling.innerHTML = 'IBL Exposure: ' + this.value;" />
-								<p>Bake exposure into the environment and IBL maps</p>
+							<div id="ibl-exposure-container" class="row input-group input-group-sm ms-0 d-none">
+								<label for="ibl-exposure-range" class="col-6 input-group-text">Baked IBL Exposure: 0</label>
+								<input id="ibl-exposure-range" type="range" class="col form-control form-range p-3" min="-10" max="10" step="0.01" value="0" oninput="setIBLExposure(this.value); this.previousElementSibling.innerHTML = 'Baked IBL Exposure: ' + this.value;" />
 							</div>
 							
 
@@ -434,26 +433,28 @@
 						<div class="accordion-body p-3">
 							<p>Fine-tune the rendered image in the viewport. This does not affect the IBL maps.</p>
 
-							<h6>&#127912; Tonemapping</h6>
+							<div id="tonemapping-contanier" class="d-none">
+								<h6>&#127912; HDR Tonemapping</h6>
 
-							<p>Exposure is applied prior to tonemapping.</p>
-							<div class="row input-group input-group-sm ms-0">
-								<label for="exposureRange" class="col-4 input-group-text">Exposure: 0</label>
-								<input id="exposureRange" type="range" class="col form-control form-range p-3" min="-10" max="10" step="0.01" value="0" oninput="setTonemapExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure: ' + this.value;" />
-							</div>
-							<div class="input-group input-group-sm">
-								<label for="tonemapType" class="col-4 input-group-text">Tonemap Type</label>
-								<select id="tonemapType" class="form-select" onchange="setTonemapType(this.value);">
-									<option value="0" selected>None</option>
-									<option value="1">Reinhard</option>
-									<option value="2">Reinhard (White Point)</option>
-									<option value="3">Uncharted 2</option>
-									<option value="4">Aces</option>
-								</select>
-							</div>
-							<div class="row input-group input-group-sm ms-0 d-none" id="white-point-controls">
-								<label for="whitePointRange" class="col-4 input-group-text">White Point: 2</label>
-								<input id="whitePointRange" type="range" class="col form-control form-range p-3" min="0" max="20" step="0.01" value="2" oninput="setWhitePoint(this.value); this.previousElementSibling.innerHTML = 'White Point: ' + this.value;" />
+								<p>Exposure is applied prior to tonemapping.</p>
+								<div class="row input-group input-group-sm ms-0">
+									<label for="exposureRange" class="col-4 input-group-text">Exposure: 0</label>
+									<input id="exposureRange" type="range" class="col form-control form-range p-3" min="-10" max="10" step="0.01" value="0" oninput="setTonemapExposure(this.value); this.previousElementSibling.innerHTML = 'Exposure: ' + this.value;" />
+								</div>
+								<div class="input-group input-group-sm">
+									<label for="tonemapType" class="col-4 input-group-text">Tonemap Type</label>
+									<select id="tonemapType" class="form-select" onchange="setTonemapType(this.value);">
+										<option value="0" selected>None</option>
+										<option value="1">Reinhard</option>
+										<option value="2">Reinhard (White Point)</option>
+										<option value="3">Uncharted 2</option>
+										<option value="4">Aces</option>
+									</select>
+								</div>
+								<div class="row input-group input-group-sm ms-0 d-none" id="white-point-controls">
+									<label for="whitePointRange" class="col-4 input-group-text">White Point: 2</label>
+									<input id="whitePointRange" type="range" class="col form-control form-range p-3" min="0" max="20" step="0.01" value="2" oninput="setWhitePoint(this.value); this.previousElementSibling.innerHTML = 'White Point: ' + this.value;" />
+								</div>
 							</div>
 
 						</div>
@@ -796,7 +797,7 @@
 			}
 
 			// All loaded - Attempt to load as a cube map (assuming NOT hdr)
-			sky.LoadCubeMap(await loadTextureCube(d3dDevice, d3dContext, fileURLs, true, true), false);
+			sky.LoadCubeMap(await loadTextureCube(d3dDevice, d3dContext, fileURLs, true, true));
 		}
 
 
@@ -1483,6 +1484,22 @@
 			else
 				hideLoading();
 
+			// Update HDR status
+			// TODO: Tie to actual loading
+			document.getElementById("hdr-status").innerHTML = sky.IsHDR ? "Yes" : "No";
+			let iblExp = document.getElementById("ibl-exposure-container");
+			let tonemap = document.getElementById("tonemapping-contanier");
+			if (sky.IsHDR)
+			{
+				iblExp.classList.remove("d-none");
+				tonemap.classList.remove("d-none");
+			}
+			else
+			{
+				iblExp.classList.add("d-none");
+				tonemap.classList.add("d-none");
+			}
+
 			// Update the point lights
 			for (let i = 0; i < lightingSetups[Lighting_EightPoints].length; i++)
 			{
@@ -1664,7 +1681,7 @@
 			checkForResize();
 
 			// Set up tone mapping if necessary
-			if (sky.IsHDR())
+			if (sky.IsHDR)
 			{
 				d3dContext.OMSetRenderTargets([ppRTV], depthDSV);
 			}
@@ -1723,7 +1740,7 @@
 			psPerFrameData.SetData("cameraPos", camera.Position);
 			psPerFrameData.SetData("iblSpecMips", [sky.SpecularIBLMipsTotal]);
 			psPerFrameData.SetData("lightCount", [lightingSetups[currentLighting].length]);
-			psPerFrameData.SetData("envIsHDR", [sky.IsHDR() ? 1 : 0]);
+			psPerFrameData.SetData("envIsHDR", [sky.IsHDR ? 1 : 0]);
 			psPerFrameData.SetData("multiscatter", [sky.MultiscatterCompensation ? 1 : 0]);
 			for (let i = 0; i < lightingSetups[currentLighting].length; i++)
 				psPerFrameData.SetData("lights", lightingSetups[currentLighting][i], i * Light.SizeInFloats);
@@ -1805,7 +1822,7 @@
 
 
 			// Finalize post processing if necessary
-			if (sky.IsHDR())
+			if (sky.IsHDR)
 			{
 				d3dContext.OMSetRenderTargets([rtv], null);
 				d3dContext.VSSetShader(fullscreenVS);
