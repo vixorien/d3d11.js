@@ -63,13 +63,13 @@
 				<div class="accordion-item">
 					<h2 class="accordion-header">
 						<button class="accordion-button collapsed p-2 bg-gradient" type="button" data-bs-toggle="collapse" data-bs-target="#scene-accordion" aria-expanded="false" aria-controls="scene-accordion">
-							<h5 class="m-0">&#127760; Model</h5>
+							<h5 class="m-0">&#127760; Model & Material</h5>
 						</button>
 					</h2>
 					<div id="scene-accordion" class="accordion-collapse collapse">
 						<div class="accordion-body p-3">
 
-							<h6>&#128260; Swap Model</h6>
+							<h6>&#128260; Model</h6>
 
 							<!-- MODEL -->
 							<div class="input-group input-group-sm mb-3">
@@ -94,12 +94,11 @@
 										<option value="0">Custom (No Textures)</option>
 										<option value="1" selected>Cobblestone</option>
 										<option value="2">Bronze</option>
-										<option value="3">Metal Flooring</option>
-										<option value="4">Scratched Paint</option>
-										<option value="5">Metal Plate</option>
-										<option value="6">Slabs</option>
-										<option value="7">Stone</option>
-										<option value="8">Wood</option>
+										<option value="3">Scratched Paint</option>
+										<option value="4">Metal Plate</option>
+										<option value="5">Slabs</option>
+										<option value="6">Stone</option>
+										<option value="7">Wood</option>
 									</select>
 								</div>
 
@@ -145,21 +144,19 @@
 							<div class="input-group input-group-sm mb-3">
 								<select class="form-select" id="env-map-select" onchange="changeEnvMap(this.value);">
 
-									<option value="1">Example 1</option>
-									<option value="2">Example 2</option>
-									<option value="3">Example 3</option>
-									<option value="4">White Furnace</option>
-									<option value="load6">&#127922; Load 6 Faces</option>
-									<option value="loadDDS">&#128230; Load DDS Cube Map</option>
-									<option value="loadHDR">&#127748; Load HDR File</option>
+									<option value="0">Attic</option>
+									<option value="1">Hills</option>
+									<option value="2">Cellar</option>
+									<option value="3">White Furnace</option>
+									<option value="load6">&#127922; Load Six Faces</option>
+									<option value="loadDDS">&#128230; Load .DDS Cube Map</option>
+									<option value="loadHDR">&#127748; Load Equirectangular .HDR File</option>
 
 								</select>
 							</div>
 
 							<!-- LOAD SIX FACES -->
 							<div id="load-six-controls" class="d-none mb-3">
-
-								<p>Choose six image files to load.  Each image must be square and all six must be the same size.</p>
 
 								<div class="input-group input-group-sm text-center">
 									<label for="sixFacesXPos" class="input-group-text" style="min-width:50px;">+X</label>
@@ -197,26 +194,18 @@
 
 							<!-- LOAD DDS CUBE MAP -->
 							<div id="load-dds-controls" class="d-none mb-3">
-
-								<p>Choose a .DDS cube map to load.</p>
-
 								<div class="input-group input-group-sm mb-3">
-									<input class="form-control" type="file" id="ddsFile" aria-describedby="button-load-dds" aria-label="Load" />
-									<button id="button-load-dds" type="button" class="btn btn-primary" onclick="loadDDS();">Load</button>
+									<label for="ddsFile" class="input-group-text">.DDS Cube</label>
+									<input id="ddsFile"  class="form-control" type="file" onchange="loadDDS();"/>
 								</div>
-
 							</div>
 
 							<!-- LOAD HDR -->
 							<div id="load-hdr-controls" class="d-none mb-3">
-
-								<p>Choose an equirectangular .HDR environment map to load.</p>
-
 								<div class="input-group input-group-sm">
-									<input class="form-control" type="file" id="hdrFile" aria-describedby="button-load-hdr" aria-label="Load" />
-									<button id="button-load-hdr" type="button" class="btn btn-primary" onclick="loadHDR()">Load</button>
+									<label for="hdrFile" class="input-group-text">.HDR File</label>
+									<input id="hdrFile" class="form-control" type="file" onchange="loadHDR();"/>
 								</div>
-
 							</div>
 
 							<!-- SKY MIP PREVIEW -->
@@ -235,7 +224,6 @@
 									<option value="0" selected>No Lights (Sky Only)</option>
 									<option value="1">One Directional Light</option>
 									<option value="2">Three Directional Lights</option>
-									<option value="3">Eight Point Lights</option>
 								</select>
 							</div>
 
@@ -294,7 +282,7 @@
 							<div class="input-group input-group-sm mb-3">
 								<label for="brdf-lut-multiscatter" class="input-group-text col">Multiscattering Compensation</label>
 								<div class="input-group-text">
-									<input id="brdf-lut-multiscatter" class="form-check-input" type="checkbox" checked onchange="setMultiscatter(this.checked);"/>
+									<input id="brdf-lut-multiscatter" class="form-check-input" type="checkbox" onchange="setMultiscatter(this.checked);"/>
 								</div>
 							</div>
 
@@ -560,6 +548,13 @@
 		let iblPreviewBorder = 25;
 		let iblPreviewCubeCamDist = 2.3;
 		let iblMipPreview = 0;
+		let defaultSkyPaths = [
+			"../assets/skies/pine_attic_2k.hdr",
+			"../assets/skies/hilly_terrain_2k.hdr",
+			"../assets/skies/castle_zavelstein_cellar_2k.hdr",
+			"../assets/skies/white_furnace.dds"
+		];
+
 
 		// Tone mapping
 		let tonemapType = 0;
@@ -581,11 +576,29 @@
 		const Lighting_None = 0;
 		const Lighting_OneDir = 1;
 		const Lighting_ThreeDir = 2;
-		const Lighting_EightPoints = 3;
 
 		const MaxLights = 64;
 
-		window.changeEnvMap = function (val)
+		window.showLoading = function(text)
+		{
+			let load = document.getElementById("loading-container");
+			load.classList.remove("invisible");
+
+			let loadText = document.getElementById("loading-text");
+			loadText.innerHTML = text;
+		}
+
+		window.hideLoading = function()
+		{
+			let load = document.getElementById("loading-container");
+			load.classList.add("invisible");
+
+			let loadText = document.getElementById("loading-text");
+			loadText.innerHTML = "";
+		}
+
+
+		window.changeEnvMap = async function (val)
 		{
 			function hide(id) { document.getElementById(id).classList.add("d-none"); }
 			function show(id) { document.getElementById(id).classList.remove("d-none"); }
@@ -610,6 +623,25 @@
 
 				case "loadHDR":
 					show("load-hdr-controls");
+					break;
+
+				default:
+
+					let path = defaultSkyPaths[val];
+					if (path.endsWith(".hdr"))
+					{
+						showLoading("Loading HDR File");
+
+						let [width, height, data] = await TextureUtils.LoadHDRFile(path);
+						sky.LoadEquirectHDR(width, height, data);
+					}
+					else if (path.endsWith(".dds"))
+					{
+						showLoading("Loading DDS File");
+
+						let [width, height, mips, format, faceDataArrays] = await TextureUtils.LoadDDSFile(path);
+						sky.LoadDDS(width, height, mips, format, faceDataArrays);
+					}
 					break;
 			}
 		}
@@ -797,7 +829,7 @@
 			}
 
 			// All loaded - Attempt to load as a cube map (assuming NOT hdr)
-			sky.LoadCubeMap(await loadTextureCube(d3dDevice, d3dContext, fileURLs, true, true));
+			sky.LoadCubeMap(await loadCubeFromFaces(d3dDevice, d3dContext, fileURLs, true, true));
 		}
 
 
@@ -841,21 +873,25 @@
 
 		window.loadHDR = async function ()
 		{
+			showLoading("Loading HDR File");
+
 			let fileInput = document.getElementById("hdrFile");
 			let [width, height, data] = await TextureUtils.LoadHDRFileLocal(fileInput);
 
-			sky.LoadEquirectHDR(width, height, data, hdrExposure);
+			sky.LoadEquirectHDR(width, height, data);
 		}
 
 		window.loadDDS = async function ()
 		{
+			showLoading("Loading DDS File");
+
 			let fileInput = document.getElementById("ddsFile");
 			let [width, height, mips, format, faceDataArrays] = await TextureUtils.LoadDDSFileLocal(fileInput);
 			sky.LoadDDS(width, height, mips, format, faceDataArrays);
 		}
 
 
-		window.loadTextureCube = async function (d3dDevice, d3dContext, faceURLs, filesAreLocal, generateMips)
+		window.loadCubeFromFaces = async function (d3dDevice, d3dContext, faceURLs, filesAreLocal, generateMips)
 		{
 			let faceTextures = [];
 			let size = -1;
@@ -1090,9 +1126,9 @@
 			equirectToCubePS, mipReducePS, fullscreenVS,
 			true, 128);
 
-		let [width, height, data] = await TextureUtils.LoadHDRFile("../assets/skies/partly_cloudy_2k.hdr");
-		sky.LoadEquirectHDR(width, height, data, hdrExposure);
-
+		showLoading("Loading HDR File");
+		let [width, height, data] = await TextureUtils.LoadHDRFile(defaultSkyPaths[0]);
+		sky.LoadEquirectHDR(width, height, data);
 
 		// ----------------- Materials --------------------
 		let metal0 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_0.png");
@@ -1114,13 +1150,13 @@
 		matBronze.SetPSSamplerState(0, sampler);
 		matBronze.SetPSSamplerState(1, clampSampler);
 
-		let matFloor = new Material(vs, ps, new Vector3(1, 1, 1));
-		matFloor.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_albedo.png"));
-		matFloor.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_normals.png"));
-		matFloor.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_metal.png"));
-		matFloor.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_roughness.png"));
-		matFloor.SetPSSamplerState(0, sampler);
-		matFloor.SetPSSamplerState(1, clampSampler);
+		//let matFloor = new Material(vs, ps, new Vector3(1, 1, 1));
+		//matFloor.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_albedo.png"));
+		//matFloor.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_normals.png"));
+		//matFloor.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_metal.png"));
+		//matFloor.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_roughness.png"));
+		//matFloor.SetPSSamplerState(0, sampler);
+		//matFloor.SetPSSamplerState(1, clampSampler);
 
 		let matScratched = new Material(vs, ps, new Vector3(1, 1, 1));
 		matScratched.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_albedo.png"));
@@ -1174,7 +1210,6 @@
 		materials.push(matCustom);
 		materials.push(matCobble);
 		materials.push(matBronze);
-		materials.push(matFloor);
 		materials.push(matScratched);
 		materials.push(matMetalPlate);
 		materials.push(matSlab);
@@ -1290,31 +1325,6 @@
 			new Light(Light.TypeDirectional, Vector3.One, 0.3, Vector3.Normalize(new Vector3(0, 1, -0.5)))
 		];
 
-		// --- Eight Point Lights ---
-		lightingSetups[Lighting_EightPoints] = [];
-		for (let i = 0; i < 8; i++)
-		{
-			let color = Vector3.One;
-			if (i % 4 == 1) color = Vector3.UnitX;
-			else if (i % 4 == 2) color = Vector3.UnitY;
-			else if (i % 4 == 3) color = Vector3.UnitZ;
-
-			let offset = (i / 4) * Math.PI * 2;
-			let s = Math.sin(offset);
-			let c = Math.cos(offset);
-
-			let pos = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
-
-			lightingSetups[Lighting_EightPoints].push(new Light(
-				Light.TypePoint,
-				color,
-				1.0,
-				Vector3.Zero,
-				pos,
-				10
-			));
-		}
-
 		// Create constant buffers -----------------
 		let cbDesc = new D3D11_BUFFER_DESC(
 			0, // Will be filled in below
@@ -1420,21 +1430,7 @@
 		let ppCB = d3dDevice.CreateBuffer(ppCBDesc, null);
 		let ppData = new Float32Array(4);
 
-		function showLoading(text)
-		{
-			let load = document.getElementById("loading-container");
-			load.classList.remove("invisible");
-
-			let loadText = document.getElementById("loading-text");
-			loadText.innerHTML = text;
-		}
-
-		function hideLoading()
-		{
-			let load = document.getElementById("loading-container");
-			load.classList.add("invisible");
-		}
-
+		
 		function update(deltaTime, totalTime)
 		{
 			if (input.GetDoubleClick())
@@ -1500,15 +1496,6 @@
 				tonemap.classList.add("d-none");
 			}
 
-			// Update the point lights
-			for (let i = 0; i < lightingSetups[Lighting_EightPoints].length; i++)
-			{
-				let offset = (i / 4) * Math.PI * 2;
-				let s = Math.sin(totalTime + offset);
-				let c = Math.cos(totalTime + offset);
-
-				lightingSetups[Lighting_EightPoints][i].Position = new Vector3(3 * s, i < 4 ? -3 : 3, 3 * c);
-			}
 		}
 
 		function checkForResize()
@@ -1699,37 +1686,6 @@
 			let cornflowerBlue = [0.39, 0.58, 0.93, 1];
 			d3dContext.ClearRenderTargetView(rtv, black);
 			d3dContext.ClearDepthStencilView(depthDSV, D3D11_CLEAR_DEPTH, 1.0, 0);
-
-			// Light sphere draws
-			if (currentLighting == Lighting_EightPoints)
-			{
-				// Swap to sphere buffers
-				d3dContext.VSSetShader(vs);
-				d3dContext.PSSetShader(solidPS);
-				d3dContext.PSSetConstantBuffers(0, [solidCB]);
-				d3dContext.IASetVertexBuffers(0, [sphereMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-				d3dContext.IASetIndexBuffer(sphereMesh.IndexBuffer, DXGI_FORMAT_R16_UINT, 0);
-
-				let sMat = Matrix4x4.ScaleUniform(0.5);
-
-				for (let i = 0; i < lightingSetups[Lighting_EightPoints].length; i++)
-				{
-					let light = lightingSetups[Lighting_EightPoints][i];
-
-					// Set per-object VS data
-					vsPerObjectData.SetData(
-						"world",
-						Matrix4x4.Multiply(sMat, Matrix4x4.Translation(light.Position.x, light.Position.y, light.Position.z)));
-					d3dContext.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
-
-					// Update data for this draw
-					solidData.set(light.Color, 0);
-					d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
-
-					// Draw sphere
-					d3dContext.DrawIndexed(sphereMesh.IndexCount, 0, 0);
-				}
-			}
 
 			// Pipeline for next several draws
 			d3dContext.VSSetShader(vs);

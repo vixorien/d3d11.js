@@ -159,7 +159,7 @@ export class Sky
 		this.#isHDR = false;
 		this.#hdrExposure = 0;
 		this.#equirectSRV = null;
-		this.#multiscatterComp = true;
+		this.#multiscatterComp = false;
 
 		// Create samplers for rendering
 		let sampDesc = new D3D11_SAMPLER_DESC(
@@ -272,7 +272,7 @@ export class Sky
 
 	}
 
-	LoadEquirectHDR(width, height, pixelData, hdrExposure = 0)
+	LoadEquirectHDR(width, height, pixelData)
 	{
 		if (width <= 0 || height <= 0 || height != width / 2)
 			throw new Error("Invalid width and/or height for equirectangular HDR data");
@@ -280,9 +280,8 @@ export class Sky
 		if (pixelData == null || pixelData.length == 0)
 			throw new Error("Invalid or empty pixel data for equirectangular HDR data");
 
-		// Save exposure
+		// Definitely HDR
 		this.#isHDR = true;
-		this.#hdrExposure = hdrExposure;
 
 		// Determine the color format
 		let format = DXGI_FORMAT_UNKNOWN;

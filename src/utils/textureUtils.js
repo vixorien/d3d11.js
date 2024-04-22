@@ -778,6 +778,17 @@ export class TextureUtils
 		return TextureUtils.#LoadDDSFile(fileContents);
 	}
 
+	static async LoadDDSFile(fileURL)
+	{
+		// Read the file
+		// Fetch and grab the binary data, then turn into an image
+		const resp = await fetch(fileURL);
+		const contents = await resp.arrayBuffer();
+
+		// Convert the data
+		return TextureUtils.#LoadDDSFile(contents);
+	}
+
 
 	static #CheckMasks(masks, r, g, b, a)
 	{
