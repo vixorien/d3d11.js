@@ -54,7 +54,10 @@
 		<div class="col-3 h-100 overflow-y-auto left-column-min-width">
 
 			<!-- Overall title-->
-			<div class="text-center"><h2>Image-Based.Lighting</h2></div>
+			<div class="text-center">
+				<h2>Image-Based.Lighting <span class="fs-6 align-middle">Alpha!</span></h2>
+			</div>
+			
 
 			<!-- Testing accordian navigation -->
 			<div class="accordion" id="main-nav">
@@ -96,9 +99,9 @@
 										<option value="2">Bronze</option>
 										<option value="3">Scratched Paint</option>
 										<option value="4">Metal Plate</option>
-										<option value="5">Slabs</option>
-										<option value="6">Stone</option>
-										<option value="7">Wood</option>
+										<option value="5">Slab Tiles</option>
+										<option value="6">Stone Tiles</option>
+										<option value="7">Diagonal Parquet</option>
 									</select>
 								</div>
 
@@ -144,9 +147,9 @@
 							<div class="input-group input-group-sm mb-3">
 								<select class="form-select" id="env-map-select" onchange="changeEnvMap(this.value);">
 
-									<option value="0">Attic</option>
-									<option value="1">Hills</option>
-									<option value="2">Cellar</option>
+									<option value="0">Pine Attic</option>
+									<option value="1">Hilly Terrain</option>
+									<option value="2">Castle Zavelstein Cellar</option>
 									<option value="3">White Furnace</option>
 									<option value="load6">&#127922; Load Six Faces</option>
 									<option value="loadDDS">&#128230; Load .DDS Cube Map</option>
@@ -488,7 +491,83 @@
 					</h2>
 					<div id="about-accordion" class="accordion-collapse collapse">
 						<div class="accordion-body p-3">
-							Powered by <a href="https://github.com/vixorien/d3d11.js">2-3 Graphics APIs in a Trench Coat</a>
+
+							<h6>&#129518; d3d11.js</h6>
+							<div class="mb-3">
+								Powered by <a href="https://github.com/vixorien/d3d11.js">2-3 Graphics APIs in a Trench Coat</a>
+							</div>
+
+							<h6>&#127912; Materials</h6>
+							<div class="mb-3">
+								The following materials are from <a href="https://polyhaven.com/">Polyhaven.com</a>.
+								<table class="table">
+									<thead>
+										<tr>
+											<th scope="col">Material</th>
+											<th scope="col">Author(s)</th>
+											<th scope="col">License</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr>
+											<td><a href="https://polyhaven.com/a/slab_tiles">Slab Tiles</a></td>
+											<td>Dario Barresi, Dimitrios Savva</td>
+											<td><a href="https://polyhaven.com/license">CC0</a></td>
+										</tr>
+										<tr>
+											<td><a href="https://polyhaven.com/a/metal_plate">Metal Plate</a></td>
+											<td>Rob Tuytel</td>
+											<td><a href="https://polyhaven.com/license">CC0</a></td>
+										</tr>
+										<tr>
+											<td><a href="https://polyhaven.com/a/diagonal_parquet">Diagonal Parquet</a></td>
+											<td>Anonymous Bob, Jandre van Heerden</td>
+											<td><a href="https://polyhaven.com/license">CC0</a></td>
+										</tr>
+										<tr>
+											<td><a href="https://polyhaven.com/a/stone_tiles">Stone Tiles</a></td>
+											<td>Christopher Melani</td>
+											<td><a href="https://polyhaven.com/license">CC0</a></td>
+										</tr>
+									</tbody>
+								</table>
+
+								<p>The following materials are from the original (and now-defunct) Substance Share site: Cobblestone, Bronze, Scratched Paint.</p>
+							</div>
+
+							<h6>&#127758; Environment Maps</h6>
+							<div class="mb-3">
+								Example environments from <a href="https://polyhaven.com/">Polyhaven.com</a>.
+								<table class="table">
+									<thead>
+										<tr>
+											<th scope="col">Environment</th>
+											<th scope="col">Author(s)</th>
+											<th scope="col">License</th>
+										</tr>
+									</thead>
+									<tbody>
+										<tr>
+											<td><a href="https://polyhaven.com/a/pine_attic">Pine Attic</a></td>
+											<td>Sergej Majboroda</td>
+											<td><a href="https://polyhaven.com/license">CC0</a></td>
+										</tr>
+										<tr>
+											<td><a href="https://polyhaven.com/a/hilly_terrain_01">Hilly Terrain 01</a></td>
+											<td>Sergej Majboroda</td>
+											<td><a href="https://polyhaven.com/license">CC0</a></td>
+										</tr>
+										<tr>
+											<td><a href="https://polyhaven.com/a/castle_zavelstein_cellar">Castle Zavelstein Cellar</a></td>
+											<td>Andreas Mischok</td>
+											<td><a href="https://polyhaven.com/license">CC0</a></td>
+										</tr>
+									</tbody>
+								</table>
+
+							</div>
+
+
 
 						</div>
 					</div>
@@ -1085,16 +1164,19 @@
 			solidRoughSRVs.push(TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, r, r, r, 255));
 		}
 
-		// Mesh loading
+		// Camera
+		camera = new OrbitCamera(15, viewportElement.clientWidth / viewportElement.clientHeight);
+
+		// === ASSET LOADING ===
+
+		// --- Meshes ---
+		showLoading("Loading meshes");
 		let sphereMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/sphere_blender.obj");
 		let helixMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/helix.obj");
 		let cubeMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/cube.obj");
 
-		// Camera
-		camera = new OrbitCamera(15, viewportElement.clientWidth / viewportElement.clientHeight);
-
-
-		// Create shaders
+		// --- Shaders ---
+		showLoading("Loading shaders");
 		let ps = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
 		let vs = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
 		let solidPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
@@ -1117,20 +1199,9 @@
 		let iblIrradiancePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
 		let iblSpecularPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
 
-		// Create the sky object
-		sky = new Sky(d3dDevice, d3dContext,
-			skyVS, skyPS, cubeMesh,
-			DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
-			DXGI_FORMAT_R32G32B32A32_FLOAT, 256, iblIrradiancePS,
-			DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
-			equirectToCubePS, mipReducePS, fullscreenVS,
-			true, 128);
-
-		showLoading("Loading HDR File");
-		let [width, height, data] = await TextureUtils.LoadHDRFile(defaultSkyPaths[0]);
-		sky.LoadEquirectHDR(width, height, data);
-
-		// ----------------- Materials --------------------
+		
+		// --- Materials ---
+		showLoading("Loading Materials");
 		let metal0 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_0.png");
 		let metal1 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_1.png");
 
@@ -1325,6 +1396,25 @@
 			new Light(Light.TypeDirectional, Vector3.One, 0.3, Vector3.Normalize(new Vector3(0, 1, -0.5)))
 		];
 
+		// --------------- Sky ------------------
+
+		showLoading("Loading Initial Environment Map");
+
+		sky = new Sky(d3dDevice, d3dContext,
+			skyVS, skyPS, cubeMesh,
+			DXGI_FORMAT_R16G16_FLOAT, 1024, brdfLutPS,
+			DXGI_FORMAT_R32G32B32A32_FLOAT, 256, iblIrradiancePS,
+			DXGI_FORMAT_R32G32B32A32_FLOAT, 512, 3, iblSpecularPS,
+			equirectToCubePS, mipReducePS, fullscreenVS,
+			true, 128);
+
+		let [width, height, data] = await TextureUtils.LoadHDRFile(defaultSkyPaths[0]);
+		sky.LoadEquirectHDR(width, height, data);
+
+
+		// --- General D3D Resources ---
+		showLoading("Creating Other GPU Resources");
+
 		// Create constant buffers -----------------
 		let cbDesc = new D3D11_BUFFER_DESC(
 			0, // Will be filled in below
@@ -1392,7 +1482,6 @@
 		solidData.set([1, 1, 1], 0);
 		d3dContext.UpdateSubresource(solidCB, 0, null, solidData, 0, 0);
 
-
 		// Cbuffer for quad UI
 		let quadCBDesc = new D3D11_BUFFER_DESC(
 			8 * Float32Array.BYTES_PER_ELEMENT,
@@ -1430,6 +1519,8 @@
 		let ppCB = d3dDevice.CreateBuffer(ppCBDesc, null);
 		let ppData = new Float32Array(4);
 
+		// Done loading
+		hideLoading();
 		
 		function update(deltaTime, totalTime)
 		{
