@@ -92,7 +92,7 @@
 
 								<!-- TEXTURES -->
 								<div class="input-group input-group-sm row ms-0">
-									<label for="textureSet" class="col input-group-text">Texture Set</label>
+									<label for="textureSet" class="col-4 input-group-text">Texture Set</label>
 									<select id="textureSet" class="col form-select px-3" onchange="setTextureSet(this.value);">
 										<option value="-1">Custom (No Textures)</option>
 										<option value="0" selected>Cobblestone</option>
@@ -110,19 +110,19 @@
 
 									<!-- COLOR PICKER -->
 									<div class="input-group input-group-sm row ms-0">
-										<label for="material-color" class="col input-group-text">Color Tint</label>
+										<label for="material-color" class="col-4 input-group-text">Color Tint</label>
 										<input id="material-color" type="color" class="col form-control form-control-color px-3" value="#ffffff" title="Color Tint" oninput="setMatColor(this.value);" />
 									</div>
 
 									<!-- ROUGHNESS -->
 									<div class="input-group input-group-sm row ms-0">
-										<label for="material-roughness" class="col input-group-text">Roughness: 0.5</label>
+										<label for="material-roughness" class="col-4 input-group-text">Roughness: 0.5</label>
 										<input id="material-roughness" type="range" class="col form-control form-range p-3" min="0" max="1" step="0.01" value="0.5" oninput="setMatRoughness(this.value); this.previousElementSibling.innerHTML = 'Roughness: ' + this.value;" />
 									</div>
 
 									<!-- METALNESS -->
 									<div class="row input-group input-group-sm ms-0">
-										<label for="material-metalness" class="col input-group-text">Metalness: 0</label>
+										<label for="material-metalness" class="col-4 input-group-text">Metalness: 0</label>
 										<input id="material-metalness" type="range" class="col form-control form-range p-3" min="0" max="1" step="0.01" value="0" oninput="setMatMetalness(this.value); this.previousElementSibling.innerHTML = 'Metalness: ' + this.value;" />
 									</div>
 								</div>
@@ -216,7 +216,7 @@
 							<h6>&#128269; Skybox Mip Preview</h6>
 
 							<div class="row input-group input-group-sm ms-0 mb-3">
-								<label for="mipLevelRange" class="col-2 input-group-text">Mip: 0</label>
+								<label for="mipLevelRange" class="col-3 input-group-text">Mip: 0</label>
 								<input id="mipLevelRange" type="range" class="col form-control form-range p-3" min="0" max="16" value="0" oninput="setSkyMipPreview(this.value); this.previousElementSibling.innerHTML = 'Mip: ' + this.value;" />
 							</div>
 
@@ -464,9 +464,25 @@
 						<div class="accordion-body p-3">
 
 							<h6>&#127909; Camera</h6>
-							<div class="row input-group input-group-sm ms-0 mb-3">
+							<div class="row input-group input-group-sm ms-0 mb-0">
 								<label for="fovRange" class="col-4 input-group-text">FoV: 45</label>
 								<input id="fovRange" type="range" class="col form-control form-range p-3" min="20" max="120" value="45" oninput="setFov(this.value); this.previousElementSibling.innerHTML = 'FoV: ' + this.value;" />
+							</div>
+							<div class="row input-group input-group-sm ms-0 mb-0">
+								<div class="col-4 input-group-text">Left Mouse</div>
+								<div class="col input-group-text">Orbit</div>
+							</div>
+							<div class="row input-group input-group-sm ms-0 mb-0">
+								<div class="col-4 input-group-text">Right Mouse</div>
+								<div class="col input-group-text">WASD Movement & Mouse Look</div>
+							</div>
+							<div class="row input-group input-group-sm ms-0 mb-0">
+								<div class="col-4 input-group-text">Double Click</div>
+								<div class="col input-group-text">Recenter</div>
+							</div>
+							<div class="row input-group input-group-sm ms-0 mb-3">
+								<div class="col-4 input-group-text">Wheel</div>
+								<div class="col input-group-text">Zoom</div>
 							</div>
 
 							<h6>&#127767; Color Mode</h6>
@@ -494,16 +510,18 @@
 						<div class="accordion-body p-3">
 
 							<div class="card mb-3">
-								<h6 class="card-header">&#129518; Powered by d3d11.js</h6>
+								<h6 class="card-header">&#129518; Details</h6>
 								<div class="card-body">
-									<a href="https://github.com/vixorien/d3d11.js">2-3 Graphics APIs in a Trench Coat</a>
+									<p>IBL map generation based on <a href="https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf">Real Shading in Unreal Engine 4</a> by Brian Karis</p>
+									<p>Multiscattering compensation (<a href="https://google.github.io/filament/Filament.html#toc4.7.2">overview</a> and <a href="https://google.github.io/filament/Filament.html#toc5.3.4.7">pre-integration changes</a>) based on <a href="https://google.github.io/filament/Filament.html">Filament</a> by Google.</p>
+									<p>Powered by 2-3 graphics APIs in a trench coat (<a href="https://github.com/vixorien/d3d11.js">d3d11.js</a>)</p>
 								</div>
 							</div>
 
 							<div class="card mb-3">
 								<h6 class="card-header">&#127912; Materials</h6>
 								<div class="card-body">
-									The following materials are from <a href="https://polyhaven.com/">Polyhaven.com</a>.
+									<p>Materials from <a href="https://polyhaven.com/">Polyhaven.com</a>.</p>
 									<table class="table">
 										<thead>
 											<tr>
@@ -536,14 +554,14 @@
 										</tbody>
 									</table>
 
-									<p>The following materials are from the original (pre-Adobe) Substance Share site: Cobblestone, Bronze, Scratched Paint.</p>
+									<p>The following materials are from the original (pre-Adobe) Allegorithmic "Substance Share" site: Cobblestone, Bronze, Scratched Paint.</p>
 								</div>
 							</div>
 
 							<div class="card">
 								<h6 class="card-header">&#127758; Environment Maps</h6>
 								<div class="card-body mb-3">
-									Example environments from <a href="https://polyhaven.com/">Polyhaven.com</a>.
+									<p>Example environments from <a href="https://polyhaven.com/">Polyhaven.com</a>.</p>
 									<table class="table">
 										<thead>
 											<tr>
@@ -644,7 +662,43 @@
 			"/assets/skies/studio_small_03_2k.hdr",
 			"/assets/skies/white_furnace.dds"
 		];
-
+		let textureSets = [
+			[
+				"/assets/textures/cobblestone_albedo.png",
+				"/assets/textures/cobblestone_normals.png",
+				"/assets/textures/cobblestone_arm.png"
+			],
+			[
+				"/assets/textures/bronze_albedo.png",
+				"/assets/textures/bronze_normals.png",
+				"/assets/textures/bronze_arm.png"
+			],
+			[
+				"/assets/textures/scratched_albedo.png",
+				"/assets/textures/scratched_normals.png",
+				"/assets/textures/scratched_arm.png"
+			],
+			[
+				"/assets/textures/metalplate_albedo.png",
+				"/assets/textures/metalplate_normals.png",
+				"/assets/textures/metalplate_arm.png"
+			],
+			[
+				"/assets/textures/slab_albedo.png",
+				"/assets/textures/slab_normals.png",
+				"/assets/textures/slab_arm.png"
+			],
+			[
+				"/assets/textures/stonetiles_albedo.png",
+				"/assets/textures/stonetiles_normals.png",
+				"/assets/textures/stonetiles_arm.png"
+			],
+			[
+				"/assets/textures/wood_albedo.png",
+				"/assets/textures/wood_normals.png",
+				"/assets/textures/wood_arm.png"
+			]
+		];
 
 		// Tone mapping
 		let tonemapType = 0;
@@ -1213,43 +1267,7 @@
 		showLoading("Loading Materials");
 
 		// Set up texture sets
-		let textureSets = [
-			[
-				"/assets/textures/cobblestone_albedo.png",
-				"/assets/textures/cobblestone_normals.png",
-				"/assets/textures/cobblestone_arm.png"
-			],
-			[
-				"/assets/textures/bronze_albedo.png",
-				"/assets/textures/bronze_normals.png",
-				"/assets/textures/bronze_arm.png"
-			],
-			[
-				"/assets/textures/scratched_albedo.png",
-				"/assets/textures/scratched_normals.png",
-				"/assets/textures/scratched_arm.png"
-			],
-			[
-				"/assets/textures/metalplate_albedo.png",
-				"/assets/textures/metalplate_normals.png",
-				"/assets/textures/metalplate_arm.png"
-			],
-			[
-				"/assets/textures/slab_albedo.png",
-				"/assets/textures/slab_normals.png",
-				"/assets/textures/slab_arm.png"
-			],
-			[
-				"/assets/textures/stonetiles_albedo.png",
-				"/assets/textures/stonetiles_normals.png",
-				"/assets/textures/stonetiles_arm.png"
-			],
-			[
-				"/assets/textures/wood_albedo.png",
-				"/assets/textures/wood_normals.png",
-				"/assets/textures/wood_arm.png"
-			]
-		];
+		
 
 		let matCustom = new Material(vs, ps, new Vector3(1, 1, 1));
 		matCustom.SetPSTextureSRV(0, whiteSRV);
