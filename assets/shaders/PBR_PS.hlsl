@@ -36,8 +36,9 @@ cbuffer perObject : register(b1)
 
 Texture2D albedoMap			: register(t0);
 Texture2D normalMap			: register(t1);
-Texture2D metalMap			: register(t2);
-Texture2D roughnessMap		: register(t3);
+Texture2D armMap			: register(t2);
+//Texture2D metalMap			: register(t2);
+//Texture2D roughnessMap		: register(t3);
 
 Texture2D brdfLUT			: register(t4);
 TextureCube iblIrradiance	: register(t5);
@@ -53,8 +54,12 @@ float4 main(VertexToPixel input) : SV_TARGET
 	input.tangent = normalize(input.tangent);
 	
 	float3 albedo = pow(albedoMap.Sample(samp, input.uv).rgb, 2.2) * tint;
-	float metal = metalMap.Sample(samp, input.uv).r * metalnessScale;
-	float rough = max(roughnessMap.Sample(samp, input.uv).r * roughnessScale, MIN_ROUGHNESS);
+	float3 arm = armMap.Sample(samp, input.uv).rgb;
+	float ao = arm.r;
+	float rough = max(arm.g * roughnessScale, MIN_ROUGHNESS);
+	float metal = arm.b * metalnessScale;
+	//float metal = metalMap.Sample(samp, input.uv).r * metalnessScale;
+	//float rough = max(roughnessMap.Sample(samp, input.uv).r * roughnessScale, MIN_ROUGHNESS);
 	float3 normalFromMap = normalMap.Sample(samp, input.uv).rgb;
 	normalFromMap = normalize(normalFromMap * 2.0 - 1.0);
 	

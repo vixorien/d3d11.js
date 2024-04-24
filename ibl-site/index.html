@@ -2,7 +2,7 @@
 <html class="h-100" data-bs-theme="dark">
 <head>
 	<script defer src="https://analytics.us.umami.is/script.js" data-website-id="c4512c2d-4b4a-45f2-afdf-3a2186e1e697"></script>
-	<script src="../build/d3d11.js"></script>
+	<script src="/build/d3d11.js"></script>
 
 	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
 	<style>
@@ -94,14 +94,14 @@
 								<div class="input-group input-group-sm row ms-0">
 									<label for="textureSet" class="col input-group-text">Texture Set</label>
 									<select id="textureSet" class="col form-select px-3" onchange="setTextureSet(this.value);">
-										<option value="0">Custom (No Textures)</option>
-										<option value="1" selected>Cobblestone</option>
-										<option value="2">Bronze</option>
-										<option value="3">Scratched Paint</option>
-										<option value="4">Metal Plate</option>
-										<option value="5">Slab Tiles</option>
-										<option value="6">Stone Tiles</option>
-										<option value="7">Diagonal Parquet</option>
+										<option value="-1">Custom (No Textures)</option>
+										<option value="0" selected>Cobblestone</option>
+										<option value="1">Bronze</option>
+										<option value="2">Scratched Paint</option>
+										<option value="3">Metal Plate</option>
+										<option value="4">Slab Tiles</option>
+										<option value="5">Stone Tiles</option>
+										<option value="6">Diagonal Parquet</option>
 									</select>
 								</div>
 
@@ -150,7 +150,8 @@
 									<option value="0">Pine Attic</option>
 									<option value="1">Hilly Terrain</option>
 									<option value="2">Castle Zavelstein Cellar</option>
-									<option value="3">White Furnace</option>
+									<option value="3">Studio Small 03</option>
+									<option value="4">White Furnace</option>
 									<option value="load6">&#127922; Load Six Faces</option>
 									<option value="loadDDS">&#128230; Load .DDS Cube Map</option>
 									<option value="loadHDR">&#127748; Load Equirectangular .HDR File</option>
@@ -567,6 +568,11 @@
 												<td>Andreas Mischok</td>
 												<td><a href="https://polyhaven.com/license">CC0</a></td>
 											</tr>
+											<tr>
+												<td><a href="https://polyhaven.com/a/studio_small_03">Small Studio 03</a></td>
+												<td>Greg Zaal</td>
+												<td><a href="https://polyhaven.com/license">CC0</a></td>
+											</tr>
 										</tbody>
 									</table>
 
@@ -602,19 +608,19 @@
 	<!-- END bootstrap -->
 	<script type="module">
 
-		import { Vector2, Vector3, Matrix4x4 } from "../build/d3dmath.js";
-		import { TextureUtils } from "../build/textureUtils.js";
-		import { MappedArray } from "../build/mappedArray.js";
-		import { Transform } from "../build/transform.js";
-		import { FPSCamera, OrbitCamera } from "../build/camera.js";
-		import { Material } from "../build/material.js";
-		import { Entity } from "../build/entity.js";
-		import { Vertex } from "../build/vertex.js";
-		import { Light } from "../build/light.js";
-		import { Scene } from "../build/scene.js";
-		import { Mesh } from "../build/mesh.js";
-		import { Sky } from "../build/sky.js";
-		import { Input, Keys, MouseButtons } from "../build/input.js";
+		import { Vector2, Vector3, Matrix4x4 } from "/build/d3dmath.js";
+		import { TextureUtils } from "/build/textureUtils.js";
+		import { MappedArray } from "/build/mappedArray.js";
+		import { Transform } from "/build/transform.js";
+		import { FPSCamera, OrbitCamera } from "/build/camera.js";
+		import { Material } from "/build/material.js";
+		import { Entity } from "/build/entity.js";
+		import { Vertex } from "/build/vertex.js";
+		import { Light } from "/build/light.js";
+		import { Scene } from "/build/scene.js";
+		import { Mesh } from "/build/mesh.js";
+		import { Sky } from "/build/sky.js";
+		import { Input, Keys, MouseButtons } from "/build/input.js";
 
 		// D3D objects
 		let d3dDevice = null;
@@ -623,7 +629,6 @@
 
 		// Sky / Environment
 		let sky = null;
-		let hdrExposure = 0;
 		let skyMipLevelPreview = 0;
 		let previewLut = false;
 		let previewIrr = false;
@@ -633,10 +638,11 @@
 		let iblPreviewCubeCamDist = 2.3;
 		let iblMipPreview = 0;
 		let defaultSkyPaths = [
-			"../assets/skies/pine_attic_2k.hdr",
-			"../assets/skies/hilly_terrain_2k.hdr",
-			"../assets/skies/castle_zavelstein_cellar_2k.hdr",
-			"../assets/skies/white_furnace.dds"
+			"/assets/skies/pine_attic_2k.hdr",
+			"/assets/skies/hilly_terrain_2k.hdr",
+			"/assets/skies/castle_zavelstein_cellar_2k.hdr",
+			"/assets/skies/studio_small_03_2k.hdr",
+			"/assets/skies/white_furnace.dds"
 		];
 
 
@@ -653,13 +659,10 @@
 		let currentLighting = 0;
 		let materials = [];
 		let currentMaterial = 1;
+		let currentTextureSet = 0;
 		let customMatRoughness = 0.5;
 		let customMatMetalness = 0;
 		let customMatColor = [1, 1, 1];
-
-		const Lighting_None = 0;
-		const Lighting_OneDir = 1;
-		const Lighting_ThreeDir = 2;
 
 		const MaxLights = 64;
 
@@ -776,14 +779,42 @@
 			customMatColor = [r, g, b];
 		}
 
-		window.setTextureSet = function (val)
+		window.setTextureSet = async function (val)
 		{
-			currentMaterial = val;
+			// Which material are we using?
+			currentMaterial = val == -1 ? 0 : 1; // 0 -> custom (no textures), 1 -> textured
 
+			// Swapping actual texture?
+			if (val >= 0 && val != currentTextureSet)
+			{
+				showLoading("Loading Material");
+				currentTextureSet = val;
+
+				// Save references to current textures
+				// - Need to release AFTER loading new ones
+				// - Currently a chrome warning about framebuffer feedback loop if we release first!
+				let t = [
+					materials[currentMaterial].GetPSTextureSRV(0),
+					materials[currentMaterial].GetPSTextureSRV(1),
+					materials[currentMaterial].GetPSTextureSRV(2)
+				];
+
+				// Load new textures
+				materials[currentMaterial].SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, textureSets[currentTextureSet][0]));
+				materials[currentMaterial].SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, textureSets[currentTextureSet][1]));
+				materials[currentMaterial].SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, textureSets[currentTextureSet][2]));
+
+				// Release old textures
+				t[0].Release();
+				t[1].Release();
+				t[2].Release();
+
+				hideLoading();
+			}
+
+			// Show or hide the custom controls if necessary
 			let element = document.getElementById("custom-material-controls");
-
-			// If custom, make visible (remove d-none class)
-			if (val == 0)
+			if (val == -1)
 				element.classList.remove("d-none");
 			else
 				element.classList.add("d-none");
@@ -867,8 +898,6 @@
 
 		window.setIBLExposure = function (val)
 		{
-			// Adjust exposure and re-create all PBR assets
-			hdrExposure = val;
 			sky.SetHDRExposure(val);
 		}
 
@@ -930,30 +959,6 @@
 				fr.readAsArrayBuffer(file);
 			});
 		}
-
-		window.getLineFromArrayBuffer = function (arrayBuffer, startPos)
-		{
-			// Create a character view into the array buffer
-			let charArray = new Uint8Array(arrayBuffer, startPos);
-
-			// Track where we are
-			let offset = 0;
-			let line = "";
-			let char = "";
-			do
-			{
-				// Append character from array buffer
-				char = String.fromCharCode(charArray[offset]);
-				line += char;
-
-				// Move forward
-				offset++;
-			}
-			while (offset < charArray.length && char != "\n");
-
-			return line;
-		}
-
 
 		window.loadHDR = async function ()
 		{
@@ -1161,12 +1166,14 @@
 		let redSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 255, 0, 0, 255);
 		let flatNormalsSRV = TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 127, 127, 255, 255);
 
-		// Array of greyscale roughness textures
-		let solidRoughSRVs = [];
+		// Arrays of greyscale ARM textures
+		let arm0SRVs = [];
+		let arm1SRVs = [];
 		for (let i = 0; i < 11; i++)
 		{
 			let r = Math.floor((i / 10.0) * 255);
-			solidRoughSRVs.push(TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, r, r, r, 255));
+			arm0SRVs.push(TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 255, r, 0, 255));
+			arm1SRVs.push(TextureUtils.CreateSolidTexture2D(d3dDevice, 2, 2, 255, r, 255, 255));
 		}
 
 		// Camera
@@ -1176,121 +1183,91 @@
 
 		// --- Meshes ---
 		showLoading("Loading meshes");
-		let sphereMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/sphere_blender.obj");
-		let helixMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/helix.obj");
-		let cubeMesh = await Mesh.LoadFromFile(d3dDevice, "../assets/meshes/cube.obj");
+		let sphereMesh = await Mesh.LoadFromFile(d3dDevice, "/assets/meshes/sphere_blender.obj");
+		let helixMesh = await Mesh.LoadFromFile(d3dDevice, "/assets/meshes/helix.obj");
+		let cubeMesh = await Mesh.LoadFromFile(d3dDevice, "/assets/meshes/cube.obj");
 
 		// --- Shaders ---
 		showLoading("Loading shaders");
-		let ps = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_PS.hlsl"));
-		let vs = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/PBR_VS.hlsl"));
-		let solidPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SolidColorPS.hlsl"));
-		let mipReducePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/MipReducePS.hlsl"));
-		let skyVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyVS.hlsl"));
-		let skyPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SkyPS.hlsl"));
-		let tonemapPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/TonemapPS.hlsl"));
-		let postprocPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/BlurPS.hlsl"));
-		let quadVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/QuadVS.hlsl"));
-		let fullscreenVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/FullscreenVS.hlsl"));
-		let simpleTexturePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/SimpleTexturePS.hlsl"));
-		let cubePreviewPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewPS.hlsl"));
-		let cubePreviewVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("../assets/shaders/CubePreviewVS.hlsl"));
-		let cubeFacePreviewPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/CubeFacePreviewPS.hlsl"));
-
-		let equirectToCubePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/EquirectToCubePS.hlsl"));
-
-		// Shaders for IBL
-		let brdfLutPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
-		let iblIrradiancePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLIrradianceMapPS.hlsl"));
-		let iblSpecularPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("../assets/shaders/IBLSpecularConvolutionPS.hlsl"));
+		let ps = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/PBR_PS.hlsl"));
+		let vs = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("/assets/shaders/PBR_VS.hlsl"));
+		//let solidPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/SolidColorPS.hlsl"));
+		let mipReducePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/MipReducePS.hlsl"));
+		let skyVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("/assets/shaders/SkyVS.hlsl"));
+		let skyPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/SkyPS.hlsl"));
+		let tonemapPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/TonemapPS.hlsl"));
+		//let postprocPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/BlurPS.hlsl"));
+		let quadVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("/assets/shaders/QuadVS.hlsl"));
+		let fullscreenVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("/assets/shaders/FullscreenVS.hlsl"));
+		let simpleTexturePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/SimpleTexturePS.hlsl"));
+		let cubePreviewPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/CubePreviewPS.hlsl"));
+		let cubePreviewVS = d3dDevice.CreateVertexShader(await HLSL.LoadTextFromURL("/assets/shaders/CubePreviewVS.hlsl"));
+		let cubeFacePreviewPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/CubeFacePreviewPS.hlsl"));
+		let equirectToCubePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/EquirectToCubePS.hlsl"));
+		let brdfLutPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/IBLBrdfLookUpTablePS.hlsl"));
+		let iblIrradiancePS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/IBLIrradianceMapPS.hlsl"));
+		let iblSpecularPS = d3dDevice.CreatePixelShader(await HLSL.LoadTextFromURL("/assets/shaders/IBLSpecularConvolutionPS.hlsl"));
 
 		
 		// --- Materials ---
 		showLoading("Loading Materials");
-		let metal0 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_0.png");
-		let metal1 = await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metal_1.png");
 
-		let matCobble = new Material(vs, ps, new Vector3(1, 1, 1));
-		matCobble.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_albedo.png"));
-		matCobble.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_normals.png"));
-		matCobble.SetPSTextureSRV(2, metal0);
-		matCobble.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/cobblestone_roughness.png"));
-		matCobble.SetPSSamplerState(0, sampler);
-		matCobble.SetPSSamplerState(1, clampSampler);
-
-		let matBronze = new Material(vs, ps, new Vector3(1, 1, 1));
-		matBronze.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_albedo.png"));
-		matBronze.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_normals.png"));
-		matBronze.SetPSTextureSRV(2, metal1);
-		matBronze.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/bronze_roughness.png"));
-		matBronze.SetPSSamplerState(0, sampler);
-		matBronze.SetPSSamplerState(1, clampSampler);
-
-		//let matFloor = new Material(vs, ps, new Vector3(1, 1, 1));
-		//matFloor.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_albedo.png"));
-		//matFloor.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_normals.png"));
-		//matFloor.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_metal.png"));
-		//matFloor.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/floor_roughness.png"));
-		//matFloor.SetPSSamplerState(0, sampler);
-		//matFloor.SetPSSamplerState(1, clampSampler);
-
-		let matScratched = new Material(vs, ps, new Vector3(1, 1, 1));
-		matScratched.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_albedo.png"));
-		matScratched.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_normals.png"));
-		matScratched.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_metal.png"));
-		matScratched.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/scratched_roughness.png"));
-		matScratched.SetPSSamplerState(0, sampler);
-		matScratched.SetPSSamplerState(1, clampSampler);
-
-		let matMetalPlate = new Material(vs, ps, new Vector3(1, 1, 1));
-		matMetalPlate.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_albedo.png"));
-		matMetalPlate.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_normals.png"));
-		matMetalPlate.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_metal.png")); 
-		matMetalPlate.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/metalplate_rough.png"));
-		matMetalPlate.SetPSSamplerState(0, sampler);
-		matMetalPlate.SetPSSamplerState(1, clampSampler);
-
-		let matSlab = new Material(vs, ps, new Vector3(1, 1, 1));
-		matSlab.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_albedo.png"));
-		matSlab.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_normals.png"));
-		matSlab.SetPSTextureSRV(2, metal0);
-		matSlab.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/slab_rough.png"));
-		matSlab.SetPSSamplerState(0, sampler);
-		matSlab.SetPSSamplerState(1, clampSampler);
-
-		let matStone = new Material(vs, ps, new Vector3(1, 1, 1));
-		matStone.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_albedo.png"));
-		matStone.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_normals.png"));
-		matStone.SetPSTextureSRV(2, metal0);
-		matStone.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/stonetiles_rough.png"));
-		matStone.SetPSSamplerState(0, sampler);
-		matStone.SetPSSamplerState(1, clampSampler);
-
-		let matWood = new Material(vs, ps, new Vector3(1, 1, 1));
-		matWood.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_albedo.png"));
-		matWood.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_normals.png"));
-		matWood.SetPSTextureSRV(2, metal0);
-		matWood.SetPSTextureSRV(3, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, "../assets/textures/wood_rough.png"));
-		matWood.SetPSSamplerState(0, sampler);
-		matWood.SetPSSamplerState(1, clampSampler);
+		// Set up texture sets
+		let textureSets = [
+			[
+				"/assets/textures/cobblestone_albedo.png",
+				"/assets/textures/cobblestone_normals.png",
+				"/assets/textures/cobblestone_arm.png"
+			],
+			[
+				"/assets/textures/bronze_albedo.png",
+				"/assets/textures/bronze_normals.png",
+				"/assets/textures/bronze_arm.png"
+			],
+			[
+				"/assets/textures/scratched_albedo.png",
+				"/assets/textures/scratched_normals.png",
+				"/assets/textures/scratched_arm.png"
+			],
+			[
+				"/assets/textures/metalplate_albedo.png",
+				"/assets/textures/metalplate_normals.png",
+				"/assets/textures/metalplate_arm.png"
+			],
+			[
+				"/assets/textures/slab_albedo.png",
+				"/assets/textures/slab_normals.png",
+				"/assets/textures/slab_arm.png"
+			],
+			[
+				"/assets/textures/stonetiles_albedo.png",
+				"/assets/textures/stonetiles_normals.png",
+				"/assets/textures/stonetiles_arm.png"
+			],
+			[
+				"/assets/textures/wood_albedo.png",
+				"/assets/textures/wood_normals.png",
+				"/assets/textures/wood_arm.png"
+			]
+		];
 
 		let matCustom = new Material(vs, ps, new Vector3(1, 1, 1));
 		matCustom.SetPSTextureSRV(0, whiteSRV);
 		matCustom.SetPSTextureSRV(1, flatNormalsSRV);
 		matCustom.SetPSTextureSRV(2, whiteSRV);
-		matCustom.SetPSTextureSRV(3, whiteSRV);
 		matCustom.SetPSSamplerState(0, sampler);
 		matCustom.SetPSSamplerState(1, clampSampler);
 
-		// Order must match UI!
+		let matTextured = new Material(vs, ps, new Vector3(1, 1, 1));
+		matTextured.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, textureSets[currentTextureSet][0]));
+		matTextured.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, textureSets[currentTextureSet][1]));
+		matTextured.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, textureSets[currentTextureSet][2]));
+		matTextured.SetPSSamplerState(0, sampler);
+		matTextured.SetPSSamplerState(1, clampSampler);
+
+		// Save the two materials
 		materials.push(matCustom);
-		materials.push(matCobble);
-		materials.push(matBronze);
-		materials.push(matScratched);
-		materials.push(matMetalPlate);
-		materials.push(matSlab);
-		materials.push(matStone);
-		materials.push(matWood);
+		materials.push(matTextured);
 
 		// -------------- Entity setup -------------------
 		// --- SPHERE SCENE ---
@@ -1319,10 +1296,10 @@
 
 		// --- ROUGHNESS SPHERES ---
 		let roughRowTextures = [
-			// Albedo,	normals,        metals
-			[whiteSRV, flatNormalsSRV, whiteSRV], // Metal
-			[whiteSRV, flatNormalsSRV, blackSRV], // White plastic
-			[blackSRV, flatNormalsSRV, blackSRV]  // Black plastic
+			// Albedo,	normals,        ARM array
+			[whiteSRV, flatNormalsSRV, arm1SRVs], // Metal
+			[whiteSRV, flatNormalsSRV, arm0SRVs], // White plastic
+			[blackSRV, flatNormalsSRV, arm0SRVs]  // Black plastic
 		];
 
 		let spacing = 1.1;
@@ -1333,10 +1310,9 @@
 			for (let col = 0; col < 11; col++)
 			{
 				let m = new Material(vs, ps, new Vector3(1, 1, 1));
-				m.SetPSTextureSRV(0, roughRowTextures[row][0]);
-				m.SetPSTextureSRV(1, roughRowTextures[row][1]);
-				m.SetPSTextureSRV(2, roughRowTextures[row][2]);
-				m.SetPSTextureSRV(3, solidRoughSRVs[col]);
+				m.SetPSTextureSRV(0, roughRowTextures[row][0]); // Albedo
+				m.SetPSTextureSRV(1, roughRowTextures[row][1]); // Normals
+				m.SetPSTextureSRV(2, roughRowTextures[row][2][col]); // ARM array
 				m.SetPSSamplerState(0, sampler);
 				m.SetPSSamplerState(1, clampSampler);
 
@@ -1352,12 +1328,12 @@
 
 		// --- RGB SPHERES ---
 		let rgbRowTextures = [
-			// Albedo,	normals,        metals
-			[whiteSRV, flatNormalsSRV, blackSRV], // White plastic
-			[redSRV, flatNormalsSRV, blackSRV],   // Red plastic
-			[greenSRV, flatNormalsSRV, blackSRV], // Green plastic
-			[blueSRV, flatNormalsSRV, blackSRV],  // Blue plastic
-			[blackSRV, flatNormalsSRV, blackSRV]  // Black plastic
+			// Albedo,	normals,       ARM array
+			[whiteSRV, flatNormalsSRV, arm0SRVs],  // White plastic
+			[redSRV,   flatNormalsSRV, arm0SRVs],  // Red plastic
+			[greenSRV, flatNormalsSRV, arm0SRVs],  // Green plastic
+			[blueSRV,  flatNormalsSRV, arm0SRVs],  // Blue plastic
+			[blackSRV, flatNormalsSRV, arm0SRVs]   // Black plastic
 		];
 
 		startY = rgbRowTextures.length / 2;
@@ -1367,10 +1343,9 @@
 			for (let col = 0; col < 11; col++)
 			{
 				let m = new Material(vs, ps, new Vector3(1, 1, 1));
-				m.SetPSTextureSRV(0, rgbRowTextures[row][0]);
-				m.SetPSTextureSRV(1, rgbRowTextures[row][1]);
-				m.SetPSTextureSRV(2, rgbRowTextures[row][2]);
-				m.SetPSTextureSRV(3, solidRoughSRVs[col]);
+				m.SetPSTextureSRV(0, rgbRowTextures[row][0]); // Albedo
+				m.SetPSTextureSRV(1, rgbRowTextures[row][1]); // Normals
+				m.SetPSTextureSRV(2, rgbRowTextures[row][2][col]); // ARM
 				m.SetPSSamplerState(0, sampler);
 				m.SetPSSamplerState(1, clampSampler);
 
@@ -1387,19 +1362,19 @@
 		// ----------- Lighting setups ---------------
 
 		// --- No lights ---
-		lightingSetups[Lighting_None] = [];
+		lightingSetups.push([]); // Empty array
 
 		// --- One Dir Light ---
-		lightingSetups[Lighting_OneDir] = [
+		lightingSetups.push([
 			new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1)))
-		];
+		]);
 
 		// --- Three Dir Lights ---
-		lightingSetups[Lighting_ThreeDir] = [
+		lightingSetups.push([
 			new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(1, -1, 1))),
 			new Light(Light.TypeDirectional, Vector3.One, 1.0, Vector3.Normalize(new Vector3(-1, -0.1, -0.1))),
 			new Light(Light.TypeDirectional, Vector3.One, 0.3, Vector3.Normalize(new Vector3(0, 1, -0.5)))
-		];
+		]);
 
 		// --------------- Sky ------------------
 
@@ -1420,7 +1395,7 @@
 		// --- General D3D Resources ---
 		showLoading("Creating Other GPU Resources");
 
-		// Create constant buffers -----------------
+		// Create constant buffers
 		let cbDesc = new D3D11_BUFFER_DESC(
 			0, // Will be filled in below
 			D3D11_USAGE_DYNAMIC,
@@ -1441,7 +1416,7 @@
 		let vsPerObjectData = new MappedArray(16);
 		vsPerObjectData.PushMapping("world", 16);
 
-		// PS Per Frame = 8 floats + 64 lights
+		// PS Per Frame = 8 floats + MAX lights
 		cbDesc.ByteWidth =
 			8 * Float32Array.BYTES_PER_ELEMENT +
 			MaxLights * Light.SizeInBytes;
@@ -1540,7 +1515,7 @@
 			else if (input.IsMouseDown(MouseButtons.Middle))
 				viewportElement.style.cursor = "move";
 			else if (input.IsMouseDown(MouseButtons.Right))
-				viewportElement.style.cursor = "url('../assets/cursors/wasd.png') 16 16, move";
+				viewportElement.style.cursor = "url('/assets/cursors/wasd.png') 16 16, move";
 			else
 				viewportElement.style.cursor = "grab";
 

@@ -19,6 +19,9 @@ export class Material
 		this.PSSamplerStates = [];
 	}
 
+	GetPSTextureSRV(index) { return this.PSTextureSRVs[index]; }
+	GetPSSamplerState(index) { return this.PSSamplerStates[index]; }
+
 	SetPSTextureSRV(index, srv) { this.PSTextureSRVs[index] = srv; }
 	SetPSSamplerState(index, samp) { this.PSSamplerStates[index] = samp; }
 

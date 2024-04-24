@@ -2294,6 +2294,9 @@ class ID3D11Device extends IUnknown
 		// we don't bind a sampler when drawing
 		this.#SetDefaultSamplerStateForBoundTexture(glTextureType, hasMipmaps);
 
+		// Unbind the texture to ensure we don't have any feedback loop later on
+		this.#gl.bindTexture(glTextureType, null);
+
 		// Create and return the new object
 		switch (dim)
 		{
