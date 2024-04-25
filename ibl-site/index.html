@@ -55,7 +55,7 @@
 
 			<!-- Overall title-->
 			<div class="text-center">
-				<h2>Image-Based.Lighting <span class="fs-6 align-middle">Alpha!</span></h2>
+				<h3>Image-Based.Lighting <span class="fs-6 align-middle">Alpha!</span></h3>
 			</div>
 			
 
@@ -145,7 +145,7 @@
 							<!-- CHOOSE ENV MAP -->
 							<h6>&#128194; Select or Load Environment</h6>
 							<div class="input-group input-group-sm mb-3">
-								<select class="form-select" id="env-map-select" onchange="changeEnvMap(this.value);">
+								<select class="form-select" id="env-map-select" onchange="setEnvMap(this.value);">
 
 									<option value="0">Pine Attic</option>
 									<option value="1">Hilly Terrain</option>
@@ -264,22 +264,22 @@
 							<div class="input-group input-group-sm ms-0">
 								<label class="input-group-text col">Size</label>
 
-								<input id="brdf-lut-res-0" name="brdf-lut-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeLutSize(this.value);">
+								<input id="brdf-lut-res-0" name="brdf-lut-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="setLutSize(this.value);">
 								<label for="brdf-lut-res-0" class="btn btn-outline-secondary">2048</label>
 
-								<input id="brdf-lut-res-1" name="brdf-lut-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeLutSize(this.value);" checked>
+								<input id="brdf-lut-res-1" name="brdf-lut-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="setLutSize(this.value);" checked>
 								<label for="brdf-lut-res-1" class="btn btn-outline-secondary">1024</label>
 
-								<input id="brdf-lut-res-2" name="brdf-lut-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeLutSize(this.value);">
+								<input id="brdf-lut-res-2" name="brdf-lut-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="setLutSize(this.value);">
 								<label for="brdf-lut-res-2" class="btn btn-outline-secondary">512</label>
 
-								<input id="brdf-lut-res-3" name="brdf-lut-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeLutSize(this.value);">
+								<input id="brdf-lut-res-3" name="brdf-lut-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="setLutSize(this.value);">
 								<label for="brdf-lut-res-3" class="btn btn-outline-secondary">256</label>
 
-								<input id="brdf-lut-res-4" name="brdf-lut-res" type="radio" class="btn-check" value="128" autocomplete="off" onchange="changeLutSize(this.value);">
+								<input id="brdf-lut-res-4" name="brdf-lut-res" type="radio" class="btn-check" value="128" autocomplete="off" onchange="setLutSize(this.value);">
 								<label for="brdf-lut-res-4" class="btn btn-outline-secondary">128</label>
 
-								<input id="brdf-lut-res-5" name="brdf-lut-res" type="radio" class="btn-check" value="64" autocomplete="off" onchange="changeLutSize(this.value);">
+								<input id="brdf-lut-res-5" name="brdf-lut-res" type="radio" class="btn-check" value="64" autocomplete="off" onchange="setLutSize(this.value);">
 								<label for="brdf-lut-res-5" class="btn btn-outline-secondary">64</label>
 							</div>
 
@@ -296,22 +296,22 @@
 							<div class="input-group input-group-sm ms-0 mb-3">
 								<label class="input-group-text col">Size</label>
 
-								<input id="irr-res-0" name="irr-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeIrrSize(this.value);">
+								<input id="irr-res-0" name="irr-res" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="setIrrSize(this.value);">
 								<label for="irr-res-0" class="btn btn-outline-secondary">2048</label>
 
-								<input id="irr-res-1" name="irr-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeIrrSize(this.value);">
+								<input id="irr-res-1" name="irr-res" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="setIrrSize(this.value);">
 								<label for="irr-res-1" class="btn btn-outline-secondary">1024</label>
 
-								<input id="irr-res-2" name="irr-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeIrrSize(this.value);">
+								<input id="irr-res-2" name="irr-res" type="radio" class="btn-check" value="512" autocomplete="off" onchange="setIrrSize(this.value);">
 								<label for="irr-res-2" class="btn btn-outline-secondary">512</label>
 
-								<input id="irr-res-3" name="irr-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeIrrSize(this.value);" checked>
+								<input id="irr-res-3" name="irr-res" type="radio" class="btn-check" value="256" autocomplete="off" onchange="setIrrSize(this.value);" checked>
 								<label for="irr-res-3" class="btn btn-outline-secondary">256</label>
 
-								<input id="irr-res-4" name="irr-res" type="radio" class="btn-check" value="128" autocomplete="off" onchange="changeIrrSize(this.value);">
+								<input id="irr-res-4" name="irr-res" type="radio" class="btn-check" value="128" autocomplete="off" onchange="setIrrSize(this.value);">
 								<label for="irr-res-4" class="btn btn-outline-secondary">128</label>
 
-								<input id="irr-res-5" name="irr-res" type="radio" class="btn-check" value="64" autocomplete="off" onchange="changeIrrSize(this.value);">
+								<input id="irr-res-5" name="irr-res" type="radio" class="btn-check" value="64" autocomplete="off" onchange="setIrrSize(this.value);">
 								<label for="irr-res-5" class="btn btn-outline-secondary">64</label>
 							</div>
 
@@ -320,22 +320,22 @@
 							<div class="input-group input-group-sm ms-0 mb-1">
 								<label class="input-group-text col">Size</label>
 
-								<input id="spec-res-large-0" name="spec-res-large" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
+								<input id="spec-res-large-0" name="spec-res-large" type="radio" class="btn-check" value="2048" autocomplete="off" onchange="setSpecIBLSize(this.value);">
 								<label for="spec-res-large-0" class="btn btn-outline-secondary">2048</label>
 
-								<input id="spec-res-large-1" name="spec-res-large" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
+								<input id="spec-res-large-1" name="spec-res-large" type="radio" class="btn-check" value="1024" autocomplete="off" onchange="setSpecIBLSize(this.value);">
 								<label for="spec-res-large-1" class="btn btn-outline-secondary">1024</label>
 
-								<input id="spec-res-large-2" name="spec-res-large" type="radio" class="btn-check" value="512" autocomplete="off" onchange="changeSpecIBLSize(this.value);" checked>
+								<input id="spec-res-large-2" name="spec-res-large" type="radio" class="btn-check" value="512" autocomplete="off" onchange="setSpecIBLSize(this.value);" checked>
 								<label for="spec-res-large-2" class="btn btn-outline-secondary">512</label>
 
-								<input id="spec-res-large-3" name="spec-res-large" type="radio" class="btn-check" value="256" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
+								<input id="spec-res-large-3" name="spec-res-large" type="radio" class="btn-check" value="256" autocomplete="off" onchange="setSpecIBLSize(this.value);">
 								<label for="spec-res-large-3" class="btn btn-outline-secondary">256</label>
 
-								<input id="spec-res-large-4" name="spec-res-large" type="radio" class="btn-check" value="128" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
+								<input id="spec-res-large-4" name="spec-res-large" type="radio" class="btn-check" value="128" autocomplete="off" onchange="setSpecIBLSize(this.value);">
 								<label for="spec-res-large-4" class="btn btn-outline-secondary">128</label>
 
-								<input id="spec-res-large-5" name="spec-res-large" type="radio" class="btn-check" value="64" autocomplete="off" onchange="changeSpecIBLSize(this.value);">
+								<input id="spec-res-large-5" name="spec-res-large" type="radio" class="btn-check" value="64" autocomplete="off" onchange="setSpecIBLSize(this.value);">
 								<label for="spec-res-large-5" class="btn btn-outline-secondary">64</label>
 							</div>
 
@@ -343,22 +343,22 @@
 							<div class="input-group input-group-sm ms-0 mb-3">
 								<label class="input-group-text col">Smallest Mip</label>
 
-								<input id="spec-res-small-0" name="spec-res-small" type="radio" class="btn-check" value="32" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
+								<input id="spec-res-small-0" name="spec-res-small" type="radio" class="btn-check" value="32" autocomplete="off" onchange="setSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-0" class="btn btn-outline-secondary">32</label>
 
-								<input id="spec-res-small-1" name="spec-res-small" type="radio" class="btn-check" value="16" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
+								<input id="spec-res-small-1" name="spec-res-small" type="radio" class="btn-check" value="16" autocomplete="off" onchange="setSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-1" class="btn btn-outline-secondary">16</label>
 
-								<input id="spec-res-small-2" name="spec-res-small" type="radio" class="btn-check" value="8" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);" checked>
+								<input id="spec-res-small-2" name="spec-res-small" type="radio" class="btn-check" value="8" autocomplete="off" onchange="setSpecIBLSmallestMip(this.value);" checked>
 								<label for="spec-res-small-2" class="btn btn-outline-secondary">8</label>
 
-								<input id="spec-res-small-3" name="spec-res-small" type="radio" class="btn-check" value="4" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
+								<input id="spec-res-small-3" name="spec-res-small" type="radio" class="btn-check" value="4" autocomplete="off" onchange="setSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-3" class="btn btn-outline-secondary">4</label>
 
-								<input id="spec-res-small-4" name="spec-res-small" type="radio" class="btn-check" value="2" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
+								<input id="spec-res-small-4" name="spec-res-small" type="radio" class="btn-check" value="2" autocomplete="off" onchange="setSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-4" class="btn btn-outline-secondary">2</label>
 
-								<input id="spec-res-small-5" name="spec-res-small" type="radio" class="btn-check" value="1" autocomplete="off" onchange="changeSpecIBLSmallestMip(this.value);">
+								<input id="spec-res-small-5" name="spec-res-small" type="radio" class="btn-check" value="1" autocomplete="off" onchange="setSpecIBLSmallestMip(this.value);">
 								<label for="spec-res-small-5" class="btn btn-outline-secondary">1</label>
 							</div>
 
@@ -449,6 +449,10 @@
 								</div>
 							</div>
 
+							<div id="non-hdr-reminder">
+								<p>Note: Tonemapping is not available when the environment map is not HDR</p>
+							</div>
+
 						</div>
 					</div>
 				</div>
@@ -512,16 +516,17 @@
 							<div class="card mb-3">
 								<h6 class="card-header">&#129518; Details</h6>
 								<div class="card-body">
-									<p>IBL map generation based on <a href="https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf">Real Shading in Unreal Engine 4</a> by Brian Karis</p>
-									<p>Multiscattering compensation (<a href="https://google.github.io/filament/Filament.html#toc4.7.2">overview</a> and <a href="https://google.github.io/filament/Filament.html#toc5.3.4.7">pre-integration changes</a>) based on <a href="https://google.github.io/filament/Filament.html">Filament</a> by Google.</p>
-									<p>Powered by 2-3 graphics APIs in a trench coat (<a href="https://github.com/vixorien/d3d11.js">d3d11.js</a>)</p>
+									<p>Copyright © 2024 Chris Cascioli</p>
+									<p>IBL map generation based on <a href="https://cdn2.unrealengine.com/Resources/files/2013SiggraphPresentationsNotes-26915738.pdf" target="_blank">Real Shading in Unreal Engine 4</a> by Brian Karis</p>
+									<p>Multiscattering compensation (<a href="https://google.github.io/filament/Filament.html#toc4.7.2" target="_blank">overview</a> and <a href="https://google.github.io/filament/Filament.html#toc5.3.4.7" target="_blank">pre-integration changes</a>) based on <a href="https://google.github.io/filament/Filament.html" target="_blank">Filament</a> by Google.</p>
+									<p>Powered by 2-3 graphics APIs in a trench coat (<a href="https://github.com/vixorien/d3d11.js" target="_blank">d3d11.js</a>)</p>
 								</div>
 							</div>
 
 							<div class="card mb-3">
 								<h6 class="card-header">&#127912; Materials</h6>
 								<div class="card-body">
-									<p>Materials from <a href="https://polyhaven.com/">Polyhaven.com</a>.</p>
+									<p>Materials from <a href="https://polyhaven.com/" target="_blank">Polyhaven.com</a>.</p>
 									<table class="table">
 										<thead>
 											<tr>
@@ -532,24 +537,24 @@
 										</thead>
 										<tbody>
 											<tr>
-												<td><a href="https://polyhaven.com/a/slab_tiles">Slab Tiles</a></td>
+												<td><a href="https://polyhaven.com/a/slab_tiles target="_blank"">Slab Tiles</a></td>
 												<td>Dario Barresi, Dimitrios Savva</td>
-												<td><a href="https://polyhaven.com/license">CC0</a></td>
+												<td><a href="https://polyhaven.com/license" target="_blank">CC0</a></td>
 											</tr>
 											<tr>
-												<td><a href="https://polyhaven.com/a/metal_plate">Metal Plate</a></td>
+												<td><a href="https://polyhaven.com/a/metal_plate target="_blank"">Metal Plate</a></td>
 												<td>Rob Tuytel</td>
-												<td><a href="https://polyhaven.com/license">CC0</a></td>
+												<td><a href="https://polyhaven.com/license" target="_blank">CC0</a></td>
 											</tr>
 											<tr>
-												<td><a href="https://polyhaven.com/a/diagonal_parquet">Diagonal Parquet</a></td>
+												<td><a href="https://polyhaven.com/a/diagonal_parquet target="_blank"">Diagonal Parquet</a></td>
 												<td>Anonymous Bob, Jandre van Heerden</td>
-												<td><a href="https://polyhaven.com/license">CC0</a></td>
+												<td><a href="https://polyhaven.com/license" target="_blank">CC0</a></td>
 											</tr>
 											<tr>
-												<td><a href="https://polyhaven.com/a/stone_tiles">Stone Tiles</a></td>
+												<td><a href="https://polyhaven.com/a/stone_tiles" target="_blank">Stone Tiles</a></td>
 												<td>Christopher Melani</td>
-												<td><a href="https://polyhaven.com/license">CC0</a></td>
+												<td><a href="https://polyhaven.com/license" target="_blank">CC0</a></td>
 											</tr>
 										</tbody>
 									</table>
@@ -561,7 +566,7 @@
 							<div class="card">
 								<h6 class="card-header">&#127758; Environment Maps</h6>
 								<div class="card-body mb-3">
-									<p>Example environments from <a href="https://polyhaven.com/">Polyhaven.com</a>.</p>
+									<p>Example environments from <a href="https://polyhaven.com/" target="_blank">Polyhaven.com</a>.</p>
 									<table class="table">
 										<thead>
 											<tr>
@@ -572,24 +577,24 @@
 										</thead>
 										<tbody>
 											<tr>
-												<td><a href="https://polyhaven.com/a/pine_attic">Pine Attic</a></td>
+												<td><a href="https://polyhaven.com/a/pine_attic" target="_blank">Pine Attic</a></td>
 												<td>Sergej Majboroda</td>
-												<td><a href="https://polyhaven.com/license">CC0</a></td>
+												<td><a href="https://polyhaven.com/license" target="_blank">CC0</a></td>
 											</tr>
 											<tr>
-												<td><a href="https://polyhaven.com/a/hilly_terrain_01">Hilly Terrain 01</a></td>
+												<td><a href="https://polyhaven.com/a/hilly_terrain_01" target="_blank">Hilly Terrain 01</a></td>
 												<td>Sergej Majboroda</td>
-												<td><a href="https://polyhaven.com/license">CC0</a></td>
+												<td><a href="https://polyhaven.com/license" target="_blank">CC0</a></td>
 											</tr>
 											<tr>
-												<td><a href="https://polyhaven.com/a/castle_zavelstein_cellar">Castle Zavelstein Cellar</a></td>
+												<td><a href="https://polyhaven.com/a/castle_zavelstein_cellar" target="_blank">Castle Zavelstein Cellar</a></td>
 												<td>Andreas Mischok</td>
-												<td><a href="https://polyhaven.com/license">CC0</a></td>
+												<td><a href="https://polyhaven.com/license" target="_blank">CC0</a></td>
 											</tr>
 											<tr>
-												<td><a href="https://polyhaven.com/a/studio_small_03">Small Studio 03</a></td>
+												<td><a href="https://polyhaven.com/a/studio_small_03" target="_blank">Small Studio 03</a></td>
 												<td>Greg Zaal</td>
-												<td><a href="https://polyhaven.com/license">CC0</a></td>
+												<td><a href="https://polyhaven.com/license" target="_blank">CC0</a></td>
 											</tr>
 										</tbody>
 									</table>
@@ -720,7 +725,9 @@
 
 		const MaxLights = 64;
 
-		window.showLoading = function(text)
+		// --- Window-level functions called from outside this script ---
+
+		window.showLoading = function (text)
 		{
 			let load = document.getElementById("loading-container");
 			load.classList.remove("invisible");
@@ -729,7 +736,7 @@
 			loadText.innerHTML = text;
 		}
 
-		window.hideLoading = function()
+		window.hideLoading = function ()
 		{
 			let load = document.getElementById("loading-container");
 			load.classList.add("invisible");
@@ -738,8 +745,7 @@
 			loadText.innerHTML = "";
 		}
 
-
-		window.changeEnvMap = async function (val)
+		window.setEnvMap = async function (val)
 		{
 			function hide(id) { document.getElementById(id).classList.add("d-none"); }
 			function show(id) { document.getElementById(id).classList.remove("d-none"); }
@@ -772,38 +778,34 @@
 					if (path.endsWith(".hdr"))
 					{
 						showLoading("Loading HDR File");
-
-						let [width, height, data] = await TextureUtils.LoadHDRFile(path);
-						sky.LoadEquirectHDR(width, height, data);
+						await sky.LoadEquirectHDRFromUrl(path);
 					}
 					else if (path.endsWith(".dds"))
 					{
 						showLoading("Loading DDS File");
-
-						let [width, height, mips, format, faceDataArrays] = await TextureUtils.LoadDDSFile(path);
-						sky.LoadDDS(width, height, mips, format, faceDataArrays);
+						await sky.LoadDDSFileFromUrl(path);
 					}
 					break;
 			}
 		}
-
-		window.changeLutSize = function (val)
+		
+		window.setLutSize = function (val)
 		{
 			sky.SetBRDFLookUpTableSize(val);
 		}
 
-		window.changeIrrSize = function (val)
+		window.setIrrSize = function (val)
 		{
 			sky.SetIrradianceSize(val);
 		}
 
-		window.changeSpecIBLSize = function (val)
+		window.setSpecIBLSize = function (val)
 		{
 			sky.SetSpecularIBLSize(val);
 			document.getElementById("spec-mip-levels").innerHTML = sky.SpecularIBLMipsTotal;
 		}
 
-		window.changeSpecIBLSmallestMip = function (val)
+		window.setSpecIBLSmallestMip = function (val)
 		{
 			sky.SetSpecularIBLSmallestMipSize(val);
 			document.getElementById("spec-mip-levels").innerHTML = sky.SpecularIBLMipsTotal;
@@ -957,7 +959,8 @@
 
 		window.loadSixFaces = async function ()
 		{
-			// Collect all input elements
+			showLoading("Loading Six Faces");
+
 			let inputs = [
 				document.getElementById("sixFacesXPos"),
 				document.getElementById("sixFacesXNeg"),
@@ -967,142 +970,19 @@
 				document.getElementById("sixFacesZNeg")
 			];
 
-			// Validate files
-			for (let i = 0; i < 6; i++)
-			{
-				// Ensure file has been set
-				if (inputs[i].files.length == 0)
-				{
-					alert("Missing one or more files for skybox load");
-					return;
-				}
-
-				// Check extension
-				let filename = inputs[i].files[0].name;
-				let extension = filename.slice(filename.lastIndexOf('.'));
-				if (extension != ".jpg" && extension != ".jpeg" && extension != ".png")
-				{
-					alert("One or more files for skybox load have invalid extensions");
-					return;
-				}
-			}
-
-			// Files validated - Perform the load(s)
-			let fileURLs = [];
-			for (let i = 0; i < 6; i++)
-			{
-				let cubeDataArray = await readLocalFile(inputs[i].files[0]);
-				fileURLs[i] = new Blob([cubeDataArray]);
-			}
-
-			// All loaded - Attempt to load as a cube map (assuming NOT hdr)
-			sky.LoadCubeMap(await loadCubeFromFaces(d3dDevice, d3dContext, fileURLs, true, true));
-		}
-
-
-		window.readLocalFile = async function (file)
-		{
-			return new Promise((resolve, reject) =>
-			{
-				let fr = new FileReader();
-				fr.onerror = reject;
-				fr.onload = function ()
-				{
-					resolve(fr.result);
-				}
-				fr.readAsArrayBuffer(file);
-			});
+			await sky.LoadSixFacesLocal(inputs);
 		}
 
 		window.loadHDR = async function ()
 		{
 			showLoading("Loading HDR File");
-
-			let fileInput = document.getElementById("hdrFile");
-			let [width, height, data] = await TextureUtils.LoadHDRFileLocal(fileInput);
-
-			sky.LoadEquirectHDR(width, height, data);
+			await sky.LoadEquirectHDRLocal(document.getElementById("hdrFile"));
 		}
 
 		window.loadDDS = async function ()
 		{
 			showLoading("Loading DDS File");
-
-			let fileInput = document.getElementById("ddsFile");
-			let [width, height, mips, format, faceDataArrays] = await TextureUtils.LoadDDSFileLocal(fileInput);
-			sky.LoadDDS(width, height, mips, format, faceDataArrays);
-		}
-
-
-		window.loadCubeFromFaces = async function (d3dDevice, d3dContext, faceURLs, filesAreLocal, generateMips)
-		{
-			let faceTextures = [];
-			let size = -1;
-			let mips = 1;
-			for (let i = 0; i < faceURLs.length; i++)
-			{
-				// Fetch and grab the binary data, then turn into an image
-				const resp = filesAreLocal ? faceURLs[i] : await fetch(faceURLs[i]);
-				const imageBlob = filesAreLocal ? resp : await resp.blob();
-				const bitmap = await createImageBitmap(imageBlob, { imageOrientation: "flipY" });
-
-				// Set size and mips on first bitmap
-				if (size == -1)
-				{
-					size = bitmap.width;
-
-					if (generateMips)
-					{
-						mips = Math.floor(Math.log2(size)) + 1;
-					}
-				}
-
-				// Validate bitmap aspect ratio
-				if (bitmap.width != bitmap.height)
-				{
-					console.log("Error: Texture cube faces must be square");
-					return;
-				}
-
-				// Validate size matches
-				if (size != bitmap.width)
-				{
-					console.log("Error: Texture cube faces must all be the same size");
-				}
-
-				// Add to array of initial data
-				faceTextures.push(bitmap);
-
-				// Note: Must also add nulls for other mips of this face
-				for (let i = 1; generateMips && i < mips; i++)
-					faceTextures.push(null); // No data for this mip yet!
-			}
-
-			// Set up the texture cube
-			let desc = new D3D11_TEXTURE2D_DESC(
-				faceTextures[0].width,
-				faceTextures[0].height,
-				mips,
-				6, // 6 faces (as array elements)
-				DXGI_FORMAT_R8G8B8A8_UNORM,
-				new DXGI_SAMPLE_DESC(1, 0),
-				D3D11_USAGE_DEFAULT,
-				D3D11_BIND_SHADER_RESOURCE | (generateMips ? D3D11_BIND_RENDER_TARGET : 0),
-				0,
-				D3D11_RESOURCE_MISC_TEXTURECUBE | (generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0));
-			let texture = d3dDevice.CreateTexture2D(desc, faceTextures);
-
-			let srv = d3dDevice.CreateShaderResourceView(texture, null);
-
-			// Generate mip maps for the enviroment map for later IBL steps
-			if (generateMips)
-			{
-				d3dContext.GenerateMips(srv);
-			}
-
-			// Release the texture
-			texture.Release();
-			return srv;
+			await sky.LoadDDSLocal(document.getElementById("ddsFile"));
 		}
 
 		window.saveSkyToFile = function ()
@@ -1406,9 +1286,39 @@
 			equirectToCubePS, mipReducePS, fullscreenVS,
 			true, 128);
 
-		let [width, height, data] = await TextureUtils.LoadHDRFile(defaultSkyPaths[0]);
-		sky.LoadEquirectHDR(width, height, data);
+		sky.addEventListener("skydirty", (e) => { document.getElementById("buttonSaveSky").disabled = true; });
+		sky.addEventListener("lutdirty", (e) => { document.getElementById("buttonSaveLUT").disabled = true; });
+		sky.addEventListener("irrdirty", (e) => { document.getElementById("buttonSaveIrr").disabled = true; });
+		sky.addEventListener("specdirty", (e) => { document.getElementById("buttonSaveIBL").disabled = true; });
 
+		sky.addEventListener("lutclean", (e) => { document.getElementById("buttonSaveLUT").disabled = false; });
+		sky.addEventListener("irrclean", (e) => { document.getElementById("buttonSaveIrr").disabled = false; });
+		sky.addEventListener("specclean", (e) => { document.getElementById("buttonSaveIBL").disabled = false; });
+		sky.addEventListener("skyclean", (e) =>
+		{
+			document.getElementById("buttonSaveSky").disabled = false;
+
+			let hdrStatus = document.getElementById("hdr-status");
+			let iblExp = document.getElementById("ibl-exposure-container");
+			let tonemap = document.getElementById("tonemapping-contanier");
+			let nonHDR = document.getElementById("non-hdr-reminder");
+			if (sky.IsHDR)
+			{
+				hdrStatus.innerHTML = "Yes";
+				iblExp.classList.remove("d-none");
+				tonemap.classList.remove("d-none");
+				nonHDR.classList.add("d-none");
+			}
+			else
+			{
+				hdrStatus.innerHTML = "No";
+				iblExp.classList.add("d-none");
+				tonemap.classList.add("d-none");
+				nonHDR.classList.remove("d-none");
+			}
+		});
+
+		await sky.LoadEquirectHDRFromUrl(defaultSkyPaths[0]);
 
 		// --- General D3D Resources ---
 		showLoading("Creating Other GPU Resources");
@@ -1540,25 +1450,6 @@
 			// Check for any progressive IBL updates
 			sky.Update();
 
-			// Check for sky assets being ready
-			let saveSky = document.getElementById("buttonSaveSky");
-			let saveIBL = document.getElementById("buttonSaveIBL");
-			let saveIrr = document.getElementById("buttonSaveIrr");
-			let saveLUT = document.getElementById("buttonSaveLUT");
-
-			// TODO: Tie disabling to the actual new skybox load
-			if (saveSky.disabled && sky.SkyCubeSRV != null) saveSky.disabled = false;
-			else if (!saveSky.disabled && sky.SkyCubeSRV == null) saveSky.disabled = true;
-
-			if (saveIBL.disabled && sky.SpecularIBLReady) saveIBL.disabled = false;
-			else if (!saveIBL.disabled && !sky.SpecularIBLReady) saveIBL.disabled = true;
-
-			if (saveIrr.disabled && sky.IrradianceReady) saveIrr.disabled = false;
-			else if (!saveIrr.disabled && !sky.IrradianceReady) saveIrr.disabled = true;
-
-			if (saveLUT.disabled && sky.BRDFLookUpTableReady) saveLUT.disabled = false;
-			else if (!saveLUT.disabled && !sky.BRDFLookUpTableReady) saveLUT.disabled = true;
-
 			// Set up loading messages based on order of IBL map creation
 			if (!sky.BRDFLookUpTableReady)
 				showLoading("Generating environment BRDF look up table");
@@ -1568,23 +1459,6 @@
 				showLoading("Generating environment specular convolution map");
 			else
 				hideLoading();
-
-			// Update HDR status
-			// TODO: Tie to actual loading
-			document.getElementById("hdr-status").innerHTML = sky.IsHDR ? "Yes" : "No";
-			let iblExp = document.getElementById("ibl-exposure-container");
-			let tonemap = document.getElementById("tonemapping-contanier");
-			if (sky.IsHDR)
-			{
-				iblExp.classList.remove("d-none");
-				tonemap.classList.remove("d-none");
-			}
-			else
-			{
-				iblExp.classList.add("d-none");
-				tonemap.classList.add("d-none");
-			}
-
 		}
 
 		function checkForResize()
@@ -1751,6 +1625,44 @@
 			d3dContext.Draw(6, 0);
 		}
 
+		function drawEntity(e)
+		{
+			// Set shaders
+			d3dContext.VSSetShader(e.Material.VertexShader);
+			d3dContext.PSSetShader(e.Material.PixelShader);
+
+			// Update vertex data
+			vsPerObjectData.SetData("world", e.Transform.WorldMatrix);
+			d3dContext.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
+
+			// Which material?
+			let mat = e.Material;
+			let customMat = false;
+			if (currentScene == 0 || currentScene == 1 || currentScene == 2)
+			{
+				// Use proper material
+				mat = materials[currentMaterial];
+				customMat = true;
+			}
+
+			// Set up material
+			mat.PrepareMaterial(d3dContext);
+			psPerObjectData.SetData("tint", customMat && currentMaterial == 0 ? customMatColor : mat.Color);
+			psPerObjectData.SetData("roughness", customMat && currentMaterial == 0 ? [customMatRoughness] : [1]);
+			psPerObjectData.SetData("metalness", customMat && currentMaterial == 0 ? [customMatMetalness] : [1]);
+			d3dContext.UpdateSubresource(psPerObjectCB, 0, null, psPerObjectData, 0, 0);
+
+			// Set up IBL
+			d3dContext.PSSetShaderResources(4, [
+				sky.BRDFLookUpTableSRV, sky.IrradianceCubeSRV, sky.SpecularIBLCubeSRV
+			]);
+
+			// Draw
+			d3dContext.IASetVertexBuffers(0, [e.Mesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
+			d3dContext.IASetIndexBuffer(e.Mesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
+			d3dContext.DrawIndexed(e.Mesh.IndexCount, 0);
+		}
+
 
 		function draw(deltaTime, totalTime)
 		{
@@ -1791,49 +1703,11 @@
 				psPerFrameData.SetData("lights", lightingSetups[currentLighting][i], i * Light.SizeInFloats);
 			d3dContext.UpdateSubresource(psPerFrameCB, 0, null, psPerFrameData, 0, 0);
 
-			function DrawEntity(e)
-			{
-				// Set shaders
-				d3dContext.VSSetShader(e.Material.VertexShader);
-				d3dContext.PSSetShader(e.Material.PixelShader);
-
-				// Update vertex data
-				vsPerObjectData.SetData("world", e.Transform.WorldMatrix);
-				d3dContext.UpdateSubresource(vsPerObjectCB, 0, null, vsPerObjectData, 0, 0);
-
-				// Which material?
-				let mat = e.Material;
-				let customMat = false;
-				if (currentScene == 0 || currentScene == 1 || currentScene == 2)
-				{
-					// Use proper material
-					mat = materials[currentMaterial];
-					customMat = true;
-				}
-
-				// Set up material
-				mat.PrepareMaterial(d3dContext);
-				psPerObjectData.SetData("tint", customMat && currentMaterial == 0 ? customMatColor : mat.Color);
-				psPerObjectData.SetData("roughness", customMat && currentMaterial == 0 ? [customMatRoughness] : [1]);
-				psPerObjectData.SetData("metalness", customMat && currentMaterial == 0 ? [customMatMetalness] : [1]);
-				d3dContext.UpdateSubresource(psPerObjectCB, 0, null, psPerObjectData, 0, 0);
-
-				// Set up IBL
-				d3dContext.PSSetShaderResources(4, [
-					sky.BRDFLookUpTableSRV, sky.IrradianceCubeSRV, sky.SpecularIBLCubeSRV
-				]);
-
-				// Draw
-				d3dContext.IASetVertexBuffers(0, [e.Mesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
-				d3dContext.IASetIndexBuffer(e.Mesh.IndexBuffer, DXGI_FORMAT_R16_UINT);
-				d3dContext.DrawIndexed(e.Mesh.IndexCount, 0);
-			}
-
 			// Main scene draw
 			{
 				for (let i = 0; i < scenes[currentScene].length; i++)
 				{
-					DrawEntity(scenes[currentScene][i]);
+					drawEntity(scenes[currentScene][i]);
 				}
 			}
 

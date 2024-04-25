@@ -411,6 +411,132 @@ export class TextureUtils
 	}
 
 	
+	static async LoadSixFacesLocal(inputs)
+	{
+		// Validate files
+		for (let i = 0; i < 6; i++)
+		{
+			// Ensure file has been set
+			if (inputs[i].files.length == 0)
+			{
+				alert("Missing one or more files for skybox load");
+				return null;
+			}
+
+			// Check extension
+			let filename = inputs[i].files[0].name;
+			let extension = filename.slice(filename.lastIndexOf('.'));
+			if (extension != ".jpg" && extension != ".jpeg" && extension != ".png")
+			{
+				alert("One or more files for skybox load have invalid extensions.  Must be .jpg, .jpeg or .png");
+				return null;
+			}
+		}
+
+		// Files validated - Perform the load(s)
+		let faceBitmaps = [];
+		let size = -1;
+		for (let i = 0; i < 6; i++)
+		{
+			let contents = await TextureUtils.#ReadLocalFile(inputs[i].files[0]);
+			let blob = new Blob([contents]);
+			let bitmap = await createImageBitmap(blob, { imageOrientation: "flipY" });
+
+			// Get the size from the first image
+			if (size == -1)
+				size = bitmap.width;
+
+			// Validate bitmap aspect ratio
+			if (bitmap.width != bitmap.height)
+			{
+				console.log("Error: Texture cube faces must be square");
+				return null;
+			}
+
+			// Validate size matches
+			if (size != bitmap.width)
+			{
+				console.log("Error: Texture cube faces must all be the same size");
+				return null;
+			}
+
+			// Add to array of initial data
+			faceBitmaps.push(bitmap);
+		}
+
+		return faceBitmaps;
+	}
+
+	static async #LoadCubeFromFaces(d3dDevice, d3dContext, faceURLs, filesAreLocal, generateMips)
+	{
+		let faceTextures = [];
+		let size = -1;
+		let mips = 1;
+		for (let i = 0; i < faceURLs.length; i++)
+		{
+			// Fetch and grab the binary data, then turn into an image
+			const resp = filesAreLocal ? faceURLs[i] : await fetch(faceURLs[i]);
+			const imageBlob = filesAreLocal ? resp : await resp.blob();
+			const bitmap = await createImageBitmap(imageBlob, { imageOrientation: "flipY" });
+
+			// Set size and mips on first bitmap
+			if (size == -1)
+			{
+				size = bitmap.width;
+
+				if (generateMips)
+				{
+					mips = Math.floor(Math.log2(size)) + 1;
+				}
+			}
+
+			// Validate bitmap aspect ratio
+			if (bitmap.width != bitmap.height)
+			{
+				console.log("Error: Texture cube faces must be square");
+				return;
+			}
+
+			// Validate size matches
+			if (size != bitmap.width)
+			{
+				console.log("Error: Texture cube faces must all be the same size");
+			}
+
+			// Add to array of initial data
+			faceTextures.push(bitmap);
+
+			// Note: Must also add nulls for other mips of this face
+			for (let i = 1; generateMips && i < mips; i++)
+				faceTextures.push(null); // No data for this mip yet!
+		}
+
+		// Set up the texture cube
+		let desc = new D3D11_TEXTURE2D_DESC(
+			faceTextures[0].width,
+			faceTextures[0].height,
+			mips,
+			6, // 6 faces (as array elements)
+			DXGI_FORMAT_R8G8B8A8_UNORM,
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_SHADER_RESOURCE | (generateMips ? D3D11_BIND_RENDER_TARGET : 0),
+			0,
+			D3D11_RESOURCE_MISC_TEXTURECUBE | (generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0));
+		let texture = d3dDevice.CreateTexture2D(desc, faceTextures);
+
+		let srv = d3dDevice.CreateShaderResourceView(texture, null);
+
+		// Generate mip maps for the enviroment map for later IBL steps
+		if (generateMips)
+		{
+			d3dContext.GenerateMips(srv);
+		}
+
+		// Release the texture
+		texture.Release();
+		return srv;
+	}
 
 	/**
 	 * Loads a local HDR file from the user's machine
@@ -960,16 +1086,16 @@ export class TextureUtils
 		// Each face needs its own array!
 		let bytesPerPixel = TextureUtils.GetDXGIFormatBytesPerPixel(format);
 		let faceStartByte = offset * 4; // Convert offset to bytes
-		let faceSizeInChannels = width * height * 4;
-		let faceSizeInBytes = width * height * bytesPerPixel;
-		if (compressed)
-		{
-			// Can't rely on linear size from file - figure it out ourselves
-			faceSizeInBytes =
-				Math.max(1, Math.floor((width + 3) / 4)) *
-				Math.max(1, Math.floor((height + 3) / 4)) *
-				compBlockSize;
-		}
+		//let faceSizeInChannels = width * height * 4;
+		//let faceSizeInBytes = width * height * bytesPerPixel;
+		//if (compressed)
+		//{
+		//	// Can't rely on linear size from file - figure it out ourselves
+		//	faceSizeInBytes =
+		//		Math.max(1, Math.floor((width + 3) / 4)) *
+		//		Math.max(1, Math.floor((height + 3) / 4)) *
+		//		compBlockSize;
+		//}
 
 		let faceDataArrays = [];
 		let dataByteOffset = faceStartByte;
@@ -982,19 +1108,41 @@ export class TextureUtils
 				let mipWidth = Math.max(1, Math.floor(width / div));
 				let mipHeight = Math.max(1, Math.floor(height / div));
 				let mipElements = mipWidth * mipHeight * 4; // 4 channels
+				let mipSizeInBytes = mipElements;
+
+				// Can't rely on standard sizing for compressed images
+				if (compressed)
+				{
+					mipElements =
+						Math.max(1, Math.floor((mipWidth + 3) / 4)) *
+						Math.max(1, Math.floor((mipHeight + 3) / 4)) *
+						compBlockSize;
+
+					mipSizeInBytes = mipElements;
+				}
 
 				// Determine the type of data to store
 				let mipData;
 				switch (format)
 				{
-					case DXGI_FORMAT_R32G32B32A32_FLOAT: mipData = new Float32Array(dataFromFile, dataByteOffset, mipElements); break;
-					case DXGI_FORMAT_R16G16B16A16_FLOAT: mipData = new Uint16Array(dataFromFile, dataByteOffset, mipElements); break;
-					default: mipData = new Uint8Array(dataFromFile, dataByteOffset, mipElements); break;
+					case DXGI_FORMAT_R32G32B32A32_FLOAT:
+						mipSizeInBytes = mipElements * 4;
+						mipData = new Float32Array(dataFromFile, dataByteOffset, mipElements);
+						break;
+
+					case DXGI_FORMAT_R16G16B16A16_FLOAT:
+						mipSizeInBytes = mipElements * 2;
+						mipData = new Uint16Array(dataFromFile, dataByteOffset, mipElements);
+						break;
+
+					default:
+						mipData = new Uint8Array(dataFromFile, dataByteOffset, mipElements);
+						break;
 					// TODO: Handle other formats
 				}
 
 				// Offset past this mip
-				dataByteOffset += mipWidth * mipHeight * bytesPerPixel;
+				dataByteOffset += mipSizeInBytes;// mipWidth * mipHeight * bytesPerPixel;
 
 				// Flip
 				if (compressed)
