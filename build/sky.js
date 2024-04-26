@@ -4,7 +4,7 @@ import { Vector3 } from "./d3dmath.js";
 import { Vertex } from "./vertex.js";
 import { Mesh } from "./mesh.js";
 
-export class Sky
+export class Sky extends EventTarget
 {
 	// SRVs and details
 	SkyCubeSRV;
@@ -36,9 +36,6 @@ export class Sky
 
 	get MultiscatterCompensation() { return this.#multiscatterComp; }
 	get IsHDR() { return this.#isHDR; }
-
-	// TESTING
-	get EquirectSRV() { return this.#equirectSRV; }
 
 	// Internal D3D stuff
 	#d3dDevice;
@@ -90,6 +87,16 @@ export class Sky
 	#specFaceUpdate;
 	#specTileUpdate;
 
+	// Events
+	#eventSkyDirty = new Event("skydirty");
+	#eventLutDirty = new Event("lutdirty");
+	#eventIrrDirty = new Event("irrdirty");
+	#eventSpecDirty = new Event("specdirty");
+	#eventSkyClean = new Event("skyclean");
+	#eventLutClean = new Event("lutclean");
+	#eventIrrClean = new Event("irrclean");
+	#eventSpecClean = new Event("specclean");
+
 
 	constructor(
 		d3dDevice,
@@ -120,6 +127,8 @@ export class Sky
 		progressiveMaxTileSize = 64
 	)
 	{
+		super();
+
 		this.#d3dDevice = d3dDevice;
 		this.#d3dContext = d3dContext;
 
@@ -241,6 +250,12 @@ export class Sky
 
 	#ResetIBLDirtyState(dirty)
 	{
+		if (dirty)
+		{
+			this.dispatchEvent(this.#eventIrrDirty);
+			this.dispatchEvent(this.#eventSpecDirty);
+		}
+
 		this.#irrDirty = dirty;
 		this.#irrFaceUpdate = 0;
 		this.#irrTileUpdate = 0;
@@ -251,8 +266,50 @@ export class Sky
 		this.#specTileUpdate = 0;
 	}
 
+	async LoadSixFacesLocal(fileInputs)
+	{
+		let faceBitmaps = await TextureUtils.LoadSixFacesLocal(fileInputs);
+		let generateMips = false; // TODO: Maybe add an option here?
+
+		// Actually replacing the sky
+		this.dispatchEvent(this.#eventSkyDirty);
+
+		// Clean up existing cube
+		if (this.SkyCubeSRV != null)
+			this.SkyCubeSRV.Release();
+
+		// Set up the texture cube
+		let desc = new D3D11_TEXTURE2D_DESC(
+			faceBitmaps[0].width,
+			faceBitmaps[0].height,
+			1,
+			6, // 6 faces (as array elements)
+			DXGI_FORMAT_R8G8B8A8_UNORM,
+			new DXGI_SAMPLE_DESC(1, 0),
+			D3D11_USAGE_DEFAULT,
+			D3D11_BIND_SHADER_RESOURCE | (generateMips ? D3D11_BIND_RENDER_TARGET : 0),
+			0,
+			D3D11_RESOURCE_MISC_TEXTURECUBE | (generateMips ? D3D11_RESOURCE_MISC_GENERATE_MIPS : 0));
+		let texture = this.#d3dDevice.CreateTexture2D(desc, faceBitmaps);
+
+		this.SkyCubeSRV = this.#d3dDevice.CreateShaderResourceView(texture, null);
+
+		// Save the format since we're good
+		this.SkyColorFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
+		this.SkyCubeSize = faceBitmaps[0].width;
+
+		// Clean up texture resource and other setup
+		texture.Release();
+		this.#isHDR = false;
+		this.#ResetIBLDirtyState(true);
+
+		this.dispatchEvent(this.#eventSkyClean);
+	}
+
 	LoadCubeMap(cubeSRV, isHDR = false)
 	{
+		this.dispatchEvent(this.#eventSkyDirty);
+
 		// Clean up existing cube
 		if (this.SkyCubeSRV != null)
 			this.SkyCubeSRV.Release();
@@ -270,9 +327,22 @@ export class Sky
 		this.#isHDR = (this.SkyColorFormat == DXGI_FORMAT_R16G16B16A16_FLOAT || this.SkyColorFormat == DXGI_FORMAT_R32G32B32A32_FLOAT);;
 		this.#ResetIBLDirtyState(true);
 
+		this.dispatchEvent(this.#eventSkyClean);
 	}
 
-	LoadEquirectHDR(width, height, pixelData)
+	async LoadEquirectHDRFromUrl(url)
+	{
+		let [width, height, data] = await TextureUtils.LoadHDRFile(url);
+		this.#LoadEquirectHDR(width, height, data);
+	}
+
+	async LoadEquirectHDRLocal(fileInput)
+	{
+		let [width, height, data] = await TextureUtils.LoadHDRFileLocal(fileInput);
+		this.#LoadEquirectHDR(width, height, data);
+	}
+
+	#LoadEquirectHDR(width, height, pixelData)
 	{
 		if (width <= 0 || height <= 0 || height != width / 2)
 			throw new Error("Invalid width and/or height for equirectangular HDR data");
@@ -288,6 +358,9 @@ export class Sky
 		if (pixelData instanceof Float32Array) format = DXGI_FORMAT_R32G32B32A32_FLOAT;
 		else if (pixelData instanceof Uint16Array) format = DXGI_FORMAT_R16G16B16A16_FLOAT;
 		else throw new Error("Invalid data type for equirectangular HDR pixel data");
+
+		// Actually replacing the sky
+		this.dispatchEvent(this.#eventSkyDirty);
 
 		// Reset if necessary
 		if (this.#equirectSRV != null)
@@ -368,10 +441,26 @@ export class Sky
 		// All done
 		tex.Release(); // Just need the SRV
 		this.#ResetIBLDirtyState(true);
+
+		this.dispatchEvent(this.#eventSkyClean);
 	}
 
-	LoadDDS(width, height, mipLevels, format, faceDataArrays)
+	async LoadDDSFileFromUrl(url)
 	{
+		let [width, height, mips, format, faceDataArrays] = await TextureUtils.LoadDDSFile(url);
+		this.#LoadDDS(width, height, mips, format, faceDataArrays);
+	}
+
+	async LoadDDSLocal(fileInput)
+	{
+		let [width, height, mips, format, faceDataArrays] = await TextureUtils.LoadDDSFileLocal(fileInput);
+		this.#LoadDDS(width, height, mips, format, faceDataArrays);
+	}
+
+	#LoadDDS(width, height, mipLevels, format, faceDataArrays)
+	{
+		this.dispatchEvent(this.#eventSkyDirty);
+
 		// Clean up existing cube
 		if (this.SkyCubeSRV != null)
 			this.SkyCubeSRV.Release();
@@ -399,6 +488,8 @@ export class Sky
 		tex.Release();
 		this.#isHDR = (format == DXGI_FORMAT_R16G16B16A16_FLOAT || format == DXGI_FORMAT_R32G32B32A32_FLOAT);
 		this.#ResetIBLDirtyState(true);
+
+		this.dispatchEvent(this.#eventSkyClean);
 	}
 
 	SetHDRExposure(exp)
@@ -414,23 +505,36 @@ export class Sky
 
 	SetBRDFLookUpTableSize(size)
 	{
+		if (this.BRDFLookUpTableSize == size)
+			return;
+
 		this.BRDFLookUpTableSize = size;
 		this.#CreateBrdfLutTexture();
 		this.#lutDirty = true;
 		this.#lutTileUpdate = 0;
+
+		this.dispatchEvent(this.#eventLutDirty);
 	}
 
 	SetIrradianceSize(size)
 	{
+		if (this.IrradianceCubeSize == size)
+			return;
+
 		this.IrradianceCubeSize = size;
 		this.#CreateIrradianceTexture();
 		this.#irrDirty = true;
 		this.#irrFaceUpdate = 0;
 		this.#irrTileUpdate = 0;
+
+		this.dispatchEvent(this.#eventIrrDirty);
 	}
 
 	SetSpecularIBLSize(size)
 	{
+		if (this.SpecularIBLCubeSize == size)
+			return;
+
 		// What is the largest mip level?
 		let largestMip = Math.floor(Math.log2(size)) + 1;
 		this.SpecularIBLCubeSize = size;
@@ -444,12 +548,18 @@ export class Sky
 		this.#specMipUpdate = 0;
 		this.#specFaceUpdate = 0;
 		this.#specTileUpdate = 0;
+
+		this.dispatchEvent(this.#eventSpecDirty);
 	}
 
 	SetSpecularIBLSmallestMipSize(size)
 	{
 		// How many mips are we skipping?
-		this.SpecularIBLMipsToSkip = Math.floor(Math.log2(size));
+		let skip = Math.floor(Math.log2(size));
+		if (this.SpecularIBLMipsToSkip == skip)
+			return;
+
+		this.SpecularIBLMipsToSkip = skip;
 
 		// Update total mips
 		let largestMip = Math.floor(Math.log2(this.SpecularIBLCubeSize)) + 1;
@@ -461,6 +571,8 @@ export class Sky
 		this.#specMipUpdate = 0;
 		this.#specFaceUpdate = 0;
 		this.#specTileUpdate = 0;
+
+		this.dispatchEvent(this.#eventSpecDirty);
 	}
 
 	SetMultiscatterCompensation(ms)
@@ -470,6 +582,7 @@ export class Sky
 		{
 			this.#lutDirty = true;
 			this.#lutTileUpdate = 0;
+			this.dispatchEvent(this.#eventLutDirty);
 		}
 
 		this.#multiscatterComp = ms;
@@ -696,6 +809,10 @@ export class Sky
 		this.#d3dContext.RSSetViewports([oldVP]);
 		lutTexture.Release();
 		rtv.Release();
+
+		// Fire the event?
+		if (!this.#lutDirty)
+			this.dispatchEvent(this.#eventLutClean);
 	}
 
 	#RenderIrradianceMap()
@@ -828,6 +945,10 @@ export class Sky
 		irrTexture.Release();
 		this.#d3dContext.OMSetRenderTargets([oldRTVs[0]], dsv);
 		this.#d3dContext.RSSetViewports([oldVP]);
+
+		// Fire the event?
+		if (!this.#irrDirty)
+			this.dispatchEvent(this.#eventIrrClean);
 	}
 
 	#RenderSpecularIBLMap()
@@ -1002,6 +1123,10 @@ export class Sky
 		specTexture.Release();
 		this.#d3dContext.OMSetRenderTargets([oldRTVs[0]], dsv);
 		this.#d3dContext.RSSetViewports([oldVP]);
+
+		// Fire the event?
+		if (!this.#specDirty)
+			this.dispatchEvent(this.#eventSpecClean);
 	}
 
 	#CopyEquirectToCube()
