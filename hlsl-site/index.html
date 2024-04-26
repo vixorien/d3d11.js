@@ -1,0 +1,193 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<script src="/build/d3d11.js"></script>
+
+	<link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet" integrity="sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN" crossorigin="anonymous">
+	<style type="text/css">
+		#editor {
+			height: 200px;
+			font-size: 20px;
+		}
+	</style>
+</head>
+<body>
+	<div class="m-3">
+		<h1>HLSL.fun!</h1>
+	</div>
+
+	<div class="row">
+
+		<!-- Editor -->
+		<div class="col-7 m-3">
+
+			<div id="editor">
+			</div>
+	
+			<button onclick="compileHLSL();">Go!</button>
+
+		</div>
+
+		<!-- Output -->
+		<div class="col">
+			<canvas id="viewport" width="300" height="300"></canvas>
+		</div>
+	</div>
+
+	
+
+	
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/ace/1.33.1/ace.js" integrity="sha512-WN1CEDE9Js0mEqvtRrNS7GHS+arRJxWVO03zttkQQXEQjwGVcHQ2kMja415m0bNeB3AtYsyjUWJ1BS4wGLta/Q==" crossorigin="anonymous" referrerpolicy="no-referrer"></script>
+
+	<script>
+
+		window.compileHLSL = function ()
+		{
+			let psHeader = `
+					cbuffer Data : register(b0) 
+					{ 
+						float totalTime; 
+					}`;
+
+			let psBody = editor.session.getValue();
+
+
+			// Attempt to replace the existing shader
+			pixelShader.Release();
+			pixelShader = device.CreatePixelShader(psHeader + "\n" + psBody);
+			context.PSSetShader(pixelShader);
+		}
+
+		let starterCode = 
+`float4 main(float2 uv : TEXCOORD) : SV_TARGET
+{
+	return float4(uv * sin(totalTime) * 0.5f + 0.5f, 0, 1);
+}`;
+
+		var editor = ace.edit("editor");
+		editor.setOption("showPrintMargin", false);
+		editor.setTheme("ace/theme/monokai");
+		editor.session.setMode("ace/mode/glsl");
+		editor.session.setValue(starterCode);
+
+		// Call the all-in-one API initialization
+		const swapChainDesc = new DXGI_SWAP_CHAIN_DESC(800, 600, DXGI_FORMAT_R8G8B8A8_UNORM);
+		let [device, context, swapChain] =
+			D3D11CreateDeviceAndSwapChain(document.getElementById("viewport"), 0, swapChainDesc);
+
+		let backBufferRef = swapChain.GetBuffer(); // Also adds 1 to the buffer's reference count
+		let backBufferRTV = device.CreateRenderTargetView(backBufferRef, null);
+		backBufferRef.Release(); // Releases 1 reference to the buffer
+
+		context.OMSetRenderTargets([backBufferRTV], null);
+
+		// Constant buffer for pixel shader
+		let cbDesc = new D3D11_BUFFER_DESC(
+			16, // Must be multiple of 16
+			D3D11_USAGE_DYNAMIC,
+			D3D11_BIND_CONSTANT_BUFFER,
+			D3D11_CPU_ACCESS_WRITE,
+			0, 0);
+		let psCB = device.CreateBuffer(cbDesc, null);
+		context.PSSetConstantBuffers(0, [psCB]);
+
+		let cbData = new Float32Array(4);
+
+		// HLSL vertex shader string
+		let vertexShaderString = `
+struct VertexToPixel
+{
+	float4 position		: SV_POSITION;
+	float2 uv           : TEXCOORD;
+};
+
+// The entry point for our vertex shader
+VertexToPixel main(uint id : SV_VertexID)
+{
+	// Set up output
+	VertexToPixel output;
+
+	// Calculate the UV (0,0) to (2,2) via the ID
+	output.uv = float2(
+		(id << 1) & 2u,  // id % 2 * 2
+		id & 2u);
+
+	// Adjust the position based on the UV
+	output.position = float4(output.uv, 0.0, 1.0);
+	output.position.x = output.position.x * 2.0 - 1.0;
+	output.position.y = output.position.y * -2.0 + 1.0;
+
+	return output;
+}`;
+
+		// HLSL pixel shader string
+		let pixelShaderString = `
+					cbuffer Data : register(b0) 
+					{ 
+						float totalTime; 
+					}
+
+					float4 main(float2 uv : TEXCOORD) : SV_TARGET
+					{
+						return float4(uv * sin(totalTime) * 0.5f + 0.5f, 0, 1);
+					}
+				`;
+
+		// Create the actual shader API objects
+		let vertexShader = device.CreateVertexShader(vertexShaderString);
+		let pixelShader = device.CreatePixelShader(pixelShaderString);
+
+		// Set (bind) these as the active shaders
+		context.VSSetShader(vertexShader);
+		context.PSSetShader(pixelShader);
+
+		// Set the API to draw triangles
+		context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		function draw(deltaTime, totalTime)
+		{
+			// Clear the back buffer to a specified color
+			let cornflowerBlue = [0.39, 0.58, 0.93, 1];
+			context.ClearRenderTargetView(backBufferRTV, cornflowerBlue);
+
+			// Update constant buffer
+			cbData.set([totalTime]);
+			console.log(cbData);
+			context.UpdateSubresource(psCB, 0, null, cbData, 0, 0);
+
+			// Perform a draw
+			context.Draw(3, 0);
+
+			// Present the frame to the user
+			swapChain.Present();
+		}
+
+		let startTime = -1;
+		let prevTime = 0;
+		function frameloop(time)
+		{
+			// First frame check
+			if (startTime == -1)
+			{
+				startTime = time;
+				prevTime = time;
+			}
+
+			let totalTime = (time - startTime) / 1000;
+			let deltaTime = (time - prevTime) / 1000;
+
+			//update(deltaTime, totalTime);
+			draw(deltaTime, totalTime);
+
+			// End of frame work
+			window.requestAnimationFrame(frameloop);
+			prevTime = time;
+		}
+
+		window.requestAnimationFrame(frameloop);
+
+	</script>
+</body>
+</html>
+

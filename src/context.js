@@ -814,7 +814,7 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 	// TODO: Error reporting if state isn't set
 	#PrepareInputAssembler()
 	{
-		if (!this.#inputAssemblerDirty)
+		if (!this.#inputAssemblerDirty || this.#inputLayout == null)
 			return;
 
 		// Handle each input element
