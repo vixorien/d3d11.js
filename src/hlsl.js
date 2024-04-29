@@ -550,7 +550,7 @@ class HLSL
 		// Must have a main
 		if (this.#main == null)
 		{
-			throw new Error("No main function found");
+			throw new Error("'main': entry point not found"); // Matches HLSL
 		}
 
 		// Add global cbuffer if necessary
@@ -3559,5 +3559,17 @@ class ExpVariable extends Expression
 			case ShaderLanguageHLSL: return this.VarToken.Text;
 			case ShaderLanguageGLSL: return HLSL.TranslateToGLSL(this.VarToken.Text);
 		}
+	}
+}
+
+class ParseError extends Error
+{
+	line;
+
+	constructor(line, ...params)
+	{
+		super(...params);
+
+		this.line = line;
 	}
 }
