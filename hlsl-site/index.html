@@ -7,7 +7,7 @@
 	<style type="text/css">
 		#editor {
 			height: 200px;
-			font-size: 20px;
+			font-size: 14px;
 		}
 	</style>
 </head>
@@ -30,7 +30,7 @@
 
 		<!-- Output -->
 		<div class="col">
-			<canvas id="viewport" width="300" height="300"></canvas>
+			<canvas id="viewport" width="600" height="400"></canvas>
 		</div>
 	</div>
 
@@ -52,10 +52,28 @@
 
 			let psBody = editor.session.getValue();
 
+			// Attempt the compile
+			let newPS = null;
+			try
+			{
+				newPS = device.CreatePixelShader(psHeader + "\n" + psBody);
+			}
+			catch (err)
+			{
+				// Convert line number
+				let headerLines = psHeader.split(/\r\n|\r|\n/).length;
+				let adjLine = err.line - headerLines;
+
+				console.log(err.message + " : " + adjLine);
+			}
+
+			// Did it work?
+			if (newPS == null)
+				return;
 
 			// Attempt to replace the existing shader
 			pixelShader.Release();
-			pixelShader = device.CreatePixelShader(psHeader + "\n" + psBody);
+			pixelShader = newPS;
 			context.PSSetShader(pixelShader);
 		}
 
@@ -153,7 +171,6 @@ VertexToPixel main(uint id : SV_VertexID)
 
 			// Update constant buffer
 			cbData.set([totalTime]);
-			console.log(cbData);
 			context.UpdateSubresource(psCB, 0, null, cbData, 0, 0);
 
 			// Perform a draw

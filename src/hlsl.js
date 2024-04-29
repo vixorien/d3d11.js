@@ -138,7 +138,8 @@ const HLSLReservedWordConversion = {
 	"$Global": "_global_cbuffer",
 	"input": "_input",
 	"output": "_output",
-	"pow": "pow_hlsl"
+	"pow": "pow_hlsl",
+	"frac": "fract"
 };
 
 const HLSLTextureSampleConversion = {
