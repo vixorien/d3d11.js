@@ -50,19 +50,34 @@
 
 			let psBody = editor.session.getValue();
 
+			// Clear annotations (errors and such)
+			editor.session.clearAnnotations();
+
 			// Attempt the compile
 			let newPS = null;
 			try
 			{
 				newPS = device.CreatePixelShader(psHeader + "\n" + psBody);
 			}
-			catch (err)
+			catch (e)
 			{
-				// Convert line number
-				let headerLines = psHeader.split(/\r\n|\r|\n/).length;
-				let adjLine = err.line - headerLines;
+				if (e instanceof ParseError)
+				{
+					// Convert line number
+					let headerLines = psHeader.split(/\r\n|\r|\n/).length;
+					let adjLine = e.line - headerLines;
 
-				console.log(err.message + " : " + adjLine);
+					editor.session.setAnnotations([{
+						row: adjLine - 1, // Make zero-based
+						column: 0,
+						text: e.message + " : " + adjLine,
+						type: "error"
+					}]);
+				}
+				else
+				{
+					throw (e);
+				}
 			}
 
 			// Did it work?

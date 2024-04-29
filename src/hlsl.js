@@ -37,41 +37,49 @@ const PSOutputVariable = "_sv_target_";
 const ShaderLanguageHLSL = 0;
 const ShaderLanguageGLSL = 1;
 
+
 // TODO: missing a few matrix permutations (1xN, Nx1) and matrices of non-floats
 const HLSLDataTypeConversion = {
 	"void": "void",
 
 	"bool": "bool",
+	"bool1": "bool",
 	"bool2": "bvec2",
 	"bool3": "bvec3",
 	"bool4": "bvec4",
 
 	"int": "int",
+	"int1": "int",
 	"int2": "ivec2",
 	"int3": "ivec3",
 	"int4": "ivec4",
 
 	"uint": "uint",
+	"uint1": "uint",
 	"uint2": "uvec2",
 	"uint3": "uvec3",
 	"uint4": "uvec4",
 
 	"dword": "uint",
+	"dword1": "uint",
 	"dword2": "uvec2",
 	"dword3": "uvec3",
 	"dword4": "uvec4",
 
 	"half": "float",
+	"half1": "float",
 	"half2": "vec2",
 	"half3": "vec3",
 	"half4": "vec4",
 
 	"float": "float",
+	"float1": "float",
 	"float2": "vec2",
 	"float3": "vec3",
 	"float4": "vec4",
 
 	"double": "float",
+	"double1": "float",
 	"double2": "vec2",
 	"double3": "vec3",
 	"double4": "vec4",
@@ -1850,7 +1858,7 @@ class HLSL
 		}
 
 		// Problem! TODO: Better error details
-		throw new Error("Invalid token detected");
+		throw new ParseError(it.Current(), "Unexpected token '" + it.Current().Text + "'");
 	}
 
 
