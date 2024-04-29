@@ -6095,7 +6095,8 @@ const HLSLReservedWordConversion = {
 	"$Global": "_global_cbuffer",
 	"input": "_input",
 	"output": "_output",
-	"pow": "pow_hlsl"
+	"pow": "pow_hlsl",
+	"frac": "fract"
 };
 
 const HLSLTextureSampleConversion = {
@@ -6487,17 +6488,17 @@ class HLSL
 
 				case "Texture2DMS":
 				case "Texture2DMSArray":
-					throw new Error("Not currently handling multisampled textures");
+					throw new ParseError(it.Line, "Not currently handling multisampled textures");
 
 				default:
 					// Should be a data type and the next should be an identifier
 					if (!this.#IsDataType(current.Text) ||
 						it.PeekNext().Type != TokenIdentifier)
-						throw new Error("Invalid token in HLSL file on line " + current.Line + ": " + current.Text);
+						throw new ParseError(current, "Invalid token");
 
 					// Check for global variable or function
 					if (!this.#ParseGlobalVarOrFunction(it, globalCB))
-						throw new Error("Error parsing global variable or function");
+						throw new Error("Error parsing global variable or function"); // TODO: Is this handled internally?  What results in the function returning false?
 
 					break;
 			}
@@ -6506,7 +6507,7 @@ class HLSL
 		// Must have a main
 		if (this.#main == null)
 		{
-			throw new Error("No main function found");
+			throw new ParseError(null, "'main': entry point not found"); // Matches HLSL
 		}
 
 		// Add global cbuffer if necessary
@@ -6715,12 +6716,12 @@ class HLSL
 		this.#Require(it, TokenIdentifier);
 		let regText = it.PeekPrev().Text;
 		if (!regText.startsWith(registerLabel))
-			throw new Error("Invalid register type");
+			throw new ParseError(it.PeekPrev(), "Invalid register type");
 		
 		// Get index
 		let index = parseInt(regText.substring(1));
 		if (isNaN(index))
-			throw new Error("Invalid register index");
+			throw new ParseError(it.PeekPrev(), "Invalid register index");
 
 		this.#Require(it, TokenParenRight);
 		return index;
@@ -6810,13 +6811,13 @@ class HLSL
 
 		// Validate allowable modifiers
 		if (!allowInputMod && inputMods.length > 0)
-			throw new Error("Input modifier not allowed here");
+			throw new ParseError(it.PeekPrev(), "Input modifier not allowed here");
 
 		if (inputMods.length > 1)
-			throw new Error("Multiple input modifiers found.");
+			throw new ParseError(it.PeekPrev(), "Multiple input modifiers found.");
 
 		if (!allowInterpMod && interpMods.length > 0)
-			throw new Error("Interpolation modifier not allowed here");
+			throw new ParseError(it.PeekPrev(), "Interpolation modifier not allowed here");
 
 		// Grab the data type
 		this.#RequireDataType(it);
@@ -6839,7 +6840,7 @@ class HLSL
 		{
 			// Do we allow semantics?
 			if (!allowSemantic)
-				throw new Error("Semantic not allowed here.");
+				throw new ParseError(it.PeekPrev(), "Semantic not allowed here.");
 
 			this.#Require(it, TokenIdentifier);
 			semantic = it.PeekPrev().Text;
@@ -6850,7 +6851,7 @@ class HLSL
 		{
 			// Allow an initialization?
 			if (!allowInit)
-				throw new Error("Initialization not allowed here.");
+				throw new ParseError(it.PeekPrev(), "Initialization not allowed here.");
 
 			initExp = this.#ParseExpression(it);
 		}
@@ -6888,7 +6889,7 @@ class HLSL
 			// Have we found this register already?
 			for (let i = 0; i < this.#textures.length; i++)
 				if (this.#textures[i].RegisterIndex == regIndex)
-					throw new Error("Duplicate texture register: t" + regIndex);
+					throw new ParseError(it.PeekPrev(), "Duplicate texture register: t" + regIndex);
 		}
 
 		// Semicolon to end
@@ -6918,7 +6919,7 @@ class HLSL
 			// Have we found this register already?
 			for (let i = 0; i < this.#samplers.length; i++)
 				if (this.#samplers[i].RegisterIndex == regIndex)
-					throw new Error("Duplicate sampler register: s" + regIndex);
+					throw new ParseError(it.PeekPrev(), "Duplicate sampler register: s" + regIndex);
 		}
 
 		// Semicolon to end
@@ -6982,7 +6983,7 @@ class HLSL
 			{
 				// Too many mains?
 				if (this.#main != null)
-					throw new Error("Multiple main functions detected");
+					throw new ParseError(it.PeekPrev(), "Multiple main functions detected");
 
 				// Save main specially
 				this.#main = f;
@@ -7198,13 +7199,13 @@ class HLSL
 			{
 				// Duplicate defaults?
 				if (defaultFound)
-					throw new Error("More than one 'default' found in switch statement");
+					throw new ParseError(it.PeekPrev(), "More than one 'default' found in switch statement");
 
 				defaultFound = true;
 			}
 			else // If it's not case and it's not default
 			{
-				throw new Error("Invalid token in switch statement: " + it.Current().Text);
+				throw new ParseError(it.Current(), "Invalid token in switch statement: " + it.Current().Text);
 			}
 
 			// Must be followed by a colon
@@ -7285,7 +7286,7 @@ class HLSL
 
 		// Must have at least one var dec
 		if (varDecs.length == 0)
-			throw new Error("Variable name expected");
+			throw new ParseError(it.PeekPrev(), "Variable name expected");
 
 		// Semicolon at end
 		this.#Require(it, TokenSemicolon);
@@ -7379,7 +7380,7 @@ class HLSL
 			// Validate variable
 			if (!expIsVar)
 			{
-				throw new Error("Expected variable for assignment.");
+				throw new ParseError(it.PeekPrev(), "Expected variable for assignment.");
 			}
 
 			// Previous token is a variable, so parse the assignment
@@ -7417,7 +7418,7 @@ class HLSL
 			}
 			else
 			{
-				throw new Error("Expected ':' ternary operator");
+				throw new ParseError(it.PeekPrev(), "Expected ':' ternary operator");
 			}
 		}
 
@@ -9515,6 +9516,20 @@ class ExpVariable extends Expression
 			case ShaderLanguageHLSL: return this.VarToken.Text;
 			case ShaderLanguageGLSL: return HLSL.TranslateToGLSL(this.VarToken.Text);
 		}
+	}
+}
+
+class ParseError extends Error
+{
+	line;
+	text;
+
+	constructor(token, ...params)
+	{
+		super(...params);
+
+		this.line = token == null ? -1 : token.Line;
+		this.text = token == null ? "" : token.Text;
 	}
 }
 
