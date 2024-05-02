@@ -329,6 +329,38 @@ class HLSL
 			return identifier;
 	}
 
+	static DataTypeFromLiteralToken(token)
+	{
+		if (token.Type != TokenNumericLiteral)
+			throw new Error("Invalid token for data type extraction");
+
+		// Grab the last two characters
+		let lastChar = token.Text.charAt(token.Text.length - 1).toLowerCase();
+		let secLastChar = token.Text.length == 1 ? "" : token.Text.charAt(token.Text.length - 2).toLowerCase();
+
+		// A decimal means definitely a float!
+		if (token.Text.indexOf(".") >= 0)
+		{
+			// Check for half or long
+			switch (lastChar)
+			{
+				case "h": return "half";
+				case "l": return "double";
+				default: return "float";
+			}
+		}
+
+		// Definitely not a float - is it an unsigned int?
+		if (lastChar == "u" || secLastChar == "u")
+			return "uint";
+
+		// All that's left is int
+		// Note: Even though HLSL accepts "L" as a suffix, it 
+		//       doesn't support 64-bit integers (SM 5.0, anyway)
+		return "int";
+
+	}
+
 	static async LoadTextFromURL(url, allowIncludes = true)
 	{
 		// Grab the URL
@@ -718,7 +750,6 @@ class HLSL
 	{
 		return HLSLReservedWordConversion.hasOwnProperty(text);
 	}
-
 
 	#ParseStruct(it)
 	{
@@ -3405,16 +3436,19 @@ class ExpGroup extends Expression
 
 class ExpLiteral extends Expression
 {
+	DataType;
 	LiteralToken;
 
 	constructor(litToken)
 	{
 		super();
 		this.LiteralToken = litToken;
+		this.DataType = HLSL.DataTypeFromLiteralToken(litToken);
 	}
 
 	ToString(lang)
 	{
+		console.log(this.LiteralToken.Text + " - " + this.DataType);
 		return this.LiteralToken.Text;
 	}
 }
