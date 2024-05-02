@@ -530,6 +530,10 @@ class HLSL
 		}
 		let globalCB = new ShaderElementCBuffer("$Global", prefix + "global_cbuffer", -1);
 
+		// Create the scope stack to track variable definitions
+		let scope = new ScopeStack();
+		scope.PushScope();
+
 		// Work through tokens
 		it.MoveNext();
 		while (it.More())
@@ -541,7 +545,9 @@ class HLSL
 			{
 				// TODO: Handle global constants here
 				case "const":
-					this.#globalConstants.push(this.#ParseVarDec(it));
+					let globalConst = this.#ParseVarDec(it);
+					this.#globalConstants.push(globalConst);
+					scope.AddVar(globalConst);
 					break;
 
 				// Skip extra end statements
@@ -554,7 +560,7 @@ class HLSL
 					break;
 
 				case "cbuffer":
-					this.#cbuffers.push(this.#ParseCBuffer(it));
+					this.#cbuffers.push(this.#ParseCBuffer(it, scope));
 					break;
 
 				case "SamplerState":
@@ -810,7 +816,7 @@ class HLSL
 	}
 
 
-	#ParseCBuffer(it)
+	#ParseCBuffer(it, scope)
 	{
 		let name = null;
 		let regIndex = -1;
@@ -835,7 +841,9 @@ class HLSL
 			if (it.Current().Type == TokenScopeRight)
 				break;
 
-			vars.push(this.#ParseMemberVariableOrFunctionParam(it, false, false, false, false))
+			let v = this.#ParseMemberVariableOrFunctionParam(it, false, false, false, false);
+			vars.push(v);
+			// scope.AddVar(v); // TODO: How to handle these objects vs. vardecs?  Just store names?
 		}
 		while (this.#Allow(it, TokenSemicolon));
 
@@ -3616,4 +3624,54 @@ class ParseError extends Error
 		this.line = token == null ? -1 : token.Line;
 		this.text = token == null ? "" : token.Text;
 	}
+}
+
+class ScopeStack
+{
+	#stack;
+	#dict;
+
+	constructor()
+	{
+		this.#stack = [];
+		this.#dict = {};
+	}
+
+	PushScope()
+	{
+		this.#stack.push([]);
+	}
+
+	PopScope()
+	{
+		let toRemove = this.#stack.pop();
+
+		// Remove all variables from the dictionary, too
+		for (let i = 0; i < toRemove.length; i++)
+		{
+			delete this.#dict[toRemove[i].NameToken.Text];
+		}
+	}
+
+	AddVar(v)
+	{
+		// Validate stack
+		if (this.#stack.length == 0)
+			throw new Error("Cannot add variable to empty scope stack");
+
+		// Is this var already here?
+		let name = v.NameToken.Text;
+		if (this.#dict.hasOwnProperty(name))
+			throw new ParseError(v.NameToken, "Redefinition of '" + name + "'");
+
+		// Add the variable to the stack and the dictionary
+		this.#stack[this.#stack.length - 1].push(v);
+		this.#dict[name] = v;
+	}
+
+	IsVarInScope(varName)
+	{
+		return this.#dict.hasOwnProperty(varName);
+	}
+
 }
