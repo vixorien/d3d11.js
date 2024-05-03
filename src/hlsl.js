@@ -843,7 +843,7 @@ class HLSL
 
 			let v = this.#ParseMemberVariableOrFunctionParam(it, false, false, false, false);
 			vars.push(v);
-			// scope.AddVar(v); // TODO: How to handle these objects vs. vardecs?  Just store names?
+			scope.AddVar(v); // TODO: How to handle these objects vs. vardecs?  Just store names?
 		}
 		while (this.#Allow(it, TokenSemicolon));
 
@@ -870,7 +870,9 @@ class HLSL
 		let interpMods = [];
 		let inputMods = [];
 		let dataType = null;
+		let dataTypeToken = null;
 		let name = null;
+		let nameToken = null;
 		let semantic = null;
 		let arrayExp = null;
 		let initExp = null;
@@ -911,10 +913,12 @@ class HLSL
 
 		// Grab the data type
 		this.#RequireDataType(it);
+		dataTypeToken = it.PeekPrev();
 		dataType = it.PeekPrev().Text;
 
 		// Identifier
 		this.#Require(it, TokenIdentifier);
+		nameToken = it.PeekPrev();
 		name = it.PeekPrev().Text;
 
 		// Check for array
@@ -946,14 +950,24 @@ class HLSL
 			initExp = this.#ParseExpression(it);
 		}
 
-		return new ShaderElementMemberVar(
-			dataType,
-			name,
+		return new VarDec(
+			false,
+			dataTypeToken,
+			nameToken,
+			arrayExp,
+			initExp,
 			inputMods.length == 1 ? inputMods[0] : null,
 			interpMods,
-			arrayExp,
-			semantic,
-			initExp);
+			semantic);
+
+		//return new ShaderElementMemberVar(
+		//	dataType,
+		//	name,
+		//	inputMods.length == 1 ? inputMods[0] : null,
+		//	interpMods,
+		//	arrayExp,
+		//	semantic,
+		//	initExp);
 	}
 
 
@@ -1022,11 +1036,13 @@ class HLSL
 	#ParseGlobalVarOrFunction(it, globalCB)
 	{
 		// Data type
-		this.#Require(it, TokenIdentifier);
+		this.#RequireDataType(it);
+		let typeToken = it.PeekPrev();
 		let type = it.PeekPrev().Text;
 
 		// Name
 		this.#Require(it, TokenIdentifier);
+		let nameToken = it.PeekPrev();
 		let name = it.PeekPrev().Text;
 
 		// Check for parens, which means function
@@ -1090,7 +1106,8 @@ class HLSL
 		else if (this.#Allow(it, TokenSemicolon))
 		{
 			// Should be end of a variable, so add to the global cbuffer
-			globalCB.Members.push(new ShaderElementMemberVar(type, name)); // Note: main loop will do MoveNext
+			//globalCB.Members.push(new ShaderElementMemberVar(type, name)); // Note: main loop will do MoveNext
+			globalCB.Members.push(new VarDec(false, typeToken, nameToken, null, null));
 
 			// Found a global variable
 			return true;
@@ -2001,7 +2018,7 @@ class HLSL
 			case ShaderTypePixel: glsl = this.#ConvertPixelShader(); break;
 			default: throw new Error("Invalid shader type");
 		}
-		
+		console.log(glsl);
 		return glsl;
 	}
 
@@ -2116,9 +2133,9 @@ class HLSL
 			let param = this.#main.Parameters[p];
 
 			// If this is a data type, we have to scan the whole thing
-			if (this.#IsStruct(param.DataType))
+			if (this.#IsStruct(param.DataTypeToken.Text))
 			{
-				let struct = this.#GetStructByName(param.DataType);
+				let struct = this.#GetStructByName(param.DataTypeToken.Text);
 				if (struct == null)
 					throw new Error("Invalid data type in vertex shader input");
 
@@ -2146,8 +2163,8 @@ class HLSL
 		{
 			attribs +=
 				"in " + // Note: Changes from "attribute" to "in" for GLSL 3
-				HLSL.TranslateToGLSL(vsInputs[i].DataType) + " " +
-				PrefixAttribute + vsInputs[i].Name + ";\n";
+				HLSL.TranslateToGLSL(vsInputs[i].DataTypeToken.Text) + " " +
+				PrefixAttribute + vsInputs[i].NameToken.Text + ";\n";
 		}
 
 		attribs += "\n";
@@ -2174,7 +2191,7 @@ class HLSL
 				member.Semantic.toUpperCase() == "SV_POSITION")
 				continue;
 
-			vary += "out " + HLSL.TranslateToGLSL(member.DataType);	// Data type - Note: "varying" to "out" for GLSL 3
+			vary += "out " + HLSL.TranslateToGLSL(member.DataTypeToken.Text);	// Data type - Note: "varying" to "out" for GLSL 3
 			vary += " " + PrefixVarying + member.Semantic + ";\n";	// Identifier is semantic!
 		}
 
@@ -2197,13 +2214,13 @@ class HLSL
 			for (let v = 0; v < struct.Members.length; v++)
 			{
 				let variable = struct.Members[v];
-				str += "\t" + HLSL.TranslateToGLSL(variable.DataType); // Datatype
-				str += " " + HLSL.TranslateToGLSL(variable.Name); // Identifier
+				str += "\t" + HLSL.TranslateToGLSL(variable.DataTypeToken.Text); // Datatype
+				str += " " + HLSL.TranslateToGLSL(variable.NameToken.Text); // Identifier
 
 				// Array?
-				if (variable.ArraySize != null)
+				if (variable.ArrayExpression != null)
 				{
-					str += "[" + variable.ArraySize + "]";
+					str += "[" + variable.ArrayExpression.ToString(ShaderLanguageGLSL, "") + "]";
 				}
 				str += ";\n"; // Finished
 			}
@@ -2239,8 +2256,8 @@ class HLSL
 			for (let v = 0; v < cb.Members.length; v++)
 			{
 				let variable = cb.Members[v];
-				cbStr += "\t" + HLSL.TranslateToGLSL(variable.DataType); // Datatype
-				cbStr += " " + HLSL.TranslateToGLSL(variable.Name); // Identifier
+				cbStr += "\t" + HLSL.TranslateToGLSL(variable.DataTypeToken.Text); // Datatype
+				cbStr += " " + HLSL.TranslateToGLSL(variable.NameToken.Text); // Identifier
 
 				// Array?
 				if (variable.ArrayExpression != null)
@@ -2340,13 +2357,13 @@ class HLSL
 			//       This would help with the "cannot use & w/ int and uint" issue
 			if (vsInputs[v].Semantic != null && vsInputs[v].Semantic.toUpperCase() == "SV_VERTEXID")
 			{
-				main += "\t" + "uint " + vsInputs[v].Name + " = ";
+				main += "\t" + "uint " + vsInputs[v].NameToken.Text + " = ";
 				main += "uint(gl_VertexID);\n";
 			}
 			else
 			{
-				main += "\t" + HLSL.TranslateToGLSL(vsInputs[v].DataType) + " " + vsInputs[v].Name + " = ";
-				main += PrefixAttribute + vsInputs[v].Name + ";\n";
+				main += "\t" + HLSL.TranslateToGLSL(vsInputs[v].DataTypeToken.Text) + " " + vsInputs[v].NameToken.Text + " = ";
+				main += PrefixAttribute + vsInputs[v].NameToken.Text + ";\n";
 			}
 		}
 
@@ -2354,23 +2371,23 @@ class HLSL
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
 			let param = this.#main.Parameters[p];
-			if (this.#IsStruct(param.DataType))
+			if (this.#IsStruct(param.DataTypeToken.Text))
 			{
 				// Yes, so build a struct object and "hook up" vsInputs
-				let newParamName = HLSL.TranslateToGLSL(param.Name);
-				main += "\n\t" + param.DataType;
+				let newParamName = HLSL.TranslateToGLSL(param.NameToken.Text);
+				main += "\n\t" + param.DataTypeToken.Text;
 				main += " " + newParamName + ";\n";
 
 				// Handle each struct member
-				let struct = this.#GetStructByName(param.DataType);
+				let struct = this.#GetStructByName(param.DataTypeToken.Text);
 				for (let v = 0; v < struct.Members.length; v++)
 				{
 					let member = struct.Members[v];
-					main += "\t" + newParamName + "." + HLSL.TranslateToGLSL(member.Name) + " = ";
+					main += "\t" + newParamName + "." + HLSL.TranslateToGLSL(member.NameToken.Text) + " = ";
 
 					// NOTE: Assumption here is that the struct member name is identical to the
 					//       vsInput identifier used throughout the rest of the function
-					main += HLSL.TranslateToGLSL(member.Name) + ";\n";
+					main += HLSL.TranslateToGLSL(member.NameToken.Text) + ";\n";
 				}
 			}
 		}
@@ -2379,7 +2396,7 @@ class HLSL
 		main += "\n\t" + HLSL.TranslateToGLSL(this.#main.ReturnType) + " " + PrefixVSOutput + " = hlsl_main(";
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
-			main += HLSL.TranslateToGLSL(this.#main.Parameters[p].Name);
+			main += HLSL.TranslateToGLSL(this.#main.Parameters[p].NameToken.Text);
 			if (p < this.#main.Parameters.length - 1)
 				main += ", ";
 		}
@@ -2406,12 +2423,12 @@ class HLSL
 					member.Semantic.toUpperCase() == "SV_POSITION")
 				{
 					// Remember for later
-					posName = member.Name;
+					posName = member.NameToken.Text;
 				}
 				else
 				{
 					// This is other VS->PS data (varying identifier is semantic!)
-					main += "\t" + PrefixVarying + member.Semantic + " = " + PrefixVSOutput + "." + member.Name + ";\n";
+					main += "\t" + PrefixVarying + member.Semantic + " = " + PrefixVSOutput + "." + member.NameToken.Text + ";\n";
 				}
 			}
 
@@ -2438,9 +2455,9 @@ class HLSL
 			let param = this.#main.Parameters[p];
 
 			// If this is a data type, we have to scan the whole thing
-			if (this.#IsStruct(param.DataType))
+			if (this.#IsStruct(param.DataTypeToken.Text))
 			{
-				let struct = this.#GetStructByName(param.DataType);
+				let struct = this.#GetStructByName(param.DataTypeToken.Text);
 				if (struct == null)
 					throw new Error("Invalid data type in pixel shader input");
 
@@ -2455,7 +2472,7 @@ class HLSL
 				psInputs.push(param);
 			}
 		}
-
+		
 		return psInputs;
 	}
 
@@ -2472,11 +2489,11 @@ class HLSL
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
 			let param = this.#main.Parameters[p];
-			if (this.#IsStruct(param.DataType))
+			if (this.#IsStruct(param.DataTypeToken.Text))
 			{
 				// This param is an entire struct, so make a varying for each member
 				// Note: Using semantic as varying identifiers!
-				let struct = this.#GetStructByName(param.DataType);
+				let struct = this.#GetStructByName(param.DataTypeToken.Text);
 				for (let v = 0; v < struct.Members.length; v++)
 				{
 					let member = struct.Members[v];
@@ -2489,7 +2506,7 @@ class HLSL
 						continue;
 					}
 
-					vary += "in " + HLSL.TranslateToGLSL(member.DataType); // Data type - Note: "varying" to "in" for GLSL 3
+					vary += "in " + HLSL.TranslateToGLSL(member.DataTypeToken.Text); // Data type - Note: "varying" to "in" for GLSL 3
 					vary += " " + PrefixVarying + member.Semantic + ";\n"; // Identifier is semantic!
 				}
 
@@ -2501,7 +2518,7 @@ class HLSL
 			else
 			{
 				// This is a normal variable, so just one varying
-				vary += "in " + HLSL.TranslateToGLSL(param.DataType); // Data type
+				vary += "in " + HLSL.TranslateToGLSL(param.DataTypeToken.Text); // Data type
 				vary += " " + PrefixVarying + param.Semantic + ";\n"; // Identifier is semantic!
 			}
 		}
@@ -2530,7 +2547,7 @@ class HLSL
 		//       directly set to the variables/structs below
 		for (let v = 0; v < psInputs.length; v++)
 		{
-			main += "\t" + HLSL.TranslateToGLSL(psInputs[v].DataType) + " " + psInputs[v].Name + " = ";
+			main += "\t" + HLSL.TranslateToGLSL(psInputs[v].DataTypeToken.Text) + " " + psInputs[v].NameToken.Text + " = ";
 
 			// SV_POSITION is really just gl_FragCoord
 			if (psInputs[v].Semantic.toUpperCase() == "SV_POSITION")
@@ -2543,23 +2560,23 @@ class HLSL
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
 			let param = this.#main.Parameters[p];
-			if (this.#IsStruct(param.DataType))
+			if (this.#IsStruct(param.DataTypeToken.Text))
 			{
 				// Yes, so build a struct object and "hook up" psInputs
-				let newParamName = HLSL.TranslateToGLSL(param.Name);
-				main += "\n\t" + param.DataType;
+				let newParamName = HLSL.TranslateToGLSL(param.NameToken.Text);
+				main += "\n\t" + param.DataTypeToken.Text;
 				main += " " + newParamName + ";\n";
 
 				// Handle each struct member
-				let struct = this.#GetStructByName(param.DataType);
+				let struct = this.#GetStructByName(param.DataTypeToken.Text);
 				for (let v = 0; v < struct.Members.length; v++)
 				{
 					let member = struct.Members[v];
-					main += "\t" + newParamName + "." + HLSL.TranslateToGLSL(member.Name) + " = ";
+					main += "\t" + newParamName + "." + HLSL.TranslateToGLSL(member.NameToken.Text) + " = ";
 
 					// NOTE: Assumption here is that the struct member name is identical to the
 					//       psInput identifier used throughout the rest of the function
-					main += HLSL.TranslateToGLSL(member.Name) + ";\n";
+					main += HLSL.TranslateToGLSL(member.NameToken.Text) + ";\n";
 				}
 			}
 		}
@@ -2568,7 +2585,7 @@ class HLSL
 		main += "\n\t" + HLSL.TranslateToGLSL(this.#main.ReturnType) + " " + PrefixPSOutput + " = hlsl_main(";
 		for (let p = 0; p < this.#main.Parameters.length; p++)
 		{
-			main += HLSL.TranslateToGLSL(this.#main.Parameters[p].Name);
+			main += HLSL.TranslateToGLSL(this.#main.Parameters[p].NameToken.Text);
 			if (p < this.#main.Parameters.length - 1)
 				main += ", ";
 		}
@@ -2595,11 +2612,11 @@ class HLSL
 
 				// Is this our SV_Position?
 				if (member.Semantic != null &&
-					(member.toUpperCase() == "SV_TARGET" ||
-						member.toUpperCase() == "SV_TARGET0"))
+					(member.Semantic.toUpperCase() == "SV_TARGET" ||
+						member.Semantic.toUpperCase() == "SV_TARGET0"))
 				{
 					// Remember for later
-					targetName = member.Name;
+					targetName = member.NameToken.Text;
 				}
 				else
 				{
@@ -2667,7 +2684,7 @@ class ShaderElementFunction extends ShaderElement
 	ReturnType;
 	Name;
 	Semantic;
-	Parameters; // ShaderElementMemberVar objects
+	Parameters; // Changed to VarDec objects
 	Statements;
 
 	constructor(returnType, name, semantic, params, statements)
@@ -2694,7 +2711,7 @@ class ShaderElementFunction extends ShaderElement
 
 				for (let p = 0; p < this.Parameters.length; p++)
 				{
-					s += this.Parameters[p].ToString(lang);
+					s += this.Parameters[p].ToString(lang, true); // Include declaration!
 
 					if (p < this.Parameters.length - 1)
 						s += ", ";
@@ -2815,86 +2832,86 @@ class ShaderElementCombinedTextureAndSampler extends ShaderElement
 //  - nointerpolation (only option for int/uint)
 //  - noperspective
 //  - sample
-class ShaderElementMemberVar
-{
-	DataType;
-	Name;
+//class ShaderElementMemberVar
+//{
+//	DataType;
+//	Name;
 
-	InputModifier;
-	InterpModifiers;
-	ArrayExpression;
-	Semantic;
-	InitializerExp;
+//	InputModifier;
+//	InterpModifiers;
+//	ArrayExpression;
+//	Semantic;
+//	InitializerExp;
 
-	constructor(
-		dataType,
-		name,
-		inputMod = null,
-		interpMods = [],
-		arrayExp = null,
-		semantic = null,
-		initExp = null,
-		)
-	{
-		this.DataType = dataType;
-		this.Name = name;
-		this.InputModifier = inputMod;
-		this.InterpModifiers = interpMods;
-		this.ArrayExpression = arrayExp;
-		this.Semantic = semantic;
-		this.InitializerExp = initExp;
-	}
+//	constructor(
+//		dataType,
+//		name,
+//		inputMod = null,
+//		interpMods = [],
+//		arrayExp = null,
+//		semantic = null,
+//		initExp = null,
+//		)
+//	{
+//		this.DataType = dataType;
+//		this.Name = name;
+//		this.InputModifier = inputMod;
+//		this.InterpModifiers = interpMods;
+//		this.ArrayExpression = arrayExp;
+//		this.Semantic = semantic;
+//		this.InitializerExp = initExp;
+//	}
 
-	ToString(lang, indent = "")
-	{
-		let s = indent;
+//	ToString(lang, indent = "")
+//	{
+//		let s = indent;
 
-		switch (lang)
-		{
-			default:
-			case ShaderLanguageHLSL:
+//		switch (lang)
+//		{
+//			default:
+//			case ShaderLanguageHLSL:
 
-				for (let i = 0; i < this.InterpModifiers.length; i++)
-					s += this.InterpModifiers[i] + " ";
+//				for (let i = 0; i < this.InterpModifiers.length; i++)
+//					s += this.InterpModifiers[i] + " ";
 
-				if (this.InputModifier != null)
-					s += this.InputModifier + " ";
+//				if (this.InputModifier != null)
+//					s += this.InputModifier + " ";
 
-				s += this.DataType + " ";
-				s += this.Name;
+//				s += this.DataType + " ";
+//				s += this.Name;
 
-				if (this.ArrayExpression != null)
-					s += " [" + this.ArrayExpression.ToString(lang) + "]";
+//				if (this.ArrayExpression != null)
+//					s += " [" + this.ArrayExpression.ToString(lang) + "]";
 
-				if (this.Semantic != null)
-					s += " : " + this.Semantic;
+//				if (this.Semantic != null)
+//					s += " : " + this.Semantic;
 
-				if (this.InitializerExp != null)
-					s += " " + this.InitializerExp.ToString(lang);
+//				if (this.InitializerExp != null)
+//					s += " " + this.InitializerExp.ToString(lang);
 
-				break;
+//				break;
 
-			case ShaderLanguageGLSL: // No semantics (or interpolation modifiers?) 
+//			case ShaderLanguageGLSL: // No semantics (or interpolation modifiers?) 
 
-				if (this.InputModifier != null)
-					s += this.InputModifier + " ";
+//				if (this.InputModifier != null)
+//					s += this.InputModifier + " ";
 
-				s += HLSL.TranslateToGLSL(this.DataType) + " ";
-				s += HLSL.TranslateToGLSL(this.Name);
+//				s += HLSL.TranslateToGLSL(this.DataType) + " ";
+//				s += HLSL.TranslateToGLSL(this.Name);
 
-				if (this.ArrayExpression != null)
-					s += " [" + this.ArrayExpression.ToString(lang) + "]";
+//				if (this.ArrayExpression != null)
+//					s += " [" + this.ArrayExpression.ToString(lang) + "]";
 
-				if (this.InitializerExp != null)
-					s += " " + this.InitializerExp.ToString(lang);
+//				if (this.InitializerExp != null)
+//					s += " " + this.InitializerExp.ToString(lang);
 				
-				break;
-		}
+//				break;
+//		}
 
-		return s;
+//		return s;
 
-	}
-}
+//	}
+//}
 
 
 class Statement { }
