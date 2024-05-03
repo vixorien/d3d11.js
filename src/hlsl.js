@@ -586,7 +586,7 @@ class HLSL
 						throw new ParseError(current, "Invalid token");
 
 					// Check for global variable or function
-					if (!this.#ParseGlobalVarOrFunction(it, globalCB))
+					if (!this.#ParseGlobalVarOrFunction(it, scope, globalCB))
 						throw new Error("Error parsing global variable or function"); // TODO: Is this handled internally?  What results in the function returning false?
 
 					break;
@@ -841,9 +841,11 @@ class HLSL
 			if (it.Current().Type == TokenScopeRight)
 				break;
 
+			// Grab var dec and add to both the list of vars and the ongoing 
+			// scope, since cbuffer members are global
 			let v = this.#ParseMemberVariableOrFunctionParam(it, false, false, false, false);
 			vars.push(v);
-			scope.AddVar(v); // TODO: How to handle these objects vs. vardecs?  Just store names?
+			scope.AddVar(v);
 		}
 		while (this.#Allow(it, TokenSemicolon));
 
@@ -1033,7 +1035,7 @@ class HLSL
 
 	// TODO: Handle swizzling of non-vector types (variable.xxx)
 	// TODO: auto "casting" ints to floats - maybe just make "int" versions of all functions?  UGH
-	#ParseGlobalVarOrFunction(it, globalCB)
+	#ParseGlobalVarOrFunction(it, scope, globalCB)
 	{
 		// Data type
 		this.#RequireDataType(it);
@@ -1048,6 +1050,9 @@ class HLSL
 		// Check for parens, which means function
 		if (this.#Allow(it, TokenParenLeft))
 		{
+			// We've entered a new scope
+			scope.PushScope();
+			
 			// It's a function, so it may have parameters
 			let params = [];
 			do
@@ -1055,7 +1060,9 @@ class HLSL
 				if (it.Current().Type == TokenParenRight)
 					break;
 
-				params.push(this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true));
+				let p = this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true);
+				params.push(p);
+				scope.AddVar(p);
 			}
 			while (this.#Allow(it, TokenComma));
 
@@ -1099,15 +1106,19 @@ class HLSL
 				// Just a helper function
 				this.#functions.push(f);
 			}
+			
+			// Finished the function (and scope)
+			scope.PopScope();
 
 			// Found something useful
 			return true;
 		}
 		else if (this.#Allow(it, TokenSemicolon))
 		{
-			// Should be end of a variable, so add to the global cbuffer
-			//globalCB.Members.push(new ShaderElementMemberVar(type, name)); // Note: main loop will do MoveNext
-			globalCB.Members.push(new VarDec(false, typeToken, nameToken, null, null));
+			// Should be end of a variable, so add to the global cbuffer and scope
+			let v = new VarDec(false, typeToken, nameToken, null, null);
+			globalCB.Members.push(v);
+			scope.AddVar(v);
 
 			// Found a global variable
 			return true;
@@ -2018,7 +2029,7 @@ class HLSL
 			case ShaderTypePixel: glsl = this.#ConvertPixelShader(); break;
 			default: throw new Error("Invalid shader type");
 		}
-		console.log(glsl);
+		
 		return glsl;
 	}
 
@@ -3668,12 +3679,12 @@ class ParseError extends Error
 class ScopeStack
 {
 	#stack;
-	#dict;
+	//#dict;
 
 	constructor()
 	{
 		this.#stack = [];
-		this.#dict = {};
+		//this.#dict = {};
 	}
 
 	PushScope()
@@ -3686,10 +3697,10 @@ class ScopeStack
 		let toRemove = this.#stack.pop();
 
 		// Remove all variables from the dictionary, too
-		for (let i = 0; i < toRemove.length; i++)
-		{
-			delete this.#dict[toRemove[i].NameToken.Text];
-		}
+		//for (let i = 0; i < toRemove.length; i++)
+		//{
+		//	delete this.#dict[toRemove[i].NameToken.Text];
+		//}
 	}
 
 	AddVarStatement(statement)
@@ -3706,17 +3717,29 @@ class ScopeStack
 
 		// Is this var already here?
 		let name = v.NameToken.Text;
-		if (this.#dict.hasOwnProperty(name))
+		//if (this.#dict.hasOwnProperty(name))
+		if (this.IsVarInCurrentScope(name))
 			throw new ParseError(v.NameToken, "Redefinition of '" + name + "'");
 
 		// Add the variable to the stack and the dictionary
 		this.#stack[this.#stack.length - 1].push(v);
-		this.#dict[name] = v;
+		//this.#dict[name] = v;
 	}
 
-	IsVarInScope(varName)
+	IsVarInCurrentScope(varName)
 	{
-		return this.#dict.hasOwnProperty(varName);
+		let scope = this.#stack[this.#stack.length - 1];
+
+		for (let v = 0; v < scope.length; v++)
+			if (scope[v].NameToken.Text == varName)
+				return true;
+
+		return false;
 	}
+
+	//IsVarInAnyScope(varName)
+	//{
+	//	return this.#dict.hasOwnProperty(varName);
+	//}
 
 }
