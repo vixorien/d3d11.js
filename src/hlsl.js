@@ -545,9 +545,9 @@ class HLSL
 			{
 				// TODO: Handle global constants here
 				case "const":
-					let globalConst = this.#ParseVarDec(it);
+					let globalConst = this.#ParseVarDecStatement(it);
 					this.#globalConstants.push(globalConst);
-					scope.AddVar(globalConst);
+					scope.AddVarStatement(globalConst);
 					break;
 
 				// Skip extra end statements
@@ -1124,7 +1124,7 @@ class HLSL
 		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it);
 		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it);
 		if (this.#AllowIdentifier(it, "switch")) return this.#ParseSwitch(it);
-		if (this.#IsDataType(it.Current().Text) || it.Current().Text == "const") return this.#ParseVarDec(it);
+		if (this.#IsDataType(it.Current().Text) || it.Current().Text == "const") return this.#ParseVarDecStatement(it);
 		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it);
 
 		// Check for simple jump statements here
@@ -1188,7 +1188,7 @@ class HLSL
 		// Init could be a var declaration, or just assignment
 		if (this.#IsDataType(it.Current().Text))
 		{
-			initStatement = this.#ParseVarDec(it); // Already handles semicolon
+			initStatement = this.#ParseVarDecStatement(it); // Already handles semicolon
 		}
 		else
 		{
@@ -1327,7 +1327,7 @@ class HLSL
 		return new StatementSwitch(selectorExpression, cases);
 	}
 
-	#ParseVarDec(it)
+	#ParseVarDecStatement(it)
 	{
 		// Possible syntax to look for:
 		// int x;
@@ -3155,21 +3155,10 @@ class StatementVar extends Statement
 	{
 		let s = indent;
 
-		if (this.IsConst)
-			s += "const ";
-
-		// Translate data type if GLSL
-		switch (lang)
-		{
-			default:
-			case ShaderLanguageHLSL: s += this.DataTypeToken.Text + " "; break;
-			case ShaderLanguageGLSL: s += HLSL.TranslateToGLSL(this.DataTypeToken.Text) + " "; break;
-		}
-
 		for (let v = 0; v < this.VarDecs.length; v++)
 		{
 			if (v > 0) s += ", ";
-			s += this.VarDecs[v].ToString(lang);
+			s += this.VarDecs[v].ToString(lang, v == 0); // Include declaration on the first one
 		}
 
 		s += ";";
@@ -3179,28 +3168,59 @@ class StatementVar extends Statement
 
 class VarDec extends Statement
 {
-	IsConst;
 	DataTypeToken;
 	NameToken;
+
 	ArrayExpression;
 	DefinitionExpression;
 
-	constructor(isConst, dataTypeToken, nameToken, arrayExp, defExp)
+	IsConst;
+	InputModifier;
+	InterpModifiers;
+	Semantic;
+
+	constructor(isConst, dataTypeToken, nameToken, arrayExp, defExp, inputMod = null, interpMods = [], semantic = null)
 	{
 		super();
+
 		this.IsConst = isConst;
 		this.DataTypeToken = dataTypeToken;
 		this.NameToken = nameToken;
+
 		this.ArrayExpression = arrayExp;
 		this.DefinitionExpression = defExp;
+
+		this.InputModifier = inputMod;
+		this.InterpModifiers = interpMods;
+		this.Semantic = semantic;
 	}
 
-	ToString(lang)
+	ToString(lang, includeDeclaration)
 	{
-		// Note: Const AND data type will be added at the StatementVar level!
-
 		let s = "";
 
+		// Should we include the overall declaration?
+		if (includeDeclaration)
+		{
+			if (this.IsConst)
+				s += "const ";
+
+			for (let i = 0; lang == ShaderLanguageHLSL && i < this.InterpModifiers.length; i++)
+				s += this.InterpModifiers[i] + " "; 	// Interpolation mods only in HLSL
+
+			if (this.InputModifier != null)
+				s += this.InputModifier + " ";
+
+			// Data type
+			switch (lang)
+			{
+				default:
+				case ShaderLanguageHLSL: s += this.DataTypeToken.Text + " "; break;
+				case ShaderLanguageGLSL:s += HLSL.TranslateToGLSL(this.DataTypeToken.Text) + " "; break;
+			}
+		}
+
+		// Identifier
 		switch (lang)
 		{
 			default:
@@ -3210,6 +3230,9 @@ class VarDec extends Statement
 
 		if (this.ArrayExpression != null)
 			s += "[" + this.ArrayExpression.ToString(lang) + "]";
+
+		if (lang == ShaderLanguageHLSL && this.Semantic != null)
+			s += " : " + this.Semantic;
 
 		if (this.DefinitionExpression != null)
 			s += " = " + this.DefinitionExpression.ToString(lang);
@@ -3456,7 +3479,6 @@ class ExpLiteral extends Expression
 
 	ToString(lang)
 	{
-		console.log(this.LiteralToken.Text + " - " + this.DataType);
 		return this.LiteralToken.Text;
 	}
 }
@@ -3651,6 +3673,12 @@ class ScopeStack
 		{
 			delete this.#dict[toRemove[i].NameToken.Text];
 		}
+	}
+
+	AddVarStatement(statement)
+	{
+		for (let v = 0; v < statement.VarDecs.length; v++)
+			this.AddVar(statement.VarDecs[v]);
 	}
 
 	AddVar(v)
