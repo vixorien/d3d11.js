@@ -17,7 +17,7 @@
 				"./src/hlsl.js"
 			],
 			"output": "./build/d3d11.js",
-			"minify": true
+			"minify": false
 		},
 		{
 			"input": [ "./src/utils/" ],

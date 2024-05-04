@@ -6512,7 +6512,7 @@ class HLSL
 					break;
 
 				case "struct":
-					this.#structs.push(this.#ParseStruct(it));
+					this.#structs.push(this.#ParseStruct(it, scope));
 					break;
 
 				case "cbuffer":
@@ -6713,7 +6713,7 @@ class HLSL
 		return HLSLReservedWordConversion.hasOwnProperty(text);
 	}
 
-	#ParseStruct(it)
+	#ParseStruct(it, scope)
 	{
 		let name = null;
 		let vars = [];
@@ -6734,7 +6734,7 @@ class HLSL
 			if (it.Current().Type == TokenScopeRight)
 				break;
 
-			vars.push(this.#ParseMemberVariableOrFunctionParam(it, false, true, true, false));
+			vars.push(this.#ParseMemberVariableOrFunctionParam(it, scope, false, true, true, false));
 		}
 		while (this.#Allow(it, TokenSemicolon));
 
@@ -6799,7 +6799,7 @@ class HLSL
 
 			// Grab var dec and add to both the list of vars and the ongoing 
 			// scope, since cbuffer members are global
-			let v = this.#ParseMemberVariableOrFunctionParam(it, false, false, false, false);
+			let v = this.#ParseMemberVariableOrFunctionParam(it, scope, false, false, false, false);
 			vars.push(v);
 			scope.AddVar(v);
 		}
@@ -6823,7 +6823,7 @@ class HLSL
 	// Structs: Interpmod(s), type, name, arraysize, semantic
 	// CBuffer: type, name, arraysize
 	// Function Param: interpmod(s), type, name, arraysize, semantic, init
-	#ParseMemberVariableOrFunctionParam(it, allowInputMod, allowInterpMod, allowSemantic, allowInit)
+	#ParseMemberVariableOrFunctionParam(it, scope, allowInputMod, allowInterpMod, allowSemantic, allowInit)
 	{
 		let interpMods = [];
 		let inputMods = [];
@@ -6879,7 +6879,7 @@ class HLSL
 		if (this.#Allow(it, TokenBracketLeft))
 		{
 			// Grab the array expression
-			arrayExp = this.#ParseExpression(it);
+			arrayExp = this.#ParseExpression(it, scope);
 			this.#Require(it, TokenBracketRight);
 		}
 
@@ -6901,7 +6901,7 @@ class HLSL
 			if (!allowInit)
 				throw new ParseError(it.PeekPrev(), "Initialization not allowed here.");
 
-			initExp = this.#ParseExpression(it);
+			initExp = this.#ParseExpression(it, scope);
 		}
 
 		return new VarDec(
@@ -7003,7 +7003,7 @@ class HLSL
 				if (it.Current().Type == TokenParenRight)
 					break;
 
-				let p = this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true);
+				let p = this.#ParseMemberVariableOrFunctionParam(it, scope, true, true, true, true);
 				params.push(p);
 				scope.AddVar(p);
 			}
@@ -7138,7 +7138,7 @@ class HLSL
 		// Look for: while(EXPRESSION);
 		this.#RequireIdentifier(it, "while");
 		this.#Require(it, TokenParenLeft);
-		let condition = this.#ParseExpression(it);
+		let condition = this.#ParseExpression(it, scope);
 		this.#Require(it, TokenParenRight);
 		this.#Require(it, TokenSemicolon);
 
@@ -7174,7 +7174,7 @@ class HLSL
 		// Move on to condition, if necessary
 		if (it.Current().Type != TokenSemicolon)
 		{
-			condExp = this.#ParseExpression(it);
+			condExp = this.#ParseExpression(it, scope);
 		}
 
 		// Semicolon to end cond
@@ -7183,7 +7183,7 @@ class HLSL
 		// Move on to iteration, if necessary
 		if (it.Current().Type != TokenParenRight)
 		{
-			iterExp = this.#ParseExpression(it);
+			iterExp = this.#ParseExpression(it, scope);
 		}
 
 		// Require end paren
@@ -7201,7 +7201,7 @@ class HLSL
 	{
 		// Assuming "if" already found
 		this.#Require(it, TokenParenLeft);
-		let cond = this.#ParseExpression(it);
+		let cond = this.#ParseExpression(it, scope);
 		this.#Require(it, TokenParenRight);
 
 		// Grab the if block
@@ -7229,7 +7229,7 @@ class HLSL
 		}
 
 		// Parse the expression
-		let exp = this.#ParseExpression(it);
+		let exp = this.#ParseExpression(it, scope);
 		this.#Require(it, TokenSemicolon);
 		return new StatementReturn(exp);
 	}
@@ -7242,7 +7242,7 @@ class HLSL
 
 		// Need a variable inside ( )'s
 		this.#Require(it, TokenParenLeft);
-		selectorExpression = this.#ParseExpression(it);
+		selectorExpression = this.#ParseExpression(it, scope);
 		this.#Require(it, TokenParenRight);
 
 		// Require { to start body
@@ -7259,7 +7259,7 @@ class HLSL
 			if (this.#AllowIdentifier(it, "case"))
 			{
 				// Grab the expression for the value
-				caseValue = this.#ParseExpression(it);
+				caseValue = this.#ParseExpression(it, scope);
 			}
 			else if (this.#AllowIdentifier(it, "default"))
 			{
@@ -7336,14 +7336,14 @@ class HLSL
 			let arrayExp = null;
 			if (this.#Allow(it, TokenBracketLeft))
 			{
-				arrayExp = this.#ParseExpression(it);
+				arrayExp = this.#ParseExpression(it, scope);
 				this.#Require(it, TokenBracketRight);
 			}
 
 			// Any definition?
 			let def = null;
 			if (this.#AllowOperator(it, "="))
-				def = this.#ParseExpression(it);
+				def = this.#ParseExpression(it, scope);
 
 			// Add to var
 			let v = new VarDec(isConst, dataTypeToken, varNameToken, arrayExp, def);
@@ -7366,7 +7366,7 @@ class HLSL
 		// Assuming "while" already found
 		// Look for: (EXPRESSION) STATEMENT
 		this.#Require(it, TokenParenLeft);
-		let condition = this.#ParseExpression(it);
+		let condition = this.#ParseExpression(it, scope);
 		this.#Require(it, TokenParenRight);
 		let body = this.#ParseStatement(it, scope);
 
@@ -7375,7 +7375,7 @@ class HLSL
 
 	#ParseExpressionStatement(it, scope)
 	{
-		let exp = this.#ParseExpression(it);
+		let exp = this.#ParseExpression(it, scope);
 
 		// Require a semicolon after an expression statement
 		this.#Require(it, TokenSemicolon);
@@ -7420,15 +7420,15 @@ class HLSL
 	//
 	//  0: literals/variables/grouping
 
-	#ParseExpression(it)
+	#ParseExpression(it, scope)
 	{
-		return this.#ParseAssignment(it);
+		return this.#ParseAssignment(it, scope);
 	}
 
-	#ParseAssignment(it)
+	#ParseAssignment(it, scope)
 	{
 		// Look for next expression precedence first
-		let exp = this.#ParseTernary(it);
+		let exp = this.#ParseTernary(it, scope);
 
 		// Now look for assignment
 		if (this.#AllowOperator(it, "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="))
@@ -7455,29 +7455,29 @@ class HLSL
 			return new ExpAssignment(
 				exp, // Need whole expression since it might be a member, like: pos.x = 5;
 				assignOp,
-				this.#ParseAssignment(it));
+				this.#ParseAssignment(it, scope));
 		}
 
 		// No assignment operator found
 		return exp;
 	}
 
-	#ParseTernary(it)
+	#ParseTernary(it, scope)
 	{
 		// Grab the expression first
-		let exp = this.#ParseLogicalOr(it);
+		let exp = this.#ParseLogicalOr(it, scope);
 		
 		// Check for "?" operator
 		if (this.#AllowOperator(it, "?"))
 		{
 			// The next piece should be the "if" expression
-			let expIf = this.#ParseExpression(it);
+			let expIf = this.#ParseExpression(it, scope);
 			
 			// Now we must have a ":"
 			if (this.#Require(it, TokenColon))
 			{
 				// Last is the "else" expression
-				let expElse = this.#ParseExpression(it);
+				let expElse = this.#ParseExpression(it, scope);
 
 				return new ExpTernary(
 					exp,
@@ -7494,10 +7494,10 @@ class HLSL
 		return exp;
 	}
 
-	#ParseLogicalOr(it)
+	#ParseLogicalOr(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseLogicalAnd(it);
+		let exp = this.#ParseLogicalAnd(it, scope);
 
 		// Keep going while we have ORs
 		while (this.#AllowOperator(it, "||"))
@@ -7505,16 +7505,16 @@ class HLSL
 			exp = new ExpLogical(
 				exp,
 				it.PeekPrev(),
-				this.#ParseLogicalAnd(it));
+				this.#ParseLogicalAnd(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseLogicalAnd(it)
+	#ParseLogicalAnd(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseBitwiseOr(it);
+		let exp = this.#ParseBitwiseOr(it, scope);
 
 		// Keep going while we have ANDs
 		while (this.#AllowOperator(it, "&&"))
@@ -7522,16 +7522,16 @@ class HLSL
 			exp = new ExpLogical(
 				exp,
 				it.PeekPrev(),
-				this.#ParseBitwiseOr(it));
+				this.#ParseBitwiseOr(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseBitwiseOr(it)
+	#ParseBitwiseOr(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseBitwiseXor(it);
+		let exp = this.#ParseBitwiseXor(it, scope);
 
 		// Keep going while we have ORs
 		while (this.#AllowOperator(it, "|"))
@@ -7539,16 +7539,16 @@ class HLSL
 			exp = new ExpBitwise(
 				exp,
 				it.PeekPrev(),
-				this.#ParseBitwiseXor(it));
+				this.#ParseBitwiseXor(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseBitwiseXor(it)
+	#ParseBitwiseXor(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseBitwiseAnd(it);
+		let exp = this.#ParseBitwiseAnd(it, scope);
 
 		// Keep going while we have XORs
 		while (this.#AllowOperator(it, "^"))
@@ -7556,16 +7556,16 @@ class HLSL
 			exp = new ExpBitwise(
 				exp,
 				it.PeekPrev(),
-				this.#ParseBitwiseAnd(it));
+				this.#ParseBitwiseAnd(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseBitwiseAnd(it)
+	#ParseBitwiseAnd(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseEquality(it);
+		let exp = this.#ParseEquality(it, scope);
 
 		// Keep going while we have ANDs
 		while (this.#AllowOperator(it, "&"))
@@ -7573,16 +7573,16 @@ class HLSL
 			exp = new ExpBitwise(
 				exp,
 				it.PeekPrev(),
-				this.#ParseEquality(it));
+				this.#ParseEquality(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseEquality(it)
+	#ParseEquality(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseComparison(it);
+		let exp = this.#ParseComparison(it, scope);
 
 		// Keep going while we have comparisons
 		while (this.#AllowOperator(it, "==", "!="))
@@ -7590,16 +7590,16 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseComparison(it));
+				this.#ParseComparison(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseComparison(it)
+	#ParseComparison(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseShift(it);
+		let exp = this.#ParseShift(it, scope);
 
 		// Keep going while we have comparisons
 		while (this.#AllowOperator(it, "<", "<=", ">", ">="))
@@ -7607,16 +7607,16 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseShift(it));
+				this.#ParseShift(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseShift(it)
+	#ParseShift(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseAddSubtract(it);
+		let exp = this.#ParseAddSubtract(it, scope);
 
 		// Keep going while we have shift ops
 		while (this.#AllowOperator(it, "<<", ">>"))
@@ -7624,16 +7624,16 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseAddSubtract(it));
+				this.#ParseAddSubtract(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseAddSubtract(it)
+	#ParseAddSubtract(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseMulDivMod(it);
+		let exp = this.#ParseMulDivMod(it, scope);
 
 		// Keep going while we have shift ops
 		while (this.#AllowOperator(it, "+", "-"))
@@ -7641,16 +7641,16 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseMulDivMod(it));
+				this.#ParseMulDivMod(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseMulDivMod(it)
+	#ParseMulDivMod(it, scope)
 	{
 		// Grab starting expression
-		let exp = this.#ParseUnaryOrCast(it);
+		let exp = this.#ParseUnaryOrCast(it, scope);
 
 		// Keep going while we have shift ops
 		while (this.#AllowOperator(it, "*", "/", "%"))
@@ -7658,20 +7658,20 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseUnaryOrCast(it));
+				this.#ParseUnaryOrCast(it, scope));
 		}
 
 		return exp;
 	}
 
-	#ParseUnaryOrCast(it)
+	#ParseUnaryOrCast(it, scope)
 	{
 		// Check for possible unary operators
 		if (this.#AllowOperator(it, "+", "-", "!", "~", "++", "--"))
 		{
 			return new ExpUnary(
 				it.PeekPrev(), // Token we just allowed
-				this.#ParseUnaryOrCast(it)); // Next parse, which could be another unary or operand or grouping
+				this.#ParseUnaryOrCast(it, scope)); // Next parse, which could be another unary or operand or grouping
 		}
 
 		// Check for cast, which follows the (DATATYPE) pattern
@@ -7690,17 +7690,17 @@ class HLSL
 			// Successfully found a cast
 			return new ExpCast(
 				typeToken,
-				this.#ParseUnaryOrCast(it));
+				this.#ParseUnaryOrCast(it, scope));
 		}
 
 		// Not a unary, so check next level
-		return this.#ParsePostfixCallArrayOrMember(it);
+		return this.#ParsePostfixCallArrayOrMember(it, scope);
 	}
 
-	#ParsePostfixCallArrayOrMember(it)
+	#ParsePostfixCallArrayOrMember(it, scope)
 	{
 		// Grab an operand first
-		let exp = this.#ParseOperandOrGrouping(it);
+		let exp = this.#ParseOperandOrGrouping(it, scope);
 
 		// Handle multiple postfix type symbols
 		while (true)
@@ -7723,7 +7723,7 @@ class HLSL
 					// Loop and grab comma-separated expressions for parameters
 					do
 					{
-						params.push(this.#ParseExpression(it));
+						params.push(this.#ParseExpression(it, scope));
 					}
 					while (this.#Allow(it, TokenComma));
 				}
@@ -7742,7 +7742,7 @@ class HLSL
 				// Index could be an entire expression
 				exp = new ExpArray(
 					exp, // Array itself
-					this.#ParseExpression(it)); // Index inside [ ]'s
+					this.#ParseExpression(it, scope)); // Index inside [ ]'s
 
 				// Require a right bracket
 				this.#Require(it, TokenBracketRight);
@@ -7844,7 +7844,7 @@ class HLSL
 		exp.CombinedTextureAndSampler = combined;
 	}
 
-	#ParseOperandOrGrouping(it)
+	#ParseOperandOrGrouping(it, scope)
 	{
 		let t = it.Current();
 
@@ -7865,7 +7865,7 @@ class HLSL
 		if (this.#Allow(it, TokenParenLeft))
 		{
 			// Grab expression
-			let exp = this.#ParseExpression(it);
+			let exp = this.#ParseExpression(it, scope);
 			
 			// Must be followed by a right parens
 			this.#Require(it, TokenParenRight);
@@ -9629,12 +9629,10 @@ class ParseError extends Error
 class ScopeStack
 {
 	#stack;
-	//#dict;
 
 	constructor()
 	{
 		this.#stack = [];
-		//this.#dict = {};
 	}
 
 	PushScope()
@@ -9644,13 +9642,7 @@ class ScopeStack
 
 	PopScope()
 	{
-		let toRemove = this.#stack.pop();
-
-		// Remove all variables from the dictionary, too
-		//for (let i = 0; i < toRemove.length; i++)
-		//{
-		//	delete this.#dict[toRemove[i].NameToken.Text];
-		//}
+		this.#stack.pop();
 	}
 
 	AddVarStatement(statement)
@@ -9667,30 +9659,41 @@ class ScopeStack
 
 		// Is this var already here?
 		let name = v.NameToken.Text;
-		//if (this.#dict.hasOwnProperty(name))
 		if (this.IsVarInCurrentScope(name))
 			throw new ParseError(v.NameToken, "Redefinition of '" + name + "'");
 
-		// Add the variable to the stack and the dictionary
+		// Add the variable to the stack
 		this.#stack[this.#stack.length - 1].push(v);
-		//this.#dict[name] = v;
 	}
 
 	IsVarInCurrentScope(varName)
 	{
-		let scope = this.#stack[this.#stack.length - 1];
+		if (this.#stack.length == 0)
+			return false;
 
+		// Check just the most recent scope
+		return this.#IsVarInScope(varName, this.#stack[this.#stack.length - 1]);
+	}
+
+	IsVarInAnyScope(varName)
+	{
+		// Loop through all scopes, looking for the variable
+		for (let s = this.#stack.length - 1; s >= 0; s--)
+			if (this.#IsVarInScope(varName, this.#stack[s]))
+				return true;
+
+		// Nowhere
+		return false;
+	}
+
+	#IsVarInScope(varName, scope)
+	{
+		// Check all vars in the given scope
 		for (let v = 0; v < scope.length; v++)
 			if (scope[v].NameToken.Text == varName)
 				return true;
 
 		return false;
 	}
-
-	//IsVarInAnyScope(varName)
-	//{
-	//	return this.#dict.hasOwnProperty(varName);
-	//}
-
 }
 
