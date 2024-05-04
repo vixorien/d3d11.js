@@ -545,9 +545,8 @@ class HLSL
 			{
 				// TODO: Handle global constants here
 				case "const":
-					let globalConst = this.#ParseVarDecStatement(it);
+					let globalConst = this.#ParseVarDecStatement(it, scope);
 					this.#globalConstants.push(globalConst);
-					scope.AddVarStatement(globalConst);
 					break;
 
 				// Skip extra end statements
@@ -871,9 +870,7 @@ class HLSL
 	{
 		let interpMods = [];
 		let inputMods = [];
-		let dataType = null;
 		let dataTypeToken = null;
-		let name = null;
 		let nameToken = null;
 		let semantic = null;
 		let arrayExp = null;
@@ -916,12 +913,10 @@ class HLSL
 		// Grab the data type
 		this.#RequireDataType(it);
 		dataTypeToken = it.PeekPrev();
-		dataType = it.PeekPrev().Text;
 
 		// Identifier
 		this.#Require(it, TokenIdentifier);
 		nameToken = it.PeekPrev();
-		name = it.PeekPrev().Text;
 
 		// Check for array
 		if (this.#Allow(it, TokenBracketLeft))
@@ -961,15 +956,6 @@ class HLSL
 			inputMods.length == 1 ? inputMods[0] : null,
 			interpMods,
 			semantic);
-
-		//return new ShaderElementMemberVar(
-		//	dataType,
-		//	name,
-		//	inputMods.length == 1 ? inputMods[0] : null,
-		//	interpMods,
-		//	arrayExp,
-		//	semantic,
-		//	initExp);
 	}
 
 
@@ -1080,7 +1066,7 @@ class HLSL
 
 			// Next should be open scope, function body, end scope
 			this.#Require(it, TokenScopeLeft);
-			let statements = this.#ParseFunctionBody(it);
+			let statements = this.#ParseFunctionBody(it, scope);
 			this.#Require(it, TokenScopeRight);
 
 			let f = new ShaderElementFunction(
@@ -1129,7 +1115,7 @@ class HLSL
 	}
 
 
-	#ParseFunctionBody(it)
+	#ParseFunctionBody(it, scope)
 	{
 		let statements = [];
 
@@ -1137,23 +1123,23 @@ class HLSL
 		// TODO: Verify this works with nested blocks
 		while (it.Current().Type != TokenScopeRight)
 		{
-			statements.push(this.#ParseStatement(it));
+			statements.push(this.#ParseStatement(it, scope));
 		}
 
 		return statements;
 	}
 
-	#ParseStatement(it)
+	#ParseStatement(it, scope)
 	{
 		// Check for possible statement types
-		if (this.#Allow(it, TokenScopeLeft)) return this.#ParseBlock(it);
-		if (this.#AllowIdentifier(it, "do")) return this.#ParseDoWhile(it);
-		if (this.#AllowIdentifier(it, "for")) return this.#ParseFor(it);
-		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it);
-		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it);
-		if (this.#AllowIdentifier(it, "switch")) return this.#ParseSwitch(it);
-		if (this.#IsDataType(it.Current().Text) || it.Current().Text == "const") return this.#ParseVarDecStatement(it);
-		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it);
+		if (this.#Allow(it, TokenScopeLeft)) return this.#ParseBlock(it, scope);
+		if (this.#AllowIdentifier(it, "do")) return this.#ParseDoWhile(it, scope);
+		if (this.#AllowIdentifier(it, "for")) return this.#ParseFor(it, scope);
+		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it, scope);
+		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it, scope);
+		if (this.#AllowIdentifier(it, "switch")) return this.#ParseSwitch(it, scope);
+		if (this.#IsDataType(it.Current().Text) || it.Current().Text == "const") return this.#ParseVarDecStatement(it, scope);
+		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it, scope);
 
 		// Check for simple jump statements here
 		if (this.#AllowIdentifier(it, "break") ||
@@ -1168,27 +1154,29 @@ class HLSL
 		}
 
 		// No matches?  Try an expression
-		return this.#ParseExpressionStatement(it);
+		return this.#ParseExpressionStatement(it, scope);
 	}
 
-	#ParseBlock(it)
+	#ParseBlock(it, scope)
 	{
 		// Assuming open scope already found, loop until matching end scope
+		scope.PushScope();
 		let statements = [];
 		while (it.Current().Type != TokenScopeRight)
 		{
-			statements.push(this.#ParseStatement(it));
+			statements.push(this.#ParseStatement(it, scope));
 		}
 
 		this.#Require(it, TokenScopeRight);
+		scope.PopScope();
 
 		return new StatementBlock(statements);
 	}
 
-	#ParseDoWhile(it)
+	#ParseDoWhile(it, scope)
 	{
 		// Assuming "do" already found
-		let body = this.#ParseStatement(it);
+		let body = this.#ParseStatement(it, scope);
 
 		// Look for: while(EXPRESSION);
 		this.#RequireIdentifier(it, "while");
@@ -1200,7 +1188,7 @@ class HLSL
 		return new StatementDoWhile(body, condition);
 	}
 
-	#ParseFor(it)
+	#ParseFor(it, scope)
 	{
 		// Any piece could be empty: for(;;)
 		let initStatement = null; // Statement
@@ -1210,18 +1198,19 @@ class HLSL
 
 		// Assuming "for" already found
 		this.#Require(it, TokenParenLeft);
+		scope.PushScope();
 
 		// TODO: Handle the comma operator!
 
 		// Init could be a var declaration, or just assignment
 		if (this.#IsDataType(it.Current().Text))
 		{
-			initStatement = this.#ParseVarDecStatement(it); // Already handles semicolon
+			initStatement = this.#ParseVarDecStatement(it, scope); // Already handles semicolon
 		}
 		else
 		{
 			// Expression + semicolon
-			initStatement = this.#ParseExpressionStatement(it);
+			initStatement = this.#ParseExpressionStatement(it, scope);
 			this.#Require(it, TokenSemicolon);
 		}
 
@@ -1244,13 +1233,14 @@ class HLSL
 		this.#Require(it, TokenParenRight);
 
 		// Parse the body
-		bodyStatement = this.#ParseStatement(it);
+		bodyStatement = this.#ParseStatement(it, scope);
 
 		// All done
+		scope.PopScope();
 		return new StatementFor(initStatement, condExp, iterExp, bodyStatement);
 	}
 
-	#ParseIf(it)
+	#ParseIf(it, scope)
 	{
 		// Assuming "if" already found
 		this.#Require(it, TokenParenLeft);
@@ -1258,20 +1248,20 @@ class HLSL
 		this.#Require(it, TokenParenRight);
 
 		// Grab the if block
-		let ifBlock = this.#ParseStatement(it);
+		let ifBlock = this.#ParseStatement(it, scope);
 		let elseBlock = null;
 
 		// Do we have an else?
 		if (this.#AllowIdentifier(it, "else"))
 		{
 			// Note, the else's block might be a whole if/else again!
-			elseBlock = this.#ParseStatement(it);
+			elseBlock = this.#ParseStatement(it, scope);
 		}
 
 		return new StatementIf(cond, ifBlock, elseBlock);
 	}
 
-	#ParseReturn(it)
+	#ParseReturn(it, scope)
 	{
 		// Assuming "return" already found
 
@@ -1287,7 +1277,7 @@ class HLSL
 		return new StatementReturn(exp);
 	}
 
-	#ParseSwitch(it)
+	#ParseSwitch(it, scope)
 	{
 		// Assuming "switch" already found
 		let selectorExpression = null;
@@ -1300,6 +1290,7 @@ class HLSL
 
 		// Require { to start body
 		this.#Require(it, TokenScopeLeft);
+		// NOTE: This is not a new scope!
 
 		// Loop until we hit a matching }
 		let defaultFound = false;
@@ -1336,7 +1327,7 @@ class HLSL
 				it.Current().Text != "default" &&
 				it.Current().Type != TokenScopeRight)
 			{
-				statements.push(this.#ParseStatement(it));
+				statements.push(this.#ParseStatement(it, scope));
 			}
 
 			// Finished this case or default
@@ -1355,7 +1346,7 @@ class HLSL
 		return new StatementSwitch(selectorExpression, cases);
 	}
 
-	#ParseVarDecStatement(it)
+	#ParseVarDecStatement(it, scope)
 	{
 		// Possible syntax to look for:
 		// int x;
@@ -1398,7 +1389,9 @@ class HLSL
 				def = this.#ParseExpression(it);
 
 			// Add to var
-			varDecs.push(new VarDec(isConst, dataTypeToken, varNameToken, arrayExp, def));
+			let v = new VarDec(isConst, dataTypeToken, varNameToken, arrayExp, def);
+			varDecs.push(v);
+			scope.AddVar(v);
 		}
 		while (this.#Allow(it, TokenComma));
 
@@ -1411,19 +1404,19 @@ class HLSL
 		return new StatementVar(isConst, dataTypeToken, varDecs);
 	}
 
-	#ParseWhile(it)
+	#ParseWhile(it, scope)
 	{
 		// Assuming "while" already found
 		// Look for: (EXPRESSION) STATEMENT
 		this.#Require(it, TokenParenLeft);
 		let condition = this.#ParseExpression(it);
 		this.#Require(it, TokenParenRight);
-		let body = this.#ParseStatement(it);
+		let body = this.#ParseStatement(it, scope);
 
 		return new StatementWhile(condition, body);
 	}
 
-	#ParseExpressionStatement(it)
+	#ParseExpressionStatement(it, scope)
 	{
 		let exp = this.#ParseExpression(it);
 
