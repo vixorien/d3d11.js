@@ -576,7 +576,7 @@ class HLSL
 
 				case "Texture2DMS":
 				case "Texture2DMSArray":
-					throw new ParseError(it.Line, "Not currently handling multisampled textures");
+					throw new ParseError(it.Current(), "Not currently handling multisampled textures");
 
 				default:
 					// Should be a data type and the next should be an identifier
@@ -1743,7 +1743,7 @@ class HLSL
 	#ParsePostfixCallArrayOrMember(it, scope)
 	{
 		// Grab an operand first
-		let exp = this.#ParseOperandOrGrouping(it, scope);
+		let exp = this.#ParseOperandFuncNameOrGrouping(it, scope);
 
 		// Handle multiple postfix type symbols
 		while (true)
@@ -1759,7 +1759,7 @@ class HLSL
 			{
 				// Track all params
 				let params = [];
-
+				
 				// Is this a right paren?
 				if (it.Current().Type != TokenParenRight)
 				{
@@ -1795,9 +1795,21 @@ class HLSL
 				// Very next token must be an identifier!
 				this.#Require(it, TokenIdentifier);
 
+				// The right side of the "." could be a function call (for texture sampling)
+				// or simply a member (for structs or swizzling).
+				let rightSide = null;
+				if (it.Current().Type == TokenParenLeft)
+					rightSide = new ExpFunctionName(it.PeekPrev());
+				else
+					rightSide = new ExpVariable(it.PeekPrev(), null); // TODO: Determine data type!
+
 				exp = new ExpMember(
 					exp, // Left side of "."
-					new ExpVariable(it.PeekPrev())); // Right side of "."
+					rightSide); // Right side of "."
+
+				// Note: If this member access is really a function call, in
+				// the case of texture sampling, the loop will properly handle wrapping this
+				// in a function call expression
 			}
 			else // Nothing useful left
 			{
@@ -1819,7 +1831,7 @@ class HLSL
 		// Right of member must be "variable" (the sample function name)
 		if (!(exp.FuncExp instanceof ExpMember) ||
 			!(exp.FuncExp.ExpLeft instanceof ExpVariable) ||
-			!(exp.FuncExp.ExpRight instanceof ExpVariable))
+			!(exp.FuncExp.ExpRight instanceof ExpFunctionName))
 			return;
 		
 		// Grab texture
@@ -1829,7 +1841,7 @@ class HLSL
 		
 		// Grab function name
 		// TODO: Determine proper number of params based on function name
-		let funcName = exp.FuncExp.ExpRight.VarToken.Text;
+		let funcName = exp.FuncExp.ExpRight.NameToken.Text;
 		switch (funcName)
 		{
 			case "Sample":
@@ -1887,7 +1899,7 @@ class HLSL
 		exp.CombinedTextureAndSampler = combined;
 	}
 
-	#ParseOperandOrGrouping(it, scope)
+	#ParseOperandFuncNameOrGrouping(it, scope)
 	{
 		let t = it.Current();
 
@@ -1898,10 +1910,44 @@ class HLSL
 			return new ExpLiteral(it.PeekPrev());
 		}
 
-		// Check for variables
+		// Check for variables or function names
 		if (this.#Allow(it, TokenIdentifier))
 		{
-			return new ExpVariable(it.PeekPrev());
+			// Info about the var
+			let name = it.PeekPrev().Text;
+			let dataType = null;
+
+			// Is the current token now a left parens?  That means function!
+			if (it.Current().Type == TokenParenLeft)
+			{
+				// Note: Data type won't necessarily be known until the parameters are known
+				// TODO: Validate function name vs. scoped variable
+				return new ExpFunctionName(it.PeekPrev());
+			}
+
+			// Get the variable if it exists (yes this could be optimized)
+			let v = scope.GetVar(name);
+			let t = this.#GetTexture(name);
+			let s = this.#GetSampler(name);
+			if (v != null)
+			{
+				dataType = v.DataTypeToken.Text;
+			}
+			else if (t != null)
+			{
+				dataType = t.Type; // Is a texture!
+			}
+			else if (s != null)
+			{
+				dataType = s.Type; // Is a sampler!
+			}
+			else
+			{
+				// Not a variable, texture or sampler
+				throw new ParseError(it.PeekPrev(), "Undeclared identifier '" + it.PeekPrev().Text + "'");
+			}
+
+			return new ExpVariable(it.PeekPrev(), dataType);
 		}
 
 		// Check for grouping symbols
@@ -3263,7 +3309,10 @@ class VarDec extends Statement
 }
 
 
-class Expression { }
+class Expression
+{
+	DataType;
+}
 
 class ExpArray extends Expression
 {
@@ -3395,7 +3444,7 @@ class ExpFunctionCall extends Expression
 		if (lang == ShaderLanguageGLSL && this.IsTextureSample)
 		{
 			// Get the hlsl texture sample function
-			let hlslTextureFunc = this.FuncExp.ExpRight.VarToken.Text;
+			let hlslTextureFunc = this.FuncExp.ExpRight.NameToken.Text;
 			if (!HLSLTextureSampleConversion.hasOwnProperty(hlslTextureFunc))
 				throw new Error("Sample function type not yet implemented!");
 
@@ -3470,6 +3519,28 @@ class ExpFunctionCall extends Expression
 	}
 }
 
+class ExpFunctionName extends Expression
+{
+	NameToken;
+
+	constructor(nameToken)
+	{
+		super();
+		this.NameToken = nameToken;
+		this.DataType = null; // Will be handled by the function call expression
+	}
+
+	ToString(lang)
+	{
+		switch (lang)
+		{
+			default:
+			case ShaderLanguageHLSL: return this.NameToken.Text;
+			case ShaderLanguageGLSL: return HLSL.TranslateToGLSL(this.NameToken.Text);
+		}
+	}
+}
+
 class ExpGroup extends Expression
 {
 	Exp;
@@ -3488,7 +3559,6 @@ class ExpGroup extends Expression
 
 class ExpLiteral extends Expression
 {
-	DataType;
 	LiteralToken;
 
 	constructor(litToken)
@@ -3638,10 +3708,11 @@ class ExpVariable extends Expression
 {
 	VarToken;
 
-	constructor(varToken)
+	constructor(varToken, dataType)
 	{
 		super();
 		this.VarToken = varToken;
+		this.DataType = dataType;
 	}
 
 	ToString(lang)
@@ -3707,6 +3778,18 @@ class ScopeStack
 
 		// Add the variable to the stack
 		this.#stack[this.#stack.length - 1].push(v);
+	}
+
+	GetVar(varName)
+	{
+		// Work through the scope, inner to outer, looking for this variable
+		for (let s = this.#stack.length - 1; s >= 0; s--)
+			for (let v = 0; v < this.#stack[s].length; v++)
+				if (this.#stack[s][v].NameToken.Text == varName)
+					return this.#stack[s][v];
+
+		// Not found
+		return null;
 	}
 
 	IsVarInCurrentScope(varName)
