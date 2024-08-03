@@ -331,6 +331,12 @@ class HLSL
 
 	static DataTypeFromLiteralToken(token)
 	{
+		// Check for true/false first
+		let lower = token.Text.toLowerCase();
+		if (token.Type == TokenIdentifier && (lower == "true" || lower == "false"))
+			return "bool";
+
+		// Otherwise, this must be a numeric literal
 		if (token.Type != TokenNumericLiteral)
 			throw new Error("Invalid token for data type extraction");
 
@@ -358,6 +364,57 @@ class HLSL
 		// Note: Even though HLSL accepts "L" as a suffix, it 
 		//       doesn't support 64-bit integers (SM 5.0, anyway)
 		return "int";
+
+	}
+
+	#GetStructMemberType(structType, memberName)
+	{
+		for (let s = 0; s < this.#structs.length; s++)
+		{
+			let st = this.#structs[s];
+			if (st.Name == structType)
+			{
+				for (let v = 0; v < st.Members.length; v++)
+				{
+					let mem = st.Members[v];
+					if (mem.NameToken.Text == memberName)
+					{
+						return mem.NameToken.Text;
+					}
+				}
+			}
+		}
+
+		return null;
+	}
+
+	#DataTypeFromMemberExpression(exp, memberToken)
+	{
+		// Member could be:
+		// - vector components/swizzle
+		// - matrix element
+		// - struct member (left is variable)
+
+		// Check for struct type first
+		let memberType = this.#GetStructMemberType(exp.DataType, memberToken.Text);
+		if (memberType != null)
+			return memberType;
+
+		// Not a struct member - check for matrix
+		if (this.#IsMatrixType(exp.DataType))
+		{
+			// This is a matrix, so validate member
+			if (HLSLMatrixConstructorConversion.hasOwnProperty(memberToken.Text))
+				return "float"; // All matrices are floats in GLSL, so we've got to follow suit
+			else
+				throw new ParseError(membertoken, "Invalid matrix member"); // TODO: Find the actual error message
+		}
+
+		// Not a struct member, so validate all possible vector and scalar types
+		if (this.#IsVectorOrScalarType(exp.DataType))
+		{
+			// TODO: FINISH
+		}
 
 	}
 
@@ -749,6 +806,68 @@ class HLSL
 		let isStructType = this.#IsStruct(text);
 		let isDataType = HLSLDataTypeConversion.hasOwnProperty(text);
 		return isStructType || isDataType;
+	}
+
+	#IsMatrixType(text)
+	{
+		switch (text)
+		{
+			case "float2x2":
+			case "float2x3":
+			case "float2x4":
+
+			case "float3x2":
+			case "float3x3":
+			case "float3x4":
+
+			case "float4x2":
+			case "float4x3":
+			case "float4x4":
+
+			case "matrix":
+				return true;
+		}
+
+		return false;
+	}
+
+	#IsScalarType(text)
+	{
+		switch (text)
+		{
+			case "bool": case "bool1":
+			case "int": case "int1":
+			case "uint": case "uint1":
+			case "dword": case "dword1":
+			case "half": case "half1":
+			case "float": case "float1":
+			case "double": case "double1":
+				return true;
+		}
+
+		return false;
+	}
+
+	#IsVectorType(text)
+	{
+		switch (text)
+		{
+			case "bool2": case "bool3": case "bool4":
+			case "int2": case "int3": case "int4":
+			case "uint2": case "uint3": case "uint4":
+			case "dword2": case "dword3": case "dword4":
+			case "half2": case "half3": case "half4":
+			case "float2": case "float3": case "float4":
+			case "dobule2": case "double3": case "double4":
+				return true;
+		}
+
+		return false;
+	}
+
+	#IsVectorOrScalarType(text)
+	{
+		return this.#IsScalarType(text) || this.#IsVectorType(text);
 	}
 
 	#IsReservedWord(text)
