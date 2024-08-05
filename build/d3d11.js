@@ -5994,66 +5994,74 @@ const PSOutputVariable = "_sv_target_";
 const ShaderLanguageHLSL = 0;
 const ShaderLanguageGLSL = 1;
 
+const RegexSwizzleX = /^[x]{1,4}$/;
+const RegexSwizzleXY = /^[xy]{1,4}$/;
+const RegexSwizzleXYZ = /^[xyz]{1,4}$/;
+const RegexSwizzleXYZW = /^[xyzw]{1,4}$/;
+const RegexSwizzleR = /^[r]{1,4}$/;
+const RegexSwizzleRG = /^[rg]{1,4}$/;
+const RegexSwizzleRGB = /^[rgb]{1,4}$/;
+const RegexSwizzleRGBA = /^[rgba]{1,4}$/;
 
 // TODO: missing a few matrix permutations (1xN, Nx1) and matrices of non-floats
 const HLSLDataTypeConversion = {
-	"void": "void",
+	"void": { "RootType": "void", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "void" },
 
-	"bool": "bool",
-	"bool1": "bool",
-	"bool2": "bvec2",
-	"bool3": "bvec3",
-	"bool4": "bvec4",
+	"bool":  { "RootType": "bool", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "bool" },
+	"bool1": { "RootType": "bool", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "bool" },
+	"bool2": { "RootType": "bool", "SVM": "vector", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "bvec2" },
+	"bool3": { "RootType": "bool", "SVM": "vector", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "bvec3" },
+	"bool4": { "RootType": "bool", "SVM": "vector", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "bvec4" },
 
-	"int": "int",
-	"int1": "int",
-	"int2": "ivec2",
-	"int3": "ivec3",
-	"int4": "ivec4",
+	"int":  { "RootType": "int", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "int" },
+	"int1": { "RootType": "int", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "int" },
+	"int2": { "RootType": "int", "SVM": "vector", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "ivec2" },
+	"int3": { "RootType": "int", "SVM": "vector", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "ivec3" },
+	"int4": { "RootType": "int", "SVM": "vector", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "ivec4" },
 
-	"uint": "uint",
-	"uint1": "uint",
-	"uint2": "uvec2",
-	"uint3": "uvec3",
-	"uint4": "uvec4",
+	"uint":  { "RootType": "uint", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" }, 
+	"uint1": { "RootType": "uint", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" },
+	"uint2": { "RootType": "uint", "SVM": "vector", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "uvec2" },
+	"uint3": { "RootType": "uint", "SVM": "vector", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "uvec3" },
+	"uint4": { "RootType": "uint", "SVM": "vector", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "uvec4" },
 
-	"dword": "uint",
-	"dword1": "uint",
-	"dword2": "uvec2",
-	"dword3": "uvec3",
-	"dword4": "uvec4",
+	"dword":  { "RootType": "dword", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" },
+	"dword1": { "RootType": "dword", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" },
+	"dword2": { "RootType": "dword", "SVM": "vector", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "uvec2" },
+	"dword3": { "RootType": "dword", "SVM": "vector", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "uvec3" },
+	"dword4": { "RootType": "dword", "SVM": "vector", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "uvec4" },
 
-	"half": "float",
-	"half1": "float",
-	"half2": "vec2",
-	"half3": "vec3",
-	"half4": "vec4",
+	"half":  { "RootType": "half", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"half1": { "RootType": "half", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"half2": { "RootType": "half", "SVM": "vector", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "vec2" }, 
+	"half3": { "RootType": "half", "SVM": "vector", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" }, 
+	"half4": { "RootType": "half", "SVM": "vector", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" }, 
 
-	"float": "float",
-	"float1": "float",
-	"float2": "vec2",
-	"float3": "vec3",
-	"float4": "vec4",
+	"float":  { "RootType": "float", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"float1": { "RootType": "float", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"float2": { "RootType": "float", "SVM": "vector", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "vec2" }, 
+	"float3": { "RootType": "float", "SVM": "vector", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" }, 
+	"float4": { "RootType": "float", "SVM": "vector", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" }, 
 
-	"double": "float",
-	"double1": "float",
-	"double2": "vec2",
-	"double3": "vec3",
-	"double4": "vec4",
+	"double":  { "RootType": "double", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"double1": { "RootType": "double", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"double2": { "RootType": "double", "SVM": "vector", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "vec2" },
+	"double3": { "RootType": "double", "SVM": "vector", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" },
+	"double4": { "RootType": "double", "SVM": "vector", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" },
 
-	"float2x2": "mat2x2",
-	"float2x3": "mat2x3",
-	"float2x4": "mat2x4",
+	"float2x2": { "RootType": "float", "SVM": "matrix", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2x2" },
+	"float2x3": { "RootType": "float", "SVM": "matrix", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat2x3" },
+	"float2x4": { "RootType": "float", "SVM": "matrix", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat2x4" },
 
-	"float3x2": "mat3x2",
-	"float3x3": "mat3x3",
-	"float3x4": "mat3x4",
+	"float3x2": { "RootType": "float", "SVM": "matrix", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat3x2" },
+	"float3x3": { "RootType": "float", "SVM": "matrix", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3x3" },
+	"float3x4": { "RootType": "float", "SVM": "matrix", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat3x4" },
 
-	"float4x2": "mat4x2",
-	"float4x3": "mat4x3",
-	"float4x4": "mat4x4",
+	"float4x2": { "RootType": "float", "SVM": "matrix", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat4x2" },
+	"float4x3": { "RootType": "float", "SVM": "matrix", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat4x3" },
+	"float4x4": { "RootType": "float", "SVM": "matrix", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4x4" },
 
-	"matrix": "mat4x4"
+	"matrix": { "RootType": "float", "SVM": "matrix", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4x4" }
 };
 
 const HLSLMatrixElementConversion = {
@@ -6111,6 +6119,16 @@ const HLSLTextureSampleConversion = {
 	"Sample": "texture",
 	"SampleLevel": "textureLod"
 };
+
+const HLSLImplicitCastOrder = {
+	"bool": 0,
+	"int": 1,
+	"uint": 2,
+	"dword": 3,
+	"half": 4,
+	"float": 5,
+	"double": 6
+}
 
 class TokenIterator
 {
@@ -6279,7 +6297,7 @@ class HLSL
 	static TranslateToGLSL(identifier)
 	{
 		if (HLSLDataTypeConversion.hasOwnProperty(identifier))
-			return HLSLDataTypeConversion[identifier];
+			return HLSLDataTypeConversion[identifier].GLSL;
 		else if (HLSLReservedWordConversion.hasOwnProperty(identifier))
 			return HLSLReservedWordConversion[identifier];
 		else
@@ -6324,6 +6342,74 @@ class HLSL
 
 	}
 
+	static GetImplicitCastType(typeA, typeB)
+	{
+		// Validate types
+		if (typeA == null || typeB == null)
+			return null;
+
+		// Possibilities:
+
+		// Scalar & Scalar
+		// - Just find the highest rank
+
+		// Scalar & Vector
+		// - Match vector's type?
+
+		// Scalar & Matrix
+		// - Match matrix type?
+
+		// Vector & Vector
+		// - Find highest rank
+		// - Also truncate to smallest vector
+
+		// Vector & Matrix
+		// - Seems invalid from some testing
+
+		// Matrix & Matrix
+		// - Find highest rank
+		// - Also truncate to smallest row & smallest col
+
+		// Grab details
+		let a = HLSLDataTypeConversion[typeA];
+		let b = HLSLDataTypeConversion[typeB];
+		let rankA = HLSLImplicitCastOrder[a.RootType];
+		let rankB = HLSLImplicitCastOrder[b.RootType];
+
+		// Check for s/v/m types
+		if (a.SVM == "scalar" && b.SVM == "scalar") // Scalar & Scalar
+		{
+			// Return the highest rank
+			return rankA >= rankB ? typeA : typeB;
+		}
+		else if (a.SVM == "scalar" && (b.SVM == "vector" || b.SVM == "matrix")) // Scalar & (Vector or Matrix)
+		{
+			return typeB; // Non-scalar wins
+		}
+		else if ((a.SVM == "vector" || a.SVM == "matrix") && b.SVM == "scalar") // (Vector or Matrix) & Scalar
+		{
+			return typeA; // Non-scalar wins
+		}
+		else if (a.SVM == "vector" && b.SVM == "vector")
+		{
+			// Both vectors, so truncate to smallest (but use highest rank?)
+			let size = a.Components <= b.Components ? a.Components : b.Components;
+			let rootType = rankA >= rankB ? a.RootType : b.RootType;
+			return rootType + size.toString(); // Example: "float" + "2"
+		}
+		else if (a.SVM == "matrix" && b.SVM == "matrix")
+		{
+			// Both matrices, so truncate to smallest (but use highest rank?)
+			let r = a.Rows <= b.Rows ? a.Rows : b.Rows;
+			let c = a.Cols <= b.Cols ? a.Cols : b.Cols;
+			let rootType = rankA >= rankB ? a.RootType : b.RootType;
+			return rootType + r.toString() + "x" + c.toString(); // Example: "float" + "3" + "x" + "3"
+		}
+
+		// Matrix & Vector is invalid!
+		return null;
+	}
+
 	#GetStructMemberType(structType, memberName)
 	{
 		for (let s = 0; s < this.#structs.length; s++)
@@ -6336,7 +6422,7 @@ class HLSL
 					let mem = st.Members[v];
 					if (mem.NameToken.Text == memberName)
 					{
-						return mem.NameToken.Text;
+						return mem.DataTypeToken.Text;
 					}
 				}
 			}
@@ -6363,16 +6449,64 @@ class HLSL
 			// This is a matrix, so validate member
 			if (HLSLMatrixConstructorConversion.hasOwnProperty(memberToken.Text))
 				return "float"; // All matrices are floats in GLSL, so we've got to follow suit
+				// TODO: Maybe keep this as the declared type until actual GLSL conversion?
 			else
-				throw new ParseError(membertoken, "Invalid matrix member"); // TODO: Find the actual error message
+				throw new ParseError(memberToken, "Invalid matrix member"); // TODO: Find the actual error message
 		}
 
-		// Not a struct member, so validate all possible vector and scalar types
-		if (this.#IsVectorOrScalarType(exp.DataType))
+		// Is the left-side expression a scalar?
+		if (this.#IsScalarType(exp.DataType))
 		{
-			// TODO: FINISH
+			let scalarType = HLSLDataTypeConversion[exp.DataType].RootType;
+			if (scalarType == null)
+				throw new ParseError(memberToken, "Invalid scalar type");
+
+			// We have the scalar type of the expression, so validate the member
+			switch (memberToken.Text)
+			{
+				case "r": case "x": return scalarType;
+				case "rr": case "xx": return scalarType + "2";
+				case "rrr": case "xxx": return scalarType + "3";
+				case "rrrr": case "xxxx": return scalarType + "4";
+				default:
+					throw new ParseError(memberToken, "Invalid swizzle"); // TODO: Real error message
+			}
 		}
 
+		// Is the left-side expression a vector?
+		if (this.#IsVectorType(exp.DataType))
+		{
+			// Extract data about the vector
+			let components = exp.DataType.slice(-1);
+			let coreType = exp.DataType.slice(0, -1);
+			
+			// TODO: Clean this up!
+			switch (components)
+			{
+				case "2":
+					let xy = RegexSwizzleXY.test(memberToken.Text);
+					let rg = RegexSwizzleRG.test(memberToken.Text);
+					if (xy || rg)
+						return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
+
+				case "3":
+					let xyz = RegexSwizzleXYZ.test(memberToken.Text);
+					let rgb = RegexSwizzleRGB.test(memberToken.Text);
+					if (xyz || rgb)
+						return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
+
+				case "4":
+					let xyzw = RegexSwizzleXYZW.test(memberToken.Text);
+					let rgba = RegexSwizzleRGBA.test(memberToken.Text);
+					if (xyzw || rgba)
+						return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
+			}
+
+			// Invalid component count or swizzle failed
+			throw new ParseError(memberToken, "Invalid swizzle: " + memberToken.Text); // TODO: Real error message
+		}
+		
+		return null;
 	}
 
 	static async LoadTextFromURL(url, allowIncludes = true)
@@ -6815,7 +6949,7 @@ class HLSL
 			case "dword2": case "dword3": case "dword4":
 			case "half2": case "half3": case "half4":
 			case "float2": case "float3": case "float4":
-			case "dobule2": case "double3": case "double4":
+			case "double2": case "double3": case "double4":
 				return true;
 		}
 
@@ -7875,9 +8009,15 @@ class HLSL
 				// or simply a member (for structs or swizzling).
 				let rightSide = null;
 				if (it.Current().Type == TokenParenLeft)
+				{
 					rightSide = new ExpFunctionName(it.PeekPrev());
+				}
 				else
-					rightSide = new ExpVariable(it.PeekPrev(), null); // TODO: Determine data type!
+				{
+					// Grab the data type for this member
+					let dataType = this.#DataTypeFromMemberExpression(exp, it.PeekPrev());
+					rightSide = new ExpVariable(it.PeekPrev(), dataType); // TODO: Determine data type!
+				}
 
 				exp = new ExpMember(
 					exp, // Left side of "."
@@ -9440,6 +9580,45 @@ class ExpBinary extends Expression
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
+
+		// Validate
+		// - expression type compatibility with operator
+		// - expression type compatibility with each other
+
+		// ==, !=
+		// <, <=, >, >=
+		// <<, >>,
+		// +, -
+		// *, /, %
+
+		// Check operators
+		switch (opToken.Text)
+		{
+			// Math
+			//  - Scalar, per - component vector or per - component matrix
+			//  - Result is equivalent scalar, vector or matrix of larger type
+			//  - NOTE: (int + uint) --> int implicit casts to uint (basically wrapping around from max value)
+			case "+": case "-": case "*": case "/": case "%":
+
+				this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
+				console.log("BINARY OP TYPE: " + this.DataType);
+
+				break;
+
+			// Comparison 
+			//  - Scalar, per-component vector or per-component matrix
+			//  - Result is equivalent bool scalar, vector or matrix
+			case "==": case "!=": case "<": case "<=": case ">": case ">=":
+
+				break;
+
+			// Shift
+			//  - Must be int, uint or bool (implicit cast to int)
+			//  - Result is int or uint
+			case "<<": case ">>":
+				break;
+
+		}
 	}
 
 	ToString(lang)
@@ -9462,6 +9641,10 @@ class ExpBitwise extends Expression
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
+
+		// TODO: Validate that both expressions are int or uint!
+		// See https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-operators#bitwise-operators
+
 	}
 
 	ToString(lang)
@@ -9482,6 +9665,9 @@ class ExpCast extends Expression
 		super();
 		this.TypeToken = typeToken;
 		this.Exp = exp;
+
+		this.DataType = typeToken.Text;
+		console.log("Cast found: " + typeToken.Text);
 	}
 
 	ToString(lang)
@@ -9625,6 +9811,10 @@ class ExpGroup extends Expression
 	{
 		super();
 		this.Exp = exp;
+
+		// Same as the internal expression
+		this.DataType = exp.DataType;
+		console.log("Grouping found: " + exp.DataType);
 	}
 
 	ToString(lang)
@@ -9642,6 +9832,7 @@ class ExpLiteral extends Expression
 		super();
 		this.LiteralToken = litToken;
 		this.DataType = HLSL.DataTypeFromLiteralToken(litToken);
+		console.log("Literal found: " + litToken.Text + "/" + this.DataType);
 	}
 
 	ToString(lang)
@@ -9662,6 +9853,10 @@ class ExpLogical extends Expression
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
+
+		// Always bool
+		this.DataType = "bool";
+		console.log("Logical found (always bool)!");
 	}
 
 	ToString(lang)
@@ -9683,6 +9878,9 @@ class ExpMember extends Expression
 
 		this.ExpLeft = expLeft;
 		this.ExpRight = expRight;
+
+		this.DataType = this.ExpRight.DataType;
+		console.log("Member Data Type: " + this.DataType);
 	}
 
 	RightmostChildIsVariable()
@@ -9732,6 +9930,10 @@ class ExpPostfix extends Expression
 		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
+
+		// Data type matches expression
+		this.DataType = this.ExpLeft.DataType;
+		console.log("Postfix Data Type: " + this.DataType);
 	}
 
 	ToString(lang)
@@ -9789,6 +9991,8 @@ class ExpVariable extends Expression
 		super();
 		this.VarToken = varToken;
 		this.DataType = dataType;
+
+		console.log("Variable Data Type: " + this.VarToken.Text + "/" + this.DataType);
 	}
 
 	ToString(lang)
@@ -9801,6 +10005,9 @@ class ExpVariable extends Expression
 		}
 	}
 }
+
+
+// === CUSTOM ERRORS ===
 
 class ParseError extends Error
 {
@@ -9815,6 +10022,9 @@ class ParseError extends Error
 		this.text = token == null ? "" : token.Text;
 	}
 }
+
+
+// === SCOPE TRACKING ===
 
 class ScopeStack
 {

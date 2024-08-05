@@ -293,6 +293,10 @@ VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 	}
 	while(x < 10);
 
+	bool test = true && false || (x == 1);
+
+	float cast = (float)x;
+
 	return float4(posIn, 1.0f);
 }
 `;
