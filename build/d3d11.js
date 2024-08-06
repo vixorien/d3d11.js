@@ -6115,12 +6115,13 @@ const HLSLReservedWordConversion = {
 	"frac": "fract"
 };
 
+// TODO: Update GetFunctionReturnType() once comparison sampling is in
 const HLSLTextureSampleConversion = {
 	"Sample": "texture",
 	"SampleLevel": "textureLod"
 };
 
-const HLSLImplicitCastOrder = {
+const HLSLImplicitCastRank = {
 	"bool": 0,
 	"int": 1,
 	"uint": 2,
@@ -6128,7 +6129,94 @@ const HLSLImplicitCastOrder = {
 	"half": 4,
 	"float": 5,
 	"double": 6
-}
+};
+
+// See:
+// - HLSL: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-intrinsic-functions
+// - GLSL: https://registry.khronos.org/OpenGL-Refpages/gl4/index.php
+// Return type details
+// - Full passthrough --> same as the input
+// - Components == -1 --> Use the same as the input
+const HLSLIntrinsics = {
+	"abs": { ReturnType: "float", GLSL:"abs" },
+	"acos": { ReturnType: "float", GLSL: "acos" }, // TEMP return type!!
+	"all": { ReturnType: "bool", GLSL: "abs" },
+	"any": { ReturnType: "bool", GLSL: "abs" },
+	// "asdouble": {}, // Skip -> No GLSL equivalent.  Or make our own?
+	"asfloat": { ReturnType: "passthrough", GLSL: "intBitsToFloat" }, // Note: GLSL versions (intBitsToFloat, uintBitsToFloat) are scalar only!  Custom handling?
+	"asin": { ReturnType: "float", GLSL: "asin" }, // TEMP return type!!
+	"asint": { ReturnType: "passthrough", GLSL: "floatBitsToInt"},
+	"asuint": { ReturnType: "passthrough", GLSL: "floatBitsToUint" },
+	"atan": { ReturnType: "float", GLSL: "atan" }, // TEMP return type!!
+	"atan2": { ReturnType: "float", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
+	"ceil": { ReturnType: "float", GLSL: "ceil" }, // TEMP return type!!
+	"clamp": { ReturnType: "float", GLSL: "clamp" }, // TEMP return type!!
+	//"clip": { }, // No equiv.  Could make our own w/ discard?
+	"cos": { ReturnType: "float", GLSL: "cos" },
+	"cosh": { ReturnType: "float", GLSL: "cosh" },
+	"countbits": { ReturnType: "uint", GLSL: "bitCount" },
+	"cross": { ReturnType: "float3", GLSL: "cross" }, // TEMP return type!!
+	"ddx": { ReturnType: "float", GLSL: "dFdx" },// TEMP return type!!
+	"ddx_coarse": { ReturnType: "float", GLSL: "dFdxCoarse" },// TEMP return type!!
+	"ddx_fine": { ReturnType: "float", GLSL: "dFdxFine" },// TEMP return type!!
+	"ddy": { ReturnType: "float", GLSL: "dFdy" },// TEMP return type!!
+	"ddy_coarse": { ReturnType: "float", GLSL: "dFdyCoarse" },// TEMP return type!!
+	"ddy_fine": { ReturnType: "float", GLSL: "dFdyFine" },// TEMP return type!!
+	"degrees": { ReturnType: "float", GLSL: "degrees" },
+	"determinant": { ReturnType: "float", GLSL: "determinant" },
+	"distance": { ReturnType: "float", GLSL: "distance" },
+	"dot": { ReturnType: "float", GLSL: "dot" },
+	//"dst": {}, // Maybe skip?
+	"exp": { ReturnType: "float", GLSL: "exp" },// TEMP return type!!
+	"exp2": { ReturnType: "float", GLSL: "exp2" },// TEMP return type!!
+	//"f16tof32": {}, // Skip?
+	//"f32tof16": {}, // Skip?
+	"faceforward": { ReturnType: "float3", GLSL: "faceforward" },
+	//"firstbithigh": {}, // Skip?
+	//"firstbitlow": {}, // Skip?
+	"floor": { ReturnType: "float", GLSL: "floor" },// TEMP return type!!
+	// "fma": {}, // Skip?  Exists in GLSL but HLSL version is only doubles?
+	// "fmod": {}, // Skip?
+	"frac": { ReturnType: "float", GLSL: "fract" },
+	"fwidth": { ReturnType: "float", GLSL: "fwidth" }, // TEMP return type!!
+	"isfinite": {},
+	"isinf": { ReturnType: "bool", GLSL: "isinf" }, // TEMP return type!!
+	"isnan": { ReturnType: "bool", GLSL: "isnan" }, // TEMP return type!!
+	"ldexp": { ReturnType: "float", GLSL: "ldexp" }, // TEMP return type!!
+	"length": { ReturnType: "float", GLSL: "length" },
+	"lerp": { ReturnType: "float3", GLSL: "mix" },
+	// "lit": {}, // Skip?  // No GLSL equiv
+	"log": { ReturnType: "float", GLSL: "log" }, // TEMP return type!!
+	// "log10": {}, // Skip?  No GLSL equiv
+	"log2": { ReturnType: "float", GLSL: "log2" }, // TEMP return type!!
+	// "mad": {}, // Skip?  No GLSL equiv
+	"max": { ReturnType: "float", GLSL: "max" },  // TEMP return type!!
+	"min": { ReturnType: "float", GLSL: "min" },  // TEMP return type!!
+	"modf": { ReturnType: "float", GLSL: "modf" },  // TEMP return type!!
+	// "msad4": {}, // Skip?  No GLSL equiv
+	"mul": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
+	"normalize": { ReturnType: "float3", GLSL: "normalize" },  // TEMP return type!!
+	"pow": { ReturnType: "float", GLSL: "pow" },  // TEMP return type!!
+	"radians": { ReturnType: "float", GLSL: "radians" },  // TEMP return type!!
+	// "rcp": {}, // Skip?  No GLSL equiv
+	"reflect": { ReturnType: "float3", GLSL: "reflect" },  // TEMP return type!!
+	"refract": { ReturnType: "float3", GLSL: "refract" },  // TEMP return type!!
+	// "reversebits": {}, // Skip?  No GLSL equiv
+	"round": { ReturnType: "float", GLSL: "round" },  // TEMP return type!!
+	// "rsqrt": {}, // Skip?  No GLSL equiv.  Maybe make our own?
+	"saturate": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
+	"sign": { ReturnType: "int", GLSL: "sign" },  // TEMP return type!!
+	"sin": { ReturnType: "float", GLSL: "sin" },  // TEMP return type!!
+	// "sincos": {}, // Skip here - handled another way
+	"sinh": { ReturnType: "float", GLSL: "sinh" },  // TEMP return type!!
+	"smoothstep": { ReturnType: "float", GLSL: "smoothstep" },  // TEMP return type!!
+	"sqrt": { ReturnType: "float", GLSL: "sqrt" },  // TEMP return type!!
+	"step": { ReturnType: "float", GLSL: "step" },  // TEMP return type!!
+	"tan": { ReturnType: "float", GLSL: "tan" },  // TEMP return type!!
+	"tanh": { ReturnType: "float", GLSL: "tanh" },  // TEMP return type!!
+	"transpose": { ReturnType: "matrix", GLSL: "transpose" },  // TEMP return type!!
+	"trunc": { ReturnType: "float", GLSL: "trunc" },  // TEMP return type!!
+};
 
 class TokenIterator
 {
@@ -6339,7 +6427,76 @@ class HLSL
 		// Note: Even though HLSL accepts "L" as a suffix, it 
 		//       doesn't support 64-bit integers (SM 5.0, anyway)
 		return "int";
+	}
 
+	// Determines if the give castee type can be cast to the target type
+	//  casteeType: type that might be cast
+	//  targetType: type we actually need
+	#CanCastTo(casteeTypeName, targetTypeName)
+	{
+		// "void" can't be cast to or from
+		if (casteeTypeName == "void" || targetTypeName == "void")
+			return false;
+
+		// Do they match?  If so, they're fine
+		if (casteeTypeName == targetTypeName)
+			return true;
+
+		// Castee must be a real type (not a struct)
+		if (!HLSLDataTypeConversion.hasOwnProperty(casteeTypeName))
+			return false;
+
+		// If this isn't a built in type, it might be a struct
+		if (!HLSLDataTypeConversion.hasOwnProperty(targetTypeName))
+		{
+			// Custom structs can't be castees, but CAN be targets!
+			for (let s = 0; s < this.#structs.length; s++)
+			{
+				if (s.Name == targetTypeName)
+				{
+					// The target is a struct, so the castee must be a scalar
+					return this.#IsScalarType(casteeTypeName);
+				}
+			}
+
+			// Target is not built in, and not a struct
+			return false;
+		}
+
+		// Both types are built in, grab their details
+		let casteeDetails = HLSLDataTypeConversion[casteeTypeName];
+		let targetDetails = HLSLDataTypeConversion[targetTypeName];
+		let casteeRank = HLSLImplicitCastRank[casteeDetails.RootType];
+		let targetRank = HLSLImplicitCastRank[targetDetails.RootType];
+
+		// Check permutations
+		if (casteeDetails.SVM == "scalar" && targetDetails.SVM == "scalar")
+		{
+
+		}
+
+		// TODO: FINISH
+
+		// TEMPORARY!!!
+		return true;
+	}
+
+	// Does this function match the given name and param list?
+	// Note: This is not a "ShaderElementFunction" member function
+	//       because it needs access to the HLSL's #structs array
+	#MatchFunctionSignature(customFunction, name, params)
+	{
+		// Check name and param length first
+		if (customFunction.Name != name || customFunction.Parameters.length != params.length)
+			return false;
+		
+		// Loop through params and check data type compatibility
+		for (let p = 0; p < customFunction.Parameters.length; p++)
+			if (!this.#CanCastTo(params[p].DataType, customFunction.Parameters[p].DataTypeToken.Text))
+				return false;
+
+		// Everything matches
+		return true;
 	}
 
 	static GetImplicitCastType(typeA, typeB)
@@ -6348,39 +6505,16 @@ class HLSL
 		if (typeA == null || typeB == null)
 			return null;
 
-		// Possibilities:
-
-		// Scalar & Scalar
-		// - Just find the highest rank
-
-		// Scalar & Vector
-		// - Match vector's type?
-
-		// Scalar & Matrix
-		// - Match matrix type?
-
-		// Vector & Vector
-		// - Find highest rank
-		// - Also truncate to smallest vector
-
-		// Vector & Matrix
-		// - Seems invalid from some testing
-
-		// Matrix & Matrix
-		// - Find highest rank
-		// - Also truncate to smallest row & smallest col
-
 		// Grab details
 		let a = HLSLDataTypeConversion[typeA];
 		let b = HLSLDataTypeConversion[typeB];
-		let rankA = HLSLImplicitCastOrder[a.RootType];
-		let rankB = HLSLImplicitCastOrder[b.RootType];
+		let rankA = HLSLImplicitCastRank[a.RootType];
+		let rankB = HLSLImplicitCastRank[b.RootType];
 
 		// Check for s/v/m types
 		if (a.SVM == "scalar" && b.SVM == "scalar") // Scalar & Scalar
 		{
-			// Return the highest rank
-			return rankA >= rankB ? typeA : typeB;
+			return rankA >= rankB ? typeA : typeB; // Return the highest rank
 		}
 		else if (a.SVM == "scalar" && (b.SVM == "vector" || b.SVM == "matrix")) // Scalar & (Vector or Matrix)
 		{
@@ -6447,11 +6581,11 @@ class HLSL
 		if (this.#IsMatrixType(exp.DataType))
 		{
 			// This is a matrix, so validate member
-			if (HLSLMatrixConstructorConversion.hasOwnProperty(memberToken.Text))
+			if (HLSLMatrixElementConversion.hasOwnProperty(memberToken.Text))
 				return "float"; // All matrices are floats in GLSL, so we've got to follow suit
 				// TODO: Maybe keep this as the declared type until actual GLSL conversion?
 			else
-				throw new ParseError(memberToken, "Invalid matrix member"); // TODO: Find the actual error message
+				throw new ParseError(memberToken, "Invalid matrix member: " + memberToken.Text); // TODO: Find the actual error message
 		}
 
 		// Is the left-side expression a scalar?
@@ -6469,7 +6603,7 @@ class HLSL
 				case "rrr": case "xxx": return scalarType + "3";
 				case "rrrr": case "xxxx": return scalarType + "4";
 				default:
-					throw new ParseError(memberToken, "Invalid swizzle"); // TODO: Real error message
+					throw new ParseError(memberToken, "Invalid swizzle: " + memberToken.Text); // TODO: Real error message
 			}
 		}
 
@@ -6964,6 +7098,39 @@ class HLSL
 	#IsReservedWord(text)
 	{
 		return HLSLReservedWordConversion.hasOwnProperty(text);
+	}
+
+	#GetFunctionReturnType(nameToken, params)
+	{
+		console.log("NAME: " + nameToken.Text);
+		// Check different types of functions
+		if (nameToken.Text != "void" && HLSLDataTypeConversion.hasOwnProperty(nameToken.Text)) // Built-in type initializers: float4(), uint(), etc.
+		{
+			return nameToken.Text;
+		}
+		else if (HLSLIntrinsics.hasOwnProperty(nameToken.Text)) // Check for intrinsics
+		{
+			// TODO: Make this MUCH more versatile, checking S/V/M type, component count, etc.
+			return HLSLIntrinsics[nameToken.Text].ReturnType;
+		}
+		else if (HLSLTextureSampleConversion.hasOwnProperty(nameToken.Text))
+		{
+			// This is a texture sample function
+			// TODO: Update this once we support comparison sampling!
+			return "float4";
+		}
+		else // Might be a custom function
+		{
+			for (let f = 0; f < this.#functions.length; f++)
+			{
+				// If this function matches, use its return type
+				if (this.#MatchFunctionSignature(this.#functions[f], nameToken.Text, params))
+					return this.#functions[f].ReturnType;
+			}
+		}
+
+		// Function name not found!
+		throw new ParseError(nameToken, "Invalid function name: " + nameToken.Text); // TODO: Better error message
 	}
 
 	#ParseStruct(it, scope)
@@ -7690,18 +7857,18 @@ class HLSL
 			let assignOp = it.PeekPrev().Text;
 
 			// Was the expression above a variable?
-			let expIsVar = exp instanceof ExpVariable;
+			let expIsVar = exp instanceof ExpVariable || exp instanceof ExpArray;
 
 			// Not a variable, but maybe part of a member access pattern: obj.member
 			if (!expIsVar && exp instanceof ExpMember)
 			{
-				expIsVar = exp.RightmostChildIsVariable();
+				expIsVar = exp.RightmostChildIsVariableOrArray();
 			}
 
 			// Validate variable
 			if (!expIsVar)
 			{
-				throw new ParseError(it.PeekPrev(), "Expected variable for assignment.");
+				throw new ParseError(it.PeekPrev(), "Expected variable or array element for assignment.");
 			}
 
 			// Previous token is a variable, so parse the assignment
@@ -7981,10 +8148,31 @@ class HLSL
 					while (this.#Allow(it, TokenComma));
 				}
 
-				// Now require the right paren and finish function expression
+				// Now require the right paren
 				this.#Require(it, TokenParenRight);
+
+				// Definitely have a function call, so figure out the type based on the name & params
+
+				// Note: exp is either ExpFunctionName or ExpMember (in the case of texture functions)
+				let funcNameExp = exp; // Assume we're a function name expression
+				if (exp instanceof ExpMember) // But if not, we might be a member
+					funcNameExp = exp.GetRightmostChild();
+
+				// Verify final type to get name token
+				let nameToken = null;
+				if (funcNameExp instanceof ExpFunctionName) 
+					nameToken = funcNameExp.NameToken;
+				else
+					throw new ParseError(it.PeekPrev(), "Error parsing function call"); // PROBLEM!
+
+				// on the name (exp should be ExpFunctionName) and params
+				let type = this.#GetFunctionReturnType(nameToken, params);
+				console.log("===== FUNCTION: " + nameToken.Text + " / " + type);
+
+				// Finalize function call
 				exp = new ExpFunctionCall(
 					exp,
+					type,
 					params);
 
 				// If this is a texture sample call, we need to created a combined version for GLSL
@@ -8010,13 +8198,15 @@ class HLSL
 				let rightSide = null;
 				if (it.Current().Type == TokenParenLeft)
 				{
+					// This is a function
+					// Note: the data type won't be known until parameters are parsed, due to overloading
 					rightSide = new ExpFunctionName(it.PeekPrev());
 				}
 				else
 				{
 					// Grab the data type for this member
 					let dataType = this.#DataTypeFromMemberExpression(exp, it.PeekPrev());
-					rightSide = new ExpVariable(it.PeekPrev(), dataType); // TODO: Determine data type!
+					rightSide = new ExpVariable(it.PeekPrev(), dataType);
 				}
 
 				exp = new ExpMember(
@@ -9532,19 +9722,22 @@ class Expression
 
 class ExpArray extends Expression
 {
-	ExpArray;
+	ExpArrayVar;
 	ExpIndex;
 
-	constructor(expArray, expIndex)
+	constructor(expArrayVar, expIndex)
 	{
 		super();
-		this.ExpArray = expArray;
+		this.ExpArrayVar = expArrayVar;
 		this.ExpIndex = expIndex;
+
+		this.DataType = expArrayVar.DataType;
+		console.log("Array data type: " + this.DataType);
 	}
 
 	ToString(lang)
 	{
-		return this.ExpArray.ToString(lang) + "[" + this.ExpIndex.ToString(lang) + "]";
+		return this.ExpArrayVar.ToString(lang) + "[" + this.ExpIndex.ToString(lang) + "]";
 	}
 }
 
@@ -9560,6 +9753,10 @@ class ExpAssignment extends Expression
 		this.VarExp = varExp;
 		this.AssignOperator = assignOp;
 		this.AssignExp = assignExp;
+
+		// Data type matches assigned value (so, the variable itself?)
+		this.DataType = varExp.DataType;
+		console.log("Assignment data type: " + varExp.DataType);
 	}
 
 	ToString(lang)
@@ -9601,7 +9798,7 @@ class ExpBinary extends Expression
 			case "+": case "-": case "*": case "/": case "%":
 
 				this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
-				console.log("BINARY OP TYPE: " + this.DataType);
+				console.log("Binary operator type: " + this.DataType);
 
 				break;
 
@@ -9610,12 +9807,33 @@ class ExpBinary extends Expression
 			//  - Result is equivalent bool scalar, vector or matrix
 			case "==": case "!=": case "<": case "<=": case ">": case ">=":
 
+				let a = HLSLDataTypeConversion[expLeft.DataType];
+				let b = HLSLDataTypeConversion[expRight.DataType];
+
+				// Validate type and dimensions
+				if (a.SVM != b.SVM ||
+					a.Components != b.Components ||
+					a.Rows != b.Rows ||
+					a.Cols != b.Cols)
+					throw new ParseError(opToken, "Invalid operands for comparison operator"); // TODO: Real error message
+
+				if (a.SVM == "scalar") this.DataType = "bool";
+				else if (a.SVM == "vector") this.DataType = "bool" + a.Components.toString();
+				else if (a.SVM == "matrix") this.DataType = "bool" + a.Rows.toString() + "x" + a.Cols.toString();
+				else
+					throw new ParseError(opToken, "Invalid operands for comparison operator");
+
+				console.log("Comparison operator type: " + this.DataType);
 				break;
 
 			// Shift
 			//  - Must be int, uint or bool (implicit cast to int)
 			//  - Result is int or uint
 			case "<<": case ">>":
+				// TODO: Validate types
+
+				this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);;
+				console.log("Shift operator type: " + this.DataType);
 				break;
 
 		}
@@ -9641,6 +9859,10 @@ class ExpBitwise extends Expression
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
+
+		let type = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
+		this.DataType = type;
+		console.log("Bitwise type: " + type);
 
 		// TODO: Validate that both expressions are int or uint!
 		// See https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-operators#bitwise-operators
@@ -9689,7 +9911,7 @@ class ExpFunctionCall extends Expression
 	IsTextureSample;
 	CombinedTextureAndSampler;
 
-	constructor(funcExp, params)
+	constructor(funcExp, dataType, params)
 	{
 		super();
 
@@ -9698,6 +9920,9 @@ class ExpFunctionCall extends Expression
 
 		this.IsTextureSample = false;
 		this.CombinedTextureAndSampler = null;
+
+		this.DataType = dataType;
+		console.log("Function call type: " + dataType);
 	}
 
 	ToString(lang)
@@ -9766,7 +9991,6 @@ class ExpFunctionCall extends Expression
 					s = HLSLMatrixConstructorConversion[text];
 			}
 			
-
 			// Parameter list
 			s += "(";
 			for (let p = 0; p < this.Parameters.length; p++)
@@ -9811,8 +10035,7 @@ class ExpGroup extends Expression
 	{
 		super();
 		this.Exp = exp;
-
-		// Same as the internal expression
+		
 		this.DataType = exp.DataType;
 		console.log("Grouping found: " + exp.DataType);
 	}
@@ -9831,6 +10054,7 @@ class ExpLiteral extends Expression
 	{
 		super();
 		this.LiteralToken = litToken;
+
 		this.DataType = HLSL.DataTypeFromLiteralToken(litToken);
 		console.log("Literal found: " + litToken.Text + "/" + this.DataType);
 	}
@@ -9883,7 +10107,7 @@ class ExpMember extends Expression
 		console.log("Member Data Type: " + this.DataType);
 	}
 
-	RightmostChildIsVariable()
+	GetRightmostChild()
 	{
 		let current = this.ExpRight;
 
@@ -9892,7 +10116,19 @@ class ExpMember extends Expression
 			current = current.ExpRight;
 		}
 
-		return (current instanceof ExpVariable);
+		return current;
+	}
+
+	RightmostChildIsVariableOrArray()
+	{
+		let current = this.ExpRight;
+
+		while (current instanceof ExpMember)
+		{
+			current = current.ExpRight;
+		}
+
+		return (current instanceof ExpVariable) || (current instanceof ExpArray);
 	}
 
 	ToString(lang)
@@ -9954,6 +10190,10 @@ class ExpTernary extends Expression
 		this.ExpCondition = expCondition;
 		this.ExpIf = expIf;
 		this.ExpElse = expElse;
+
+		let type = HLSL.GetImplicitCastType(expIf.DataType, expElse.DataType);
+		this.DataType = type;
+		console.log("Ternary type: " + type);
 	}
 
 	ToString(lang)
@@ -9974,6 +10214,10 @@ class ExpUnary extends Expression
 		super();
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
+
+		// Same as expression
+		this.DataType = expRight.DataType;
+		console.log("Unary data type: " + expRight.DataType);
 	}
 
 	ToString(lang)
@@ -9990,8 +10234,8 @@ class ExpVariable extends Expression
 	{
 		super();
 		this.VarToken = varToken;
-		this.DataType = dataType;
 
+		this.DataType = dataType;
 		console.log("Variable Data Type: " + this.VarToken.Text + "/" + this.DataType);
 	}
 

@@ -295,6 +295,17 @@ VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 
 	bool test = true && false || (x == 1);
 
+	int array[5];
+	array[0] = 0;
+	array[1] = 10;
+	array[2] = 20;
+	array[3] = 30;
+	array[4] = 40;
+
+	float4 vector = float4(1.0, 1.0, 1.0, 1.0);
+	vector = NoParams();
+	vector.x = GetRed(vector);
+
 	float cast = (float)x;
 
 	return float4(posIn, 1.0f);
