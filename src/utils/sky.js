@@ -40,8 +40,9 @@ export class Sky extends EventTarget
 	// Internal D3D stuff
 	#d3dDevice;
 	#d3dContext;
-	#samplerLinear;
-	#samplerPoint;
+	#samplerLinearWrap;
+	#samplerLinearClamp;
+	#samplerPointClamp;
 	#cbVS;		// Constant buffer for sky rendering vertex shader work
 	#cbVSData;	// Data array for vertex shader
 	#cbPS;		// Constant buffer for sky rendering & IBL pixel shader work
@@ -146,16 +147,16 @@ export class Sky extends EventTarget
 		this.BRDFLookUpTableSize = brdfLutSize;
 		this.#brdfLutPS = brdfLutPS;
 
-		this.IrradianceColorFormat = irrColorFormat;
+		this.IrradianceColorFormat = this.#ValidateFloatFormat(irrColorFormat);
 		this.IrradianceCubeSize = irrCubeSize;
 		this.#irrPS = irrPS;
-
-		this.SpecularIBLColorFormat = iblSpecColorFormat;
+		
+		this.SpecularIBLColorFormat = this.#ValidateFloatFormat(iblSpecColorFormat);
 		this.SpecularIBLCubeSize = iblSpecCubeSize;
 		this.SpecularIBLMipsToSkip = iblSpecMipsToSkip;
 		this.SpecularIBLMipsTotal = Math.max(Math.log2(iblSpecCubeSize) + 1 - iblSpecMipsToSkip, 1); // Add 1 for 1x1
 		this.#iblSpecPS = iblSpecPS;
-
+		
 		this.#equirectToCubePS = equirectPS;
 		this.#mipReducePS = mipReducePS;
 		this.#fullscreenVS = fullscreenVS;
@@ -177,19 +178,22 @@ export class Sky extends EventTarget
 			D3D11_TEXTURE_ADDRESS_WRAP,
 			D3D11_TEXTURE_ADDRESS_WRAP,
 			0,
-			16,
+			0,
 			0,
 			0,
 			0,
 			D3D11_FLOAT32_MAX);
-		this.#samplerLinear = this.#d3dDevice.CreateSamplerState(sampDesc);
+		this.#samplerLinearWrap = this.#d3dDevice.CreateSamplerState(sampDesc);
 
-		// Point, too!
-		sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		// Linear with clamp
 		sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
 		sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
 		sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-		this.#samplerPoint = this.#d3dDevice.CreateSamplerState(sampDesc);
+		this.#samplerLinearClamp = this.#d3dDevice.CreateSamplerState(sampDesc);
+
+		// Point-clamp, too!
+		sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
+		this.#samplerPointClamp = this.#d3dDevice.CreateSamplerState(sampDesc);
 
 		// Create a rasterizer state for rendering the inside of our mesh
 		let skyRastDesc = new D3D11_RASTERIZER_DESC(
@@ -246,6 +250,17 @@ export class Sky extends EventTarget
 		this.#ResetIBLDirtyState(false);
 		this.#lutDirty = true; // Look up table only needs to be made once
 		this.#lutTileUpdate = 0;
+	}
+
+	#ValidateFloatFormat(format)
+	{
+		let floatFilter = this.#d3dDevice.CheckFeatureSupport(D3D11_JS_FEATURE_FLOAT_TEXTURE_FILTER_SUPPORT);
+		if (format == DXGI_FORMAT_R32G32B32A32_FLOAT && floatFilter == null)
+		{
+			format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+		}
+
+		return format;
 	}
 
 	#ResetIBLDirtyState(dirty)
@@ -324,7 +339,7 @@ export class Sky extends EventTarget
 		cubeRes.Release();
 
 		// Other setup
-		this.#isHDR = (this.SkyColorFormat == DXGI_FORMAT_R16G16B16A16_FLOAT || this.SkyColorFormat == DXGI_FORMAT_R32G32B32A32_FLOAT);;
+		this.#isHDR = (this.SkyColorFormat == DXGI_FORMAT_R16G16B16A16_FLOAT || this.SkyColorFormat == DXGI_FORMAT_R32G32B32A32_FLOAT);
 		this.#ResetIBLDirtyState(true);
 
 		this.dispatchEvent(this.#eventSkyClean);
@@ -390,13 +405,84 @@ export class Sky extends EventTarget
 		let [oldRTVs, dsv] = this.#d3dContext.OMGetRenderTargets();
 		let oldVP = this.#d3dContext.RSGetViewports()[0];
 
-		// Prepare pipeline
+		// Before actually copying the mips, do we need to first convert to a half-float texture?
+		// - This is necessary on platforms that don't support linear interpolation of 32-bit float textures (looking at you, iOS >.>)
+		let floatFilter = this.#d3dDevice.CheckFeatureSupport(D3D11_JS_FEATURE_FLOAT_TEXTURE_FILTER_SUPPORT);
+		if (format == DXGI_FORMAT_R32G32B32A32_FLOAT && floatFilter == null)
+		{
+			// Update format
+			format = DXGI_FORMAT_R16G16B16A16_FLOAT;
+
+			// Same size, but different format
+			let halfFloatDesc = new D3D11_TEXTURE2D_DESC(
+				width,
+				height,
+				0, // All mips down to 1x1
+				1,
+				format,
+				new DXGI_SAMPLE_DESC(1, 0),
+				D3D11_USAGE_DEFAULT,
+				D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
+				0,
+				D3D11_RESOURCE_MISC_GENERATE_MIPS);
+			let halfFloatTex = this.#d3dDevice.CreateTexture2D(halfFloatDesc);
+			let halfFloatSRV = this.#d3dDevice.CreateShaderResourceView(halfFloatTex, null);
+
+			// Simple texture shader
+			let psCode =
+				`
+				struct VertexToPixel
+				{
+					float4 position		: SV_POSITION;
+					float2 uv           : TEXCOORD;
+				};
+
+				Texture2D pixels : register(t0);
+				SamplerState samp : register(s0);
+
+				float4 main(VertexToPixel input) : SV_TARGET
+				{
+					return pixels.Sample(samp, input.uv);
+				}`;
+			let ps = this.#d3dDevice.CreatePixelShader(psCode);
+
+			// Prepare pipeline
+			this.#d3dContext.PSSetShader(ps);
+			this.#d3dContext.VSSetShader(this.#fullscreenVS);
+
+			this.#d3dContext.PSSetSamplers(0, [this.#samplerPointClamp]);
+			this.#d3dContext.PSSetShaderResources(0, [this.#equirectSRV]);
+
+			let vp = new D3D11_VIEWPORT(0, 0, width, height, 0, 1);
+			this.#d3dContext.RSSetViewports([vp]);
+
+			let rtvDesc = new D3D11_RENDER_TARGET_VIEW_DESC(format, D3D11_RTV_DIMENSION_TEXTURE2D);
+			let rtv = this.#d3dDevice.CreateRenderTargetView(halfFloatTex, rtvDesc);
+			this.#d3dContext.OMSetRenderTargets([rtv], null);
+
+			// Render the 32-bit texture to our 16-bit version
+			this.#d3dContext.Draw(3, 0);
+
+			// Clean up
+			ps.Release();
+			rtv.Release();
+
+			// Save the new texture as our equirect
+			this.#equirectSRV.Release();
+			this.#equirectSRV = halfFloatSRV; // Replace with new SRV
+
+			tex.Release();
+			tex = halfFloatTex; // Replace with new texture
+		}
+
+		// Prepare final pipeline
 		this.#d3dContext.VSSetShader(this.#fullscreenVS);
 		this.#d3dContext.PSSetShader(this.#mipReducePS);
-		this.#d3dContext.PSSetSamplers(0, [this.#samplerPoint]);
+		this.#d3dContext.PSSetSamplers(0, [this.#samplerPointClamp]);
 		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
 		// Just using our existing constant buffer as it should be big enough
 
+		// Now finish the rest of the mips
 		for (let mip = 1; mip < totalMips; mip++)
 		{
 			// Calc source mip size (So mip 0's width is 100%, mip 1's width is 50%, etc.)
@@ -439,7 +525,7 @@ export class Sky extends EventTarget
 		this.#CopyEquirectToCube();
 
 		// All done
-		tex.Release(); // Just need the SRV
+		tex.Release(); // Just need the SRV from here on out
 		this.#ResetIBLDirtyState(true);
 
 		this.dispatchEvent(this.#eventSkyClean);
@@ -620,6 +706,7 @@ export class Sky extends EventTarget
 
 		// Set up texture
 		this.#d3dContext.PSSetShaderResources(0, [this.SkyCubeSRV]);
+		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinearClamp]);
 
 		// Draw cube
 		this.#d3dContext.IASetVertexBuffers(0, [this.#skyMesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
@@ -871,7 +958,7 @@ export class Sky extends EventTarget
 		this.#d3dContext.PSSetShader(this.#irrPS);
 		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
 		this.#d3dContext.PSSetShaderResources(0, [this.SkyCubeSRV]);
-		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinear]);
+		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinearWrap]);
 		for (let face = startFace; face < endFace; face++)
 		{
 			// RTV for this face
@@ -1017,7 +1104,7 @@ export class Sky extends EventTarget
 		this.#d3dContext.PSSetShader(this.#iblSpecPS);
 		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
 		this.#d3dContext.PSSetShaderResources(0, [this.SkyCubeSRV]);
-		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinear]);
+		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinearWrap]);
 
 		// Process each mip
 		for (let mip = startMip; mip < endMip; mip++)
@@ -1190,7 +1277,7 @@ export class Sky extends EventTarget
 		this.#d3dContext.PSSetShader(this.#equirectToCubePS);
 		this.#d3dContext.PSSetConstantBuffers(0, [this.#cbPS]);
 		this.#d3dContext.PSSetShaderResources(0, [this.#equirectSRV]);
-		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinear]);
+		this.#d3dContext.PSSetSamplers(0, [this.#samplerLinearWrap]);
 		for (let mip = 0; mip < mipsToCopy; mip++)
 		{
 			for (let face = 0; face < 6; face++)

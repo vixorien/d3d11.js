@@ -69,6 +69,7 @@ const D3D11_JS_FEATURE_ANISOTROPIC_FILTER_SUPPORT = 0;
 const D3D11_JS_FEATURE_FLOAT_TEXTURE_SUPPORT = 1;
 const D3D11_JS_FEATURE_FLOAT_TEXTURE_FILTER_SUPPORT = 2;
 const D3D11_JS_FEATURE_COMPRESSED_TEXTURE_S3TC_SUPPORT = 3;
+const D3D11_JS_FEATURE_COLOR_BUFFER_HALF_FLOAT_SUPPORT = 4;
 
 
 // Determines the fill mode to use when rendering triangles
@@ -1551,6 +1552,7 @@ class ID3D11Device extends IUnknown
 	#floatTextureExt;
 	#floatTextureFilterExt;
 	#compressedTextureExt;
+	#colorBufferHalfFloatExt;
 	#readbackFramebuffer;
 	#backBufferFramebuffer;
 
@@ -1583,6 +1585,9 @@ class ID3D11Device extends IUnknown
 
 		// Attempt to load basic DXT texture compression extension
 		this.#compressedTextureExt = this.#gl.getExtension("WEBGL_compressed_texture_s3tc");
+
+		// Attempt to load the color buffer half float extension (iOS doesn't like 32-bit float formats)
+		this.#colorBufferHalfFloatExt = this.#gl.getExtension("EXT_color_buffer_half_float");
 
 		// Flip textures when unpacking
 		// NOTE: Does not effect ImageBitmap objects, which need to be flipped
@@ -1630,6 +1635,7 @@ class ID3D11Device extends IUnknown
 			case D3D11_JS_FEATURE_FLOAT_TEXTURE_SUPPORT: return this.#floatTextureExt;
 			case D3D11_JS_FEATURE_FLOAT_TEXTURE_FILTER_SUPPORT: return this.#floatTextureFilterExt;
 			case D3D11_JS_FEATURE_COMPRESSED_TEXTURE_S3TC_SUPPORT: return this.#compressedTextureExt;
+			case D3D11_JS_FEATURE_COLOR_BUFFER_HALF_FLOAT_SUPPORT: return this.#colorBufferHalfFloatExt;
 			default: return null;
 		}
 	}
@@ -6049,19 +6055,19 @@ const HLSLDataTypeConversion = {
 	"double3": { "RootType": "double", "SVM": "vector", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" },
 	"double4": { "RootType": "double", "SVM": "vector", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" },
 
-	"float2x2": { "RootType": "float", "SVM": "matrix", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2x2" },
+	"float2x2": { "RootType": "float", "SVM": "matrix", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2" },
 	"float2x3": { "RootType": "float", "SVM": "matrix", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat2x3" },
 	"float2x4": { "RootType": "float", "SVM": "matrix", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat2x4" },
 
 	"float3x2": { "RootType": "float", "SVM": "matrix", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat3x2" },
-	"float3x3": { "RootType": "float", "SVM": "matrix", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3x3" },
+	"float3x3": { "RootType": "float", "SVM": "matrix", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3" },
 	"float3x4": { "RootType": "float", "SVM": "matrix", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat3x4" },
 
 	"float4x2": { "RootType": "float", "SVM": "matrix", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat4x2" },
 	"float4x3": { "RootType": "float", "SVM": "matrix", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat4x3" },
-	"float4x4": { "RootType": "float", "SVM": "matrix", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4x4" },
+	"float4x4": { "RootType": "float", "SVM": "matrix", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" },
 
-	"matrix": { "RootType": "float", "SVM": "matrix", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4x4" }
+	"matrix": { "RootType": "float", "SVM": "matrix", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" }
 };
 
 const HLSLMatrixElementConversion = {
@@ -7102,7 +7108,7 @@ class HLSL
 
 	#GetFunctionReturnType(nameToken, params)
 	{
-		console.log("NAME: " + nameToken.Text);
+		//console.log("NAME: " + nameToken.Text);
 		// Check different types of functions
 		if (nameToken.Text != "void" && HLSLDataTypeConversion.hasOwnProperty(nameToken.Text)) // Built-in type initializers: float4(), uint(), etc.
 		{
@@ -8167,7 +8173,7 @@ class HLSL
 
 				// on the name (exp should be ExpFunctionName) and params
 				let type = this.#GetFunctionReturnType(nameToken, params);
-				console.log("===== FUNCTION: " + nameToken.Text + " / " + type);
+				//console.log("===== FUNCTION: " + nameToken.Text + " / " + type);
 
 				// Finalize function call
 				exp = new ExpFunctionCall(
@@ -9732,7 +9738,7 @@ class ExpArray extends Expression
 		this.ExpIndex = expIndex;
 
 		this.DataType = expArrayVar.DataType;
-		console.log("Array data type: " + this.DataType);
+		//console.log("Array data type: " + this.DataType);
 	}
 
 	ToString(lang)
@@ -9756,7 +9762,7 @@ class ExpAssignment extends Expression
 
 		// Data type matches assigned value (so, the variable itself?)
 		this.DataType = varExp.DataType;
-		console.log("Assignment data type: " + varExp.DataType);
+		//console.log("Assignment data type: " + varExp.DataType);
 	}
 
 	ToString(lang)
@@ -9798,7 +9804,7 @@ class ExpBinary extends Expression
 			case "+": case "-": case "*": case "/": case "%":
 
 				this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
-				console.log("Binary operator type: " + this.DataType);
+				//console.log("Binary operator type: " + this.DataType);
 
 				break;
 
@@ -9823,7 +9829,7 @@ class ExpBinary extends Expression
 				else
 					throw new ParseError(opToken, "Invalid operands for comparison operator");
 
-				console.log("Comparison operator type: " + this.DataType);
+				//console.log("Comparison operator type: " + this.DataType);
 				break;
 
 			// Shift
@@ -9833,7 +9839,7 @@ class ExpBinary extends Expression
 				// TODO: Validate types
 
 				this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);;
-				console.log("Shift operator type: " + this.DataType);
+				//console.log("Shift operator type: " + this.DataType);
 				break;
 
 		}
@@ -9862,7 +9868,7 @@ class ExpBitwise extends Expression
 
 		let type = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
 		this.DataType = type;
-		console.log("Bitwise type: " + type);
+		//console.log("Bitwise type: " + type);
 
 		// TODO: Validate that both expressions are int or uint!
 		// See https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-operators#bitwise-operators
@@ -9889,7 +9895,7 @@ class ExpCast extends Expression
 		this.Exp = exp;
 
 		this.DataType = typeToken.Text;
-		console.log("Cast found: " + typeToken.Text);
+		//console.log("Cast found: " + typeToken.Text);
 	}
 
 	ToString(lang)
@@ -9922,7 +9928,7 @@ class ExpFunctionCall extends Expression
 		this.CombinedTextureAndSampler = null;
 
 		this.DataType = dataType;
-		console.log("Function call type: " + dataType);
+		//console.log("Function call type: " + dataType);
 	}
 
 	ToString(lang)
@@ -9984,9 +9990,9 @@ class ExpFunctionCall extends Expression
 			// If we're in GLSL, see if the function expression is a simple matrix constructor
 			// Note, this needs to happen manually (BEFORE) an overall data type translation!
 			if (lang == ShaderLanguageGLSL &&
-				this.FuncExp instanceof ExpVariable)
+				this.FuncExp instanceof ExpFunctionName)
 			{
-				let text = this.FuncExp.VarToken.Text;
+				let text = this.FuncExp.NameToken.Text;
 				if(HLSLMatrixConstructorConversion.hasOwnProperty(text))
 					s = HLSLMatrixConstructorConversion[text];
 			}
@@ -10037,7 +10043,7 @@ class ExpGroup extends Expression
 		this.Exp = exp;
 		
 		this.DataType = exp.DataType;
-		console.log("Grouping found: " + exp.DataType);
+		//console.log("Grouping found: " + exp.DataType);
 	}
 
 	ToString(lang)
@@ -10056,7 +10062,7 @@ class ExpLiteral extends Expression
 		this.LiteralToken = litToken;
 
 		this.DataType = HLSL.DataTypeFromLiteralToken(litToken);
-		console.log("Literal found: " + litToken.Text + "/" + this.DataType);
+		//console.log("Literal found: " + litToken.Text + "/" + this.DataType);
 	}
 
 	ToString(lang)
@@ -10080,7 +10086,7 @@ class ExpLogical extends Expression
 
 		// Always bool
 		this.DataType = "bool";
-		console.log("Logical found (always bool)!");
+		//console.log("Logical found (always bool)!");
 	}
 
 	ToString(lang)
@@ -10104,7 +10110,7 @@ class ExpMember extends Expression
 		this.ExpRight = expRight;
 
 		this.DataType = this.ExpRight.DataType;
-		console.log("Member Data Type: " + this.DataType);
+		//console.log("Member Data Type: " + this.DataType);
 	}
 
 	GetRightmostChild()
@@ -10169,7 +10175,7 @@ class ExpPostfix extends Expression
 
 		// Data type matches expression
 		this.DataType = this.ExpLeft.DataType;
-		console.log("Postfix Data Type: " + this.DataType);
+		//console.log("Postfix Data Type: " + this.DataType);
 	}
 
 	ToString(lang)
@@ -10193,7 +10199,7 @@ class ExpTernary extends Expression
 
 		let type = HLSL.GetImplicitCastType(expIf.DataType, expElse.DataType);
 		this.DataType = type;
-		console.log("Ternary type: " + type);
+		//console.log("Ternary type: " + type);
 	}
 
 	ToString(lang)
@@ -10217,7 +10223,7 @@ class ExpUnary extends Expression
 
 		// Same as expression
 		this.DataType = expRight.DataType;
-		console.log("Unary data type: " + expRight.DataType);
+		//console.log("Unary data type: " + expRight.DataType);
 	}
 
 	ToString(lang)
@@ -10236,7 +10242,7 @@ class ExpVariable extends Expression
 		this.VarToken = varToken;
 
 		this.DataType = dataType;
-		console.log("Variable Data Type: " + this.VarToken.Text + "/" + this.DataType);
+		//console.log("Variable Data Type: " + this.VarToken.Text + "/" + this.DataType);
 	}
 
 	ToString(lang)
