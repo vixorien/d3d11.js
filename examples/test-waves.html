@@ -1,0 +1,184 @@
+﻿<!DOCTYPE html>
+<html>
+<head>
+	<script src="/build/d3d11.js"></script>
+</head>
+<body>
+	
+			<canvas id="viewport" width="1000" height="400"></canvas>
+	
+	
+	<script>
+		// Call the all-in-one API initialization
+		const swapChainDesc = new DXGI_SWAP_CHAIN_DESC(1000, 600, DXGI_FORMAT_R8G8B8A8_UNORM);
+		let [device, context, swapChain] =
+			D3D11CreateDeviceAndSwapChain(document.getElementById("viewport"), 0, swapChainDesc);
+
+		let backBufferRef = swapChain.GetBuffer(); // Also adds 1 to the buffer's reference count
+		let backBufferRTV = device.CreateRenderTargetView(backBufferRef, null);
+		backBufferRef.Release(); // Releases 1 reference to the buffer
+
+		context.OMSetRenderTargets([backBufferRTV], null);
+
+		// Constant buffer for pixel shader
+		let cbDesc = new D3D11_BUFFER_DESC(
+			16, // Must be multiple of 16
+			D3D11_USAGE_DYNAMIC,
+			D3D11_BIND_CONSTANT_BUFFER,
+			D3D11_CPU_ACCESS_WRITE,
+			0, 0);
+		let psCB = device.CreateBuffer(cbDesc, null);
+		context.PSSetConstantBuffers(0, [psCB]);
+
+		let cbData = new Float32Array(4);
+
+		// HLSL vertex shader string
+		let vertexShaderString = `
+struct VertexToPixel
+{
+	float4 position		: SV_POSITION;
+	float2 uv           : TEXCOORD;
+};
+
+// The entry point for our vertex shader
+VertexToPixel main(uint id : SV_VertexID)
+{
+	// Set up output
+	VertexToPixel output;
+
+	// Calculate the UV (0,0) to (2,2) via the ID
+	output.uv = float2(
+		(id << 1) & 2u,  // id % 2 * 2
+		id & 2u);
+
+	// Adjust the position based on the UV
+	output.position = float4(output.uv, 0.0, 1.0);
+	output.position.x = output.position.x * 2.0 - 1.0;
+	output.position.y = output.position.y * -2.0 + 1.0;
+
+	return output;
+}`;
+
+		// HLSL pixel shader string
+		let pixelShaderString = `
+					cbuffer Data : register(b0) 
+					{ 
+						float totalTime; 
+					}
+
+					float4 main(float2 uv : TEXCOORD) : SV_TARGET
+					{
+						// Start with a black canvas
+						float4 returnColor = float4(1,1,1,1);
+
+						// Change the V tex coord to the -1 to 1 space, then scale
+						float heightScale = 10.0f;
+						float v = (uv.y * -2.0f + 1.0f) * heightScale;
+
+						// Value for sin waves
+						const int NUM_WAVES = 3;
+						float speed[NUM_WAVES];
+						speed[0] = 3.0f;
+						speed[1] = 2.0f;
+						speed[2] = 2.0f;
+
+						float freq[NUM_WAVES];
+						freq[0] = 3.0f;
+						freq[1] = 2.0f;
+						freq[2] = 1.0f;
+
+						float amp[NUM_WAVES];
+						amp[0] = 2.0f;
+						amp[1] = 0.75f;
+						amp[2] = 3.0f;
+
+						float glow[NUM_WAVES];
+						glow[0] = 5.0f;
+						glow[1] = 0.5f;
+						glow[2] = 2.0f;
+
+						float intensities[NUM_WAVES];
+						intensities[0] = 5.0f;
+						intensities[1] = 10.0f;
+						intensities[2] = 10.0f;
+
+						float3 colors[NUM_WAVES];
+						colors[0] = float3(1.0f, 0.1f, 0.1f);
+						colors[1] = float3(0.1f, 1.0f, 0.1f);
+						colors[2] = float3(0.0f, 0.1f, 1.0f);
+
+						float3 total = float3(0,0,0);
+						float alpha = 1.0f;
+						for (int i = 0; i < NUM_WAVES; i++)
+						{
+							// Calculate a sin wave based on the U tex coord, frequency, time and amplitude
+							float f = freq[i] * 3.14159f * 2.0f;
+							float s = sin(uv.x * f + totalTime * speed[i] /*+ sin(totalTime)*/) * amp[i] * sin(uv.x * 3.14159f);
+
+							// How far from the sin wave are we?
+							float dist = 1.0f - saturate(pow(abs(v - s), glow[i]));
+							total += (colors[i] * dist * intensities[i]) * alpha;
+							alpha -= saturate(dist * dist * intensities[i]);
+						}
+
+						float3 combine = lerp(total, float3(1,1,1), alpha);
+						return float4(combine, 1);
+					}
+				`;
+
+		// Create the actual shader API objects
+		let vertexShader = device.CreateVertexShader(vertexShaderString);
+		let pixelShader = device.CreatePixelShader(pixelShaderString);
+
+		// Set (bind) these as the active shaders
+		context.VSSetShader(vertexShader);
+		context.PSSetShader(pixelShader);
+
+		// Set the API to draw triangles
+		context.IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+
+		function draw(deltaTime, totalTime)
+		{
+			// Clear the back buffer to a specified color
+			let cornflowerBlue = [0.39, 0.58, 0.93, 1];
+			context.ClearRenderTargetView(backBufferRTV, cornflowerBlue);
+
+			// Update constant buffer
+			cbData.set([totalTime]);
+			context.UpdateSubresource(psCB, 0, null, cbData, 0, 0);
+
+			// Perform a draw
+			context.Draw(3, 0);
+
+			// Present the frame to the user
+			swapChain.Present();
+		}
+
+		let startTime = -1;
+		let prevTime = 0;
+		function frameloop(time)
+		{
+			// First frame check
+			if (startTime == -1)
+			{
+				startTime = time;
+				prevTime = time;
+			}
+
+			let totalTime = (time - startTime) / 1000;
+			let deltaTime = (time - prevTime) / 1000;
+
+			//update(deltaTime, totalTime);
+			draw(deltaTime, totalTime);
+
+			// End of frame work
+			window.requestAnimationFrame(frameloop);
+			prevTime = time;
+		}
+
+		window.requestAnimationFrame(frameloop);
+
+	</script>
+</body>
+</html>
+

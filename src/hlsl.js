@@ -754,7 +754,7 @@ class HLSL
 		this.#hlsl = hlslCode.repeat(1); // Copy
 		this.#shaderType = shaderType;
 
-		// Tokenize & parse
+		// Process the code
 		this.#Tokenize();
 		this.#Parse();
 	}
@@ -2585,7 +2585,7 @@ class HLSL
 		glsl += "mat3 float3x3_tr(mat3 m) { return mat3(m); }\n";
 		glsl += "mat3 float3x3_tr(mat4 m) { return mat3(m); }\n";
 
-		// Simple casting 3x3
+		// Simple casting 4x4
 		glsl += "mat4 float4x4_tr(mat2 m) { return mat4(m); }\n";
 		glsl += "mat4 float4x4_tr(mat3 m) { return mat4(m); }\n";
 		glsl += "mat4 float4x4_tr(mat4 m) { return mat4(m); }\n";
@@ -3159,7 +3159,6 @@ class HLSL
 
 class ShaderElement { }
 
-// TODO: What is the type for "variables" here?  Standard statements?
 class ShaderElementCBuffer extends ShaderElement
 {
 	Name;
@@ -3315,102 +3314,6 @@ class ShaderElementCombinedTextureAndSampler extends ShaderElement
 	}
 }
 
-// Function param modifiers
-//  - in
-//  - inout
-//  - out
-//  - uniform
-//
-// Semantics: (float4 x : SV_POSITION)
-//
-// Initializers: (int x = 5)
-//
-// Interpolation modifiers: Func(float4 x : linear) OR struct Z { linear float2 x; }
-//  - linear
-//  - centroid
-//  - nointerpolation (only option for int/uint)
-//  - noperspective
-//  - sample
-//class ShaderElementMemberVar
-//{
-//	DataType;
-//	Name;
-
-//	InputModifier;
-//	InterpModifiers;
-//	ArrayExpression;
-//	Semantic;
-//	InitializerExp;
-
-//	constructor(
-//		dataType,
-//		name,
-//		inputMod = null,
-//		interpMods = [],
-//		arrayExp = null,
-//		semantic = null,
-//		initExp = null,
-//		)
-//	{
-//		this.DataType = dataType;
-//		this.Name = name;
-//		this.InputModifier = inputMod;
-//		this.InterpModifiers = interpMods;
-//		this.ArrayExpression = arrayExp;
-//		this.Semantic = semantic;
-//		this.InitializerExp = initExp;
-//	}
-
-//	ToString(lang, indent = "")
-//	{
-//		let s = indent;
-
-//		switch (lang)
-//		{
-//			default:
-//			case ShaderLanguageHLSL:
-
-//				for (let i = 0; i < this.InterpModifiers.length; i++)
-//					s += this.InterpModifiers[i] + " ";
-
-//				if (this.InputModifier != null)
-//					s += this.InputModifier + " ";
-
-//				s += this.DataType + " ";
-//				s += this.Name;
-
-//				if (this.ArrayExpression != null)
-//					s += " [" + this.ArrayExpression.ToString(lang) + "]";
-
-//				if (this.Semantic != null)
-//					s += " : " + this.Semantic;
-
-//				if (this.InitializerExp != null)
-//					s += " " + this.InitializerExp.ToString(lang);
-
-//				break;
-
-//			case ShaderLanguageGLSL: // No semantics (or interpolation modifiers?) 
-
-//				if (this.InputModifier != null)
-//					s += this.InputModifier + " ";
-
-//				s += HLSL.TranslateToGLSL(this.DataType) + " ";
-//				s += HLSL.TranslateToGLSL(this.Name);
-
-//				if (this.ArrayExpression != null)
-//					s += " [" + this.ArrayExpression.ToString(lang) + "]";
-
-//				if (this.InitializerExp != null)
-//					s += " " + this.InitializerExp.ToString(lang);
-				
-//				break;
-//		}
-
-//		return s;
-
-//	}
-//}
 
 
 class Statement { }
