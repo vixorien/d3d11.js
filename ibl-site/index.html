@@ -1076,7 +1076,7 @@
 		let inputLayout = d3dDevice.CreateInputLayout(inputElements);
 		d3dContext.IASetInputLayout(inputLayout);
 
-		// Create a sampler
+		// Create an aniso sampler
 		let sampDesc = new D3D11_SAMPLER_DESC(
 			D3D11_FILTER_ANISOTROPIC,
 			D3D11_TEXTURE_ADDRESS_WRAP,
@@ -1088,15 +1088,15 @@
 			0,
 			0,
 			D3D11_FLOAT32_MAX);
-		let sampler = d3dDevice.CreateSamplerState(sampDesc);
+		let anisoSampler = d3dDevice.CreateSamplerState(sampDesc);
 
-		// Make a clamp sampler, too
+		// Make a clamp anisoSampler, too
 		sampDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
 		sampDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
 		sampDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
 		let clampSampler = d3dDevice.CreateSamplerState(sampDesc);
 
-		// And a pointer sampler
+		// And a pointer anisoSampler
 		sampDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_POINT;
 		let pointSampler = d3dDevice.CreateSamplerState(sampDesc);
 
@@ -1156,20 +1156,18 @@
 		showLoading("Loading Materials");
 
 		// Set up texture sets
-		
-
 		let matCustom = new Material(vs, ps, new Vector3(1, 1, 1));
 		matCustom.SetPSTextureSRV(0, whiteSRV);
 		matCustom.SetPSTextureSRV(1, flatNormalsSRV);
 		matCustom.SetPSTextureSRV(2, whiteSRV);
-		matCustom.SetPSSamplerState(0, sampler);
+		matCustom.SetPSSamplerState(0, anisoSampler);
 		matCustom.SetPSSamplerState(1, clampSampler);
 
 		let matTextured = new Material(vs, ps, new Vector3(1, 1, 1));
 		matTextured.SetPSTextureSRV(0, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, textureSets[currentTextureSet][0]));
 		matTextured.SetPSTextureSRV(1, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, textureSets[currentTextureSet][1]));
 		matTextured.SetPSTextureSRV(2, await TextureUtils.LoadTexture2D(d3dDevice, d3dContext, textureSets[currentTextureSet][2]));
-		matTextured.SetPSSamplerState(0, sampler);
+		matTextured.SetPSSamplerState(0, anisoSampler);
 		matTextured.SetPSSamplerState(1, clampSampler);
 
 		// Save the two materials
@@ -1220,7 +1218,7 @@
 				m.SetPSTextureSRV(0, roughRowTextures[row][0]); // Albedo
 				m.SetPSTextureSRV(1, roughRowTextures[row][1]); // Normals
 				m.SetPSTextureSRV(2, roughRowTextures[row][2][col]); // ARM array
-				m.SetPSSamplerState(0, sampler);
+				m.SetPSSamplerState(0, anisoSampler);
 				m.SetPSSamplerState(1, clampSampler);
 
 				let e = new Entity(sphereMesh, m);
@@ -1253,7 +1251,7 @@
 				m.SetPSTextureSRV(0, rgbRowTextures[row][0]); // Albedo
 				m.SetPSTextureSRV(1, rgbRowTextures[row][1]); // Normals
 				m.SetPSTextureSRV(2, rgbRowTextures[row][2][col]); // ARM
-				m.SetPSSamplerState(0, sampler);
+				m.SetPSSamplerState(0, anisoSampler);
 				m.SetPSSamplerState(1, clampSampler);
 
 				let e = new Entity(sphereMesh, m);
@@ -1410,12 +1408,14 @@
 		let quadData = new Float32Array(8);
 
 		// Post process resources
+		let floatFiltering = d3dDevice.CheckFeatureSupport(D3D11_JS_FEATURE_FLOAT_TEXTURE_FILTER_SUPPORT);
+		let ppFormat = floatFiltering == null ? DXGI_FORMAT_R16G16B16A16_FLOAT : DXGI_FORMAT_R32G32B32A32_FLOAT;
 		let ppTexDesc = new D3D11_TEXTURE2D_DESC(
 			viewportElement.width,
 			viewportElement.height,
 			1,
 			1,
-			DXGI_FORMAT_R32G32B32A32_FLOAT,
+			ppFormat,
 			new DXGI_SAMPLE_DESC(1, 0),
 			D3D11_USAGE_DEFAULT,
 			D3D11_BIND_RENDER_TARGET | D3D11_BIND_SHADER_RESOURCE,
@@ -1665,6 +1665,7 @@
 			d3dContext.PSSetShaderResources(4, [
 				sky.BRDFLookUpTableSRV, sky.IrradianceCubeSRV, sky.SpecularIBLCubeSRV
 			]);
+			d3dContext.PSSetSamplers(0, [anisoSampler, clampSampler]);
 
 			// Draw
 			d3dContext.IASetVertexBuffers(0, [e.Mesh.VertexBuffer], [Vertex.GetStrideInBytes()], [0]);
@@ -1756,6 +1757,7 @@
 				d3dContext.VSSetShader(fullscreenVS);
 				d3dContext.PSSetShader(tonemapPS);
 				d3dContext.PSSetShaderResources(0, [ppSRV]);
+				d3dContext.PSSetSamplers(0, [pointSampler]);
 				d3dContext.PSSetConstantBuffers(0, [ppCB]);
 				ppData.set([
 					tonemapType,

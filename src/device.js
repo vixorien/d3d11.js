@@ -11,6 +11,7 @@ class ID3D11Device extends IUnknown
 	#floatTextureExt;
 	#floatTextureFilterExt;
 	#compressedTextureExt;
+	#colorBufferHalfFloatExt;
 	#readbackFramebuffer;
 	#backBufferFramebuffer;
 
@@ -43,6 +44,9 @@ class ID3D11Device extends IUnknown
 
 		// Attempt to load basic DXT texture compression extension
 		this.#compressedTextureExt = this.#gl.getExtension("WEBGL_compressed_texture_s3tc");
+
+		// Attempt to load the color buffer half float extension (iOS doesn't like 32-bit float formats)
+		this.#colorBufferHalfFloatExt = this.#gl.getExtension("EXT_color_buffer_half_float");
 
 		// Flip textures when unpacking
 		// NOTE: Does not effect ImageBitmap objects, which need to be flipped
@@ -90,6 +94,7 @@ class ID3D11Device extends IUnknown
 			case D3D11_JS_FEATURE_FLOAT_TEXTURE_SUPPORT: return this.#floatTextureExt;
 			case D3D11_JS_FEATURE_FLOAT_TEXTURE_FILTER_SUPPORT: return this.#floatTextureFilterExt;
 			case D3D11_JS_FEATURE_COMPRESSED_TEXTURE_S3TC_SUPPORT: return this.#compressedTextureExt;
+			case D3D11_JS_FEATURE_COLOR_BUFFER_HALF_FLOAT_SUPPORT: return this.#colorBufferHalfFloatExt;
 			default: return null;
 		}
 	}

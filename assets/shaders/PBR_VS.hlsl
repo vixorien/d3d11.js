@@ -34,8 +34,8 @@ VertexToPixel main(VSInput input)
 	output.position = mul(wvp, float4(input.position, 1));
 
 	output.worldPos = mul(world, float4(input.position, 1)).xyz;
-	output.normal = mul(float3x3(world), input.normal);
-	output.tangent = mul(float3x3(world), input.tangent);
+	output.normal = mul((float3x3)world, input.normal);
+	output.tangent = mul((float3x3) world, input.tangent);
 	output.uv = input.uv;
 	return output;
 }

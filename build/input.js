@@ -44,10 +44,10 @@ export class Input
 		element.addEventListener("keyup", this.#boundKeyUpHandler = this.#KeyUpHandler.bind(this));
 
 		element.addEventListener("dblclick", this.#boundDoubleClickHandler = this.#DoubleClickHandler.bind(this));
-		element.addEventListener("mousedown", this.#boundMouseDownHandler = this.#MouseDownHandler.bind(this));
-		element.addEventListener("mouseup", this.#boundMouseUpHandler = this.#MouseUpHandler.bind(this));
-		element.addEventListener("mousemove", this.#boundMouseMoveHandler = this.#MouseMoveHandler.bind(this));
-		element.addEventListener("mouseout", this.#boundMouseOutHandler = this.#MouseOutHandler.bind(this));
+		element.addEventListener("pointerdown", this.#boundMouseDownHandler = this.#MouseDownHandler.bind(this));
+		element.addEventListener("pointerup", this.#boundMouseUpHandler = this.#MouseUpHandler.bind(this));
+		element.addEventListener("pointermove", this.#boundMouseMoveHandler = this.#MouseMoveHandler.bind(this));
+		element.addEventListener("pointerout", this.#boundMouseOutHandler = this.#MouseOutHandler.bind(this));
 		element.addEventListener("wheel", this.#boundMouseWheelHandler = this.#MouseWheelHandler.bind(this));
 	}
 
