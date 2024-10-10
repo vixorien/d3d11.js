@@ -757,6 +757,7 @@ class HLSL
 		// Process the code
 		this.#Tokenize();
 		this.#Parse();
+		this.#Validate();
 	}
 
 	GetCBuffers()
@@ -934,6 +935,11 @@ class HLSL
 		this.#ResolveImplicitRegisters(this.#cbuffers, 999);
 		this.#ResolveImplicitRegisters(this.#samplers, 999);
 		this.#ResolveImplicitRegisters(this.#textures, 999);
+	}
+
+	#Validate()
+	{
+		// 
 	}
 
 	#Allow(it, ...tokenTypes)
@@ -4200,6 +4206,20 @@ class ExpVariable extends Expression
 // === CUSTOM ERRORS ===
 
 class ParseError extends Error
+{
+	line;
+	text;
+
+	constructor(token, ...params)
+	{
+		super(...params);
+
+		this.line = token == null ? -1 : token.Line;
+		this.text = token == null ? "" : token.Text;
+	}
+}
+
+class ValidationError extends Error
 {
 	line;
 	text;
