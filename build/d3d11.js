@@ -6717,9 +6717,10 @@ class HLSL
 		this.#hlsl = hlslCode.repeat(1); // Copy
 		this.#shaderType = shaderType;
 
-		// Tokenize & parse
+		// Process the code
 		this.#Tokenize();
 		this.#Parse();
+		this.#Validate();
 	}
 
 	GetCBuffers()
@@ -6897,6 +6898,23 @@ class HLSL
 		this.#ResolveImplicitRegisters(this.#cbuffers, 999);
 		this.#ResolveImplicitRegisters(this.#samplers, 999);
 		this.#ResolveImplicitRegisters(this.#textures, 999);
+	}
+
+	#Validate()
+	{
+		// Scope stack?
+		let scope = new ScopeStack();
+
+		// Validate each statement in each function
+		for (let f = 0; f < this.#functions.length; f++)
+		{
+			let func = this.#functions[f];
+			for (let s = 0; s < func.Statements.length; s++)
+			{
+				// Call validate on each statement, letting it handle the scope stack?
+				func.Statements[s].Validate(scope);
+			}
+		}
 	}
 
 	#Allow(it, ...tokenTypes)
@@ -8548,7 +8566,7 @@ class HLSL
 		glsl += "mat3 float3x3_tr(mat3 m) { return mat3(m); }\n";
 		glsl += "mat3 float3x3_tr(mat4 m) { return mat3(m); }\n";
 
-		// Simple casting 3x3
+		// Simple casting 4x4
 		glsl += "mat4 float4x4_tr(mat2 m) { return mat4(m); }\n";
 		glsl += "mat4 float4x4_tr(mat3 m) { return mat4(m); }\n";
 		glsl += "mat4 float4x4_tr(mat4 m) { return mat4(m); }\n";
@@ -9122,7 +9140,6 @@ class HLSL
 
 class ShaderElement { }
 
-// TODO: What is the type for "variables" here?  Standard statements?
 class ShaderElementCBuffer extends ShaderElement
 {
 	Name;
@@ -9278,102 +9295,6 @@ class ShaderElementCombinedTextureAndSampler extends ShaderElement
 	}
 }
 
-// Function param modifiers
-//  - in
-//  - inout
-//  - out
-//  - uniform
-//
-// Semantics: (float4 x : SV_POSITION)
-//
-// Initializers: (int x = 5)
-//
-// Interpolation modifiers: Func(float4 x : linear) OR struct Z { linear float2 x; }
-//  - linear
-//  - centroid
-//  - nointerpolation (only option for int/uint)
-//  - noperspective
-//  - sample
-//class ShaderElementMemberVar
-//{
-//	DataType;
-//	Name;
-
-//	InputModifier;
-//	InterpModifiers;
-//	ArrayExpression;
-//	Semantic;
-//	InitializerExp;
-
-//	constructor(
-//		dataType,
-//		name,
-//		inputMod = null,
-//		interpMods = [],
-//		arrayExp = null,
-//		semantic = null,
-//		initExp = null,
-//		)
-//	{
-//		this.DataType = dataType;
-//		this.Name = name;
-//		this.InputModifier = inputMod;
-//		this.InterpModifiers = interpMods;
-//		this.ArrayExpression = arrayExp;
-//		this.Semantic = semantic;
-//		this.InitializerExp = initExp;
-//	}
-
-//	ToString(lang, indent = "")
-//	{
-//		let s = indent;
-
-//		switch (lang)
-//		{
-//			default:
-//			case ShaderLanguageHLSL:
-
-//				for (let i = 0; i < this.InterpModifiers.length; i++)
-//					s += this.InterpModifiers[i] + " ";
-
-//				if (this.InputModifier != null)
-//					s += this.InputModifier + " ";
-
-//				s += this.DataType + " ";
-//				s += this.Name;
-
-//				if (this.ArrayExpression != null)
-//					s += " [" + this.ArrayExpression.ToString(lang) + "]";
-
-//				if (this.Semantic != null)
-//					s += " : " + this.Semantic;
-
-//				if (this.InitializerExp != null)
-//					s += " " + this.InitializerExp.ToString(lang);
-
-//				break;
-
-//			case ShaderLanguageGLSL: // No semantics (or interpolation modifiers?) 
-
-//				if (this.InputModifier != null)
-//					s += this.InputModifier + " ";
-
-//				s += HLSL.TranslateToGLSL(this.DataType) + " ";
-//				s += HLSL.TranslateToGLSL(this.Name);
-
-//				if (this.ArrayExpression != null)
-//					s += " [" + this.ArrayExpression.ToString(lang) + "]";
-
-//				if (this.InitializerExp != null)
-//					s += " " + this.InitializerExp.ToString(lang);
-				
-//				break;
-//		}
-
-//		return s;
-
-//	}
-//}
 
 
 class Statement { }
@@ -9386,6 +9307,19 @@ class StatementBlock extends Statement
 	{
 		super();
 		this.Statements = statements;
+	}
+
+	// Adds scope, validates internal statements, removes scope
+	Validate(scope)
+	{
+		scope.PushScope();
+
+		for (let i = 0; i < this.Statements.length; i++)
+		{
+			this.Statements[i].Validate(scope);
+		}
+
+		scope.PopScope();
 	}
 
 	ToString(lang, indent = "")
@@ -9412,6 +9346,21 @@ class StatementCase extends Statement
 		this.Statements = statements;
 	}
 
+	// TODO: Need to pass potential return type through
+	// to validate returns!
+	// TODO: Validate fall-through (only on empty cases?)
+	Validate(scope, selectorExpression)
+	{
+		// Note: No inherent additional scope
+
+		// Validate case type matches switch type
+		this.CaseValueExpression.Validate(scope);
+		/* TODO: Check types */
+
+		for (let i = 0; i < this.Statements.length; i++)
+			this.Statements[i].Validate(scope);
+	}
+
 	ToString(lang, indent = "")
 	{
 		let s = indent + "case " + this.CaseValueExpression.ToString(lang) + ":\n";
@@ -9423,6 +9372,8 @@ class StatementCase extends Statement
 	}
 }
 
+// TODO: Consolidate this into the StatementCase with a simple boolean for "is default"?
+// - Or even rely on the case value expression (null -> default)
 class StatementDefault extends Statement
 {
 	Statements;
@@ -9431,6 +9382,13 @@ class StatementDefault extends Statement
 	{
 		super();
 		this.Statements = statements;
+	}
+
+	Validate(scope, selectorExpression) // Matching overload of StatementCase.Validate()
+	{
+		// Note: No inherent additional scope
+		for (let i = 0; i < this.Statements.length; i++)
+			this.Statements[i].Validate(scope);
 	}
 
 	ToString(lang, indent = "")
@@ -9456,6 +9414,13 @@ class StatementDoWhile extends Statement
 		this.Condition = cond;
 	}
 
+	Validate(scope)
+	{
+		this.Body.Validate(scope);
+		this.Condition.Validate(scope);
+		// TODO: Verify condition evaluates to a boolean
+	}
+
 	ToString(lang, indent = "")
 	{
 		let s = indent + "do\n";
@@ -9473,6 +9438,11 @@ class StatementExpression extends Statement
 	{
 		super();
 		this.Exp = exp;
+	}
+
+	Validate(scope)
+	{
+		this.Exp.Validate(scope);
 	}
 
 	ToString(lang, indent = "")
@@ -9495,6 +9465,16 @@ class StatementFor extends Statement
 		this.ConditionExpression = condExp;
 		this.IterateExpression = iterExp;
 		this.BodyStatement = bodyStatement;
+	}
+
+	Validate(scope)
+	{
+		// TODO: Allow any of these to be "empty"
+		this.InitStatement.Validate(scope);
+		this.ConditionExpression.Validate(scope); // Note: "Empty" equates to true!
+		this.IterateExpression.Validate(scope);
+
+		this.BodyStatement.Validate(scope);
 	}
 
 	ToString(lang, indent = "")
@@ -9523,6 +9503,17 @@ class StatementIf extends Statement
 		this.Else = elseBlock;
 	}
 
+	Validate(scope)
+	{
+		// TODO: Verify condition evals to a bool
+		this.Condition.Validate(scope);
+		this.If.Validate(scope);
+		if (this.Else != null)
+		{
+			this.Else.Validate(scope);
+		}
+	}
+
 	ToString(lang, indent = "")
 	{
 		let s = indent + "if(" + this.Condition.ToString(lang) + ")\n";
@@ -9549,6 +9540,11 @@ class StatementJump extends Statement
 		this.JumpToken = jumpToken;
 	}
 
+	Validate(scope)
+	{
+		// TODO: Anything here?  Should just be "break" or "continue" I think?
+	}
+
 	ToString(lang, indent = "")
 	{
 		return indent + this.JumpToken.Text + ";";
@@ -9565,8 +9561,19 @@ class StatementReturn extends Statement
 		this.Expression = exp;
 	}
 
+	Validate(scope)
+	{
+		if (this.Expression != null)
+			this.Expression.Validate(scope);
+
+		// TODO: Verify this matches enclosing function type (or "empty") for null
+	}
+
 	ToString(lang, indent = "")
 	{
+		if (this.Expression == null)
+			return index + "return;";
+
 		return indent + "return " + this.Expression.ToString(lang) + ";";
 	}
 }
@@ -9581,6 +9588,17 @@ class StatementSwitch extends Statement
 		super();
 		this.SelectorExpression = selectorExp;
 		this.Cases = cases;
+	}
+
+	Validate(scope)
+	{
+		this.SelectorExpression.Validate(scope); // TODO: Ensure this is a simple variable?
+		for (let i = 0; i < this.Cases.length; i++)
+		{
+			this.Cases[i].Validate(scope, this.SelectorExpression);
+		}
+
+		// TODO: Need at least one case?
 	}
 
 	ToString(lang, indent = "")
@@ -9608,6 +9626,13 @@ class StatementWhile extends Statement
 		this.Body = body;
 	}
 
+	Validate(scope)
+	{
+		this.Condition.Validate(scope);
+		// TODO: Verify condition evaluates to a bool
+		this.Body.Validate(scope);
+	}
+
 	ToString(lang, indent = "")
 	{
 		let s = indent + "while(" + this.Condition.ToString(lang) + ")\n";
@@ -9628,6 +9653,14 @@ class StatementVar extends Statement
 		this.IsConst = isConst;
 		this.DataTypeToken = dataTypeToken;
 		this.VarDecs = varDecs;
+	}
+
+	Validate(scope)
+	{
+		for (let i = 0; i < this.VarDecs.length; i++)
+			this.VarDecs[i].Validate(scope);
+
+		// TODO: Need at least one var dec!
 	}
 
 	ToString(lang, indent = "")
@@ -9672,6 +9705,19 @@ class VarDec extends Statement
 		this.InputModifier = inputMod;
 		this.InterpModifiers = interpMods;
 		this.Semantic = semantic;
+	}
+
+	Validate(scope)
+	{
+		// TOOD: Verify variable doesn't already exist in scope
+
+		if (this.ArrayExpression != null)
+			this.ArrayExpression.Validate(scope); // TODO: Must evaluate to an int
+
+		if (this.DefinitionExpression != null)
+			this.DefinitionExpression.Validate(scope); // TODO: Must match data type!
+
+		// TODO: Verify modifiers/semantics are valid
 	}
 
 	ToString(lang, includeDeclaration)
@@ -9741,6 +9787,14 @@ class ExpArray extends Expression
 		//console.log("Array data type: " + this.DataType);
 	}
 
+	Validate(scope)
+	{
+		ExpArrayVar.Validate(scope);
+		ExpIndex.Validate(scope);
+		// TOOD: Ensure index evaluates to an int
+		// TODO: Finalize data type (move from constructor)
+	}
+
 	ToString(lang)
 	{
 		return this.ExpArrayVar.ToString(lang) + "[" + this.ExpIndex.ToString(lang) + "]";
@@ -9763,6 +9817,15 @@ class ExpAssignment extends Expression
 		// Data type matches assigned value (so, the variable itself?)
 		this.DataType = varExp.DataType;
 		//console.log("Assignment data type: " + varExp.DataType);
+	}
+
+	Validate(scope)
+	{
+		this.VarExp.Validate(scope);
+		this.AssignExp.Validate(scope);
+
+		// TODO: Verify assignment evaluates to compatible type w/ variable
+		// TODO: Finalize data type (move from constructor)
 	}
 
 	ToString(lang)
@@ -9845,6 +9908,15 @@ class ExpBinary extends Expression
 		}
 	}
 
+	Validate(scope)
+	{
+		this.ExpLeft.Validate(scope);
+		this.ExpRight.Validate(scope);
+
+		// TODO: Verify types are compatible
+		// TODO: Finalize data type (move from constructor)
+	}
+
 	ToString(lang)
 	{
 		return this.ExpLeft.ToString(lang) + " " +
@@ -9875,6 +9947,16 @@ class ExpBitwise extends Expression
 
 	}
 
+	Validate(scope)
+	{
+		this.ExpLeft.Validate(scope);
+		this.ExpRight.Validate(scope);
+
+		// TODO: Verify types are compatible (and both expressions are int or uint!)
+		// See https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-operators#bitwise-operators
+		// TODO: Finalize data type (move from constructor)
+	}
+
 	ToString(lang)
 	{
 		return this.ExpLeft.ToString(lang) + " " +
@@ -9896,6 +9978,12 @@ class ExpCast extends Expression
 
 		this.DataType = typeToken.Text;
 		//console.log("Cast found: " + typeToken.Text);
+	}
+
+	Validate(scope)
+	{
+		this.Exp.Validate(scope);
+		// TODO: Finalize data type (move from constructor)
 	}
 
 	ToString(lang)
@@ -9929,6 +10017,19 @@ class ExpFunctionCall extends Expression
 
 		this.DataType = dataType;
 		//console.log("Function call type: " + dataType);
+	}
+
+	Validate(scope)
+	{
+		this.FuncExp.Validate(scope);
+		for (let i = 0; i < this.Parameters.length; i++)
+			this.Parameters[i].Validate(scope);
+
+		// TODO: Verify the function exists (look for overloads, too)
+		//    - This requires grabbing the function name, which should be the
+		//      rightmost(?) child of the FuncExp, I think...
+		//    - FuncExp could be obj.func, similar to Texture.Sample
+		// TODO: Finalize data type (move from constructor)
 	}
 
 	ToString(lang)
@@ -10022,6 +10123,11 @@ class ExpFunctionName extends Expression
 		this.DataType = null; // Will be handled by the function call expression
 	}
 
+	Validate(scope)
+	{
+		// TOOD: Anything to do here?  Can't verify the function exists since we need the params, too!
+	}
+
 	ToString(lang)
 	{
 		switch (lang)
@@ -10046,6 +10152,11 @@ class ExpGroup extends Expression
 		//console.log("Grouping found: " + exp.DataType);
 	}
 
+	Validate(scope)
+	{
+		// TODO: Finalize data type (move from constructor)
+	}
+
 	ToString(lang)
 	{
 		return "(" + this.Exp.ToString(lang) + ")";
@@ -10063,6 +10174,11 @@ class ExpLiteral extends Expression
 
 		this.DataType = HLSL.DataTypeFromLiteralToken(litToken);
 		//console.log("Literal found: " + litToken.Text + "/" + this.DataType);
+	}
+
+	Validate(scope)
+	{
+		// TODO: Finalize data type (move from constructor)
 	}
 
 	ToString(lang)
@@ -10089,6 +10205,15 @@ class ExpLogical extends Expression
 		//console.log("Logical found (always bool)!");
 	}
 
+	Validate(scope)
+	{
+		this.ExpLeft.Validate(scope);
+		this.ExpRight.Validate(scope);
+
+		// TODO: Verify expressions are compatible
+		// TODO: Finalize data type (move from constructor) - always bool!
+	}
+
 	ToString(lang)
 	{
 		return this.ExpLeft.ToString(lang) + " " +
@@ -10111,6 +10236,16 @@ class ExpMember extends Expression
 
 		this.DataType = this.ExpRight.DataType;
 		//console.log("Member Data Type: " + this.DataType);
+	}
+
+	Validate(scope)
+	{
+		this.ExpLeft.Validate(scope);
+		this.ExpRight.Validate(scope);
+
+		// TODO: Verify left and right expressions are compatible...
+		//  - Just Texture.Sample pattern?
+		// TODO: Finalize data type (move from constructor)
 	}
 
 	GetRightmostChild()
@@ -10178,6 +10313,16 @@ class ExpPostfix extends Expression
 		//console.log("Postfix Data Type: " + this.DataType);
 	}
 
+	Validate(scope)
+	{
+		this.ExpLeft.Validate(scope);
+
+		// TODO: Validate that the expression is numeric
+		//  - numeric variable
+		//  - member that is numeric variable: thing.x, thing.other.x, etc.
+		// TODO: Finalize data type (move from constructor)
+	}
+
 	ToString(lang)
 	{
 		return this.ExpLeft.ToString(lang) + this.OperatorToken.Text;
@@ -10200,6 +10345,16 @@ class ExpTernary extends Expression
 		let type = HLSL.GetImplicitCastType(expIf.DataType, expElse.DataType);
 		this.DataType = type;
 		//console.log("Ternary type: " + type);
+	}
+
+	Validate(scope)
+	{
+		this.ExpCondition.Validate(scope);
+		this.ExpIf.Validate(scope);
+		this.ExpElse.Validate(scope);
+
+		// TODO: Verify condition evals to bool
+		// TODO: Finalize data type (move from constructor)
 	}
 
 	ToString(lang)
@@ -10226,6 +10381,19 @@ class ExpUnary extends Expression
 		//console.log("Unary data type: " + expRight.DataType);
 	}
 
+	Validate(scope)
+	{
+		this.ExpRight.Validate(scope);
+
+		// TODO: Validate that the expression is compatible
+		//  - variable
+		//  - member that is variable: thing.x, thing.other.x, etc.
+		//  - literal, for ! or ~
+		//  - bool for !
+		//  - numeric for others
+		// TODO: Finalize data type (move from constructor)
+	}
+
 	ToString(lang)
 	{
 		return this.OperatorToken.Text + this.ExpRight.ToString(lang);
@@ -10243,6 +10411,11 @@ class ExpVariable extends Expression
 
 		this.DataType = dataType;
 		//console.log("Variable Data Type: " + this.VarToken.Text + "/" + this.DataType);
+	}
+
+	Validate(scope)
+	{
+		// TODO: Verify that variable exists within scope!
 	}
 
 	ToString(lang)
@@ -10273,16 +10446,32 @@ class ParseError extends Error
 	}
 }
 
+class ValidationError extends Error
+{
+	line;
+	text;
+
+	constructor(token, ...params)
+	{
+		super(...params);
+
+		this.line = token == null ? -1 : token.Line;
+		this.text = token == null ? "" : token.Text;
+	}
+}
+
 
 // === SCOPE TRACKING ===
 
 class ScopeStack
 {
 	#stack;
+	#functions;
 
 	constructor()
 	{
 		this.#stack = [];
+		this.#functions = [];
 	}
 
 	PushScope()
@@ -10356,6 +10545,16 @@ class ScopeStack
 				return true;
 
 		return false;
+	}
+
+	AddFunction(f)
+	{
+		this.#functions.push(f);
+	}
+
+	DoesFunctionExist(expFuncCall)
+	{
+		// TODO: Determine if the function expression matches an existing function
 	}
 }
 
