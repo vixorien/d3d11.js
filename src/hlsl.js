@@ -856,10 +856,6 @@ class HLSL
 		}
 		let globalCB = new ShaderElementCBuffer("$Global", prefix + "global_cbuffer", -1);
 
-		// Create the scope stack to track variable definitions
-		let scope = new ScopeStack();
-		scope.PushScope();
-
 		// Work through tokens
 		it.MoveNext();
 		while (it.More())
@@ -871,7 +867,7 @@ class HLSL
 			{
 				// TODO: Handle global constants here
 				case "const":
-					let globalConst = this.#ParseVarDecStatement(it, scope);
+					let globalConst = this.#ParseVarDecStatement(it);
 					this.#globalConstants.push(globalConst);
 					break;
 
@@ -881,11 +877,11 @@ class HLSL
 					break;
 
 				case "struct":
-					this.#structs.push(this.#ParseStruct(it, scope));
+					this.#structs.push(this.#ParseStruct(it));
 					break;
 
 				case "cbuffer":
-					this.#cbuffers.push(this.#ParseCBuffer(it, scope));
+					this.#cbuffers.push(this.#ParseCBuffer(it));
 					break;
 
 				case "SamplerState":
@@ -911,7 +907,7 @@ class HLSL
 						throw new ParseError(current, "Invalid token");
 
 					// Check for global variable or function
-					if (!this.#ParseGlobalVarOrFunction(it, scope, globalCB))
+					if (!this.#ParseGlobalVarOrFunction(it, globalCB))
 						throw new Error("Error parsing global variable or function"); // TODO: Is this handled internally?  What results in the function returning false?
 
 					break;
@@ -939,19 +935,52 @@ class HLSL
 
 	#Validate()
 	{
-		// Scope stack?
+		// Scope stack with an initial scope for globals (cbuffer vars)
 		let scope = new ScopeStack();
+		scope.PushScope();
+
+		// Add all structs
+		for (let s = 0; s < this.#structs.length; s++)
+			scope.AddStruct(this.#structs[s]);
+
+		// Add all cbuffer vars
+		for (let b = 0; b < this.#cbuffers.length; b++)
+			for (let m = 0; m < this.#cbuffers[b].Members.length; m++)
+				scope.AddVar(this.#cbuffers[b].Members[m]);
 
 		// Validate each statement in each function
 		for (let f = 0; f < this.#functions.length; f++)
 		{
+			// New scope for this function
+			scope.PushScope();
+
 			let func = this.#functions[f];
+
+			// TODO: Add all parameters to scope
+			for (let p = 0; p < func.Parameters.length; p++)
+				scope.AddVar(func.Parameters[p]);
+
+			// Now validate all statements
 			for (let s = 0; s < func.Statements.length; s++)
 			{
-				// Call validate on each statement, letting it handle the scope stack?
+				// Validate each statement
 				func.Statements[s].Validate(scope);
+
+				//// Add any "variable statements" to the current scope
+				//if (func.Statements[s] instanceof StatementVar)
+				//{
+				//	scope.AddVarStatement(func.Statements[s]);
+				//	console.log("ADD VAR: " + func.Statements[s]);
+				//}
 			}
+
+			// End function
+			scope.PopScope();
 		}
+
+		// All done - this pop is probably unnecessary but
+		// just for completeness
+		scope.PopScope();
 	}
 
 	#Allow(it, ...tokenTypes)
@@ -1194,7 +1223,7 @@ class HLSL
 		throw new ParseError(nameToken, "Invalid function name: " + nameToken.Text); // TODO: Better error message
 	}
 
-	#ParseStruct(it, scope)
+	#ParseStruct(it)
 	{
 		let name = null;
 		let vars = [];
@@ -1215,7 +1244,7 @@ class HLSL
 			if (it.Current().Type == TokenScopeRight)
 				break;
 
-			vars.push(this.#ParseMemberVariableOrFunctionParam(it, scope, false, true, true, false));
+			vars.push(this.#ParseMemberVariableOrFunctionParam(it, false, true, true, false));
 		}
 		while (this.#Allow(it, TokenSemicolon));
 
@@ -1253,7 +1282,7 @@ class HLSL
 	}
 
 
-	#ParseCBuffer(it, scope)
+	#ParseCBuffer(it)
 	{
 		let name = null;
 		let regIndex = -1;
@@ -1280,9 +1309,8 @@ class HLSL
 
 			// Grab var dec and add to both the list of vars and the ongoing 
 			// scope, since cbuffer members are global
-			let v = this.#ParseMemberVariableOrFunctionParam(it, scope, false, false, false, false);
+			let v = this.#ParseMemberVariableOrFunctionParam(it, false, false, false, false);
 			vars.push(v);
-			scope.AddVar(v);
 		}
 		while (this.#Allow(it, TokenSemicolon));
 
@@ -1304,7 +1332,7 @@ class HLSL
 	// Structs: Interpmod(s), type, name, arraysize, semantic
 	// CBuffer: type, name, arraysize
 	// Function Param: interpmod(s), type, name, arraysize, semantic, init
-	#ParseMemberVariableOrFunctionParam(it, scope, allowInputMod, allowInterpMod, allowSemantic, allowInit)
+	#ParseMemberVariableOrFunctionParam(it, allowInputMod, allowInterpMod, allowSemantic, allowInit)
 	{
 		let interpMods = [];
 		let inputMods = [];
@@ -1360,7 +1388,7 @@ class HLSL
 		if (this.#Allow(it, TokenBracketLeft))
 		{
 			// Grab the array expression
-			arrayExp = this.#ParseExpression(it, scope);
+			arrayExp = this.#ParseExpression(it);
 			this.#Require(it, TokenBracketRight);
 		}
 
@@ -1382,7 +1410,7 @@ class HLSL
 			if (!allowInit)
 				throw new ParseError(it.PeekPrev(), "Initialization not allowed here.");
 
-			initExp = this.#ParseExpression(it, scope);
+			initExp = this.#ParseExpression(it);
 		}
 
 		return new VarDec(
@@ -1459,7 +1487,7 @@ class HLSL
 
 	// TODO: Handle swizzling of non-vector types (variable.xxx)
 	// TODO: auto "casting" ints to floats - maybe just make "int" versions of all functions?  UGH
-	#ParseGlobalVarOrFunction(it, scope, globalCB)
+	#ParseGlobalVarOrFunction(it, globalCB)
 	{
 		// Data type
 		this.#RequireDataType(it);
@@ -1474,9 +1502,6 @@ class HLSL
 		// Check for parens, which means function
 		if (this.#Allow(it, TokenParenLeft))
 		{
-			// We've entered a new scope
-			scope.PushScope();
-			
 			// It's a function, so it may have parameters
 			let params = [];
 			do
@@ -1484,9 +1509,8 @@ class HLSL
 				if (it.Current().Type == TokenParenRight)
 					break;
 
-				let p = this.#ParseMemberVariableOrFunctionParam(it, scope, true, true, true, true);
+				let p = this.#ParseMemberVariableOrFunctionParam(it, true, true, true, true);
 				params.push(p);
-				scope.AddVar(p);
 			}
 			while (this.#Allow(it, TokenComma));
 
@@ -1504,7 +1528,7 @@ class HLSL
 
 			// Next should be open scope, function body, end scope
 			this.#Require(it, TokenScopeLeft);
-			let statements = this.#ParseFunctionBody(it, scope);
+			let statements = this.#ParseFunctionBody(it);
 			this.#Require(it, TokenScopeRight);
 
 			let f = new ShaderElementFunction(
@@ -1530,9 +1554,6 @@ class HLSL
 				// Just a helper function
 				this.#functions.push(f);
 			}
-			
-			// Finished the function (and scope)
-			scope.PopScope();
 
 			// Found something useful
 			return true;
@@ -1542,7 +1563,6 @@ class HLSL
 			// Should be end of a variable, so add to the global cbuffer and scope
 			let v = new VarDec(false, typeToken, nameToken, null, null);
 			globalCB.Members.push(v);
-			scope.AddVar(v);
 
 			// Found a global variable
 			return true;
@@ -1553,7 +1573,7 @@ class HLSL
 	}
 
 
-	#ParseFunctionBody(it, scope)
+	#ParseFunctionBody(it)
 	{
 		let statements = [];
 
@@ -1561,23 +1581,23 @@ class HLSL
 		// TODO: Verify this works with nested blocks
 		while (it.Current().Type != TokenScopeRight)
 		{
-			statements.push(this.#ParseStatement(it, scope));
+			statements.push(this.#ParseStatement(it));
 		}
 
 		return statements;
 	}
 
-	#ParseStatement(it, scope)
+	#ParseStatement(it)
 	{
 		// Check for possible statement types
-		if (this.#Allow(it, TokenScopeLeft)) return this.#ParseBlock(it, scope);
-		if (this.#AllowIdentifier(it, "do")) return this.#ParseDoWhile(it, scope);
-		if (this.#AllowIdentifier(it, "for")) return this.#ParseFor(it, scope);
-		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it, scope);
-		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it, scope);
-		if (this.#AllowIdentifier(it, "switch")) return this.#ParseSwitch(it, scope);
-		if (this.#IsDataType(it.Current().Text) || it.Current().Text == "const") return this.#ParseVarDecStatement(it, scope);
-		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it, scope);
+		if (this.#Allow(it, TokenScopeLeft)) return this.#ParseBlock(it);
+		if (this.#AllowIdentifier(it, "do")) return this.#ParseDoWhile(it);
+		if (this.#AllowIdentifier(it, "for")) return this.#ParseFor(it);
+		if (this.#AllowIdentifier(it, "if")) return this.#ParseIf(it);
+		if (this.#AllowIdentifier(it, "return")) return this.#ParseReturn(it);
+		if (this.#AllowIdentifier(it, "switch")) return this.#ParseSwitch(it);
+		if (this.#IsDataType(it.Current().Text) || it.Current().Text == "const") return this.#ParseVarDecStatement(it);
+		if (this.#AllowIdentifier(it, "while")) return this.#ParseWhile(it);
 
 		// Check for simple jump statements here
 		if (this.#AllowIdentifier(it, "break") ||
@@ -1592,41 +1612,39 @@ class HLSL
 		}
 
 		// No matches?  Try an expression
-		return this.#ParseExpressionStatement(it, scope);
+		return this.#ParseExpressionStatement(it);
 	}
 
-	#ParseBlock(it, scope)
+	#ParseBlock(it)
 	{
 		// Assuming open scope already found, loop until matching end scope
-		scope.PushScope();
 		let statements = [];
 		while (it.Current().Type != TokenScopeRight)
 		{
-			statements.push(this.#ParseStatement(it, scope));
+			statements.push(this.#ParseStatement(it));
 		}
 
 		this.#Require(it, TokenScopeRight);
-		scope.PopScope();
 
 		return new StatementBlock(statements);
 	}
 
-	#ParseDoWhile(it, scope)
+	#ParseDoWhile(it)
 	{
 		// Assuming "do" already found
-		let body = this.#ParseStatement(it, scope);
+		let body = this.#ParseStatement(it);
 
 		// Look for: while(EXPRESSION);
 		this.#RequireIdentifier(it, "while");
 		this.#Require(it, TokenParenLeft);
-		let condition = this.#ParseExpression(it, scope);
+		let condition = this.#ParseExpression(it);
 		this.#Require(it, TokenParenRight);
 		this.#Require(it, TokenSemicolon);
 
 		return new StatementDoWhile(body, condition);
 	}
 
-	#ParseFor(it, scope)
+	#ParseFor(it)
 	{
 		// Any piece could be empty: for(;;)
 		let initStatement = null; // Statement
@@ -1636,26 +1654,25 @@ class HLSL
 
 		// Assuming "for" already found
 		this.#Require(it, TokenParenLeft);
-		scope.PushScope();
 
 		// TODO: Handle the comma operator!
 
 		// Init could be a var declaration, or just assignment
 		if (this.#IsDataType(it.Current().Text))
 		{
-			initStatement = this.#ParseVarDecStatement(it, scope); // Already handles semicolon
+			initStatement = this.#ParseVarDecStatement(it); // Already handles semicolon
 		}
 		else
 		{
 			// Expression + semicolon
-			initStatement = this.#ParseExpressionStatement(it, scope);
+			initStatement = this.#ParseExpressionStatement(it);
 			this.#Require(it, TokenSemicolon);
 		}
 
 		// Move on to condition, if necessary
 		if (it.Current().Type != TokenSemicolon)
 		{
-			condExp = this.#ParseExpression(it, scope);
+			condExp = this.#ParseExpression(it);
 		}
 
 		// Semicolon to end cond
@@ -1664,42 +1681,41 @@ class HLSL
 		// Move on to iteration, if necessary
 		if (it.Current().Type != TokenParenRight)
 		{
-			iterExp = this.#ParseExpression(it, scope);
+			iterExp = this.#ParseExpression(it);
 		}
 
 		// Require end paren
 		this.#Require(it, TokenParenRight);
 
 		// Parse the body
-		bodyStatement = this.#ParseStatement(it, scope);
+		bodyStatement = this.#ParseStatement(it);
 
 		// All done
-		scope.PopScope();
 		return new StatementFor(initStatement, condExp, iterExp, bodyStatement);
 	}
 
-	#ParseIf(it, scope)
+	#ParseIf(it)
 	{
 		// Assuming "if" already found
 		this.#Require(it, TokenParenLeft);
-		let cond = this.#ParseExpression(it, scope);
+		let cond = this.#ParseExpression(it);
 		this.#Require(it, TokenParenRight);
 
 		// Grab the if block
-		let ifBlock = this.#ParseStatement(it, scope);
+		let ifBlock = this.#ParseStatement(it);
 		let elseBlock = null;
 
 		// Do we have an else?
 		if (this.#AllowIdentifier(it, "else"))
 		{
 			// Note, the else's block might be a whole if/else again!
-			elseBlock = this.#ParseStatement(it, scope);
+			elseBlock = this.#ParseStatement(it);
 		}
 
 		return new StatementIf(cond, ifBlock, elseBlock);
 	}
 
-	#ParseReturn(it, scope)
+	#ParseReturn(it)
 	{
 		// Assuming "return" already found
 
@@ -1710,12 +1726,12 @@ class HLSL
 		}
 
 		// Parse the expression
-		let exp = this.#ParseExpression(it, scope);
+		let exp = this.#ParseExpression(it);
 		this.#Require(it, TokenSemicolon);
 		return new StatementReturn(exp);
 	}
 
-	#ParseSwitch(it, scope)
+	#ParseSwitch(it)
 	{
 		// Assuming "switch" already found
 		let selectorExpression = null;
@@ -1723,7 +1739,7 @@ class HLSL
 
 		// Need a variable inside ( )'s
 		this.#Require(it, TokenParenLeft);
-		selectorExpression = this.#ParseExpression(it, scope);
+		selectorExpression = this.#ParseExpression(it);
 		this.#Require(it, TokenParenRight);
 
 		// Require { to start body
@@ -1740,7 +1756,7 @@ class HLSL
 			if (this.#AllowIdentifier(it, "case"))
 			{
 				// Grab the expression for the value
-				caseValue = this.#ParseExpression(it, scope);
+				caseValue = this.#ParseExpression(it);
 			}
 			else if (this.#AllowIdentifier(it, "default"))
 			{
@@ -1765,7 +1781,7 @@ class HLSL
 				it.Current().Text != "default" &&
 				it.Current().Type != TokenScopeRight)
 			{
-				statements.push(this.#ParseStatement(it, scope));
+				statements.push(this.#ParseStatement(it));
 			}
 
 			// Finished this case or default
@@ -1784,7 +1800,7 @@ class HLSL
 		return new StatementSwitch(selectorExpression, cases);
 	}
 
-	#ParseVarDecStatement(it, scope)
+	#ParseVarDecStatement(it)
 	{
 		// Possible syntax to look for:
 		// int x;
@@ -1817,19 +1833,18 @@ class HLSL
 			let arrayExp = null;
 			if (this.#Allow(it, TokenBracketLeft))
 			{
-				arrayExp = this.#ParseExpression(it, scope);
+				arrayExp = this.#ParseExpression(it);
 				this.#Require(it, TokenBracketRight);
 			}
 
 			// Any definition?
 			let def = null;
 			if (this.#AllowOperator(it, "="))
-				def = this.#ParseExpression(it, scope);
+				def = this.#ParseExpression(it);
 
 			// Add to var
 			let v = new VarDec(isConst, dataTypeToken, varNameToken, arrayExp, def);
 			varDecs.push(v);
-			scope.AddVar(v);
 		}
 		while (this.#Allow(it, TokenComma));
 
@@ -1842,21 +1857,21 @@ class HLSL
 		return new StatementVar(isConst, dataTypeToken, varDecs);
 	}
 
-	#ParseWhile(it, scope)
+	#ParseWhile(it)
 	{
 		// Assuming "while" already found
 		// Look for: (EXPRESSION) STATEMENT
 		this.#Require(it, TokenParenLeft);
-		let condition = this.#ParseExpression(it, scope);
+		let condition = this.#ParseExpression(it);
 		this.#Require(it, TokenParenRight);
-		let body = this.#ParseStatement(it, scope);
+		let body = this.#ParseStatement(it);
 
 		return new StatementWhile(condition, body);
 	}
 
-	#ParseExpressionStatement(it, scope)
+	#ParseExpressionStatement(it)
 	{
-		let exp = this.#ParseExpression(it, scope);
+		let exp = this.#ParseExpression(it);
 
 		// Require a semicolon after an expression statement
 		this.#Require(it, TokenSemicolon);
@@ -1901,15 +1916,15 @@ class HLSL
 	//
 	//  0: literals/variables/grouping
 
-	#ParseExpression(it, scope)
+	#ParseExpression(it)
 	{
-		return this.#ParseAssignment(it, scope);
+		return this.#ParseAssignment(it);
 	}
 
-	#ParseAssignment(it, scope)
+	#ParseAssignment(it)
 	{
 		// Look for next expression precedence first
-		let exp = this.#ParseTernary(it, scope);
+		let exp = this.#ParseTernary(it);
 
 		// Now look for assignment
 		if (this.#AllowOperator(it, "=", "+=", "-=", "*=", "/=", "%=", "<<=", ">>=", "&=", "^=", "|="))
@@ -1936,29 +1951,29 @@ class HLSL
 			return new ExpAssignment(
 				exp, // Need whole expression since it might be a member, like: pos.x = 5;
 				assignOp,
-				this.#ParseAssignment(it, scope));
+				this.#ParseAssignment(it));
 		}
 
 		// No assignment operator found
 		return exp;
 	}
 
-	#ParseTernary(it, scope)
+	#ParseTernary(it)
 	{
 		// Grab the expression first
-		let exp = this.#ParseLogicalOr(it, scope);
+		let exp = this.#ParseLogicalOr(it);
 		
 		// Check for "?" operator
 		if (this.#AllowOperator(it, "?"))
 		{
 			// The next piece should be the "if" expression
-			let expIf = this.#ParseExpression(it, scope);
+			let expIf = this.#ParseExpression(it);
 			
 			// Now we must have a ":"
 			if (this.#Require(it, TokenColon))
 			{
 				// Last is the "else" expression
-				let expElse = this.#ParseExpression(it, scope);
+				let expElse = this.#ParseExpression(it);
 
 				return new ExpTernary(
 					exp,
@@ -1975,10 +1990,10 @@ class HLSL
 		return exp;
 	}
 
-	#ParseLogicalOr(it, scope)
+	#ParseLogicalOr(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseLogicalAnd(it, scope);
+		let exp = this.#ParseLogicalAnd(it);
 
 		// Keep going while we have ORs
 		while (this.#AllowOperator(it, "||"))
@@ -1986,16 +2001,16 @@ class HLSL
 			exp = new ExpLogical(
 				exp,
 				it.PeekPrev(),
-				this.#ParseLogicalAnd(it, scope));
+				this.#ParseLogicalAnd(it));
 		}
 
 		return exp;
 	}
 
-	#ParseLogicalAnd(it, scope)
+	#ParseLogicalAnd(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseBitwiseOr(it, scope);
+		let exp = this.#ParseBitwiseOr(it);
 
 		// Keep going while we have ANDs
 		while (this.#AllowOperator(it, "&&"))
@@ -2003,16 +2018,16 @@ class HLSL
 			exp = new ExpLogical(
 				exp,
 				it.PeekPrev(),
-				this.#ParseBitwiseOr(it, scope));
+				this.#ParseBitwiseOr(it));
 		}
 
 		return exp;
 	}
 
-	#ParseBitwiseOr(it, scope)
+	#ParseBitwiseOr(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseBitwiseXor(it, scope);
+		let exp = this.#ParseBitwiseXor(it);
 
 		// Keep going while we have ORs
 		while (this.#AllowOperator(it, "|"))
@@ -2020,16 +2035,16 @@ class HLSL
 			exp = new ExpBitwise(
 				exp,
 				it.PeekPrev(),
-				this.#ParseBitwiseXor(it, scope));
+				this.#ParseBitwiseXor(it));
 		}
 
 		return exp;
 	}
 
-	#ParseBitwiseXor(it, scope)
+	#ParseBitwiseXor(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseBitwiseAnd(it, scope);
+		let exp = this.#ParseBitwiseAnd(it);
 
 		// Keep going while we have XORs
 		while (this.#AllowOperator(it, "^"))
@@ -2037,16 +2052,16 @@ class HLSL
 			exp = new ExpBitwise(
 				exp,
 				it.PeekPrev(),
-				this.#ParseBitwiseAnd(it, scope));
+				this.#ParseBitwiseAnd(it));
 		}
 
 		return exp;
 	}
 
-	#ParseBitwiseAnd(it, scope)
+	#ParseBitwiseAnd(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseEquality(it, scope);
+		let exp = this.#ParseEquality(it);
 
 		// Keep going while we have ANDs
 		while (this.#AllowOperator(it, "&"))
@@ -2054,16 +2069,16 @@ class HLSL
 			exp = new ExpBitwise(
 				exp,
 				it.PeekPrev(),
-				this.#ParseEquality(it, scope));
+				this.#ParseEquality(it));
 		}
 
 		return exp;
 	}
 
-	#ParseEquality(it, scope)
+	#ParseEquality(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseComparison(it, scope);
+		let exp = this.#ParseComparison(it);
 
 		// Keep going while we have comparisons
 		while (this.#AllowOperator(it, "==", "!="))
@@ -2071,16 +2086,16 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseComparison(it, scope));
+				this.#ParseComparison(it));
 		}
 
 		return exp;
 	}
 
-	#ParseComparison(it, scope)
+	#ParseComparison(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseShift(it, scope);
+		let exp = this.#ParseShift(it);
 
 		// Keep going while we have comparisons
 		while (this.#AllowOperator(it, "<", "<=", ">", ">="))
@@ -2088,16 +2103,16 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseShift(it, scope));
+				this.#ParseShift(it));
 		}
 
 		return exp;
 	}
 
-	#ParseShift(it, scope)
+	#ParseShift(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseAddSubtract(it, scope);
+		let exp = this.#ParseAddSubtract(it);
 
 		// Keep going while we have shift ops
 		while (this.#AllowOperator(it, "<<", ">>"))
@@ -2105,16 +2120,16 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseAddSubtract(it, scope));
+				this.#ParseAddSubtract(it));
 		}
 
 		return exp;
 	}
 
-	#ParseAddSubtract(it, scope)
+	#ParseAddSubtract(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseMulDivMod(it, scope);
+		let exp = this.#ParseMulDivMod(it);
 
 		// Keep going while we have shift ops
 		while (this.#AllowOperator(it, "+", "-"))
@@ -2122,16 +2137,16 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseMulDivMod(it, scope));
+				this.#ParseMulDivMod(it));
 		}
 
 		return exp;
 	}
 
-	#ParseMulDivMod(it, scope)
+	#ParseMulDivMod(it)
 	{
 		// Grab starting expression
-		let exp = this.#ParseUnaryOrCast(it, scope);
+		let exp = this.#ParseUnaryOrCast(it);
 
 		// Keep going while we have shift ops
 		while (this.#AllowOperator(it, "*", "/", "%"))
@@ -2139,20 +2154,20 @@ class HLSL
 			exp = new ExpBinary(
 				exp,
 				it.PeekPrev(),
-				this.#ParseUnaryOrCast(it, scope));
+				this.#ParseUnaryOrCast(it));
 		}
 
 		return exp;
 	}
 
-	#ParseUnaryOrCast(it, scope)
+	#ParseUnaryOrCast(it)
 	{
 		// Check for possible unary operators
 		if (this.#AllowOperator(it, "+", "-", "!", "~", "++", "--"))
 		{
 			return new ExpUnary(
 				it.PeekPrev(), // Token we just allowed
-				this.#ParseUnaryOrCast(it, scope)); // Next parse, which could be another unary or operand or grouping
+				this.#ParseUnaryOrCast(it)); // Next parse, which could be another unary or operand or grouping
 		}
 
 		// Check for cast, which follows the (DATATYPE) pattern
@@ -2171,17 +2186,17 @@ class HLSL
 			// Successfully found a cast
 			return new ExpCast(
 				typeToken,
-				this.#ParseUnaryOrCast(it, scope));
+				this.#ParseUnaryOrCast(it));
 		}
 
 		// Not a unary, so check next level
-		return this.#ParsePostfixCallArrayOrMember(it, scope);
+		return this.#ParsePostfixCallArrayOrMember(it);
 	}
 
-	#ParsePostfixCallArrayOrMember(it, scope)
+	#ParsePostfixCallArrayOrMember(it)
 	{
 		// Grab an operand first
-		let exp = this.#ParseOperandFuncNameOrGrouping(it, scope);
+		let exp = this.#ParseOperandFuncNameOrGrouping(it);
 
 		// Handle multiple postfix type symbols
 		while (true)
@@ -2204,7 +2219,7 @@ class HLSL
 					// Loop and grab comma-separated expressions for parameters
 					do
 					{
-						params.push(this.#ParseExpression(it, scope));
+						params.push(this.#ParseExpression(it));
 					}
 					while (this.#Allow(it, TokenComma));
 				}
@@ -2227,13 +2242,12 @@ class HLSL
 					throw new ParseError(it.PeekPrev(), "Error parsing function call"); // PROBLEM!
 
 				// on the name (exp should be ExpFunctionName) and params
-				let type = this.#GetFunctionReturnType(nameToken, params);
-				//console.log("===== FUNCTION: " + nameToken.Text + " / " + type);
+				//let type = this.#GetFunctionReturnType(nameToken, params);
+				// NOTE: Removed since this needs to be moved to validation
 
 				// Finalize function call
 				exp = new ExpFunctionCall(
 					exp,
-					type,
 					params);
 
 				// If this is a texture sample call, we need to created a combined version for GLSL
@@ -2244,7 +2258,7 @@ class HLSL
 				// Index could be an entire expression
 				exp = new ExpArray(
 					exp, // Array itself
-					this.#ParseExpression(it, scope)); // Index inside [ ]'s
+					this.#ParseExpression(it)); // Index inside [ ]'s
 
 				// Require a right bracket
 				this.#Require(it, TokenBracketRight);
@@ -2366,7 +2380,7 @@ class HLSL
 		exp.CombinedTextureAndSampler = combined;
 	}
 
-	#ParseOperandFuncNameOrGrouping(it, scope)
+	#ParseOperandFuncNameOrGrouping(it)
 	{
 		let t = it.Current();
 
@@ -2392,27 +2406,27 @@ class HLSL
 				return new ExpFunctionName(it.PeekPrev());
 			}
 
-			// Get the variable if it exists (yes this could be optimized)
-			let v = scope.GetVar(name);
-			let t = this.#GetTexture(name);
-			let s = this.#GetSampler(name);
-			if (v != null)
-			{
-				dataType = v.DataTypeToken.Text;
-			}
-			else if (t != null)
-			{
-				dataType = t.Type; // Is a texture!
-			}
-			else if (s != null)
-			{
-				dataType = s.Type; // Is a sampler!
-			}
-			else
-			{
-				// Not a variable, texture or sampler
-				throw new ParseError(it.PeekPrev(), "Undeclared identifier '" + it.PeekPrev().Text + "'");
-			}
+			//// Get the variable if it exists (yes this could be optimized)
+			//let v = scope.GetVar(name);
+			//let t = this.#GetTexture(name);
+			//let s = this.#GetSampler(name);
+			//if (v != null)
+			//{
+			//	dataType = v.DataTypeToken.Text;
+			//}
+			//else if (t != null)
+			//{
+			//	dataType = t.Type; // Is a texture!
+			//}
+			//else if (s != null)
+			//{
+			//	dataType = s.Type; // Is a sampler!
+			//}
+			//else
+			//{
+			//	// Not a variable, texture or sampler
+			//	throw new ParseError(it.PeekPrev(), "Undeclared identifier '" + it.PeekPrev().Text + "'");
+			//}
 
 			return new ExpVariable(it.PeekPrev(), dataType);
 		}
@@ -2421,7 +2435,7 @@ class HLSL
 		if (this.#Allow(it, TokenParenLeft))
 		{
 			// Grab expression
-			let exp = this.#ParseExpression(it, scope);
+			let exp = this.#ParseExpression(it);
 			
 			// Must be followed by a right parens
 			this.#Require(it, TokenParenRight);
@@ -3695,8 +3709,10 @@ class StatementVar extends Statement
 	Validate(scope)
 	{
 		for (let i = 0; i < this.VarDecs.length; i++)
+		{
 			this.VarDecs[i].Validate(scope);
-
+			scope.AddVar(this.VarDecs[i]);
+		}
 		// TODO: Need at least one var dec!
 	}
 
@@ -3820,7 +3836,7 @@ class ExpArray extends Expression
 		this.ExpArrayVar = expArrayVar;
 		this.ExpIndex = expIndex;
 
-		this.DataType = expArrayVar.DataType;
+		//this.DataType = expArrayVar.DataType;
 		//console.log("Array data type: " + this.DataType);
 	}
 
@@ -3852,7 +3868,7 @@ class ExpAssignment extends Expression
 		this.AssignExp = assignExp;
 
 		// Data type matches assigned value (so, the variable itself?)
-		this.DataType = varExp.DataType;
+		//this.DataType = varExp.DataType;
 		//console.log("Assignment data type: " + varExp.DataType);
 	}
 
@@ -3895,54 +3911,54 @@ class ExpBinary extends Expression
 		// *, /, %
 
 		// Check operators
-		switch (opToken.Text)
-		{
-			// Math
-			//  - Scalar, per - component vector or per - component matrix
-			//  - Result is equivalent scalar, vector or matrix of larger type
-			//  - NOTE: (int + uint) --> int implicit casts to uint (basically wrapping around from max value)
-			case "+": case "-": case "*": case "/": case "%":
+		//switch (opToken.Text)
+		//{
+		//	// Math
+		//	//  - Scalar, per - component vector or per - component matrix
+		//	//  - Result is equivalent scalar, vector or matrix of larger type
+		//	//  - NOTE: (int + uint) --> int implicit casts to uint (basically wrapping around from max value)
+		//	case "+": case "-": case "*": case "/": case "%":
 
-				this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
-				//console.log("Binary operator type: " + this.DataType);
+		//		this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
+		//		//console.log("Binary operator type: " + this.DataType);
 
-				break;
+		//		break;
 
-			// Comparison 
-			//  - Scalar, per-component vector or per-component matrix
-			//  - Result is equivalent bool scalar, vector or matrix
-			case "==": case "!=": case "<": case "<=": case ">": case ">=":
+		//	// Comparison 
+		//	//  - Scalar, per-component vector or per-component matrix
+		//	//  - Result is equivalent bool scalar, vector or matrix
+		//	case "==": case "!=": case "<": case "<=": case ">": case ">=":
 
-				let a = HLSLDataTypeConversion[expLeft.DataType];
-				let b = HLSLDataTypeConversion[expRight.DataType];
+		//		let a = HLSLDataTypeConversion[expLeft.DataType];
+		//		let b = HLSLDataTypeConversion[expRight.DataType];
 
-				// Validate type and dimensions
-				if (a.SVM != b.SVM ||
-					a.Components != b.Components ||
-					a.Rows != b.Rows ||
-					a.Cols != b.Cols)
-					throw new ParseError(opToken, "Invalid operands for comparison operator"); // TODO: Real error message
+		//		// Validate type and dimensions
+		//		if (a.SVM != b.SVM ||
+		//			a.Components != b.Components ||
+		//			a.Rows != b.Rows ||
+		//			a.Cols != b.Cols)
+		//			throw new ParseError(opToken, "Invalid operands for comparison operator"); // TODO: Real error message
 
-				if (a.SVM == "scalar") this.DataType = "bool";
-				else if (a.SVM == "vector") this.DataType = "bool" + a.Components.toString();
-				else if (a.SVM == "matrix") this.DataType = "bool" + a.Rows.toString() + "x" + a.Cols.toString();
-				else
-					throw new ParseError(opToken, "Invalid operands for comparison operator");
+		//		if (a.SVM == "scalar") this.DataType = "bool";
+		//		else if (a.SVM == "vector") this.DataType = "bool" + a.Components.toString();
+		//		else if (a.SVM == "matrix") this.DataType = "bool" + a.Rows.toString() + "x" + a.Cols.toString();
+		//		else
+		//			throw new ParseError(opToken, "Invalid operands for comparison operator");
 
-				//console.log("Comparison operator type: " + this.DataType);
-				break;
+		//		//console.log("Comparison operator type: " + this.DataType);
+		//		break;
 
-			// Shift
-			//  - Must be int, uint or bool (implicit cast to int)
-			//  - Result is int or uint
-			case "<<": case ">>":
-				// TODO: Validate types
+		//	// Shift
+		//	//  - Must be int, uint or bool (implicit cast to int)
+		//	//  - Result is int or uint
+		//	case "<<": case ">>":
+		//		// TODO: Validate types
 
-				this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);;
-				//console.log("Shift operator type: " + this.DataType);
-				break;
+		//		this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);;
+		//		//console.log("Shift operator type: " + this.DataType);
+		//		break;
 
-		}
+		//}
 	}
 
 	Validate(scope)
@@ -3975,8 +3991,8 @@ class ExpBitwise extends Expression
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
 
-		let type = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
-		this.DataType = type;
+		//let type = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
+		//this.DataType = type;
 		//console.log("Bitwise type: " + type);
 
 		// TODO: Validate that both expressions are int or uint!
@@ -4013,7 +4029,7 @@ class ExpCast extends Expression
 		this.TypeToken = typeToken;
 		this.Exp = exp;
 
-		this.DataType = typeToken.Text;
+		//this.DataType = typeToken.Text;
 		//console.log("Cast found: " + typeToken.Text);
 	}
 
@@ -4042,7 +4058,7 @@ class ExpFunctionCall extends Expression
 	IsTextureSample;
 	CombinedTextureAndSampler;
 
-	constructor(funcExp, dataType, params)
+	constructor(funcExp, params)
 	{
 		super();
 
@@ -4052,15 +4068,19 @@ class ExpFunctionCall extends Expression
 		this.IsTextureSample = false;
 		this.CombinedTextureAndSampler = null;
 
-		this.DataType = dataType;
+		//this.DataType = dataType;
 		//console.log("Function call type: " + dataType);
 	}
 
 	Validate(scope)
 	{
+		// Validate the function name
 		this.FuncExp.Validate(scope);
+
+		// Validate all parameters to the function call
 		for (let i = 0; i < this.Parameters.length; i++)
 			this.Parameters[i].Validate(scope);
+
 
 		// TODO: Verify the function exists (look for overloads, too)
 		//    - This requires grabbing the function name, which should be the
@@ -4157,12 +4177,14 @@ class ExpFunctionName extends Expression
 	{
 		super();
 		this.NameToken = nameToken;
-		this.DataType = null; // Will be handled by the function call expression
+		
 	}
 
 	Validate(scope)
 	{
-		// TOOD: Anything to do here?  Can't verify the function exists since we need the params, too!
+		this.DataType = null; // Will be handled by the function call expression
+
+		// TOOD: Anything else to do here?  Can't verify the function exists since we need the params, too!
 	}
 
 	ToString(lang)
@@ -4185,7 +4207,7 @@ class ExpGroup extends Expression
 		super();
 		this.Exp = exp;
 		
-		this.DataType = exp.DataType;
+		//this.DataType = exp.DataType;
 		//console.log("Grouping found: " + exp.DataType);
 	}
 
@@ -4208,14 +4230,13 @@ class ExpLiteral extends Expression
 	{
 		super();
 		this.LiteralToken = litToken;
-
-		this.DataType = HLSL.DataTypeFromLiteralToken(litToken);
-		//console.log("Literal found: " + litToken.Text + "/" + this.DataType);
 	}
 
 	Validate(scope)
 	{
-		// TODO: Finalize data type (move from constructor)
+		// Finalize data type
+		this.DataType = HLSL.DataTypeFromLiteralToken(this.LiteralToken);
+		//console.log("VALIDATION - Literal - " + this.LiteralToken.Text + " - " + this.DataType);
 	}
 
 	ToString(lang)
@@ -4236,10 +4257,6 @@ class ExpLogical extends Expression
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
-
-		// Always bool
-		this.DataType = "bool";
-		//console.log("Logical found (always bool)!");
 	}
 
 	Validate(scope)
@@ -4248,7 +4265,10 @@ class ExpLogical extends Expression
 		this.ExpRight.Validate(scope);
 
 		// TODO: Verify expressions are compatible
-		// TODO: Finalize data type (move from constructor) - always bool!
+
+		// Always a bool
+		this.DataType = "bool";
+		console.log("VALIDATION - Logical Expression");
 	}
 
 	ToString(lang)
@@ -4270,18 +4290,47 @@ class ExpMember extends Expression
 
 		this.ExpLeft = expLeft;
 		this.ExpRight = expRight;
-
-		this.DataType = this.ExpRight.DataType;
-		//console.log("Member Data Type: " + this.DataType);
 	}
 
 	Validate(scope)
 	{
+		// Validate the left as normal
 		this.ExpLeft.Validate(scope);
+
+		// Temporarily add struct members to scope as we hit member access?
+		// Feels a little dirty, but let's try it
+		if (this.ExpLeft instanceof ExpVariable && this.ExpRight instanceof ExpVariable)
+		{
+			console.log("MEMBER VALIDATION - BOTH ARE VARS - " + this.ExpLeft.VarToken.Text + "." + this.ExpRight.VarToken.Text);
+
+			// Use the left's data type as the struct (like "float3"), and check the members
+			let rightType = scope.GetStructVariableDataType(this.ExpLeft.DataType, this.ExpRight.VarToken.Text);
+
+			// Need to add this as a temp variable in scope
+			if (rightType != null)
+			{
+				scope.AddShortTermVar(this.ExpRight.VarToken.Text, rightType);
+			}
+
+		}
+		else if (this.ExpLeft instanceof ExpVariable)
+		{
+			console.log("MEMBER VALIDATION - JUST LEFT IS VAR - " + this.ExpLeft.VarToken.Text);
+		}
+		else
+		{
+			console.log("MEMBER VALIDATION - NEITHER IS VAR");
+			throw new ValidationError(null, "Invalid member expression - neither side of '.' is a variable");
+		}
+
 		this.ExpRight.Validate(scope);
+
+		// Clear short term scope just in case
+		scope.ClearShortTermVars();
 
 		// TODO: Verify left and right expressions are compatible...
 		//  - Just Texture.Sample pattern?
+		//  - And struct.member!
 		// TODO: Finalize data type (move from constructor)
 	}
 
@@ -4346,7 +4395,7 @@ class ExpPostfix extends Expression
 		this.OperatorToken = opToken;
 
 		// Data type matches expression
-		this.DataType = this.ExpLeft.DataType;
+		//this.DataType = this.ExpLeft.DataType;
 		//console.log("Postfix Data Type: " + this.DataType);
 	}
 
@@ -4379,8 +4428,8 @@ class ExpTernary extends Expression
 		this.ExpIf = expIf;
 		this.ExpElse = expElse;
 
-		let type = HLSL.GetImplicitCastType(expIf.DataType, expElse.DataType);
-		this.DataType = type;
+		//let type = HLSL.GetImplicitCastType(expIf.DataType, expElse.DataType);
+		//this.DataType = type;
 		//console.log("Ternary type: " + type);
 	}
 
@@ -4414,7 +4463,7 @@ class ExpUnary extends Expression
 		this.ExpRight = expRight;
 
 		// Same as expression
-		this.DataType = expRight.DataType;
+		//this.DataType = expRight.DataType;
 		//console.log("Unary data type: " + expRight.DataType);
 	}
 
@@ -4441,18 +4490,23 @@ class ExpVariable extends Expression
 {
 	VarToken;
 
-	constructor(varToken, dataType)
+	constructor(varToken)
 	{
 		super();
 		this.VarToken = varToken;
-
-		this.DataType = dataType;
-		//console.log("Variable Data Type: " + this.VarToken.Text + "/" + this.DataType);
 	}
 
 	Validate(scope)
 	{
-		// TODO: Verify that variable exists within scope!
+		// Get the type of this variable from the scope stack
+		// A value of null means the variable wasn't found
+		let type = scope.GetVariableType(this.VarToken.Text);
+		if (type == null)
+			throw new ValidationError(this.VarToken, "Undeclared identifier: " + this.VarToken.Text);
+
+		this.DataType = type;
+
+		console.log("VALIDATION - Variable - " + this.VarToken.Text + " - TYPE - " + this.DataType);
 	}
 
 	ToString(lang)
@@ -4503,12 +4557,16 @@ class ValidationError extends Error
 class ScopeStack
 {
 	#stack;
+	#structs;
 	#functions;
+	#shortTermVars;
 
 	constructor()
 	{
 		this.#stack = [];
+		this.#structs = [];
 		this.#functions = [];
+		this.#shortTermVars = [];
 	}
 
 	PushScope()
@@ -4542,13 +4600,29 @@ class ScopeStack
 		this.#stack[this.#stack.length - 1].push(v);
 	}
 
-	GetVar(varName)
+	GetVarDec(varName)
 	{
 		// Work through the scope, inner to outer, looking for this variable
 		for (let s = this.#stack.length - 1; s >= 0; s--)
 			for (let v = 0; v < this.#stack[s].length; v++)
 				if (this.#stack[s][v].NameToken.Text == varName)
 					return this.#stack[s][v];
+
+		// Not found
+		return null;
+	}
+
+	GetVariableType(varName)
+	{
+		// Check short term vars first
+		for (let s = 0; s < this.#shortTermVars.length; s++)
+			if (this.#shortTermVars[s].Name == varName)
+				return this.#shortTermVars[s].DataType;
+
+		// Look for standard var
+		let varDec = this.GetVarDec(varName);
+		if (varDec != null)
+			return varDec.DataTypeToken.Text;
 
 		// Not found
 		return null;
@@ -4576,12 +4650,98 @@ class ScopeStack
 
 	#IsVarInScope(varName, scope)
 	{
+		// Check short term vars first
+		for (let s = 0; s < this.#shortTermVars.length; s++)
+			if (this.#shortTermVars[s].Name == varName)
+				return true;
+
 		// Check all vars in the given scope
 		for (let v = 0; v < scope.length; v++)
 			if (scope[v].NameToken.Text == varName)
 				return true;
 
 		return false;
+	}
+
+
+
+	GetStructVariableDataType(structName, varName)
+	{
+		// Check "implicit" structs
+		let impType = this.#GetImplicitStructVariableDataType(structName, varName);
+		if (impType != null) return impType;
+
+		// Is this an explicit struct?
+		if (!this.#structs.hasOwnProperty(structName))
+			throw new Error("Invalid struct name");
+
+		// Check for member
+		for (let m = 0; m < this.#structs[structName].Members.length; m++)
+			if (this.#structs[structName].Members[m].NameToken.Text == varName)
+				return this.#structs[structName].Members[m].DataTypeToken.Text;
+
+		// Not found
+		return null;
+	}
+
+	#GetImplicitStructVariableDataType(structName, varName)
+	{
+		// Check swizzle based on type of data
+		switch (structName)
+		{
+			case "float": if (!this.#CheckVectorSwizzle(varName, "x") && !this.#CheckVectorSwizzle(varName, "r")) return null;
+			case "float2": if (!this.#CheckVectorSwizzle(varName, "xy") && !this.#CheckVectorSwizzle(varName, "rg")) return null;
+			case "float3": if (!this.#CheckVectorSwizzle(varName, "xyz") && !this.#CheckVectorSwizzle(varName, "rgb")) return null;
+			case "float4": if (!this.#CheckVectorSwizzle(varName, "xyzw") && !this.#CheckVectorSwizzle(varName, "rgba")) return null;
+			default: return null; // Not an implicit struct
+		}
+
+		// Swizzle is valid, so return the swizzle type based on its length (.x == float, .xyz == float3, etc.)
+		// NOTE: This is NOT the same as the incoming struct name!
+		switch (varName.length)
+		{
+			case 1: return "float";
+			case 2: return "float2";
+			case 3: return "float3";
+			case 4: return "float4";
+			default: throw new Error("Invalid variable name for implicit structs: " + varName); // REALLY shouldn't be able to get here, but just in case
+		}
+	}
+
+	/**
+	 * Determines if the given swizzle pattern contains valid componenets
+	 * 
+	 * @param {string} swizzle The swizzle pattern, like "x", "rgg" or "xyzz"
+	 * @param {string} validComponents The valid components, like "x", "xyz" or "rgba"
+	 */
+	#CheckVectorSwizzle(swizzle, validComponents)
+	{
+		// Must be between 1 and 4 components
+		if (swizzle.length < 1 || swizzle.length > 4)
+			return false;
+
+		// Check each swizzle member
+		for (let m = 0; m < swizzle.length; m++)
+			if (!validComponents.includes(swizzle[m]))
+				return false;
+
+		// Everything checks out - valid swizzle
+		return true;
+	}
+
+	AddShortTermVar(name, type)
+	{
+		this.#shortTermVars.push({ Name: name, DataType: type });
+	}
+
+	ClearShortTermVars()
+	{
+		this.#shortTermVars = [];
+	}
+
+	AddStruct(s)
+	{
+		this.#structs[s.Name] = s;
 	}
 
 	AddFunction(f)
