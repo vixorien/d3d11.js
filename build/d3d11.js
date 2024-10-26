@@ -6123,8 +6123,8 @@ const HLSLReservedWordConversion = {
 
 // TODO: Update GetFunctionReturnType() once comparison sampling is in
 const HLSLTextureSampleConversion = {
-	"Sample": "texture",
-	"SampleLevel": "textureLod"
+	"Sample": { "Name": "texture", "DataType": "float4" },
+	"SampleLevel": { "Name": "textureLod", "DataType": "float4" }
 };
 
 const HLSLImplicitCastRank = {
@@ -6911,6 +6911,14 @@ class HLSL
 			for (let m = 0; m < this.#cbuffers[b].Members.length; m++)
 				scope.AddVar(this.#cbuffers[b].Members[m]);
 
+		// Add all global constants
+		for (let c = 0; c < this.#globalConstants.length; c++)
+			scope.AddVarStatement(this.#globalConstants[c]);
+
+		// Add all textures & samplers
+		for (let t = 0; t < this.#textures.length; t++) scope.AddTexture(this.#textures[t]);
+		for (let s = 0; s < this.#samplers.length; s++) scope.AddTexture(this.#samplers[s]);
+
 		// Validate each statement in each function
 		for (let f = 0; f < this.#functions.length; f++)
 		{
@@ -7170,7 +7178,7 @@ class HLSL
 		{
 			// This is a texture sample function
 			// TODO: Update this once we support comparison sampling!
-			return "float4";
+			return HLSLTextureSampleConversion[nameToken.Text].DataType;
 		}
 		else // Might be a custom function
 		{
@@ -8190,31 +8198,38 @@ class HLSL
 				// Now require the right paren
 				this.#Require(it, TokenParenRight);
 
-				// Definitely have a function call, so figure out the type based on the name & params
-
-				// Note: exp is either ExpFunctionName or ExpMember (in the case of texture functions)
+				// Definitely have a function call, but is it a member (in the case of texture functions)?
+				//  - exp is either ExpFunctionName or ExpMember (in the case of texture functions)
 				let funcNameExp = exp; // Assume we're a function name expression
 				if (exp instanceof ExpMember) // But if not, we might be a member
-					funcNameExp = exp.GetRightmostChild();
+				{
+					funcNameExp = exp.ExpRight;
 
-				// Verify final type to get name token
-				let nameToken = null;
-				if (funcNameExp instanceof ExpFunctionName) 
-					nameToken = funcNameExp.NameToken;
+					// Validate that the right member expression, in fact, a function name
+					if (!(funcNameExp instanceof ExpFunctionName))
+						throw new ParseError(it.Current(), "Invalid function call pattern");
+
+					// Replace the right child with a function call (wrapping old right child)
+					exp.ExpRight = new ExpFunctionCall(
+						exp.ExpRight,
+						params);
+
+					this.#CheckForTextureSampleCall(exp);
+				}
+				else if (exp instanceof ExpFunctionName)
+				{
+					// Not a member function call, so not a texture sample
+					// This is already a function name, so wrap in the function call
+					exp = new ExpFunctionCall(
+						exp,
+						params);
+
+					//this.#CheckForTextureSampleCall(exp); // should always be unnecessary I think?
+				}
 				else
-					throw new ParseError(it.PeekPrev(), "Error parsing function call"); // PROBLEM!
-
-				// on the name (exp should be ExpFunctionName) and params
-				//let type = this.#GetFunctionReturnType(nameToken, params);
-				// NOTE: Removed since this needs to be moved to validation
-
-				// Finalize function call
-				exp = new ExpFunctionCall(
-					exp,
-					params);
-
-				// If this is a texture sample call, we need to created a combined version for GLSL
-				this.#CheckForTextureSampleCall(exp);
+				{
+					throw new ParseError(it.Current(), "Invalid function call pattern");
+				}
 			}
 			else if (this.#Allow(it, TokenBracketLeft)) // Left bracket --> array access
 			{
@@ -8266,26 +8281,28 @@ class HLSL
 
 	#CheckForTextureSampleCall(exp)
 	{
-		// Must be a function
-		if (!(exp instanceof ExpFunctionCall))
+		// Pattern we're looking for is texture.SampleFunc()
+		// - exp must be member expression
+		// - Right must be function
+		// - Function's exp must be funcName
+		// - Left must be variable (texture)
+		if (!(exp instanceof ExpMember) ||
+			!(exp.ExpRight instanceof ExpFunctionCall) ||
+			!(exp.ExpRight.FuncExp instanceof ExpFunctionName) ||
+			!(exp.ExpLeft instanceof ExpVariable))
 			return;
 		
-		// Left expression must be member expression
-		// Left of member must be variable (the texture)
-		// Right of member must be "variable" (the sample function name)
-		if (!(exp.FuncExp instanceof ExpMember) ||
-			!(exp.FuncExp.ExpLeft instanceof ExpVariable) ||
-			!(exp.FuncExp.ExpRight instanceof ExpFunctionName))
-			return;
-		
-		// Grab texture
-		let texName = exp.FuncExp.ExpLeft.VarToken.Text;
+		// Grab texture name
+		let texName = exp.ExpLeft.VarToken.Text;
 		if (!this.#IsTexture(texName))
 			return;
+
+		// Get the function call expression
+		let callExp = exp.ExpRight;
 		
 		// Grab function name
 		// TODO: Determine proper number of params based on function name
-		let funcName = exp.FuncExp.ExpRight.NameToken.Text;
+		let funcName = callExp.FuncExp.NameToken.Text;
 		switch (funcName)
 		{
 			case "Sample":
@@ -8301,15 +8318,15 @@ class HLSL
 		}
 
 		// Function must have 2+ parameters to be valid sample function
-		if (exp.Parameters.length <= 1) // TODO: Align with function name above
+		if (callExp.Parameters.length <= 1) // TODO: Align with function name above
 			throw new Error("Invalid number of parameters for texture sampling function");
 
 		// First param must be variable
-		if (!(exp.Parameters[0] instanceof ExpVariable))
+		if (!(callExp.Parameters[0] instanceof ExpVariable))
 			throw new Error("Sampler expected");
 
 		// Get the sampler name
-		let sampName = exp.Parameters[0].VarToken.Text;
+		let sampName = callExp.Parameters[0].VarToken.Text;
 		if (!this.#IsSampler(sampName))
 			throw new Error("Sampler expected");
 
@@ -8339,8 +8356,8 @@ class HLSL
 		}
 
 		// Track this data in the expression (for ease of ToString() later)
-		exp.IsTextureSample = true;
-		exp.CombinedTextureAndSampler = combined;
+		callExp.IsTextureSample = true;
+		callExp.CombinedTextureAndSampler = combined;
 	}
 
 	#ParseOperandFuncNameOrGrouping(it)
@@ -10015,7 +10032,7 @@ class ExpCast extends Expression
 
 class ExpFunctionCall extends Expression
 {
-	FuncExp;
+	FuncExp; // ALWAYS a ExpFunctionName now!
 	Parameters;
 
 	IsTextureSample;
@@ -10030,26 +10047,36 @@ class ExpFunctionCall extends Expression
 
 		this.IsTextureSample = false;
 		this.CombinedTextureAndSampler = null;
-
-		//this.DataType = dataType;
-		//console.log("Function call type: " + dataType);
 	}
 
 	Validate(scope)
 	{
 		// Validate the function name
 		this.FuncExp.Validate(scope);
-
+	
 		// Validate all parameters to the function call
 		for (let i = 0; i < this.Parameters.length; i++)
 			this.Parameters[i].Validate(scope);
 
+		// Determine the data type
+		// - First, is this a texture sample?
+		if (this.IsTextureSample)
+		{
+			// Get the function name
+			let funcName = this.FuncExp.NameToken.Text;
+			if (!HLSLTextureSampleConversion.hasOwnProperty(funcName))
+				throw new ValidationError(this.FuncExp.NameToken, "Invalid texture sample function");
 
-		// TODO: Verify the function exists (look for overloads, too)
-		//    - This requires grabbing the function name, which should be the
-		//      rightmost(?) child of the FuncExp, I think...
-		//    - FuncExp could be obj.func, similar to Texture.Sample
-		// TODO: Finalize data type (move from constructor)
+			this.DataType = HLSLTextureSampleConversion[funcName].DataType;
+		}
+		else
+		{
+			// Not a texture sample, so handle type another way
+
+			// TODO: Handle intrinsic functions and their types
+
+			// TODO: Handle custom functions (validate params for overloads, etc.)
+		}
 	}
 
 	ToString(lang)
@@ -10058,14 +10085,15 @@ class ExpFunctionCall extends Expression
 		if (lang == ShaderLanguageGLSL && this.IsTextureSample)
 		{
 			// Get the hlsl texture sample function
-			let hlslTextureFunc = this.FuncExp.ExpRight.NameToken.Text;
+			let hlslTextureFunc = this.FuncExp.NameToken.Text;
+			
 			if (!HLSLTextureSampleConversion.hasOwnProperty(hlslTextureFunc))
 				throw new Error("Sample function type not yet implemented!");
 
 			// Grab the glsl equivalent to start the string
 			// This replaces the 'texture.Sample(sampler, ' pattern
-			let s = HLSLTextureSampleConversion[hlslTextureFunc] + "(" + this.CombinedTextureAndSampler.CombinedName + ", ";
-
+			let s = HLSLTextureSampleConversion[hlslTextureFunc].Name + "(" + this.CombinedTextureAndSampler.CombinedName + ", ";
+			
 			// The second parameter of the function is the texture coordinate
 			// This must be wrapped to flip the Y coord
 			let uv = this.Parameters[1].ToString(lang);
@@ -10146,7 +10174,6 @@ class ExpFunctionName extends Expression
 	Validate(scope)
 	{
 		this.DataType = null; // Will be handled by the function call expression
-
 		// TOOD: Anything else to do here?  Can't verify the function exists since we need the params, too!
 	}
 
@@ -10259,31 +10286,18 @@ class ExpMember extends Expression
 	{
 		// Validate the left as normal
 		this.ExpLeft.Validate(scope);
+		//console.log("MEMBER: " + this.ExpLeft.constructor.name + "." + this.ExpRight.constructor.name);
 
 		// Temporarily add struct members to scope as we hit member access?
-		// Feels a little dirty, but let's try it
-		if (this.ExpLeft instanceof ExpVariable && this.ExpRight instanceof ExpVariable)
+		//  - Feels a little dirty, but let's try it
+		if (this.ExpRight instanceof ExpVariable) // Right side is "var", like color.rgb or light.position
 		{
-			console.log("MEMBER VALIDATION - BOTH ARE VARS - " + this.ExpLeft.VarToken.Text + "." + this.ExpRight.VarToken.Text);
-
 			// Use the left's data type as the struct (like "float3"), and check the members
 			let rightType = scope.GetStructVariableDataType(this.ExpLeft.DataType, this.ExpRight.VarToken.Text);
-
-			// Need to add this as a temp variable in scope
 			if (rightType != null)
 			{
 				scope.AddShortTermVar(this.ExpRight.VarToken.Text, rightType);
 			}
-
-		}
-		else if (this.ExpLeft instanceof ExpVariable)
-		{
-			console.log("MEMBER VALIDATION - JUST LEFT IS VAR - " + this.ExpLeft.VarToken.Text);
-		}
-		else
-		{
-			console.log("MEMBER VALIDATION - NEITHER IS VAR");
-			throw new ValidationError(null, "Invalid member expression - neither side of '.' is a variable");
 		}
 
 		this.ExpRight.Validate(scope);
@@ -10291,6 +10305,10 @@ class ExpMember extends Expression
 		// Clear short term scope just in case
 		scope.ClearShortTermVars();
 
+		// The data type of the member access is that of the right expression
+		this.DataType = this.ExpRight.DataType;
+
+		//console.log("MEMBER TYPE: " + this.DataType);
 		// TODO: Verify left and right expressions are compatible...
 		//  - Just Texture.Sample pattern?
 		//  - And struct.member!
@@ -10311,14 +10329,8 @@ class ExpMember extends Expression
 
 	RightmostChildIsVariableOrArray()
 	{
-		let current = this.ExpRight;
-
-		while (current instanceof ExpMember)
-		{
-			current = current.ExpRight;
-		}
-
-		return (current instanceof ExpVariable) || (current instanceof ExpArray);
+		let rightmost = this.GetRightmostChild();
+		return (rightmost instanceof ExpVariable) || (rightmost instanceof ExpArray);
 	}
 
 	ToString(lang)
@@ -10333,6 +10345,11 @@ class ExpMember extends Expression
 
 				let l = this.ExpLeft.ToString(lang);
 				let r = this.ExpRight.ToString(lang);
+
+				// Is this a texture sample?  If so, we don't follow the left.right pattern!
+				// - albedo.Sample(...) --> texture(...)
+				if (this.ExpRight instanceof ExpFunctionCall && this.ExpRight.IsTextureSample)
+					return r;
 
 				// Check for matrix element conversion, which should
 				// replace the .mXY pattern with [X][Y] (removing the dot)
@@ -10469,7 +10486,7 @@ class ExpVariable extends Expression
 
 		this.DataType = type;
 
-		console.log("VALIDATION - Variable - " + this.VarToken.Text + " - TYPE - " + this.DataType);
+		//console.log("VALIDATION - Variable - " + this.VarToken.Text + " - TYPE - " + this.DataType);
 	}
 
 	ToString(lang)
@@ -10522,6 +10539,8 @@ class ScopeStack
 	#stack;
 	#structs;
 	#functions;
+	#textures;
+	#samplers;
 	#shortTermVars;
 
 	constructor()
@@ -10530,6 +10549,8 @@ class ScopeStack
 		this.#structs = [];
 		this.#functions = [];
 		this.#shortTermVars = [];
+		this.#textures = [];
+		this.#samplers = [];
 	}
 
 	PushScope()
@@ -10558,7 +10579,7 @@ class ScopeStack
 		let name = v.NameToken.Text;
 		if (this.IsVarInCurrentScope(name))
 			throw new ParseError(v.NameToken, "Redefinition of '" + name + "'");
-
+		
 		// Add the variable to the stack
 		this.#stack[this.#stack.length - 1].push(v);
 	}
@@ -10581,6 +10602,10 @@ class ScopeStack
 		for (let s = 0; s < this.#shortTermVars.length; s++)
 			if (this.#shortTermVars[s].Name == varName)
 				return this.#shortTermVars[s].DataType;
+
+		// Check for textures & samplers
+		if (this.#textures.hasOwnProperty(varName)) return this.#textures[varName].Type;
+		if (this.#samplers.hasOwnProperty(varName)) return this.#samplers[varName].Type;
 
 		// Look for standard var
 		let varDec = this.GetVarDec(varName);
@@ -10618,6 +10643,10 @@ class ScopeStack
 			if (this.#shortTermVars[s].Name == varName)
 				return true;
 
+		// Check for textures & samplers
+		if (this.#textures.hasOwnProperty(varName)) return true;
+		if (this.#samplers.hasOwnProperty(varName)) return true;
+
 		// Check all vars in the given scope
 		for (let v = 0; v < scope.length; v++)
 			if (scope[v].NameToken.Text == varName)
@@ -10636,7 +10665,7 @@ class ScopeStack
 
 		// Is this an explicit struct?
 		if (!this.#structs.hasOwnProperty(structName))
-			throw new Error("Invalid struct name");
+			throw new Error("Invalid struct name '" + structName + "'");
 
 		// Check for member
 		for (let m = 0; m < this.#structs[structName].Members.length; m++)
@@ -10652,10 +10681,10 @@ class ScopeStack
 		// Check swizzle based on type of data
 		switch (structName)
 		{
-			case "float": if (!this.#CheckVectorSwizzle(varName, "x") && !this.#CheckVectorSwizzle(varName, "r")) return null;
-			case "float2": if (!this.#CheckVectorSwizzle(varName, "xy") && !this.#CheckVectorSwizzle(varName, "rg")) return null;
-			case "float3": if (!this.#CheckVectorSwizzle(varName, "xyz") && !this.#CheckVectorSwizzle(varName, "rgb")) return null;
-			case "float4": if (!this.#CheckVectorSwizzle(varName, "xyzw") && !this.#CheckVectorSwizzle(varName, "rgba")) return null;
+			case "float": if (!this.#CheckVectorSwizzle(varName, "x") && !this.#CheckVectorSwizzle(varName, "r")) { return null; } break;
+			case "float2": if (!this.#CheckVectorSwizzle(varName, "xy") && !this.#CheckVectorSwizzle(varName, "rg")) { return null; } break;
+			case "float3": if (!this.#CheckVectorSwizzle(varName, "xyz") && !this.#CheckVectorSwizzle(varName, "rgb")) { return null; } break;
+			case "float4": if (!this.#CheckVectorSwizzle(varName, "xyzw") && !this.#CheckVectorSwizzle(varName, "rgba")) { return null; } break;
 			default: return null; // Not an implicit struct
 		}
 
@@ -10687,8 +10716,8 @@ class ScopeStack
 		for (let m = 0; m < swizzle.length; m++)
 			if (!validComponents.includes(swizzle[m]))
 				return false;
-
-		// Everything checks out - valid swizzle
+		
+		// Everything checks out - valid swizzle		
 		return true;
 	}
 
@@ -10705,6 +10734,16 @@ class ScopeStack
 	AddStruct(s)
 	{
 		this.#structs[s.Name] = s;
+	}
+
+	AddTexture(shaderElementTexture)
+	{
+		this.#textures[shaderElementTexture.Name] = shaderElementTexture;
+	}
+
+	AddSampler(shaderElementSampler)
+	{
+		this.#samplers[shaderElementSampler.Name] = shaderElementSampler;
 	}
 
 	AddFunction(f)
