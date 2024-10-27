@@ -57,6 +57,7 @@
 
 			float4 main(VertexToPixel input) : SV_TARGET
 			{
+				float x = input.position.x;
 				return float4(input.color.rgb * tint, 1);
 			}
 		`;

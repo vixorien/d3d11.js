@@ -6918,39 +6918,45 @@ class HLSL
 		// Add all textures & samplers
 		for (let t = 0; t < this.#textures.length; t++) scope.AddTexture(this.#textures[t]);
 		for (let s = 0; s < this.#samplers.length; s++) scope.AddTexture(this.#samplers[s]);
-
+		
 		// Validate each statement in each function
 		for (let f = 0; f < this.#functions.length; f++)
 		{
-			// New scope for this function
-			scope.PushScope();
-
-			let func = this.#functions[f];
-
-			// TODO: Add all parameters to scope
-			for (let p = 0; p < func.Parameters.length; p++)
-				scope.AddVar(func.Parameters[p]);
-
-			// Now validate all statements
-			for (let s = 0; s < func.Statements.length; s++)
-			{
-				// Validate each statement
-				func.Statements[s].Validate(scope);
-
-				//// Add any "variable statements" to the current scope
-				//if (func.Statements[s] instanceof StatementVar)
-				//{
-				//	scope.AddVarStatement(func.Statements[s]);
-				//	console.log("ADD VAR: " + func.Statements[s]);
-				//}
-			}
-
-			// End function
-			scope.PopScope();
+			this.#ValidateFunction(scope, this.#functions[f]);
 		}
+
+		// Also validate main
+		this.#ValidateFunction(scope, this.#main);
 
 		// All done - this pop is probably unnecessary but
 		// just for completeness
+		scope.PopScope();
+	}
+
+	#ValidateFunction(scope, func)
+	{
+		// New scope for this function
+		scope.PushScope();
+
+		// Add all parameters to scope
+		for (let p = 0; p < func.Parameters.length; p++)
+			scope.AddVar(func.Parameters[p]);
+
+		// Now validate all statements
+		for (let s = 0; s < func.Statements.length; s++)
+		{
+			// Validate each statement
+			func.Statements[s].Validate(scope);
+
+			//// Add any "variable statements" to the current scope
+			//if (func.Statements[s] instanceof StatementVar)
+			//{
+			//	scope.AddVarStatement(func.Statements[s]);
+			//	console.log("ADD VAR: " + func.Statements[s]);
+			//}
+		}
+
+		// End function
 		scope.PopScope();
 	}
 
@@ -8261,7 +8267,7 @@ class HLSL
 					let dataType = this.#DataTypeFromMemberExpression(exp, it.PeekPrev());
 					rightSide = new ExpVariable(it.PeekPrev(), dataType);
 				}
-
+				
 				exp = new ExpMember(
 					exp, // Left side of "."
 					rightSide); // Right side of "."
@@ -9822,8 +9828,8 @@ class ExpArray extends Expression
 
 	Validate(scope)
 	{
-		ExpArrayVar.Validate(scope);
-		ExpIndex.Validate(scope);
+		this.ExpArrayVar.Validate(scope);
+		this.ExpIndex.Validate(scope);
 		// TOOD: Ensure index evaluates to an int
 		// TODO: Finalize data type (move from constructor)
 	}
@@ -10057,7 +10063,7 @@ class ExpFunctionCall extends Expression
 		// Validate all parameters to the function call
 		for (let i = 0; i < this.Parameters.length; i++)
 			this.Parameters[i].Validate(scope);
-
+		console.log("HERE: " + this.FuncExp.NameToken.Text);
 		// Determine the data type
 		// - First, is this a texture sample?
 		if (this.IsTextureSample)
@@ -10277,7 +10283,7 @@ class ExpMember extends Expression
 	constructor(expLeft, expRight)
 	{
 		super();
-
+		
 		this.ExpLeft = expLeft;
 		this.ExpRight = expRight;
 	}
@@ -10286,33 +10292,37 @@ class ExpMember extends Expression
 	{
 		// Validate the left as normal
 		this.ExpLeft.Validate(scope);
-		//console.log("MEMBER: " + this.ExpLeft.constructor.name + "." + this.ExpRight.constructor.name);
-
+		
 		// Temporarily add struct members to scope as we hit member access?
 		//  - Feels a little dirty, but let's try it
 		if (this.ExpRight instanceof ExpVariable) // Right side is "var", like color.rgb or light.position
 		{
+			console.log(this.ExpLeft.constructor.name);
 			// Use the left's data type as the struct (like "float3"), and check the members
 			let rightType = scope.GetStructVariableDataType(this.ExpLeft.DataType, this.ExpRight.VarToken.Text);
-			if (rightType != null)
+			if (rightType == null)
 			{
-				scope.AddShortTermVar(this.ExpRight.VarToken.Text, rightType);
+				throw new ValidationError(this.ExpRight.VarToken, "Invalid variable (need a better error message here)");
+				// Found a matching type, so add it to the scope stack temporarily
+				//scope.AddShortTermVar(this.ExpRight.VarToken.Text, rightType);
+
+				// TODO: POTENTIAL BUG with light.position.position.position due to recursive validation?
 			}
+			
+			// Just set the type rather than a full validation
+			this.ExpRight.DataType = rightType;
 		}
-
-		this.ExpRight.Validate(scope);
-
-		// Clear short term scope just in case
-		scope.ClearShortTermVars();
+		else
+		{
+			// Standard validation, since it's not a variable
+			this.ExpRight.Validate(scope);
+		}
+		
+		// Clear short term scope now that right-side is evaluated
+		//scope.ClearShortTermVars();
 
 		// The data type of the member access is that of the right expression
 		this.DataType = this.ExpRight.DataType;
-
-		//console.log("MEMBER TYPE: " + this.DataType);
-		// TODO: Verify left and right expressions are compatible...
-		//  - Just Texture.Sample pattern?
-		//  - And struct.member!
-		// TODO: Finalize data type (move from constructor)
 	}
 
 	GetRightmostChild()
@@ -10660,6 +10670,7 @@ class ScopeStack
 	GetStructVariableDataType(structName, varName)
 	{
 		// Check "implicit" structs
+		console.log(structName + " " + varName);
 		let impType = this.#GetImplicitStructVariableDataType(structName, varName);
 		if (impType != null) return impType;
 
