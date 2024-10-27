@@ -221,8 +221,9 @@ const HLSLIntrinsics = {
 	// "fma": {}, // Skip?  Exists in GLSL but HLSL version is only doubles?
 	// "fmod": {}, // Skip?
 	"frac": { ReturnType: "float", GLSL: "fract" },
+	// "frexp": {}, // Skip?  Not in WebGL apparently?
 	"fwidth": { ReturnType: "float", GLSL: "fwidth" }, // TEMP return type!!
-	"isfinite": {},
+	//"isfinite": {}, // Skip?
 	"isinf": { ReturnType: "bool", GLSL: "isinf" }, // TEMP return type!!
 	"isnan": { ReturnType: "bool", GLSL: "isnan" }, // TEMP return type!!
 	"ldexp": { ReturnType: "float", GLSL: "ldexp" }, // TEMP return type!!
@@ -472,6 +473,328 @@ class HLSL
 		return "int";
 	}
 
+	static DataTypeFromIntrinsicFunctionCallExpression(funcCallExp)
+	{
+		// Check the type
+		let funcName = funcCallExp.FuncExp.NameToken.Text;
+		switch (funcName)
+		{
+			// Check for simple "name is datatype" initializers, like float2()
+			case "int": case "int2": case "int3": case "int4":
+			case "bool": case "bool2": case "bool3": case "bool4":
+			case "float": case "float2": case "float3": case "float4":
+			case "float2x2": case "float3x3": case "float4x4":
+				return funcName; 
+
+			// "matrix" is just an alias for "float4x4"
+			case "matrix": return "float4x4";
+
+			// -- Handle specific intrinsic functions --
+			// TODO: Validate parameter requirements for each function type!!!
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any
+			// ret		match p0		match p0			same dim as p0
+			// -------------------------------------------------
+			case "abs":
+				console.log("PASS THROUGH TYPE: " + funcCallExp.Parameters[0].DataType);
+				return funcCallExp.Parameters[0].DataType;
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float				any
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "acos":
+			case "asin":
+			case "atan":
+			case "ceil":
+			case "cos":
+			case "cosh":
+			case "sin":
+			case "tan":
+			case "ddx":
+			case "ddy":
+			case "degrees":
+			case "exp":
+			case "exp2":
+			case "floor":
+			case "frac":
+			case "fwidth":
+			case "log":
+			case "log2":
+			case "radians":
+			case "round":
+			case "saturate":
+			case "sin":
+			case "sinh":
+			case "sqrt":
+			case "tan":
+			case "tanh":
+			case "trunc":
+				return null; // TODO finish
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float				any
+			// p1		match p0		float				same dim as p0
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "atan2":
+			case "ldexp":
+			case "pow":
+			case "step":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any
+			// p1		match p0		float, int			same dim as p0
+			// p2		match p0		float, int			same dim as p0
+			// ret		match p0		match p0			same dim as p0
+			// -------------------------------------------------
+			case "clamp":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int, bool	any
+			// ret		scalar			bool				1
+			// -------------------------------------------------
+			case "all":
+			case "any":
+				return null; // TODO finish
+			
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int, uint	any
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "asfloat":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, uint			any
+			// ret		match p0		int					same dim as p0
+			// -------------------------------------------------
+			case "asint":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any
+			// ret		match p0		uint				same dim as p0
+			// -------------------------------------------------
+			case "asuint":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SV				uint				any
+			// ret		match p0		uint				same dim as p0
+			// -------------------------------------------------
+			case "countbits":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				3
+			// p1		vector			float				3
+			// ret		vector			float				3
+			// -------------------------------------------------
+			case "cross":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SV				float				any
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "ddx_coarse":
+			case "ddx_fine":
+			case "ddy_coarse":
+			case "ddy_fine":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		matrix			float				any (rows == columns)
+			// ret		scalar			float				1
+			// -------------------------------------------------
+			case "determinant":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// p1		vector			float				same dim as p0
+			// ret		scalar			float				1
+			// -------------------------------------------------
+			case "distance":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float, int			any (2,3,4)
+			// p1		vector			float, int			same dim as p0
+			// ret		scalar			float				1
+			// -------------------------------------------------
+			case "dot":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// n		vector			float				any (2,3,4)
+			// i		vector			float				same dim as n
+			// ng		vector			float				same dim as n
+			// ret		vector			float				same dim as n
+			// -------------------------------------------------
+			case "faceforward":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float				any
+			// ret		match p0		bool				same dim as p0
+			// -------------------------------------------------
+			case "isinf":
+			case "isnan":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// ret		scalar			float				1
+			// -------------------------------------------------
+			case "length":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float				any
+			// p1		match p0		float				same dim as p0
+			// p2		match p0		float				same dim as p0
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "lerp":
+			case "smoothstep":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any (2,3,4)
+			// p1		match p0		float, int			same dim as p0
+			// ret		match p0		float, int			same dim as p0
+			// -------------------------------------------------
+			case "max":
+			case "min":
+			case "modf":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// 9 different overloads!  Details: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-mul
+			// -------------------------------------------------
+			case "mul":
+				return null;
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// ret		vector			float				same dim as p0
+			// -------------------------------------------------
+			case "normalize":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// p1		vector			float				same dim as p0
+			// ret		vector			float				same dim as p0
+			// -------------------------------------------------
+			case "reflect":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// p1		vector			float				same dim as p0
+			// p2		scalar			float				1
+			// ret		vector			float				same dim as p0
+			// -------------------------------------------------
+			case "refract":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any
+			// ret		match p0		int					same dim as p0
+			// -------------------------------------------------
+			case "sign":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		matrix			float, int, bool	any
+			// ret		matrix			float, int, bool	r = p0.c, c = p0.r (transposed!)
+			// -------------------------------------------------
+			case "transpose":
+				return null; // TODO finish
+		}
+
+		
+
+		// Nothing found
+		return null;
+	}
+
 	// Determines if the give castee type can be cast to the target type
 	//  casteeType: type that might be cast
 	//  targetType: type we actually need
@@ -608,83 +931,83 @@ class HLSL
 		return null;
 	}
 
-	#DataTypeFromMemberExpression(exp, memberToken)
-	{
-		// Member could be:
-		// - vector components/swizzle
-		// - matrix element
-		// - struct member (left is variable)
+	//#DataTypeFromMemberExpression(exp, memberToken)
+	//{
+	//	// Member could be:
+	//	// - vector components/swizzle
+	//	// - matrix element
+	//	// - struct member (left is variable)
 
-		// Check for struct type first
-		let memberType = this.#GetStructMemberType(exp.DataType, memberToken.Text);
-		if (memberType != null)
-			return memberType;
+	//	// Check for struct type first
+	//	let memberType = this.#GetStructMemberType(exp.DataType, memberToken.Text);
+	//	if (memberType != null)
+	//		return memberType;
 
-		// Not a struct member - check for matrix
-		if (this.#IsMatrixType(exp.DataType))
-		{
-			// This is a matrix, so validate member
-			if (HLSLMatrixElementConversion.hasOwnProperty(memberToken.Text))
-				return "float"; // All matrices are floats in GLSL, so we've got to follow suit
-				// TODO: Maybe keep this as the declared type until actual GLSL conversion?
-			else
-				throw new ParseError(memberToken, "Invalid matrix member: " + memberToken.Text); // TODO: Find the actual error message
-		}
+	//	// Not a struct member - check for matrix
+	//	if (this.#IsMatrixType(exp.DataType))
+	//	{
+	//		// This is a matrix, so validate member
+	//		if (HLSLMatrixElementConversion.hasOwnProperty(memberToken.Text))
+	//			return "float"; // All matrices are floats in GLSL, so we've got to follow suit
+	//			// TODO: Maybe keep this as the declared type until actual GLSL conversion?
+	//		else
+	//			throw new ParseError(memberToken, "Invalid matrix member: " + memberToken.Text); // TODO: Find the actual error message
+	//	}
 
-		// Is the left-side expression a scalar?
-		if (this.#IsScalarType(exp.DataType))
-		{
-			let scalarType = HLSLDataTypeConversion[exp.DataType].RootType;
-			if (scalarType == null)
-				throw new ParseError(memberToken, "Invalid scalar type");
+	//	// Is the left-side expression a scalar?
+	//	if (this.#IsScalarType(exp.DataType))
+	//	{
+	//		let scalarType = HLSLDataTypeConversion[exp.DataType].RootType;
+	//		if (scalarType == null)
+	//			throw new ParseError(memberToken, "Invalid scalar type");
 
-			// We have the scalar type of the expression, so validate the member
-			switch (memberToken.Text)
-			{
-				case "r": case "x": return scalarType;
-				case "rr": case "xx": return scalarType + "2";
-				case "rrr": case "xxx": return scalarType + "3";
-				case "rrrr": case "xxxx": return scalarType + "4";
-				default:
-					throw new ParseError(memberToken, "Invalid swizzle: " + memberToken.Text); // TODO: Real error message
-			}
-		}
+	//		// We have the scalar type of the expression, so validate the member
+	//		switch (memberToken.Text)
+	//		{
+	//			case "r": case "x": return scalarType;
+	//			case "rr": case "xx": return scalarType + "2";
+	//			case "rrr": case "xxx": return scalarType + "3";
+	//			case "rrrr": case "xxxx": return scalarType + "4";
+	//			default:
+	//				throw new ParseError(memberToken, "Invalid swizzle: " + memberToken.Text); // TODO: Real error message
+	//		}
+	//	}
 
-		// Is the left-side expression a vector?
-		if (this.#IsVectorType(exp.DataType))
-		{
-			// Extract data about the vector
-			let components = exp.DataType.slice(-1);
-			let coreType = exp.DataType.slice(0, -1);
+	//	// Is the left-side expression a vector?
+	//	if (this.#IsVectorType(exp.DataType))
+	//	{
+	//		// Extract data about the vector
+	//		let components = exp.DataType.slice(-1);
+	//		let coreType = exp.DataType.slice(0, -1);
 			
-			// TODO: Clean this up!
-			switch (components)
-			{
-				case "2":
-					let xy = RegexSwizzleXY.test(memberToken.Text);
-					let rg = RegexSwizzleRG.test(memberToken.Text);
-					if (xy || rg)
-						return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
+	//		// TODO: Clean this up!
+	//		switch (components)
+	//		{
+	//			case "2":
+	//				let xy = RegexSwizzleXY.test(memberToken.Text);
+	//				let rg = RegexSwizzleRG.test(memberToken.Text);
+	//				if (xy || rg)
+	//					return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
 
-				case "3":
-					let xyz = RegexSwizzleXYZ.test(memberToken.Text);
-					let rgb = RegexSwizzleRGB.test(memberToken.Text);
-					if (xyz || rgb)
-						return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
+	//			case "3":
+	//				let xyz = RegexSwizzleXYZ.test(memberToken.Text);
+	//				let rgb = RegexSwizzleRGB.test(memberToken.Text);
+	//				if (xyz || rgb)
+	//					return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
 
-				case "4":
-					let xyzw = RegexSwizzleXYZW.test(memberToken.Text);
-					let rgba = RegexSwizzleRGBA.test(memberToken.Text);
-					if (xyzw || rgba)
-						return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
-			}
+	//			case "4":
+	//				let xyzw = RegexSwizzleXYZW.test(memberToken.Text);
+	//				let rgba = RegexSwizzleRGBA.test(memberToken.Text);
+	//				if (xyzw || rgba)
+	//					return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
+	//		}
 
-			// Invalid component count or swizzle failed
-			throw new ParseError(memberToken, "Invalid swizzle: " + memberToken.Text); // TODO: Real error message
-		}
+	//		// Invalid component count or swizzle failed
+	//		throw new ParseError(memberToken, "Invalid swizzle: " + memberToken.Text); // TODO: Real error message
+	//	}
 		
-		return null;
-	}
+	//	return null;
+	//}
 
 	static async LoadTextFromURL(url, allowIncludes = true)
 	{
@@ -2301,8 +2624,9 @@ class HLSL
 				else
 				{
 					// Grab the data type for this member
-					let dataType = this.#DataTypeFromMemberExpression(exp, it.PeekPrev());
-					rightSide = new ExpVariable(it.PeekPrev(), dataType);
+					//let dataType = this.#DataTypeFromMemberExpression(exp, it.PeekPrev());
+					// Type determination moved to validation
+					rightSide = new ExpVariable(it.PeekPrev());//, dataType);
 				}
 				
 				exp = new ExpMember(
@@ -4119,8 +4443,16 @@ class ExpFunctionCall extends Expression
 			// ************ NEXT ***************
 
 			// TODO: Handle intrinsic functions and their types
-
-			// TODO: Handle custom functions (validate params for overloads, etc.)
+			let dataType = HLSL.DataTypeFromIntrinsicFunctionCallExpression(this);
+			if (dataType != null)
+			{
+				this.DataType = dataType;
+			}
+			else
+			{
+				// TODO: Handle custom functions (validate params for overloads, etc.)
+			}
+			
 		}
 	}
 

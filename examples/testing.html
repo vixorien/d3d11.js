@@ -309,6 +309,8 @@ VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 
 	float cast = (float)x;
 
+	float a = abs(cast);
+
 	return float4(posIn, 1.0f);
 }
 `;
