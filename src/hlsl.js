@@ -865,6 +865,34 @@ class HLSL
 		return true;
 	}
 
+	// Casting details (tested in HLSL)
+	//
+	// - All numeric types implicitly cast to each other
+	//   - Everything is 32-bit aside from double
+	//   - implicit cast from double causes a warning: "conversion from larger type to smaller, possible loss of data"
+	// - similar overloads can exist
+	//   - Example:
+	//     - void f(int x)
+	//     - void f(float x)
+	//   - Exact calls work fine:
+	//     - f(5) <-- int
+	//     - f(5.0f) <-- float
+	//   - Some implicit calls can work fine:
+	//     - f(uintVar)  <-- uses int version
+	//     - f(dwordVar) <-- uses int version
+	//     - f(halfVar)  <-- uses float version
+	//   - Calls relying on implicit casts fail if there is ambiguity!
+	//     - f(false)     <-- ambigious
+	//     - f(doubleVar) <-- ambigious
+	// - Struct-struct casting
+	//   - order and type of members must match (no "casting" between numeric types)
+	//   - vectors/matrices count as that many scalars --> float2 matches two floats in a row, etc.
+	// - Vector/matrix casting
+	//   - OK: vector = scalar, matrix = scalar
+	//   - OK: smaller = larger (implicit truncation warning) - works with vector or matrix
+	//   - NO: larger = smaller (cannot cast float2 to float3/4, same with matrices)
+
+
 	static GetImplicitCastType(typeA, typeB)
 	{
 		// Validate types
@@ -1527,38 +1555,38 @@ class HLSL
 		return HLSLReservedWordConversion.hasOwnProperty(text);
 	}
 
-	#GetFunctionReturnType(nameToken, params)
-	{
-		//console.log("NAME: " + nameToken.Text);
-		// Check different types of functions
-		if (nameToken.Text != "void" && HLSLDataTypeConversion.hasOwnProperty(nameToken.Text)) // Built-in type initializers: float4(), uint(), etc.
-		{
-			return nameToken.Text;
-		}
-		else if (HLSLIntrinsics.hasOwnProperty(nameToken.Text)) // Check for intrinsics
-		{
-			// TODO: Make this MUCH more versatile, checking S/V/M type, component count, etc.
-			return HLSLIntrinsics[nameToken.Text].ReturnType;
-		}
-		else if (HLSLTextureSampleConversion.hasOwnProperty(nameToken.Text))
-		{
-			// This is a texture sample function
-			// TODO: Update this once we support comparison sampling!
-			return HLSLTextureSampleConversion[nameToken.Text].DataType;
-		}
-		else // Might be a custom function
-		{
-			for (let f = 0; f < this.#functions.length; f++)
-			{
-				// If this function matches, use its return type
-				if (this.#MatchFunctionSignature(this.#functions[f], nameToken.Text, params))
-					return this.#functions[f].ReturnType;
-			}
-		}
+	//#GetFunctionReturnType(nameToken, params)
+	//{
+	//	//console.log("NAME: " + nameToken.Text);
+	//	// Check different types of functions
+	//	if (nameToken.Text != "void" && HLSLDataTypeConversion.hasOwnProperty(nameToken.Text)) // Built-in type initializers: float4(), uint(), etc.
+	//	{
+	//		return nameToken.Text;
+	//	}
+	//	else if (HLSLIntrinsics.hasOwnProperty(nameToken.Text)) // Check for intrinsics
+	//	{
+	//		// TODO: Make this MUCH more versatile, checking S/V/M type, component count, etc.
+	//		return HLSLIntrinsics[nameToken.Text].ReturnType;
+	//	}
+	//	else if (HLSLTextureSampleConversion.hasOwnProperty(nameToken.Text))
+	//	{
+	//		// This is a texture sample function
+	//		// TODO: Update this once we support comparison sampling!
+	//		return HLSLTextureSampleConversion[nameToken.Text].DataType;
+	//	}
+	//	else // Might be a custom function
+	//	{
+	//		for (let f = 0; f < this.#functions.length; f++)
+	//		{
+	//			// If this function matches, use its return type
+	//			if (this.#MatchFunctionSignature(this.#functions[f], nameToken.Text, params))
+	//				return this.#functions[f].ReturnType;
+	//		}
+	//	}
 
-		// Function name not found!
-		throw new ParseError(nameToken, "Invalid function name: " + nameToken.Text); // TODO: Better error message
-	}
+	//	// Function name not found!
+	//	throw new ParseError(nameToken, "Invalid function name: " + nameToken.Text); // TODO: Better error message
+	//}
 
 	#ParseStruct(it)
 	{
