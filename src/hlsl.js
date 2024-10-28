@@ -473,6 +473,40 @@ class HLSL
 		return "int";
 	}
 
+	/**
+	 *  
+	 */
+	static ValidateFunctionParameters(funcCallExp, paramDetails, returnDetails)
+	{
+		// Param details are in the form:
+		// [
+		//   {
+		//      TemplateType: "SVM"(or "S", or "SV", etc.),
+		//      ComponentType: ["float", "int"],
+		//      Size: [1,2,3,4]
+		//   },
+		//   {
+		//      TemplateType: "p0", // Means matching param zero
+		//      ComponentType: "p0", // Match param zero
+		//      Size: "p0" // Match param zero
+		//   }
+		// ]
+		// Return details are similar, but not an array
+
+		// Require the right number of params
+		if (funcCallExp.Parameters.length != paramDetails.length)
+			throw new ValidationError(funcCallExp.FuncExp.NameToken, "Incorrect number of parameters");
+
+		// Check each function param
+		for (let p = 0; p < paramDetails.length; p++)
+		{
+			// Validate each part of each parameter
+			// TODO: Need to check implicit casting here!
+		}
+
+		// TODO: Figure out return type
+	}
+
 	static DataTypeFromIntrinsicFunctionCallExpression(funcCallExp)
 	{
 		// Grab the function call name
