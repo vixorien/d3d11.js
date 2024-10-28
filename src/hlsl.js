@@ -46,7 +46,7 @@ const RegexSwizzleRG = /^[rg]{1,4}$/;
 const RegexSwizzleRGB = /^[rgb]{1,4}$/;
 const RegexSwizzleRGBA = /^[rgba]{1,4}$/;
 
-// TODO: missing a few matrix permutations (1xN, Nx1) and matrices of non-floats
+// TODO: missing matrices of non-floats
 const HLSLDataTypeConversion = {
 	"void": { "RootType": "void", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "void" },
 
@@ -167,8 +167,8 @@ const HLSLTextureSampleConversion = {
 const HLSLImplicitCastRank = {
 	"bool": 0,
 	"int": 1,
-	"uint": 2,
-	"dword": 3,
+	"dword": 2, // Really just an alias for uint?
+	"uint": 3,
 	"half": 4,
 	"float": 5,
 	"double": 6
@@ -180,87 +180,87 @@ const HLSLImplicitCastRank = {
 // Return type details
 // - Full passthrough --> same as the input
 // - Components == -1 --> Use the same as the input
-const HLSLIntrinsics = {
-	"abs": { ReturnType: "float", GLSL:"abs" },
-	"acos": { ReturnType: "float", GLSL: "acos" }, // TEMP return type!!
-	"all": { ReturnType: "bool", GLSL: "abs" },
-	"any": { ReturnType: "bool", GLSL: "abs" },
-	// "asdouble": {}, // Skip -> No GLSL equivalent.  Or make our own?
-	"asfloat": { ReturnType: "passthrough", GLSL: "intBitsToFloat" }, // Note: GLSL versions (intBitsToFloat, uintBitsToFloat) are scalar only!  Custom handling?
-	"asin": { ReturnType: "float", GLSL: "asin" }, // TEMP return type!!
-	"asint": { ReturnType: "passthrough", GLSL: "floatBitsToInt"},
-	"asuint": { ReturnType: "passthrough", GLSL: "floatBitsToUint" },
-	"atan": { ReturnType: "float", GLSL: "atan" }, // TEMP return type!!
-	"atan2": { ReturnType: "float", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
-	"ceil": { ReturnType: "float", GLSL: "ceil" }, // TEMP return type!!
-	"clamp": { ReturnType: "float", GLSL: "clamp" }, // TEMP return type!!
-	//"clip": { }, // No equiv.  Could make our own w/ discard?
-	"cos": { ReturnType: "float", GLSL: "cos" },
-	"cosh": { ReturnType: "float", GLSL: "cosh" },
-	"countbits": { ReturnType: "uint", GLSL: "bitCount" },
-	"cross": { ReturnType: "float3", GLSL: "cross" }, // TEMP return type!!
-	"ddx": { ReturnType: "float", GLSL: "dFdx" },// TEMP return type!!
-	"ddx_coarse": { ReturnType: "float", GLSL: "dFdxCoarse" },// TEMP return type!!
-	"ddx_fine": { ReturnType: "float", GLSL: "dFdxFine" },// TEMP return type!!
-	"ddy": { ReturnType: "float", GLSL: "dFdy" },// TEMP return type!!
-	"ddy_coarse": { ReturnType: "float", GLSL: "dFdyCoarse" },// TEMP return type!!
-	"ddy_fine": { ReturnType: "float", GLSL: "dFdyFine" },// TEMP return type!!
-	"degrees": { ReturnType: "float", GLSL: "degrees" },
-	"determinant": { ReturnType: "float", GLSL: "determinant" },
-	"distance": { ReturnType: "float", GLSL: "distance" },
-	"dot": { ReturnType: "float", GLSL: "dot" },
-	//"dst": {}, // Maybe skip?
-	"exp": { ReturnType: "float", GLSL: "exp" },// TEMP return type!!
-	"exp2": { ReturnType: "float", GLSL: "exp2" },// TEMP return type!!
-	//"f16tof32": {}, // Skip?
-	//"f32tof16": {}, // Skip?
-	"faceforward": { ReturnType: "float3", GLSL: "faceforward" },
-	//"firstbithigh": {}, // Skip?
-	//"firstbitlow": {}, // Skip?
-	"floor": { ReturnType: "float", GLSL: "floor" },// TEMP return type!!
-	// "fma": {}, // Skip?  Exists in GLSL but HLSL version is only doubles?
-	// "fmod": {}, // Skip?
-	"frac": { ReturnType: "float", GLSL: "fract" },
-	// "frexp": {}, // Skip?  Not in WebGL apparently?
-	"fwidth": { ReturnType: "float", GLSL: "fwidth" }, // TEMP return type!!
-	//"isfinite": {}, // Skip?
-	"isinf": { ReturnType: "bool", GLSL: "isinf" }, // TEMP return type!!
-	"isnan": { ReturnType: "bool", GLSL: "isnan" }, // TEMP return type!!
-	"ldexp": { ReturnType: "float", GLSL: "ldexp" }, // TEMP return type!!
-	"length": { ReturnType: "float", GLSL: "length" },
-	"lerp": { ReturnType: "float3", GLSL: "mix" },
-	// "lit": {}, // Skip?  // No GLSL equiv
-	"log": { ReturnType: "float", GLSL: "log" }, // TEMP return type!!
-	// "log10": {}, // Skip?  No GLSL equiv
-	"log2": { ReturnType: "float", GLSL: "log2" }, // TEMP return type!!
-	// "mad": {}, // Skip?  No GLSL equiv
-	"max": { ReturnType: "float", GLSL: "max" },  // TEMP return type!!
-	"min": { ReturnType: "float", GLSL: "min" },  // TEMP return type!!
-	"modf": { ReturnType: "float", GLSL: "modf" },  // TEMP return type!!
-	// "msad4": {}, // Skip?  No GLSL equiv
-	"mul": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
-	"normalize": { ReturnType: "float3", GLSL: "normalize" },  // TEMP return type!!
-	"pow": { ReturnType: "float", GLSL: "pow" },  // TEMP return type!!
-	"radians": { ReturnType: "float", GLSL: "radians" },  // TEMP return type!!
-	// "rcp": {}, // Skip?  No GLSL equiv
-	"reflect": { ReturnType: "float3", GLSL: "reflect" },  // TEMP return type!!
-	"refract": { ReturnType: "float3", GLSL: "refract" },  // TEMP return type!!
-	// "reversebits": {}, // Skip?  No GLSL equiv
-	"round": { ReturnType: "float", GLSL: "round" },  // TEMP return type!!
-	// "rsqrt": {}, // Skip?  No GLSL equiv.  Maybe make our own?
-	"saturate": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
-	"sign": { ReturnType: "int", GLSL: "sign" },  // TEMP return type!!
-	"sin": { ReturnType: "float", GLSL: "sin" },  // TEMP return type!!
-	// "sincos": {}, // Skip here - handled another way
-	"sinh": { ReturnType: "float", GLSL: "sinh" },  // TEMP return type!!
-	"smoothstep": { ReturnType: "float", GLSL: "smoothstep" },  // TEMP return type!!
-	"sqrt": { ReturnType: "float", GLSL: "sqrt" },  // TEMP return type!!
-	"step": { ReturnType: "float", GLSL: "step" },  // TEMP return type!!
-	"tan": { ReturnType: "float", GLSL: "tan" },  // TEMP return type!!
-	"tanh": { ReturnType: "float", GLSL: "tanh" },  // TEMP return type!!
-	"transpose": { ReturnType: "matrix", GLSL: "transpose" },  // TEMP return type!!
-	"trunc": { ReturnType: "float", GLSL: "trunc" },  // TEMP return type!!
-};
+//const HLSLIntrinsics = {
+//	"abs": { ReturnType: "float", GLSL:"abs" },
+//	"acos": { ReturnType: "float", GLSL: "acos" }, // TEMP return type!!
+//	"all": { ReturnType: "bool", GLSL: "abs" },
+//	"any": { ReturnType: "bool", GLSL: "abs" },
+//	// "asdouble": {}, // Skip -> No GLSL equivalent.  Or make our own?
+//	"asfloat": { ReturnType: "passthrough", GLSL: "intBitsToFloat" }, // Note: GLSL versions (intBitsToFloat, uintBitsToFloat) are scalar only!  Custom handling?
+//	"asin": { ReturnType: "float", GLSL: "asin" }, // TEMP return type!!
+//	"asint": { ReturnType: "passthrough", GLSL: "floatBitsToInt"},
+//	"asuint": { ReturnType: "passthrough", GLSL: "floatBitsToUint" },
+//	"atan": { ReturnType: "float", GLSL: "atan" }, // TEMP return type!!
+//	"atan2": { ReturnType: "float", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
+//	"ceil": { ReturnType: "float", GLSL: "ceil" }, // TEMP return type!!
+//	"clamp": { ReturnType: "float", GLSL: "clamp" }, // TEMP return type!!
+//	//"clip": { }, // No equiv.  Could make our own w/ discard?
+//	"cos": { ReturnType: "float", GLSL: "cos" },
+//	"cosh": { ReturnType: "float", GLSL: "cosh" },
+//	"countbits": { ReturnType: "uint", GLSL: "bitCount" },
+//	"cross": { ReturnType: "float3", GLSL: "cross" }, // TEMP return type!!
+//	"ddx": { ReturnType: "float", GLSL: "dFdx" },// TEMP return type!!
+//	"ddx_coarse": { ReturnType: "float", GLSL: "dFdxCoarse" },// TEMP return type!!
+//	"ddx_fine": { ReturnType: "float", GLSL: "dFdxFine" },// TEMP return type!!
+//	"ddy": { ReturnType: "float", GLSL: "dFdy" },// TEMP return type!!
+//	"ddy_coarse": { ReturnType: "float", GLSL: "dFdyCoarse" },// TEMP return type!!
+//	"ddy_fine": { ReturnType: "float", GLSL: "dFdyFine" },// TEMP return type!!
+//	"degrees": { ReturnType: "float", GLSL: "degrees" },
+//	"determinant": { ReturnType: "float", GLSL: "determinant" },
+//	"distance": { ReturnType: "float", GLSL: "distance" },
+//	"dot": { ReturnType: "float", GLSL: "dot" },
+//	//"dst": {}, // Maybe skip?
+//	"exp": { ReturnType: "float", GLSL: "exp" },// TEMP return type!!
+//	"exp2": { ReturnType: "float", GLSL: "exp2" },// TEMP return type!!
+//	//"f16tof32": {}, // Skip?
+//	//"f32tof16": {}, // Skip?
+//	"faceforward": { ReturnType: "float3", GLSL: "faceforward" },
+//	//"firstbithigh": {}, // Skip?
+//	//"firstbitlow": {}, // Skip?
+//	"floor": { ReturnType: "float", GLSL: "floor" },// TEMP return type!!
+//	// "fma": {}, // Skip?  Exists in GLSL but HLSL version is only doubles?
+//	// "fmod": {}, // Skip?
+//	"frac": { ReturnType: "float", GLSL: "fract" },
+//	// "frexp": {}, // Skip?  Not in WebGL apparently?
+//	"fwidth": { ReturnType: "float", GLSL: "fwidth" }, // TEMP return type!!
+//	//"isfinite": {}, // Skip?
+//	"isinf": { ReturnType: "bool", GLSL: "isinf" }, // TEMP return type!!
+//	"isnan": { ReturnType: "bool", GLSL: "isnan" }, // TEMP return type!!
+//	"ldexp": { ReturnType: "float", GLSL: "ldexp" }, // TEMP return type!!
+//	"length": { ReturnType: "float", GLSL: "length" },
+//	"lerp": { ReturnType: "float3", GLSL: "mix" },
+//	// "lit": {}, // Skip?  // No GLSL equiv
+//	"log": { ReturnType: "float", GLSL: "log" }, // TEMP return type!!
+//	// "log10": {}, // Skip?  No GLSL equiv
+//	"log2": { ReturnType: "float", GLSL: "log2" }, // TEMP return type!!
+//	// "mad": {}, // Skip?  No GLSL equiv
+//	"max": { ReturnType: "float", GLSL: "max" },  // TEMP return type!!
+//	"min": { ReturnType: "float", GLSL: "min" },  // TEMP return type!!
+//	"modf": { ReturnType: "float", GLSL: "modf" },  // TEMP return type!!
+//	// "msad4": {}, // Skip?  No GLSL equiv
+//	"mul": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
+//	"normalize": { ReturnType: "float3", GLSL: "normalize" },  // TEMP return type!!
+//	"pow": { ReturnType: "float", GLSL: "pow" },  // TEMP return type!!
+//	"radians": { ReturnType: "float", GLSL: "radians" },  // TEMP return type!!
+//	// "rcp": {}, // Skip?  No GLSL equiv
+//	"reflect": { ReturnType: "float3", GLSL: "reflect" },  // TEMP return type!!
+//	"refract": { ReturnType: "float3", GLSL: "refract" },  // TEMP return type!!
+//	// "reversebits": {}, // Skip?  No GLSL equiv
+//	"round": { ReturnType: "float", GLSL: "round" },  // TEMP return type!!
+//	// "rsqrt": {}, // Skip?  No GLSL equiv.  Maybe make our own?
+//	"saturate": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
+//	"sign": { ReturnType: "int", GLSL: "sign" },  // TEMP return type!!
+//	"sin": { ReturnType: "float", GLSL: "sin" },  // TEMP return type!!
+//	// "sincos": {}, // Skip here - handled another way
+//	"sinh": { ReturnType: "float", GLSL: "sinh" },  // TEMP return type!!
+//	"smoothstep": { ReturnType: "float", GLSL: "smoothstep" },  // TEMP return type!!
+//	"sqrt": { ReturnType: "float", GLSL: "sqrt" },  // TEMP return type!!
+//	"step": { ReturnType: "float", GLSL: "step" },  // TEMP return type!!
+//	"tan": { ReturnType: "float", GLSL: "tan" },  // TEMP return type!!
+//	"tanh": { ReturnType: "float", GLSL: "tanh" },  // TEMP return type!!
+//	"transpose": { ReturnType: "matrix", GLSL: "transpose" },  // TEMP return type!!
+//	"trunc": { ReturnType: "float", GLSL: "trunc" },  // TEMP return type!!
+//};
 
 class TokenIterator
 {
@@ -475,21 +475,23 @@ class HLSL
 
 	static DataTypeFromIntrinsicFunctionCallExpression(funcCallExp)
 	{
-		// Check the type
+		// Grab the function call name
 		let funcName = funcCallExp.FuncExp.NameToken.Text;
+
+		// Handle "matrix()" specifically
+		// TODO: Validate parameters
+		if (funcName == "matrix") return "float4x4";
+
+		// Search for data type initializers, like float2()
+		if (HLSL.HLSLDataTypeConversion.hasOwnProperty(funcName))
+		{
+			// TODO: Validate parameters
+			return funcName;
+		}
+
+		// Check for intrinsics
 		switch (funcName)
 		{
-			// Check for simple "name is datatype" initializers, like float2()
-			case "int": case "int2": case "int3": case "int4":
-			case "bool": case "bool2": case "bool3": case "bool4":
-			case "float": case "float2": case "float3": case "float4":
-			case "float2x2": case "float3x3": case "float4x4":
-				return funcName; 
-
-			// "matrix" is just an alias for "float4x4"
-			case "matrix": return "float4x4";
-
-			// -- Handle specific intrinsic functions --
 			// TODO: Validate parameter requirements for each function type!!!
 
 			// -------------------------------------------------
@@ -796,29 +798,29 @@ class HLSL
 	}
 
 	// Determines if the give castee type can be cast to the target type
-	//  casteeType: type that might be cast
+	//  startType: type that might be cast
 	//  targetType: type we actually need
-	#CanCastTo(casteeTypeName, targetTypeName)
+	#CanCastTo(startType, targetType)
 	{
 		// "void" can't be cast to or from
-		if (casteeTypeName == "void" || targetTypeName == "void")
+		if (startType == "void" || targetType == "void")
 			return false;
 
 		// Do they match?  If so, they're fine
-		if (casteeTypeName == targetTypeName)
+		if (startType == targetType)
 			return true;
 
 		// Castee must be a real type (not a struct)
-		if (!HLSLDataTypeConversion.hasOwnProperty(casteeTypeName))
+		if (!HLSLDataTypeConversion.hasOwnProperty(startType))
 			return false;
 
 		// If this isn't a built in type, it might be a struct
-		if (!HLSLDataTypeConversion.hasOwnProperty(targetTypeName))
+		if (!HLSLDataTypeConversion.hasOwnProperty(targetType))
 		{
 			// Custom structs can't be castees, but CAN be targets!
 			for (let s = 0; s < this.#structs.length; s++)
 			{
-				if (s.Name == targetTypeName)
+				if (s.Name == targetType)
 				{
 					// The target is a struct, so the castee must be a scalar
 					return this.#IsScalarType(casteeTypeName);
@@ -830,13 +832,13 @@ class HLSL
 		}
 
 		// Both types are built in, grab their details
-		let casteeDetails = HLSLDataTypeConversion[casteeTypeName];
-		let targetDetails = HLSLDataTypeConversion[targetTypeName];
-		let casteeRank = HLSLImplicitCastRank[casteeDetails.RootType];
+		let startDetails = HLSLDataTypeConversion[startType];
+		let targetDetails = HLSLDataTypeConversion[targetType];
+		let startRank = HLSLImplicitCastRank[startDetails.RootType];
 		let targetRank = HLSLImplicitCastRank[targetDetails.RootType];
 
 		// Check permutations
-		if (casteeDetails.SVM == "scalar" && targetDetails.SVM == "scalar")
+		if (startDetails.SVM == "scalar" && targetDetails.SVM == "scalar")
 		{
 
 		}
