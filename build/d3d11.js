@@ -6009,7 +6009,7 @@ const RegexSwizzleRG = /^[rg]{1,4}$/;
 const RegexSwizzleRGB = /^[rgb]{1,4}$/;
 const RegexSwizzleRGBA = /^[rgba]{1,4}$/;
 
-// TODO: missing a few matrix permutations (1xN, Nx1) and matrices of non-floats
+// TODO: missing matrices of non-floats
 const HLSLDataTypeConversion = {
 	"void": { "RootType": "void", "SVM": "scalar", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "void" },
 
@@ -6130,8 +6130,8 @@ const HLSLTextureSampleConversion = {
 const HLSLImplicitCastRank = {
 	"bool": 0,
 	"int": 1,
-	"uint": 2,
-	"dword": 3,
+	"dword": 2, // Really just an alias for uint?
+	"uint": 3,
 	"half": 4,
 	"float": 5,
 	"double": 6
@@ -6143,86 +6143,87 @@ const HLSLImplicitCastRank = {
 // Return type details
 // - Full passthrough --> same as the input
 // - Components == -1 --> Use the same as the input
-const HLSLIntrinsics = {
-	"abs": { ReturnType: "float", GLSL:"abs" },
-	"acos": { ReturnType: "float", GLSL: "acos" }, // TEMP return type!!
-	"all": { ReturnType: "bool", GLSL: "abs" },
-	"any": { ReturnType: "bool", GLSL: "abs" },
-	// "asdouble": {}, // Skip -> No GLSL equivalent.  Or make our own?
-	"asfloat": { ReturnType: "passthrough", GLSL: "intBitsToFloat" }, // Note: GLSL versions (intBitsToFloat, uintBitsToFloat) are scalar only!  Custom handling?
-	"asin": { ReturnType: "float", GLSL: "asin" }, // TEMP return type!!
-	"asint": { ReturnType: "passthrough", GLSL: "floatBitsToInt"},
-	"asuint": { ReturnType: "passthrough", GLSL: "floatBitsToUint" },
-	"atan": { ReturnType: "float", GLSL: "atan" }, // TEMP return type!!
-	"atan2": { ReturnType: "float", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
-	"ceil": { ReturnType: "float", GLSL: "ceil" }, // TEMP return type!!
-	"clamp": { ReturnType: "float", GLSL: "clamp" }, // TEMP return type!!
-	//"clip": { }, // No equiv.  Could make our own w/ discard?
-	"cos": { ReturnType: "float", GLSL: "cos" },
-	"cosh": { ReturnType: "float", GLSL: "cosh" },
-	"countbits": { ReturnType: "uint", GLSL: "bitCount" },
-	"cross": { ReturnType: "float3", GLSL: "cross" }, // TEMP return type!!
-	"ddx": { ReturnType: "float", GLSL: "dFdx" },// TEMP return type!!
-	"ddx_coarse": { ReturnType: "float", GLSL: "dFdxCoarse" },// TEMP return type!!
-	"ddx_fine": { ReturnType: "float", GLSL: "dFdxFine" },// TEMP return type!!
-	"ddy": { ReturnType: "float", GLSL: "dFdy" },// TEMP return type!!
-	"ddy_coarse": { ReturnType: "float", GLSL: "dFdyCoarse" },// TEMP return type!!
-	"ddy_fine": { ReturnType: "float", GLSL: "dFdyFine" },// TEMP return type!!
-	"degrees": { ReturnType: "float", GLSL: "degrees" },
-	"determinant": { ReturnType: "float", GLSL: "determinant" },
-	"distance": { ReturnType: "float", GLSL: "distance" },
-	"dot": { ReturnType: "float", GLSL: "dot" },
-	//"dst": {}, // Maybe skip?
-	"exp": { ReturnType: "float", GLSL: "exp" },// TEMP return type!!
-	"exp2": { ReturnType: "float", GLSL: "exp2" },// TEMP return type!!
-	//"f16tof32": {}, // Skip?
-	//"f32tof16": {}, // Skip?
-	"faceforward": { ReturnType: "float3", GLSL: "faceforward" },
-	//"firstbithigh": {}, // Skip?
-	//"firstbitlow": {}, // Skip?
-	"floor": { ReturnType: "float", GLSL: "floor" },// TEMP return type!!
-	// "fma": {}, // Skip?  Exists in GLSL but HLSL version is only doubles?
-	// "fmod": {}, // Skip?
-	"frac": { ReturnType: "float", GLSL: "fract" },
-	"fwidth": { ReturnType: "float", GLSL: "fwidth" }, // TEMP return type!!
-	"isfinite": {},
-	"isinf": { ReturnType: "bool", GLSL: "isinf" }, // TEMP return type!!
-	"isnan": { ReturnType: "bool", GLSL: "isnan" }, // TEMP return type!!
-	"ldexp": { ReturnType: "float", GLSL: "ldexp" }, // TEMP return type!!
-	"length": { ReturnType: "float", GLSL: "length" },
-	"lerp": { ReturnType: "float3", GLSL: "mix" },
-	// "lit": {}, // Skip?  // No GLSL equiv
-	"log": { ReturnType: "float", GLSL: "log" }, // TEMP return type!!
-	// "log10": {}, // Skip?  No GLSL equiv
-	"log2": { ReturnType: "float", GLSL: "log2" }, // TEMP return type!!
-	// "mad": {}, // Skip?  No GLSL equiv
-	"max": { ReturnType: "float", GLSL: "max" },  // TEMP return type!!
-	"min": { ReturnType: "float", GLSL: "min" },  // TEMP return type!!
-	"modf": { ReturnType: "float", GLSL: "modf" },  // TEMP return type!!
-	// "msad4": {}, // Skip?  No GLSL equiv
-	"mul": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
-	"normalize": { ReturnType: "float3", GLSL: "normalize" },  // TEMP return type!!
-	"pow": { ReturnType: "float", GLSL: "pow" },  // TEMP return type!!
-	"radians": { ReturnType: "float", GLSL: "radians" },  // TEMP return type!!
-	// "rcp": {}, // Skip?  No GLSL equiv
-	"reflect": { ReturnType: "float3", GLSL: "reflect" },  // TEMP return type!!
-	"refract": { ReturnType: "float3", GLSL: "refract" },  // TEMP return type!!
-	// "reversebits": {}, // Skip?  No GLSL equiv
-	"round": { ReturnType: "float", GLSL: "round" },  // TEMP return type!!
-	// "rsqrt": {}, // Skip?  No GLSL equiv.  Maybe make our own?
-	"saturate": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
-	"sign": { ReturnType: "int", GLSL: "sign" },  // TEMP return type!!
-	"sin": { ReturnType: "float", GLSL: "sin" },  // TEMP return type!!
-	// "sincos": {}, // Skip here - handled another way
-	"sinh": { ReturnType: "float", GLSL: "sinh" },  // TEMP return type!!
-	"smoothstep": { ReturnType: "float", GLSL: "smoothstep" },  // TEMP return type!!
-	"sqrt": { ReturnType: "float", GLSL: "sqrt" },  // TEMP return type!!
-	"step": { ReturnType: "float", GLSL: "step" },  // TEMP return type!!
-	"tan": { ReturnType: "float", GLSL: "tan" },  // TEMP return type!!
-	"tanh": { ReturnType: "float", GLSL: "tanh" },  // TEMP return type!!
-	"transpose": { ReturnType: "matrix", GLSL: "transpose" },  // TEMP return type!!
-	"trunc": { ReturnType: "float", GLSL: "trunc" },  // TEMP return type!!
-};
+//const HLSLIntrinsics = {
+//	"abs": { ReturnType: "float", GLSL:"abs" },
+//	"acos": { ReturnType: "float", GLSL: "acos" }, // TEMP return type!!
+//	"all": { ReturnType: "bool", GLSL: "abs" },
+//	"any": { ReturnType: "bool", GLSL: "abs" },
+//	// "asdouble": {}, // Skip -> No GLSL equivalent.  Or make our own?
+//	"asfloat": { ReturnType: "passthrough", GLSL: "intBitsToFloat" }, // Note: GLSL versions (intBitsToFloat, uintBitsToFloat) are scalar only!  Custom handling?
+//	"asin": { ReturnType: "float", GLSL: "asin" }, // TEMP return type!!
+//	"asint": { ReturnType: "passthrough", GLSL: "floatBitsToInt"},
+//	"asuint": { ReturnType: "passthrough", GLSL: "floatBitsToUint" },
+//	"atan": { ReturnType: "float", GLSL: "atan" }, // TEMP return type!!
+//	"atan2": { ReturnType: "float", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
+//	"ceil": { ReturnType: "float", GLSL: "ceil" }, // TEMP return type!!
+//	"clamp": { ReturnType: "float", GLSL: "clamp" }, // TEMP return type!!
+//	//"clip": { }, // No equiv.  Could make our own w/ discard?
+//	"cos": { ReturnType: "float", GLSL: "cos" },
+//	"cosh": { ReturnType: "float", GLSL: "cosh" },
+//	"countbits": { ReturnType: "uint", GLSL: "bitCount" },
+//	"cross": { ReturnType: "float3", GLSL: "cross" }, // TEMP return type!!
+//	"ddx": { ReturnType: "float", GLSL: "dFdx" },// TEMP return type!!
+//	"ddx_coarse": { ReturnType: "float", GLSL: "dFdxCoarse" },// TEMP return type!!
+//	"ddx_fine": { ReturnType: "float", GLSL: "dFdxFine" },// TEMP return type!!
+//	"ddy": { ReturnType: "float", GLSL: "dFdy" },// TEMP return type!!
+//	"ddy_coarse": { ReturnType: "float", GLSL: "dFdyCoarse" },// TEMP return type!!
+//	"ddy_fine": { ReturnType: "float", GLSL: "dFdyFine" },// TEMP return type!!
+//	"degrees": { ReturnType: "float", GLSL: "degrees" },
+//	"determinant": { ReturnType: "float", GLSL: "determinant" },
+//	"distance": { ReturnType: "float", GLSL: "distance" },
+//	"dot": { ReturnType: "float", GLSL: "dot" },
+//	//"dst": {}, // Maybe skip?
+//	"exp": { ReturnType: "float", GLSL: "exp" },// TEMP return type!!
+//	"exp2": { ReturnType: "float", GLSL: "exp2" },// TEMP return type!!
+//	//"f16tof32": {}, // Skip?
+//	//"f32tof16": {}, // Skip?
+//	"faceforward": { ReturnType: "float3", GLSL: "faceforward" },
+//	//"firstbithigh": {}, // Skip?
+//	//"firstbitlow": {}, // Skip?
+//	"floor": { ReturnType: "float", GLSL: "floor" },// TEMP return type!!
+//	// "fma": {}, // Skip?  Exists in GLSL but HLSL version is only doubles?
+//	// "fmod": {}, // Skip?
+//	"frac": { ReturnType: "float", GLSL: "fract" },
+//	// "frexp": {}, // Skip?  Not in WebGL apparently?
+//	"fwidth": { ReturnType: "float", GLSL: "fwidth" }, // TEMP return type!!
+//	//"isfinite": {}, // Skip?
+//	"isinf": { ReturnType: "bool", GLSL: "isinf" }, // TEMP return type!!
+//	"isnan": { ReturnType: "bool", GLSL: "isnan" }, // TEMP return type!!
+//	"ldexp": { ReturnType: "float", GLSL: "ldexp" }, // TEMP return type!!
+//	"length": { ReturnType: "float", GLSL: "length" },
+//	"lerp": { ReturnType: "float3", GLSL: "mix" },
+//	// "lit": {}, // Skip?  // No GLSL equiv
+//	"log": { ReturnType: "float", GLSL: "log" }, // TEMP return type!!
+//	// "log10": {}, // Skip?  No GLSL equiv
+//	"log2": { ReturnType: "float", GLSL: "log2" }, // TEMP return type!!
+//	// "mad": {}, // Skip?  No GLSL equiv
+//	"max": { ReturnType: "float", GLSL: "max" },  // TEMP return type!!
+//	"min": { ReturnType: "float", GLSL: "min" },  // TEMP return type!!
+//	"modf": { ReturnType: "float", GLSL: "modf" },  // TEMP return type!!
+//	// "msad4": {}, // Skip?  No GLSL equiv
+//	"mul": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
+//	"normalize": { ReturnType: "float3", GLSL: "normalize" },  // TEMP return type!!
+//	"pow": { ReturnType: "float", GLSL: "pow" },  // TEMP return type!!
+//	"radians": { ReturnType: "float", GLSL: "radians" },  // TEMP return type!!
+//	// "rcp": {}, // Skip?  No GLSL equiv
+//	"reflect": { ReturnType: "float3", GLSL: "reflect" },  // TEMP return type!!
+//	"refract": { ReturnType: "float3", GLSL: "refract" },  // TEMP return type!!
+//	// "reversebits": {}, // Skip?  No GLSL equiv
+//	"round": { ReturnType: "float", GLSL: "round" },  // TEMP return type!!
+//	// "rsqrt": {}, // Skip?  No GLSL equiv.  Maybe make our own?
+//	"saturate": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
+//	"sign": { ReturnType: "int", GLSL: "sign" },  // TEMP return type!!
+//	"sin": { ReturnType: "float", GLSL: "sin" },  // TEMP return type!!
+//	// "sincos": {}, // Skip here - handled another way
+//	"sinh": { ReturnType: "float", GLSL: "sinh" },  // TEMP return type!!
+//	"smoothstep": { ReturnType: "float", GLSL: "smoothstep" },  // TEMP return type!!
+//	"sqrt": { ReturnType: "float", GLSL: "sqrt" },  // TEMP return type!!
+//	"step": { ReturnType: "float", GLSL: "step" },  // TEMP return type!!
+//	"tan": { ReturnType: "float", GLSL: "tan" },  // TEMP return type!!
+//	"tanh": { ReturnType: "float", GLSL: "tanh" },  // TEMP return type!!
+//	"transpose": { ReturnType: "matrix", GLSL: "transpose" },  // TEMP return type!!
+//	"trunc": { ReturnType: "float", GLSL: "trunc" },  // TEMP return type!!
+//};
 
 class TokenIterator
 {
@@ -6397,185 +6398,7 @@ class HLSL
 		else
 			return identifier;
 	}
-
-	static DataTypeFromLiteralToken(token)
-	{
-		// Check for true/false first
-		let lower = token.Text.toLowerCase();
-		if (token.Type == TokenIdentifier && (lower == "true" || lower == "false"))
-			return "bool";
-
-		// Otherwise, this must be a numeric literal
-		if (token.Type != TokenNumericLiteral)
-			throw new Error("Invalid token for data type extraction");
-
-		// Grab the last two characters
-		let lastChar = token.Text.charAt(token.Text.length - 1).toLowerCase();
-		let secLastChar = token.Text.length == 1 ? "" : token.Text.charAt(token.Text.length - 2).toLowerCase();
-
-		// A decimal means definitely a float!
-		if (token.Text.indexOf(".") >= 0)
-		{
-			// Check for half or long
-			switch (lastChar)
-			{
-				case "h": return "half";
-				case "l": return "double";
-				default: return "float";
-			}
-		}
-
-		// Definitely not a float - is it an unsigned int?
-		if (lastChar == "u" || secLastChar == "u")
-			return "uint";
-
-		// All that's left is int
-		// Note: Even though HLSL accepts "L" as a suffix, it 
-		//       doesn't support 64-bit integers (SM 5.0, anyway)
-		return "int";
-	}
-
-	static DataTypeFromIntrinsicFunctionCallExpression(funcCallExp)
-	{
-		// Check the type
-		let funcName = funcCallExp.FuncExp.NameToken.Text;
-		switch (funcName)
-		{
-			// Check for simple "name is datatype" initializers, like float2()
-			case "int": case "int2": case "int3": case "int4":
-			case "bool": case "bool2": case "bool3": case "bool4":
-			case "float": case "float2": case "float3": case "float4":
-			case "float2x2": case "float3x3": case "float4x4":
-				return funcName; 
-
-			// "matrix" is just an alias for "float4x4"
-			case "matrix": return "float4x4";
-
-			// All of the following simply match the parameter type
-			case "abs":
-				console.log("PASS THROUGH TYPE: " + funcCallExp.Parameters[0].DataType);
-				return funcCallExp.Parameters[0].DataType;
-		}
-
-		// Nothing found
-		return null;
-	}
-
-	// Determines if the give castee type can be cast to the target type
-	//  casteeType: type that might be cast
-	//  targetType: type we actually need
-	#CanCastTo(casteeTypeName, targetTypeName)
-	{
-		// "void" can't be cast to or from
-		if (casteeTypeName == "void" || targetTypeName == "void")
-			return false;
-
-		// Do they match?  If so, they're fine
-		if (casteeTypeName == targetTypeName)
-			return true;
-
-		// Castee must be a real type (not a struct)
-		if (!HLSLDataTypeConversion.hasOwnProperty(casteeTypeName))
-			return false;
-
-		// If this isn't a built in type, it might be a struct
-		if (!HLSLDataTypeConversion.hasOwnProperty(targetTypeName))
-		{
-			// Custom structs can't be castees, but CAN be targets!
-			for (let s = 0; s < this.#structs.length; s++)
-			{
-				if (s.Name == targetTypeName)
-				{
-					// The target is a struct, so the castee must be a scalar
-					return this.#IsScalarType(casteeTypeName);
-				}
-			}
-
-			// Target is not built in, and not a struct
-			return false;
-		}
-
-		// Both types are built in, grab their details
-		let casteeDetails = HLSLDataTypeConversion[casteeTypeName];
-		let targetDetails = HLSLDataTypeConversion[targetTypeName];
-		let casteeRank = HLSLImplicitCastRank[casteeDetails.RootType];
-		let targetRank = HLSLImplicitCastRank[targetDetails.RootType];
-
-		// Check permutations
-		if (casteeDetails.SVM == "scalar" && targetDetails.SVM == "scalar")
-		{
-
-		}
-
-		// TODO: FINISH
-
-		// TEMPORARY!!!
-		return true;
-	}
-
-	// Does this function match the given name and param list?
-	// Note: This is not a "ShaderElementFunction" member function
-	//       because it needs access to the HLSL's #structs array
-	#MatchFunctionSignature(customFunction, name, params)
-	{
-		// Check name and param length first
-		if (customFunction.Name != name || customFunction.Parameters.length != params.length)
-			return false;
-		
-		// Loop through params and check data type compatibility
-		for (let p = 0; p < customFunction.Parameters.length; p++)
-			if (!this.#CanCastTo(params[p].DataType, customFunction.Parameters[p].DataTypeToken.Text))
-				return false;
-
-		// Everything matches
-		return true;
-	}
-
-	static GetImplicitCastType(typeA, typeB)
-	{
-		// Validate types
-		if (typeA == null || typeB == null)
-			return null;
-
-		// Grab details
-		let a = HLSLDataTypeConversion[typeA];
-		let b = HLSLDataTypeConversion[typeB];
-		let rankA = HLSLImplicitCastRank[a.RootType];
-		let rankB = HLSLImplicitCastRank[b.RootType];
-
-		// Check for s/v/m types
-		if (a.SVM == "scalar" && b.SVM == "scalar") // Scalar & Scalar
-		{
-			return rankA >= rankB ? typeA : typeB; // Return the highest rank
-		}
-		else if (a.SVM == "scalar" && (b.SVM == "vector" || b.SVM == "matrix")) // Scalar & (Vector or Matrix)
-		{
-			return typeB; // Non-scalar wins
-		}
-		else if ((a.SVM == "vector" || a.SVM == "matrix") && b.SVM == "scalar") // (Vector or Matrix) & Scalar
-		{
-			return typeA; // Non-scalar wins
-		}
-		else if (a.SVM == "vector" && b.SVM == "vector")
-		{
-			// Both vectors, so truncate to smallest (but use highest rank?)
-			let size = a.Components <= b.Components ? a.Components : b.Components;
-			let rootType = rankA >= rankB ? a.RootType : b.RootType;
-			return rootType + size.toString(); // Example: "float" + "2"
-		}
-		else if (a.SVM == "matrix" && b.SVM == "matrix")
-		{
-			// Both matrices, so truncate to smallest (but use highest rank?)
-			let r = a.Rows <= b.Rows ? a.Rows : b.Rows;
-			let c = a.Cols <= b.Cols ? a.Cols : b.Cols;
-			let rootType = rankA >= rankB ? a.RootType : b.RootType;
-			return rootType + r.toString() + "x" + c.toString(); // Example: "float" + "3" + "x" + "3"
-		}
-
-		// Matrix & Vector is invalid!
-		return null;
-	}
-
+	
 	#GetStructMemberType(structType, memberName)
 	{
 		for (let s = 0; s < this.#structs.length; s++)
@@ -6596,84 +6419,6 @@ class HLSL
 
 		return null;
 	}
-
-	//#DataTypeFromMemberExpression(exp, memberToken)
-	//{
-	//	// Member could be:
-	//	// - vector components/swizzle
-	//	// - matrix element
-	//	// - struct member (left is variable)
-
-	//	// Check for struct type first
-	//	let memberType = this.#GetStructMemberType(exp.DataType, memberToken.Text);
-	//	if (memberType != null)
-	//		return memberType;
-
-	//	// Not a struct member - check for matrix
-	//	if (this.#IsMatrixType(exp.DataType))
-	//	{
-	//		// This is a matrix, so validate member
-	//		if (HLSLMatrixElementConversion.hasOwnProperty(memberToken.Text))
-	//			return "float"; // All matrices are floats in GLSL, so we've got to follow suit
-	//			// TODO: Maybe keep this as the declared type until actual GLSL conversion?
-	//		else
-	//			throw new ParseError(memberToken, "Invalid matrix member: " + memberToken.Text); // TODO: Find the actual error message
-	//	}
-
-	//	// Is the left-side expression a scalar?
-	//	if (this.#IsScalarType(exp.DataType))
-	//	{
-	//		let scalarType = HLSLDataTypeConversion[exp.DataType].RootType;
-	//		if (scalarType == null)
-	//			throw new ParseError(memberToken, "Invalid scalar type");
-
-	//		// We have the scalar type of the expression, so validate the member
-	//		switch (memberToken.Text)
-	//		{
-	//			case "r": case "x": return scalarType;
-	//			case "rr": case "xx": return scalarType + "2";
-	//			case "rrr": case "xxx": return scalarType + "3";
-	//			case "rrrr": case "xxxx": return scalarType + "4";
-	//			default:
-	//				throw new ParseError(memberToken, "Invalid swizzle: " + memberToken.Text); // TODO: Real error message
-	//		}
-	//	}
-
-	//	// Is the left-side expression a vector?
-	//	if (this.#IsVectorType(exp.DataType))
-	//	{
-	//		// Extract data about the vector
-	//		let components = exp.DataType.slice(-1);
-	//		let coreType = exp.DataType.slice(0, -1);
-			
-	//		// TODO: Clean this up!
-	//		switch (components)
-	//		{
-	//			case "2":
-	//				let xy = RegexSwizzleXY.test(memberToken.Text);
-	//				let rg = RegexSwizzleRG.test(memberToken.Text);
-	//				if (xy || rg)
-	//					return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
-
-	//			case "3":
-	//				let xyz = RegexSwizzleXYZ.test(memberToken.Text);
-	//				let rgb = RegexSwizzleRGB.test(memberToken.Text);
-	//				if (xyz || rgb)
-	//					return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
-
-	//			case "4":
-	//				let xyzw = RegexSwizzleXYZW.test(memberToken.Text);
-	//				let rgba = RegexSwizzleRGBA.test(memberToken.Text);
-	//				if (xyzw || rgba)
-	//					return memberToken.Text.length == 1 ? coreType : coreType + memberToken.Text.length.toString(); // .xyy -> float3
-	//		}
-
-	//		// Invalid component count or swizzle failed
-	//		throw new ParseError(memberToken, "Invalid swizzle: " + memberToken.Text); // TODO: Real error message
-	//	}
-		
-	//	return null;
-	//}
 
 	static async LoadTextFromURL(url, allowIncludes = true)
 	{
@@ -7149,7 +6894,7 @@ class HLSL
 		return false;
 	}
 
-	#IsScalarType(text)
+	static IsScalarType(text)
 	{
 		switch (text)
 		{
@@ -7166,7 +6911,7 @@ class HLSL
 		return false;
 	}
 
-	#IsVectorType(text)
+	static IsVectorType(text)
 	{
 		switch (text)
 		{
@@ -7183,48 +6928,48 @@ class HLSL
 		return false;
 	}
 
-	#IsVectorOrScalarType(text)
+	static IsVectorOrScalarType(text)
 	{
-		return this.#IsScalarType(text) || this.#IsVectorType(text);
+		return HLSL.IsScalarType(text) || HLSL.IsVectorType(text);
 	}
 
-	#IsReservedWord(text)
+	static IsReservedWord(text)
 	{
 		return HLSLReservedWordConversion.hasOwnProperty(text);
 	}
 
-	#GetFunctionReturnType(nameToken, params)
-	{
-		//console.log("NAME: " + nameToken.Text);
-		// Check different types of functions
-		if (nameToken.Text != "void" && HLSLDataTypeConversion.hasOwnProperty(nameToken.Text)) // Built-in type initializers: float4(), uint(), etc.
-		{
-			return nameToken.Text;
-		}
-		else if (HLSLIntrinsics.hasOwnProperty(nameToken.Text)) // Check for intrinsics
-		{
-			// TODO: Make this MUCH more versatile, checking S/V/M type, component count, etc.
-			return HLSLIntrinsics[nameToken.Text].ReturnType;
-		}
-		else if (HLSLTextureSampleConversion.hasOwnProperty(nameToken.Text))
-		{
-			// This is a texture sample function
-			// TODO: Update this once we support comparison sampling!
-			return HLSLTextureSampleConversion[nameToken.Text].DataType;
-		}
-		else // Might be a custom function
-		{
-			for (let f = 0; f < this.#functions.length; f++)
-			{
-				// If this function matches, use its return type
-				if (this.#MatchFunctionSignature(this.#functions[f], nameToken.Text, params))
-					return this.#functions[f].ReturnType;
-			}
-		}
+	//#GetFunctionReturnType(nameToken, params)
+	//{
+	//	//console.log("NAME: " + nameToken.Text);
+	//	// Check different types of functions
+	//	if (nameToken.Text != "void" && HLSLDataTypeConversion.hasOwnProperty(nameToken.Text)) // Built-in type initializers: float4(), uint(), etc.
+	//	{
+	//		return nameToken.Text;
+	//	}
+	//	else if (HLSLIntrinsics.hasOwnProperty(nameToken.Text)) // Check for intrinsics
+	//	{
+	//		// TODO: Make this MUCH more versatile, checking S/V/M type, component count, etc.
+	//		return HLSLIntrinsics[nameToken.Text].ReturnType;
+	//	}
+	//	else if (HLSLTextureSampleConversion.hasOwnProperty(nameToken.Text))
+	//	{
+	//		// This is a texture sample function
+	//		// TODO: Update this once we support comparison sampling!
+	//		return HLSLTextureSampleConversion[nameToken.Text].DataType;
+	//	}
+	//	else // Might be a custom function
+	//	{
+	//		for (let f = 0; f < this.#functions.length; f++)
+	//		{
+	//			// If this function matches, use its return type
+	//			if (this.#MatchFunctionSignature(this.#functions[f], nameToken.Text, params))
+	//				return this.#functions[f].ReturnType;
+	//		}
+	//	}
 
-		// Function name not found!
-		throw new ParseError(nameToken, "Invalid function name: " + nameToken.Text); // TODO: Better error message
-	}
+	//	// Function name not found!
+	//	throw new ParseError(nameToken, "Invalid function name: " + nameToken.Text); // TODO: Better error message
+	//}
 
 	#ParseStruct(it)
 	{
@@ -10109,7 +9854,7 @@ class ExpFunctionCall extends Expression
 			// ************ NEXT ***************
 
 			// TODO: Handle intrinsic functions and their types
-			let dataType = HLSL.DataTypeFromIntrinsicFunctionCallExpression(this);
+			let dataType = scope.DataTypeFromIntrinsicFunctionCallExpression(this);
 			if (dataType != null)
 			{
 				this.DataType = dataType;
@@ -10268,7 +10013,7 @@ class ExpLiteral extends Expression
 	Validate(scope)
 	{
 		// Finalize data type
-		this.DataType = HLSL.DataTypeFromLiteralToken(this.LiteralToken);
+		this.DataType = scope.DataTypeFromLiteralToken(this.LiteralToken);
 		//console.log("VALIDATION - Literal - " + this.LiteralToken.Text + " - " + this.DataType);
 	}
 
@@ -10703,6 +10448,36 @@ class ScopeStack
 	}
 
 
+	AddShortTermVar(name, type)
+	{
+		this.#shortTermVars.push({ Name: name, DataType: type });
+	}
+
+	ClearShortTermVars()
+	{
+		this.#shortTermVars = [];
+	}
+
+	AddStruct(s)
+	{
+		this.#structs[s.Name] = s;
+	}
+
+	AddTexture(shaderElementTexture)
+	{
+		this.#textures[shaderElementTexture.Name] = shaderElementTexture;
+	}
+
+	AddSampler(shaderElementSampler)
+	{
+		this.#samplers[shaderElementSampler.Name] = shaderElementSampler;
+	}
+
+	AddFunction(f)
+	{
+		this.#functions.push(f);
+	}
+
 
 	GetStructVariableDataType(structName, varName)
 	{
@@ -10769,39 +10544,539 @@ class ScopeStack
 		return true;
 	}
 
-	AddShortTermVar(name, type)
-	{
-		this.#shortTermVars.push({ Name: name, DataType: type });
-	}
-
-	ClearShortTermVars()
-	{
-		this.#shortTermVars = [];
-	}
-
-	AddStruct(s)
-	{
-		this.#structs[s.Name] = s;
-	}
-
-	AddTexture(shaderElementTexture)
-	{
-		this.#textures[shaderElementTexture.Name] = shaderElementTexture;
-	}
-
-	AddSampler(shaderElementSampler)
-	{
-		this.#samplers[shaderElementSampler.Name] = shaderElementSampler;
-	}
-
-	AddFunction(f)
-	{
-		this.#functions.push(f);
-	}
-
 	DoesFunctionExist(expFuncCall)
 	{
 		// TODO: Determine if the function expression matches an existing function
 	}
+
+
+	// === TYPE CHECKING ===
+	// Note: This is in ScopeStack so we have access to structs!
+
+	// Casting details (tested in HLSL)
+	//
+	// - All numeric types implicitly cast to each other
+	//   - Everything is 32-bit aside from double
+	//   - implicit cast from double causes a warning: "conversion from larger type to smaller, possible loss of data"
+	// - similar overloads can exist
+	//   - Example:
+	//     - void f(int x)
+	//     - void f(float x)
+	//   - Exact calls work fine:
+	//     - f(5) <-- int
+	//     - f(5.0f) <-- float
+	//   - Some implicit calls can work fine:
+	//     - f(uintVar)  <-- uses int version
+	//     - f(dwordVar) <-- uses int version
+	//     - f(halfVar)  <-- uses float version
+	//   - Calls relying on implicit casts fail if there is ambiguity!
+	//     - f(false)     <-- ambigious
+	//     - f(doubleVar) <-- ambigious
+	// - Struct-struct casting
+	//   - order and type of members must match (no "casting" between numeric types)
+	//   - vectors/matrices count as that many scalars --> float2 matches two floats in a row, etc.
+	// - Vector/matrix casting
+	//   - OK: vector = scalar, matrix = scalar
+	//   - OK: smaller = larger (implicit truncation warning) - works with vector or matrix
+	//   - NO: larger = smaller (cannot cast float2 to float3/4, same with matrices)
+
+	DataTypeFromLiteralToken(token)
+	{
+		// Check for true/false first
+		let lower = token.Text.toLowerCase();
+		if (token.Type == TokenIdentifier && (lower == "true" || lower == "false"))
+			return "bool";
+
+		// Otherwise, this must be a numeric literal
+		if (token.Type != TokenNumericLiteral)
+			throw new Error("Invalid token for data type extraction");
+
+		// Grab the last two characters
+		let lastChar = token.Text.charAt(token.Text.length - 1).toLowerCase();
+		let secLastChar = token.Text.length == 1 ? "" : token.Text.charAt(token.Text.length - 2).toLowerCase();
+
+		// A decimal means definitely a float!
+		if (token.Text.indexOf(".") >= 0)
+		{
+			// Check for half or long
+			switch (lastChar)
+			{
+				case "h": return "half";
+				case "l": return "double";
+				default: return "float";
+			}
+		}
+
+		// Definitely not a float - is it an unsigned int?
+		if (lastChar == "u" || secLastChar == "u")
+			return "uint";
+
+		// All that's left is int
+		// Note: Even though HLSL accepts "L" as a suffix, it 
+		//       doesn't support 64-bit integers (SM 5.0, anyway)
+		return "int";
+	}
+
+	GetImplicitCastType(typeA, typeB)
+	{
+		// "void" can't be cast to or from
+		if (typeA == "void" || typeB == "void")
+			return null;
+
+		// Validate built-in types
+		if (!HLSLDataTypeConversion.hasOwnProperty(typeA) ||
+			!HLSLDataTypeConversion.hasOwnProperty(typeB))
+			return null;
+
+		// Identical?
+		if (typeA == typeB)
+			return typeA;
+
+		// Grab details
+		let a = HLSLDataTypeConversion[typeA];
+		let b = HLSLDataTypeConversion[typeB];
+		let rankA = HLSLImplicitCastRank[a.RootType];
+		let rankB = HLSLImplicitCastRank[b.RootType];
+
+		// Check for s/v/m types
+		if (a.SVM == "scalar" && b.SVM == "scalar") // Scalar & Scalar
+		{
+			return rankA >= rankB ? typeA : typeB; // Return the highest rank
+		}
+		else if (a.SVM == "scalar" && (b.SVM == "vector" || b.SVM == "matrix")) // Scalar & (Vector or Matrix)
+		{
+			return typeB; // Non-scalar wins
+		}
+		else if ((a.SVM == "vector" || a.SVM == "matrix") && b.SVM == "scalar") // (Vector or Matrix) & Scalar
+		{
+			return typeA; // Non-scalar wins
+		}
+		else if (a.SVM == "vector" && b.SVM == "vector")
+		{
+			// Both vectors, so truncate to smallest (but use highest rank?)
+			let size = a.Components <= b.Components ? a.Components : b.Components;
+			let rootType = rankA >= rankB ? a.RootType : b.RootType;
+			return rootType + size.toString(); // Example: "float" + "2"
+		}
+		else if (a.SVM == "matrix" && b.SVM == "matrix")
+		{
+			// Both matrices, so truncate to smallest (but use highest rank?)
+			let r = a.Rows <= b.Rows ? a.Rows : b.Rows;
+			let c = a.Cols <= b.Cols ? a.Cols : b.Cols;
+			let rootType = rankA >= rankB ? a.RootType : b.RootType;
+			return rootType + r.toString() + "x" + c.toString(); // Example: "float" + "3" + "x" + "3"
+		}
+
+		// Matrix & Vector is invalid!
+		return null;
+	}
+
+
+
+	// Determines if the give castee type can be cast to the target type
+	//  startType: type that might be cast
+	//  targetType: type we actually need
+	CanCastTo(startType, targetType)
+	{
+		// "void" can't be cast to or from
+		if (typeA == "void" || typeB == "void")
+			return false;
+
+		// Is this just an implicit cast with built-in types?
+		if (HLSL.GetImplicitCastType(startType, targetType) != null)
+			return true;
+
+		// Do they match?  If so, they're fine
+		if (startType == targetType)
+			return true;
+
+		// Supporting (Struct)scalar, such as: (Light)0
+		// TODO: Struct-struct casting if their "core" scalars match
+		if (this.#structs.hasOwnProperty(targetType))
+		{
+			// If the target is a struct, then the start type
+			// can definitely be a scalar, such as: (Light)0
+			return HLSL.IsScalarType(startType);
+		}
+
+		// Nope!
+		return false;
+	}
+
+	// === FUNCTION VALIDATION ===
+
+
+	// Does a function match the given name and param list?
+	MatchFunctionSignature(customFunction, name, params)
+	{
+		// Check name and param length first
+		if (customFunction.Name != name || customFunction.Parameters.length != params.length)
+			return false;
+
+		// Loop through params and check data type compatibility
+		for (let p = 0; p < customFunction.Parameters.length; p++)
+			if (!this.CanCastTo(params[p].DataType, customFunction.Parameters[p].DataTypeToken.Text))
+				return false;
+
+		// Everything matches
+		return true;
+	}
+
+	/**
+	 *  
+	 */
+	ValidateFunctionParameters(funcCallExp, paramDetails, returnDetails)
+	{
+		// Param details are in the form:
+		// [
+		//   {
+		//      TemplateType: "SVM"(or "S", or "SV", etc.),
+		//      ComponentType: ["float", "int"],
+		//      Size: [1,2,3,4]
+		//   },
+		//   {
+		//      TemplateType: "p0", // Means matching param zero
+		//      ComponentType: "p0", // Match param zero
+		//      Size: "p0" // Match param zero
+		//   }
+		// ]
+		// Return details are similar, but not an array
+
+		// Require the right number of params
+		if (funcCallExp.Parameters.length != paramDetails.length)
+			throw new ValidationError(funcCallExp.FuncExp.NameToken, "Incorrect number of parameters");
+
+		// Check each function param
+		for (let p = 0; p < paramDetails.length; p++)
+		{
+			// Validate each part of each parameter
+			// TODO: Need to check implicit casting here!
+		}
+
+		// TODO: Figure out return type
+	}
+
+	DataTypeFromIntrinsicFunctionCallExpression(funcCallExp)
+	{
+		// Grab the function call name
+		let funcName = funcCallExp.FuncExp.NameToken.Text;
+
+		// Handle "matrix()" specifically
+		// TODO: Validate parameters
+		if (funcName == "matrix") return "float4x4";
+
+		// Search for data type initializers, like float2()
+		if (HLSLDataTypeConversion.hasOwnProperty(funcName))
+		{
+			// TODO: Validate parameters
+			return funcName;
+		}
+
+		// Check for intrinsics
+		switch (funcName)
+		{
+			// TODO: Validate parameter requirements for each function type!!!
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any
+			// ret		match p0		match p0			same dim as p0
+			// -------------------------------------------------
+			case "abs":
+				console.log("PASS THROUGH TYPE: " + funcCallExp.Parameters[0].DataType);
+				return funcCallExp.Parameters[0].DataType;
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float				any
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "acos":
+			case "asin":
+			case "atan":
+			case "ceil":
+			case "cos":
+			case "cosh":
+			case "sin":
+			case "tan":
+			case "ddx":
+			case "ddy":
+			case "degrees":
+			case "exp":
+			case "exp2":
+			case "floor":
+			case "frac":
+			case "fwidth":
+			case "log":
+			case "log2":
+			case "radians":
+			case "round":
+			case "saturate":
+			case "sin":
+			case "sinh":
+			case "sqrt":
+			case "tan":
+			case "tanh":
+			case "trunc":
+				return null; // TODO finish
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float				any
+			// p1		match p0		float				same dim as p0
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "atan2":
+			case "ldexp":
+			case "pow":
+			case "step":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any
+			// p1		match p0		float, int			same dim as p0
+			// p2		match p0		float, int			same dim as p0
+			// ret		match p0		match p0			same dim as p0
+			// -------------------------------------------------
+			case "clamp":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int, bool	any
+			// ret		scalar			bool				1
+			// -------------------------------------------------
+			case "all":
+			case "any":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int, uint	any
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "asfloat":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, uint			any
+			// ret		match p0		int					same dim as p0
+			// -------------------------------------------------
+			case "asint":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any
+			// ret		match p0		uint				same dim as p0
+			// -------------------------------------------------
+			case "asuint":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SV				uint				any
+			// ret		match p0		uint				same dim as p0
+			// -------------------------------------------------
+			case "countbits":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				3
+			// p1		vector			float				3
+			// ret		vector			float				3
+			// -------------------------------------------------
+			case "cross":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SV				float				any
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "ddx_coarse":
+			case "ddx_fine":
+			case "ddy_coarse":
+			case "ddy_fine":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		matrix			float				any (rows == columns)
+			// ret		scalar			float				1
+			// -------------------------------------------------
+			case "determinant":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// p1		vector			float				same dim as p0
+			// ret		scalar			float				1
+			// -------------------------------------------------
+			case "distance":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float, int			any (2,3,4)
+			// p1		vector			float, int			same dim as p0
+			// ret		scalar			float				1
+			// -------------------------------------------------
+			case "dot":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// n		vector			float				any (2,3,4)
+			// i		vector			float				same dim as n
+			// ng		vector			float				same dim as n
+			// ret		vector			float				same dim as n
+			// -------------------------------------------------
+			case "faceforward":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float				any
+			// ret		match p0		bool				same dim as p0
+			// -------------------------------------------------
+			case "isinf":
+			case "isnan":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// ret		scalar			float				1
+			// -------------------------------------------------
+			case "length":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float				any
+			// p1		match p0		float				same dim as p0
+			// p2		match p0		float				same dim as p0
+			// ret		match p0		float				same dim as p0
+			// -------------------------------------------------
+			case "lerp":
+			case "smoothstep":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any (2,3,4)
+			// p1		match p0		float, int			same dim as p0
+			// ret		match p0		float, int			same dim as p0
+			// -------------------------------------------------
+			case "max":
+			case "min":
+			case "modf":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// 9 different overloads!  Details: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-mul
+			// -------------------------------------------------
+			case "mul":
+				return null;
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// ret		vector			float				same dim as p0
+			// -------------------------------------------------
+			case "normalize":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// p1		vector			float				same dim as p0
+			// ret		vector			float				same dim as p0
+			// -------------------------------------------------
+			case "reflect":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		vector			float				any (2,3,4)
+			// p1		vector			float				same dim as p0
+			// p2		scalar			float				1
+			// ret		vector			float				same dim as p0
+			// -------------------------------------------------
+			case "refract":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		SVM				float, int			any
+			// ret		match p0		int					same dim as p0
+			// -------------------------------------------------
+			case "sign":
+				return null; // TODO finish
+
+
+			// -------------------------------------------------
+			// Detail	TemplateType	ComponentType		Size
+			// -------------------------------------------------
+			// p0		matrix			float, int, bool	any
+			// ret		matrix			float, int, bool	r = p0.c, c = p0.r (transposed!)
+			// -------------------------------------------------
+			case "transpose":
+				return null; // TODO finish
+		}
+
+		// Nothing found
+		return null;
+	}
+	
 }
 
