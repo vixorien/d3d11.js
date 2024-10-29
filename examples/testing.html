@@ -309,7 +309,16 @@ VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 
 	float cast = (float)x;
 
-	float a = abs(cast);
+
+	float f1 = 1.0f;
+	float2 f2;
+	float3 f3;
+	float4 f4;
+
+	float a1 = abs(f1);
+	float2 a2 = abs(f2);
+	float3 a3 = abs(f3);
+	float4 a4 = abs(f4);
 
 	return float4(posIn, 1.0f);
 }

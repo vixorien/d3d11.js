@@ -6056,15 +6056,15 @@ const HLSLDataTypeConversion = {
 	"double4": { "RootType": "double", "SVM": "vector", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" },
 
 	"float2x2": { "RootType": "float", "SVM": "matrix", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2" },
-	"float2x3": { "RootType": "float", "SVM": "matrix", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat2x3" },
-	"float2x4": { "RootType": "float", "SVM": "matrix", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat2x4" },
+	"float2x3": { "RootType": "float", "SVM": "matrix", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat2x3" },
+	"float2x4": { "RootType": "float", "SVM": "matrix", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat2x4" },
 
-	"float3x2": { "RootType": "float", "SVM": "matrix", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat3x2" },
+	"float3x2": { "RootType": "float", "SVM": "matrix", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat3x2" },
 	"float3x3": { "RootType": "float", "SVM": "matrix", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3" },
-	"float3x4": { "RootType": "float", "SVM": "matrix", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat3x4" },
+	"float3x4": { "RootType": "float", "SVM": "matrix", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat3x4" },
 
-	"float4x2": { "RootType": "float", "SVM": "matrix", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat4x2" },
-	"float4x3": { "RootType": "float", "SVM": "matrix", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat4x3" },
+	"float4x2": { "RootType": "float", "SVM": "matrix", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat4x2" },
+	"float4x3": { "RootType": "float", "SVM": "matrix", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat4x3" },
 	"float4x4": { "RootType": "float", "SVM": "matrix", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" },
 
 	"matrix": { "RootType": "float", "SVM": "matrix", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" }
@@ -6136,94 +6136,6 @@ const HLSLImplicitCastRank = {
 	"float": 5,
 	"double": 6
 };
-
-// See:
-// - HLSL: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-intrinsic-functions
-// - GLSL: https://registry.khronos.org/OpenGL-Refpages/gl4/index.php
-// Return type details
-// - Full passthrough --> same as the input
-// - Components == -1 --> Use the same as the input
-//const HLSLIntrinsics = {
-//	"abs": { ReturnType: "float", GLSL:"abs" },
-//	"acos": { ReturnType: "float", GLSL: "acos" }, // TEMP return type!!
-//	"all": { ReturnType: "bool", GLSL: "abs" },
-//	"any": { ReturnType: "bool", GLSL: "abs" },
-//	// "asdouble": {}, // Skip -> No GLSL equivalent.  Or make our own?
-//	"asfloat": { ReturnType: "passthrough", GLSL: "intBitsToFloat" }, // Note: GLSL versions (intBitsToFloat, uintBitsToFloat) are scalar only!  Custom handling?
-//	"asin": { ReturnType: "float", GLSL: "asin" }, // TEMP return type!!
-//	"asint": { ReturnType: "passthrough", GLSL: "floatBitsToInt"},
-//	"asuint": { ReturnType: "passthrough", GLSL: "floatBitsToUint" },
-//	"atan": { ReturnType: "float", GLSL: "atan" }, // TEMP return type!!
-//	"atan2": { ReturnType: "float", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
-//	"ceil": { ReturnType: "float", GLSL: "ceil" }, // TEMP return type!!
-//	"clamp": { ReturnType: "float", GLSL: "clamp" }, // TEMP return type!!
-//	//"clip": { }, // No equiv.  Could make our own w/ discard?
-//	"cos": { ReturnType: "float", GLSL: "cos" },
-//	"cosh": { ReturnType: "float", GLSL: "cosh" },
-//	"countbits": { ReturnType: "uint", GLSL: "bitCount" },
-//	"cross": { ReturnType: "float3", GLSL: "cross" }, // TEMP return type!!
-//	"ddx": { ReturnType: "float", GLSL: "dFdx" },// TEMP return type!!
-//	"ddx_coarse": { ReturnType: "float", GLSL: "dFdxCoarse" },// TEMP return type!!
-//	"ddx_fine": { ReturnType: "float", GLSL: "dFdxFine" },// TEMP return type!!
-//	"ddy": { ReturnType: "float", GLSL: "dFdy" },// TEMP return type!!
-//	"ddy_coarse": { ReturnType: "float", GLSL: "dFdyCoarse" },// TEMP return type!!
-//	"ddy_fine": { ReturnType: "float", GLSL: "dFdyFine" },// TEMP return type!!
-//	"degrees": { ReturnType: "float", GLSL: "degrees" },
-//	"determinant": { ReturnType: "float", GLSL: "determinant" },
-//	"distance": { ReturnType: "float", GLSL: "distance" },
-//	"dot": { ReturnType: "float", GLSL: "dot" },
-//	//"dst": {}, // Maybe skip?
-//	"exp": { ReturnType: "float", GLSL: "exp" },// TEMP return type!!
-//	"exp2": { ReturnType: "float", GLSL: "exp2" },// TEMP return type!!
-//	//"f16tof32": {}, // Skip?
-//	//"f32tof16": {}, // Skip?
-//	"faceforward": { ReturnType: "float3", GLSL: "faceforward" },
-//	//"firstbithigh": {}, // Skip?
-//	//"firstbitlow": {}, // Skip?
-//	"floor": { ReturnType: "float", GLSL: "floor" },// TEMP return type!!
-//	// "fma": {}, // Skip?  Exists in GLSL but HLSL version is only doubles?
-//	// "fmod": {}, // Skip?
-//	"frac": { ReturnType: "float", GLSL: "fract" },
-//	// "frexp": {}, // Skip?  Not in WebGL apparently?
-//	"fwidth": { ReturnType: "float", GLSL: "fwidth" }, // TEMP return type!!
-//	//"isfinite": {}, // Skip?
-//	"isinf": { ReturnType: "bool", GLSL: "isinf" }, // TEMP return type!!
-//	"isnan": { ReturnType: "bool", GLSL: "isnan" }, // TEMP return type!!
-//	"ldexp": { ReturnType: "float", GLSL: "ldexp" }, // TEMP return type!!
-//	"length": { ReturnType: "float", GLSL: "length" },
-//	"lerp": { ReturnType: "float3", GLSL: "mix" },
-//	// "lit": {}, // Skip?  // No GLSL equiv
-//	"log": { ReturnType: "float", GLSL: "log" }, // TEMP return type!!
-//	// "log10": {}, // Skip?  No GLSL equiv
-//	"log2": { ReturnType: "float", GLSL: "log2" }, // TEMP return type!!
-//	// "mad": {}, // Skip?  No GLSL equiv
-//	"max": { ReturnType: "float", GLSL: "max" },  // TEMP return type!!
-//	"min": { ReturnType: "float", GLSL: "min" },  // TEMP return type!!
-//	"modf": { ReturnType: "float", GLSL: "modf" },  // TEMP return type!!
-//	// "msad4": {}, // Skip?  No GLSL equiv
-//	"mul": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
-//	"normalize": { ReturnType: "float3", GLSL: "normalize" },  // TEMP return type!!
-//	"pow": { ReturnType: "float", GLSL: "pow" },  // TEMP return type!!
-//	"radians": { ReturnType: "float", GLSL: "radians" },  // TEMP return type!!
-//	// "rcp": {}, // Skip?  No GLSL equiv
-//	"reflect": { ReturnType: "float3", GLSL: "reflect" },  // TEMP return type!!
-//	"refract": { ReturnType: "float3", GLSL: "refract" },  // TEMP return type!!
-//	// "reversebits": {}, // Skip?  No GLSL equiv
-//	"round": { ReturnType: "float", GLSL: "round" },  // TEMP return type!!
-//	// "rsqrt": {}, // Skip?  No GLSL equiv.  Maybe make our own?
-//	"saturate": { ReturnType: "float4", GLSL: null }, // TEMP return type!!  Handling GLSL translation another way!
-//	"sign": { ReturnType: "int", GLSL: "sign" },  // TEMP return type!!
-//	"sin": { ReturnType: "float", GLSL: "sin" },  // TEMP return type!!
-//	// "sincos": {}, // Skip here - handled another way
-//	"sinh": { ReturnType: "float", GLSL: "sinh" },  // TEMP return type!!
-//	"smoothstep": { ReturnType: "float", GLSL: "smoothstep" },  // TEMP return type!!
-//	"sqrt": { ReturnType: "float", GLSL: "sqrt" },  // TEMP return type!!
-//	"step": { ReturnType: "float", GLSL: "step" },  // TEMP return type!!
-//	"tan": { ReturnType: "float", GLSL: "tan" },  // TEMP return type!!
-//	"tanh": { ReturnType: "float", GLSL: "tanh" },  // TEMP return type!!
-//	"transpose": { ReturnType: "matrix", GLSL: "transpose" },  // TEMP return type!!
-//	"trunc": { ReturnType: "float", GLSL: "trunc" },  // TEMP return type!!
-//};
 
 class TokenIterator
 {
@@ -6931,6 +6843,33 @@ class HLSL
 	static IsVectorOrScalarType(text)
 	{
 		return HLSL.IsScalarType(text) || HLSL.IsVectorType(text);
+	}
+
+	static IsMatrixType(text)
+	{
+		// Check for matrix first
+		if (text == "matrix") return true;
+
+		// Determine if the string starts with a valid scalar type
+		let dims = null;
+		if (text.startsWith("bool")) { dims = text.substring(4); }
+		else if (text.startsWith("int")) { dims = text.substring(3); }
+		else if (text.startsWith("dword")) { dims = text.substring(5); }
+		else if (text.startsWith("uint")) { dims = text.substring(4); }
+		else if (text.startsWith("half")) { dims = text.substring(4); }
+		else if (text.startsWith("float")) { dims = text.substring(5); }
+		else if (text.startsWith("double")) { dims = text.substring(6); }
+
+		// Look for valid dimensions
+		switch (dims)
+		{
+			case "2x2": case "2x3": case "2x4":
+			case "3x2": case "3x3": case "3x4":
+			case "4x2": case "4x3": case "4x4":
+				return true;
+		}
+
+		return false;
 	}
 
 	static IsReservedWord(text)
@@ -10690,8 +10629,11 @@ class ScopeStack
 		if (startType == targetType)
 			return true;
 
-		// Supporting (Struct)scalar, such as: (Light)0
 		// TODO: Struct-struct casting if their "core" scalars match
+		if (this.#structs.hasOwnProperty(startType))
+			throw new ValidationError(null, "Casting from structs not yet implemented");
+
+		// Supporting (Struct)scalar, such as: (Light)0
 		if (this.#structs.hasOwnProperty(targetType))
 		{
 			// If the target is a struct, then the start type
@@ -10722,38 +10664,97 @@ class ScopeStack
 		return true;
 	}
 
+	
+
 	/**
 	 *  
 	 */
-	ValidateFunctionParameters(funcCallExp, paramDetails, returnDetails)
+	ValidateIntrinsicFunction(funcCallExp, paramReqs, returnReqs)
 	{
-		// Param details are in the form:
+		// Param reqs are in the form:
 		// [
 		//   {
 		//      TemplateType: "SVM"(or "S", or "SV", etc.),
-		//      ComponentType: ["float", "int"],
-		//      Size: [1,2,3,4]
+		//      RootType: ["float", "int"],
+		//		Cols: [1,2,3,4],
+		//      Rows: [1,2,3,4]
 		//   },
 		//   {
 		//      TemplateType: "p0", // Means matching param zero
-		//      ComponentType: "p0", // Match param zero
-		//      Size: "p0" // Match param zero
+		//      RootType: "p0", // Match param zero
+		//		Cols: "p0", // Match
+		//      Rows: "p0" // Match
 		//   }
 		// ]
-		// Return details are similar, but not an array
+		// Return reqs are similar, but not an array
 
 		// Require the right number of params
-		if (funcCallExp.Parameters.length != paramDetails.length)
-			throw new ValidationError(funcCallExp.FuncExp.NameToken, "Incorrect number of parameters");
+		if (funcCallExp.Parameters.length != paramReqs.length)
+			throw new ValidationError(funcCallExp.FuncExp.NameToken, "Incorrect number of arguments to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
 
 		// Check each function param
-		for (let p = 0; p < paramDetails.length; p++)
+		for (let p = 0; p < funcCallExp.Parameters.length; p++)
 		{
-			// Validate each part of each parameter
-			// TODO: Need to check implicit casting here!
+			// Grab the current parameter and its info
+			let pType = funcCallExp.Parameters[p].DataType;
+			if (!HLSLDataTypeConversion.hasOwnProperty(pType))
+				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid data type provided to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
+			let pInfo = HLSLDataTypeConversion[pType];
+
+			// Which requirements are we matching?
+			// - If any piece is "p0", we need to grab the details from the first parameter
+			let req = paramReqs[p];
+			if (p > 0 && req.TemplateType == "p0") req.TemplateType = paramReqs[0].TemplateType;
+			if (p > 0 && req.RootType == "p0") req.RootType = paramReqs[0].RootType;
+			if (p > 0 && req.Rows == "p0") req.Rows = paramReqs[0].Rows;
+			if (p > 0 && req.Cols == "p0") req.Cols = paramReqs[0].Cols;
+
+			// TODO: Handle one-off / odd-ball reqs here?
+
+			// Validate template type
+			let templateTypeValid = 
+				(pInfo.SVM == "scalar" && req.TemplateType.includes("S")) ||
+				(pInfo.SVM == "vector" && req.TemplateType.includes("V")) ||
+				(pInfo.SVM == "matrix" && req.TemplateType.includes("M"));
+
+			// Validate root type
+			let rootTypeValid = req.RootType.includes(pInfo.RootType);
+
+			// Validate sizes
+			let colsValid =
+				(pInfo.SVM == "scalar" && req.Cols.includes(1)) ||
+				((pInfo.SVM == "vector" || pInfo.SVM == "matrix") && req.Cols.includes(pInfo.Cols));
+
+			let rowsValid =
+				(pInfo.SVM == "scalar" && req.Rows.includes(1)) ||
+				((pInfo.SVM == "vector" || pInfo.SVM == "matrix") && req.Rows.includes(pInfo.Rows));
+
+			// Does everything match?
+			if (!templateTypeValid || !rootTypeValid || !colsValid || !rowsValid)
+				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid argument to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
+
 		}
 
-		// TODO: Figure out return type
+		// Grab the info of parameter 0 just in case
+		let p0 = HLSLDataTypeConversion[funcCallExp.Parameters[0].DataType];
+
+		// Determine return type based on reqs 
+		// - "p0" means use the same data as the actual initial parameter
+		let retTemplateType = (returnReqs.TemplateType == "p0") ? p0.SVM : returnReqs.TemplateType;
+		let retRootType = (returnReqs.RootType == "p0") ? p0.RootType : returnReqs.RootType;
+		let retCols = (returnReqs.Cols == "p0") ? p0.Cols : returnReqs.Cols;
+		let retRows = (returnReqs.Rows == "p0") ? p0.Rows : returnReqs.Rows;
+
+		// TODO: Handle any odd-ball / specific return changes here, like transpose()
+
+		// Finalize return type
+		switch (retTemplateType)
+		{
+			case "scalar": return retRootType; // "float", "uint", etc
+			case "vector": return retRootType + retCols; // float4, uint3, etc.
+			case "matrix": return retRootType + retCols + "x" + retRows; // float4x4
+			default: return null; // Invalid
+		}
 	}
 
 	DataTypeFromIntrinsicFunctionCallExpression(funcCallExp)
@@ -10777,18 +10778,26 @@ class ScopeStack
 		{
 			// TODO: Validate parameter requirements for each function type!!!
 
+			// See:
+			// - HLSL: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-intrinsic-functions
+			// - GLSL: https://registry.khronos.org/OpenGL-Refpages/gl4/index.php
+
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float, int			any
 			// ret		match p0		match p0			same dim as p0
 			// -------------------------------------------------
 			case "abs":
-				console.log("PASS THROUGH TYPE: " + funcCallExp.Parameters[0].DataType);
-				return funcCallExp.Parameters[0].DataType;
+				let ret = this.ValidateIntrinsicFunction(funcCallExp,
+					[{ TemplateType: "SVM", RootType: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+					{ TemplateType: "p0", RootType: "p0", Cols: "p0", Rows: "p0" }
+				);
+				console.log("RETURN TYPE: " + ret);
+				return ret;
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float				any
 			// ret		match p0		float				same dim as p0
@@ -10823,7 +10832,7 @@ class ScopeStack
 				return null; // TODO finish
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float				any
 			// p1		match p0		float				same dim as p0
@@ -10837,7 +10846,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float, int			any
 			// p1		match p0		float, int			same dim as p0
@@ -10849,7 +10858,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float, int, bool	any
 			// ret		scalar			bool				1
@@ -10860,7 +10869,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float, int, uint	any
 			// ret		match p0		float				same dim as p0
@@ -10870,7 +10879,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float, uint			any
 			// ret		match p0		int					same dim as p0
@@ -10880,7 +10889,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float, int			any
 			// ret		match p0		uint				same dim as p0
@@ -10890,7 +10899,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SV				uint				any
 			// ret		match p0		uint				same dim as p0
@@ -10900,7 +10909,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		vector			float				3
 			// p1		vector			float				3
@@ -10911,7 +10920,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SV				float				any
 			// ret		match p0		float				same dim as p0
@@ -10924,7 +10933,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		matrix			float				any (rows == columns)
 			// ret		scalar			float				1
@@ -10934,7 +10943,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		vector			float				any (2,3,4)
 			// p1		vector			float				same dim as p0
@@ -10945,7 +10954,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		vector			float, int			any (2,3,4)
 			// p1		vector			float, int			same dim as p0
@@ -10956,7 +10965,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// n		vector			float				any (2,3,4)
 			// i		vector			float				same dim as n
@@ -10968,7 +10977,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float				any
 			// ret		match p0		bool				same dim as p0
@@ -10979,7 +10988,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		vector			float				any (2,3,4)
 			// ret		scalar			float				1
@@ -10989,7 +10998,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float				any
 			// p1		match p0		float				same dim as p0
@@ -11002,7 +11011,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float, int			any (2,3,4)
 			// p1		match p0		float, int			same dim as p0
@@ -11022,7 +11031,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		vector			float				any (2,3,4)
 			// ret		vector			float				same dim as p0
@@ -11032,7 +11041,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		vector			float				any (2,3,4)
 			// p1		vector			float				same dim as p0
@@ -11043,7 +11052,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		vector			float				any (2,3,4)
 			// p1		vector			float				same dim as p0
@@ -11055,7 +11064,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		SVM				float, int			any
 			// ret		match p0		int					same dim as p0
@@ -11065,7 +11074,7 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	ComponentType		Size
+			// Detail	TemplateType	RootType			Size
 			// -------------------------------------------------
 			// p0		matrix			float, int, bool	any
 			// ret		matrix			float, int, bool	r = p0.c, c = p0.r (transposed!)
