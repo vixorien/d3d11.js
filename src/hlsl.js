@@ -4735,7 +4735,7 @@ class ScopeStack
 			// Grab the current parameter and its info
 			let pType = funcCallExp.Parameters[p].DataType;
 			if (!HLSLDataTypeConversion.hasOwnProperty(pType))
-				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid data type provided to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
+				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid argument to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
 			let pInfo = HLSLDataTypeConversion[pType];
 
 			// Which requirements are we matching?
@@ -4745,9 +4745,7 @@ class ScopeStack
 			if (p > 0 && req.RootType == "p0") req.RootType = paramReqs[0].RootType;
 			if (p > 0 && req.Rows == "p0") req.Rows = paramReqs[0].Rows;
 			if (p > 0 && req.Cols == "p0") req.Cols = paramReqs[0].Cols;
-
-			// TODO: Handle one-off / odd-ball reqs here?
-
+			
 			// Validate template type
 			let templateTypeValid = 
 				(pInfo.SVM == "scalar" && req.TemplateType.includes("S")) ||
@@ -4766,8 +4764,16 @@ class ScopeStack
 				(pInfo.SVM == "scalar" && req.Rows.includes(1)) ||
 				((pInfo.SVM == "vector" || pInfo.SVM == "matrix") && req.Rows.includes(pInfo.Rows));
 
+			// Perfect match?
+			let match = templateTypeValid && rootTypeValid && colsValid && rowsValid;
+			if (!match)
+			{
+				// TODO: See if a cast would suffice?
+				
+			}
+
 			// Does everything match?
-			if (!templateTypeValid || !rootTypeValid || !colsValid || !rowsValid)
+			if (!match)
 				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid argument to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
 
 		}
@@ -4820,24 +4826,22 @@ class ScopeStack
 			// - GLSL: https://registry.khronos.org/OpenGL-Refpages/gl4/index.php
 
 			// -------------------------------------------------
-			// Detail	TemplateType	RootType			Size
+			// Detail	TemplateType	RootType		Size
 			// -------------------------------------------------
-			// p0		SVM				float, int			any
-			// ret		match p0		match p0			same dim as p0
+			// p0		SVM				float, int		any
+			// ret		match p0		match p0		same dim as p0
 			// -------------------------------------------------
 			case "abs":
-				let ret = this.ValidateIntrinsicFunction(funcCallExp,
+				return this.ValidateIntrinsicFunction(funcCallExp,
 					[{ TemplateType: "SVM", RootType: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
 					{ TemplateType: "p0", RootType: "p0", Cols: "p0", Rows: "p0" }
 				);
-				console.log("RETURN TYPE: " + ret);
-				return ret;
 
 			// -------------------------------------------------
-			// Detail	TemplateType	RootType			Size
+			// Detail	TemplateType	RootType		Size
 			// -------------------------------------------------
-			// p0		SVM				float				any
-			// ret		match p0		float				same dim as p0
+			// p0		SVM				float			any
+			// ret		match p0		float			same dim as p0
 			// -------------------------------------------------
 			case "acos":
 			case "asin":
@@ -4866,14 +4870,20 @@ class ScopeStack
 			case "tan":
 			case "tanh":
 			case "trunc":
-				return null; // TODO finish
+				let ret = this.ValidateIntrinsicFunction(funcCallExp,
+					[{ TemplateType: "SVM", RootType: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+					{ TemplateType: "p0", RootType: "p0", Cols: "p0", Rows: "p0" }
+				);
+
+				console.log(funcName + ": " + ret);
+				return ret;
 
 			// -------------------------------------------------
-			// Detail	TemplateType	RootType			Size
+			// Detail	TemplateType	RootType		Size
 			// -------------------------------------------------
-			// p0		SVM				float				any
-			// p1		match p0		float				same dim as p0
-			// ret		match p0		float				same dim as p0
+			// p0		SVM				float			any
+			// p1		match p0		float			same dim as p0
+			// ret		match p0		float			same dim as p0
 			// -------------------------------------------------
 			case "atan2":
 			case "ldexp":
@@ -4883,12 +4893,12 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	RootType			Size
+			// Detail	TemplateType	RootType		Size
 			// -------------------------------------------------
-			// p0		SVM				float, int			any
-			// p1		match p0		float, int			same dim as p0
-			// p2		match p0		float, int			same dim as p0
-			// ret		match p0		match p0			same dim as p0
+			// p0		SVM				float, int		any
+			// p1		match p0		float, int		same dim as p0
+			// p2		match p0		float, int		same dim as p0
+			// ret		match p0		match p0		same dim as p0
 			// -------------------------------------------------
 			case "clamp":
 				return null; // TODO finish

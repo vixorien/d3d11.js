@@ -10783,24 +10783,22 @@ class ScopeStack
 			// - GLSL: https://registry.khronos.org/OpenGL-Refpages/gl4/index.php
 
 			// -------------------------------------------------
-			// Detail	TemplateType	RootType			Size
+			// Detail	TemplateType	RootType		Size
 			// -------------------------------------------------
-			// p0		SVM				float, int			any
-			// ret		match p0		match p0			same dim as p0
+			// p0		SVM				float, int		any
+			// ret		match p0		match p0		same dim as p0
 			// -------------------------------------------------
 			case "abs":
-				let ret = this.ValidateIntrinsicFunction(funcCallExp,
+				return this.ValidateIntrinsicFunction(funcCallExp,
 					[{ TemplateType: "SVM", RootType: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
 					{ TemplateType: "p0", RootType: "p0", Cols: "p0", Rows: "p0" }
 				);
-				console.log("RETURN TYPE: " + ret);
-				return ret;
 
 			// -------------------------------------------------
-			// Detail	TemplateType	RootType			Size
+			// Detail	TemplateType	RootType		Size
 			// -------------------------------------------------
-			// p0		SVM				float				any
-			// ret		match p0		float				same dim as p0
+			// p0		SVM				float			any
+			// ret		match p0		float			same dim as p0
 			// -------------------------------------------------
 			case "acos":
 			case "asin":
@@ -10829,14 +10827,20 @@ class ScopeStack
 			case "tan":
 			case "tanh":
 			case "trunc":
-				return null; // TODO finish
+				let ret = this.ValidateIntrinsicFunction(funcCallExp,
+					[{ TemplateType: "SVM", RootType: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+					{ TemplateType: "p0", RootType: "p0", Cols: "p0", Rows: "p0" }
+				);
+
+				console.log(funcName + ": " + ret);
+				return ret;
 
 			// -------------------------------------------------
-			// Detail	TemplateType	RootType			Size
+			// Detail	TemplateType	RootType		Size
 			// -------------------------------------------------
-			// p0		SVM				float				any
-			// p1		match p0		float				same dim as p0
-			// ret		match p0		float				same dim as p0
+			// p0		SVM				float			any
+			// p1		match p0		float			same dim as p0
+			// ret		match p0		float			same dim as p0
 			// -------------------------------------------------
 			case "atan2":
 			case "ldexp":
@@ -10846,12 +10850,12 @@ class ScopeStack
 
 
 			// -------------------------------------------------
-			// Detail	TemplateType	RootType			Size
+			// Detail	TemplateType	RootType		Size
 			// -------------------------------------------------
-			// p0		SVM				float, int			any
-			// p1		match p0		float, int			same dim as p0
-			// p2		match p0		float, int			same dim as p0
-			// ret		match p0		match p0			same dim as p0
+			// p0		SVM				float, int		any
+			// p1		match p0		float, int		same dim as p0
+			// p2		match p0		float, int		same dim as p0
+			// ret		match p0		match p0		same dim as p0
 			// -------------------------------------------------
 			case "clamp":
 				return null; // TODO finish
