@@ -10730,7 +10730,10 @@ class ScopeStack
 				(pInfo.SVM == "scalar" && req.Rows.includes(1)) ||
 				((pInfo.SVM == "vector" || pInfo.SVM == "matrix") && req.Rows.includes(pInfo.Rows));
 
-			// Perfect match?
+			// TODO: Handle larger vectors/matrices being used for smaller params (like float3 when needing float2)
+			// - That is a valid implicit truncation
+
+			// Is this a valid argument?
 			let match = templateTypeValid && rootTypeValid && colsValid && rowsValid;
 			if (!match)
 				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid argument to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
@@ -10776,6 +10779,7 @@ class ScopeStack
 		}
 
 		// Check for intrinsics
+		let ret = ""; // For testing
 		switch (funcName)
 		{
 			// TODO: Validate parameter requirements for each function type!!!
@@ -10829,9 +10833,9 @@ class ScopeStack
 			case "tan":
 			case "tanh":
 			case "trunc":
-				let ret = this.ValidateIntrinsicFunction(funcCallExp,
+				ret = this.ValidateIntrinsicFunction(funcCallExp,
 					[{ TemplateType: "SVM", RootType: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
-					{ TemplateType: "p0", RootType: "p0", Cols: "p0", Rows: "p0" }
+					{ TemplateType: "p0", RootType: ["float"], Cols: "p0", Rows: "p0" }
 				);
 
 				console.log(funcName + ": " + ret);
@@ -10848,7 +10852,16 @@ class ScopeStack
 			case "ldexp":
 			case "pow":
 			case "step":
-				return null; // TODO finish
+				ret = this.ValidateIntrinsicFunction(funcCallExp,
+					[
+						{ TemplateType: "SVM", RootType: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] },
+						{ TemplateType: "p0", RootType: ["float"], Cols: "p0", Rows: "p0" }
+					],
+					{ TemplateType: "p0", RootType: ["float"], Cols: "p0", Rows: "p0" }
+				);
+
+				console.log(funcName + ": " + ret);
+				return ret;
 
 
 			// -------------------------------------------------

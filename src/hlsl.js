@@ -820,28 +820,78 @@ class HLSL
 		return isStructType || isDataType;
 	}
 
-	#IsMatrixType(text)
+	static GetRootType(text)
 	{
-		switch (text)
+		// Are we a built-in type?
+		let dims = "";
+		let rootType = "";
+		if (text.startsWith("bool")) { rootType = "bool"; dims = text.substring(4); }
+		else if (text.startsWith("int")) { rootType = "int"; dims = text.substring(3); }
+		else if (text.startsWith("dword")) { rootType = "dword"; dims = text.substring(5); }
+		else if (text.startsWith("uint")) { rootType = "uint"; dims = text.substring(4); }
+		else if (text.startsWith("half")) { rootType = "half"; dims = text.substring(4); }
+		else if (text.startsWith("float")) { rootType = "float"; dims = text.substring(5); }
+		else if (text.startsWith("double")) { rootType = "double"; dims = text.substring(6); }
+
+		if (dims.length == 0)
+			return rootType;
+
+		// Validate vector dimensions
+		if (dims == "1" || dims == "2" || dims == "3" || dims == "4")
+			return rootType;
+
+		// Validate matrix dimensions
+		if (dims.length == 3)
 		{
-			case "float2x2":
-			case "float2x3":
-			case "float2x4":
+			let c = dims[0];
+			let x = dims[1];
+			let r = dims[2];
 
-			case "float3x2":
-			case "float3x3":
-			case "float3x4":
+			if (x == "x" &&
+				(c == "1" || c == "2" || c == "3" || c == "4") &&
+				(r == "1" || r == "2" || r == "3" || r == "4"))
+				return rootType;
+		}
 
-			case "float4x2":
-			case "float4x3":
-			case "float4x4":
+		// No match
+		return null;
+	}
 
-			case "matrix":
+	static IsBoolType(text)
+	{
+		return HLSL.GetRootType(text) == "bool";
+	}
+
+	static IsIntType(text)
+	{
+		let rootType = HLSL.GetRootType(text);
+
+		switch (rootType)
+		{
+			case "int":
+			case "uint":
+			case "dword":
 				return true;
 		}
 
 		return false;
 	}
+
+	static IsFloatType(text)
+	{
+		let rootType = HLSL.GetRootType(text);
+
+		switch (rootType)
+		{
+			case "half":
+			case "float":
+			case "double":
+				return true;
+		}
+
+		return false;
+	}
+
 
 	static IsScalarType(text)
 	{
@@ -4767,7 +4817,10 @@ class ScopeStack
 				(pInfo.SVM == "scalar" && req.Rows.includes(1)) ||
 				((pInfo.SVM == "vector" || pInfo.SVM == "matrix") && req.Rows.includes(pInfo.Rows));
 
-			// Perfect match?
+			// TODO: Handle larger vectors/matrices being used for smaller params (like float3 when needing float2)
+			// - That is a valid implicit truncation
+
+			// Is this a valid argument?
 			let match = templateTypeValid && rootTypeValid && colsValid && rowsValid;
 			if (!match)
 				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid argument to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
@@ -4813,6 +4866,7 @@ class ScopeStack
 		}
 
 		// Check for intrinsics
+		let ret = ""; // For testing
 		switch (funcName)
 		{
 			// TODO: Validate parameter requirements for each function type!!!
@@ -4866,11 +4920,10 @@ class ScopeStack
 			case "tan":
 			case "tanh":
 			case "trunc":
-				let ret = this.ValidateIntrinsicFunction(funcCallExp,
+				ret = this.ValidateIntrinsicFunction(funcCallExp,
 					[{ TemplateType: "SVM", RootType: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
-					{ TemplateType: "p0", RootType: "p0", Cols: "p0", Rows: "p0" }
+					{ TemplateType: "p0", RootType: ["float"], Cols: "p0", Rows: "p0" }
 				);
-
 				console.log(funcName + ": " + ret);
 				return ret;
 
@@ -4885,7 +4938,15 @@ class ScopeStack
 			case "ldexp":
 			case "pow":
 			case "step":
-				return null; // TODO finish
+				ret = this.ValidateIntrinsicFunction(funcCallExp,
+					[
+						{ TemplateType: "SVM", RootType: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] },
+						{ TemplateType: "p0", RootType: ["float"], Cols: "p0", Rows: "p0" }
+					],
+					{ TemplateType: "p0", RootType: ["float"], Cols: "p0", Rows: "p0" }
+				);
+				console.log(funcName + ": " + ret);
+				return ret;
 
 
 			// -------------------------------------------------
@@ -4897,7 +4958,16 @@ class ScopeStack
 			// ret		match p0		match p0		same dim as p0
 			// -------------------------------------------------
 			case "clamp":
-				return null; // TODO finish
+				ret = this.ValidateIntrinsicFunction(funcCallExp,
+					[
+						{ TemplateType: "SVM", RootType: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] },
+						{ TemplateType: "p0", RootType: ["float", "int"], Cols: "p0", Rows: "p0" },
+						{ TemplateType: "p0", RootType: ["float", "int"], Cols: "p0", Rows: "p0" }
+					],
+					{ TemplateType: "p0", RootType: "p0", Cols: "p0", Rows: "p0" }
+				);
+				console.log(funcName + ": " + ret);
+				return ret;
 
 
 			// -------------------------------------------------
@@ -4908,7 +4978,12 @@ class ScopeStack
 			// -------------------------------------------------
 			case "all":
 			case "any":
-				return null; // TODO finish
+				ret = this.ValidateIntrinsicFunction(funcCallExp,
+					[{ TemplateType: "SVM", RootType: ["float", "int", "bool"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+					{ TemplateType: "scalar", RootType: ["bool"], Cols: [1], Rows: [1] }
+				);
+				console.log(funcName + ": " + ret);
+				return ret;
 
 
 			// -------------------------------------------------
