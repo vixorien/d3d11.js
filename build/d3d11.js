@@ -10698,7 +10698,7 @@ class ScopeStack
 			// Grab the current parameter and its info
 			let pType = funcCallExp.Parameters[p].DataType;
 			if (!HLSLDataTypeConversion.hasOwnProperty(pType))
-				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid data type provided to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
+				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid argument to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
 			let pInfo = HLSLDataTypeConversion[pType];
 
 			// Which requirements are we matching?
@@ -10708,17 +10708,18 @@ class ScopeStack
 			if (p > 0 && req.RootType == "p0") req.RootType = paramReqs[0].RootType;
 			if (p > 0 && req.Rows == "p0") req.Rows = paramReqs[0].Rows;
 			if (p > 0 && req.Cols == "p0") req.Cols = paramReqs[0].Cols;
-
-			// TODO: Handle one-off / odd-ball reqs here?
-
+			
 			// Validate template type
 			let templateTypeValid = 
-				(pInfo.SVM == "scalar" && req.TemplateType.includes("S")) ||
+				(pInfo.SVM == "scalar") || // A scalar can be promoted to a vector or matrix, so scalars always work
 				(pInfo.SVM == "vector" && req.TemplateType.includes("V")) ||
 				(pInfo.SVM == "matrix" && req.TemplateType.includes("M"));
 
 			// Validate root type
-			let rootTypeValid = req.RootType.includes(pInfo.RootType);
+			// Note: All built-in numeric types can cast to each other, so
+			// as long as this is actually a numeric type (checked above!)
+			// it should work
+			let rootTypeValid = true;// req.RootType.includes(pInfo.RootType);
 
 			// Validate sizes
 			let colsValid =
@@ -10729,8 +10730,9 @@ class ScopeStack
 				(pInfo.SVM == "scalar" && req.Rows.includes(1)) ||
 				((pInfo.SVM == "vector" || pInfo.SVM == "matrix") && req.Rows.includes(pInfo.Rows));
 
-			// Does everything match?
-			if (!templateTypeValid || !rootTypeValid || !colsValid || !rowsValid)
+			// Perfect match?
+			let match = templateTypeValid && rootTypeValid && colsValid && rowsValid;
+			if (!match)
 				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid argument to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
 
 		}

@@ -4748,12 +4748,15 @@ class ScopeStack
 			
 			// Validate template type
 			let templateTypeValid = 
-				(pInfo.SVM == "scalar" && req.TemplateType.includes("S")) ||
+				(pInfo.SVM == "scalar") || // A scalar can be promoted to a vector or matrix, so scalars always work
 				(pInfo.SVM == "vector" && req.TemplateType.includes("V")) ||
 				(pInfo.SVM == "matrix" && req.TemplateType.includes("M"));
 
 			// Validate root type
-			let rootTypeValid = req.RootType.includes(pInfo.RootType);
+			// Note: All built-in numeric types can cast to each other, so
+			// as long as this is actually a numeric type (checked above!)
+			// it should work
+			let rootTypeValid = true;// req.RootType.includes(pInfo.RootType);
 
 			// Validate sizes
 			let colsValid =
@@ -4766,13 +4769,6 @@ class ScopeStack
 
 			// Perfect match?
 			let match = templateTypeValid && rootTypeValid && colsValid && rowsValid;
-			if (!match)
-			{
-				// TODO: See if a cast would suffice?
-				
-			}
-
-			// Does everything match?
 			if (!match)
 				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Invalid argument to intrinsic function call " + funcCallExp.FuncExp.NameToken.Text);
 
