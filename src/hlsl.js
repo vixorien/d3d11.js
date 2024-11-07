@@ -693,7 +693,7 @@ class HLSL
 	{
 		// Scope stack with an initial scope for globals (cbuffer vars)
 		let scope = new ScopeStack();
-		scope.PushScope();
+		scope.PushScope(ScopeTypeGlobal);
 
 		// Add all structs
 		for (let s = 0; s < this.#structs.length; s++)
@@ -729,7 +729,7 @@ class HLSL
 	#ValidateFunction(scope, func)
 	{
 		// New scope for this function
-		scope.PushScope();
+		scope.PushScope(ScopeTypeFunction, func.ReturnType);
 
 		// Add all parameters to scope
 		for (let p = 0; p < func.Parameters.length; p++)
@@ -3220,7 +3220,7 @@ class StatementBlock extends Statement
 	// Adds scope, validates internal statements, removes scope
 	Validate(scope)
 	{
-		scope.PushScope();
+		scope.PushScope(ScopeTypeBlock);
 
 		for (let i = 0; i < this.Statements.length; i++)
 		{
@@ -3324,9 +3324,15 @@ class StatementDoWhile extends Statement
 
 	Validate(scope)
 	{
+		// Add loop scope
+		scope.PushScope(ScopeTypeLoop);
+
 		this.Body.Validate(scope);
 		this.Condition.Validate(scope);
 		// TODO: Verify condition evaluates to a boolean
+
+		// Remove scope
+		scope.PopScope();
 	}
 
 	ToString(lang, indent = "")
@@ -3377,12 +3383,18 @@ class StatementFor extends Statement
 
 	Validate(scope)
 	{
+		// New scope
+		scope.PushScope(ScopeTypeLoop);
+
 		// TODO: Allow any of these to be "empty"
 		this.InitStatement.Validate(scope);
 		this.ConditionExpression.Validate(scope); // Note: "Empty" equates to true!
 		this.IterateExpression.Validate(scope);
 
 		this.BodyStatement.Validate(scope);
+
+		// Remove scope
+		scope.PopScope();
 	}
 
 	ToString(lang, indent = "")
@@ -3415,10 +3427,16 @@ class StatementIf extends Statement
 	{
 		// TODO: Verify condition evals to a bool
 		this.Condition.Validate(scope);
+
+		scope.PushScope(ScopeTypeConditional);
 		this.If.Validate(scope);
+		scope.PopScope();
+
 		if (this.Else != null)
 		{
+			scope.PushScope(ScopeTypeConditional);
 			this.Else.Validate(scope);
+			scope.PopScope();
 		}
 	}
 
@@ -3475,6 +3493,8 @@ class StatementReturn extends Statement
 			this.Expression.Validate(scope);
 
 		// TODO: Verify this matches enclosing function type (or "empty") for null
+		// - First, verify we're in a function scope: 
+		// - Then, compare type (or void): 
 	}
 
 	ToString(lang, indent = "")
@@ -3500,6 +3520,8 @@ class StatementSwitch extends Statement
 
 	Validate(scope)
 	{
+		scope.PushScope(ScopeTypeSwitch);
+
 		this.SelectorExpression.Validate(scope); // TODO: Ensure this is a simple variable?
 		for (let i = 0; i < this.Cases.length; i++)
 		{
@@ -3507,6 +3529,8 @@ class StatementSwitch extends Statement
 		}
 
 		// TODO: Need at least one case?
+
+		scope.PopScope();
 	}
 
 	ToString(lang, indent = "")
@@ -3536,9 +3560,13 @@ class StatementWhile extends Statement
 
 	Validate(scope)
 	{
+		scope.PushScope(ScopeTypeLoop);
+
 		this.Condition.Validate(scope);
 		// TODO: Verify condition evaluates to a bool
 		this.Body.Validate(scope);
+
+		scope.PopScope();
 	}
 
 	ToString(lang, indent = "")
@@ -4425,9 +4453,19 @@ class ValidationError extends Error
 
 // === SCOPE TRACKING ===
 
+const ScopeTypeGlobal = 0;
+const ScopeTypeFunction = 1;
+const ScopeTypeBlock = 2;
+const ScopeTypeConditional = 3;
+const ScopeTypeSwitch = 4;
+const ScopeTypeLoop = 5;
+
 class ScopeStack
 {
 	#stack;
+	#stackTypes;
+	#currentFunctionType;
+
 	#structs;
 	#functions;
 	#textures;
@@ -4437,6 +4475,9 @@ class ScopeStack
 	constructor()
 	{
 		this.#stack = [];
+		this.#stackTypes = [];
+		this.#currentFunctionType = null;
+
 		this.#structs = [];
 		this.#functions = [];
 		this.#shortTermVars = [];
@@ -4444,14 +4485,46 @@ class ScopeStack
 		this.#samplers = [];
 	}
 
-	PushScope()
+	// type is one of ScopeTypeGlobal, ScopeTypeFunction, etc.
+	// functionScopeReturnType is optional - contains the data type for the current function, if we're in a function scope
+	PushScope(type, functionScopeReturnType = null)
 	{
 		this.#stack.push([]);
+		this.#stackTypes.push(type);
+
+		// Is this a function?  If so, we need a type
+		if (type == ScopeTypeFunction)
+		{
+			this.#currentFunctionType = functionScopeReturnType;
+		}
 	}
 
 	PopScope()
 	{
+		// Exiting function?  If so, remove the function type
+		if (this.#stackTypes[this.#stackTypes.length - 1] == ScopeTypeFunction)
+		{
+			this.#currentFunctionType = null;
+		}
+
 		this.#stack.pop();
+		this.#stackTypes.pop();
+	}
+
+	CheckForScopeType(type)
+	{
+		// Determine if we're within the specified type of scope
+		for (let s = 0; s < this.#stackTypes.length; s++)
+			if (this.#stackTypes[s] == type)
+				return true;
+
+		// Not found
+		return false;
+	}
+
+	GetFunctionScopeType()
+	{
+		return this.#currentFunctionType;
 	}
 
 	AddVarStatement(statement)
@@ -4547,15 +4620,15 @@ class ScopeStack
 	}
 
 
-	AddShortTermVar(name, type)
-	{
-		this.#shortTermVars.push({ Name: name, DataType: type });
-	}
+	//AddShortTermVar(name, type)
+	//{
+	//	this.#shortTermVars.push({ Name: name, DataType: type });
+	//}
 
-	ClearShortTermVars()
-	{
-		this.#shortTermVars = [];
-	}
+	//ClearShortTermVars()
+	//{
+	//	this.#shortTermVars = [];
+	//}
 
 	AddStruct(s)
 	{
