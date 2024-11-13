@@ -728,6 +728,9 @@ class HLSL
 
 	#ValidateFunction(scope, func)
 	{
+		// Add to the function table (verifying 
+		scope.AddFunctionToTable(func);
+
 		// New scope for this function
 		scope.PushScope(ScopeTypeFunction, func.ReturnType);
 
@@ -4472,6 +4475,8 @@ class ScopeStack
 	#samplers;
 	#shortTermVars;
 
+	#functionTable;
+
 	constructor()
 	{
 		this.#stack = [];
@@ -4483,6 +4488,8 @@ class ScopeStack
 		this.#shortTermVars = [];
 		this.#textures = [];
 		this.#samplers = [];
+
+		this.#functionTable = {};
 	}
 
 	// type is one of ScopeTypeGlobal, ScopeTypeFunction, etc.
@@ -4649,6 +4656,49 @@ class ScopeStack
 	{
 		this.#functions.push(f);
 	}
+
+	AddFunctionToTable(f)
+	{
+		// Does a function with this name exist?  If not, make it
+		if (!this.#functionTable.hasOwnProperty(f.Name))
+			this.#functionTable[f.Name] = [];
+
+		// Set up this table entry
+		let tableEntry = {
+			ReturnType: f.ReturnType,
+			Parameters: [],
+			MangledName: f.Name + "(" // Will be added to below
+		};
+
+		// Loop through all params
+		for (let i = 0; i < f.Parameters.length; i++)
+		{
+			let p = {
+				Name: f.Parameters[i].NameToken.Text,
+				DataType: f.Parameters[i].DataTypeToken.Text,
+				IsArray: f.Parameters[i].ArrayExpression != null
+			};
+
+			// Add this param's data type
+			tableEntry.MangledName += (i > 0 ? "," : "") + p.DataType + (p.IsArray ? "[]" : "");
+
+			// Add this param to the function table's entry for this function
+			tableEntry.Parameters.push(p);
+		}
+
+		// Finish up the name and verify it doesn't already exist
+		tableEntry.MangledName += ")";
+		console.log("MANGLED: " + tableEntry.MangledName);
+		// Loop through all entries looking for the same mangled name
+		// which should indicate an identical signature
+		for (let i = 0; i < this.#functionTable[f.Name].length; i++)
+			if (this.#functionTable[f.Name][i].MangledName == tableEntry.MangledName)
+				throw new ValidationError(null, "Function with this signature already exists (TODO: MAKE THIS MESSAGE BETTER)");
+
+		// Add this entry to the table since it's unique
+		this.#functionTable[f.Name].push(tableEntry);
+	}
+
 
 
 	GetStructVariableDataType(structName, varName)
