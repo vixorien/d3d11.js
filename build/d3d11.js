@@ -10439,6 +10439,7 @@ class ScopeStack
 	#shortTermVars;
 
 	#functionTable;
+	static intrinsicTable = null;
 
 	constructor()
 	{
@@ -10452,10 +10453,13 @@ class ScopeStack
 		this.#textures = [];
 		this.#samplers = [];
 
+		// Table for functions found during validation
 		this.#functionTable = {};
-		this.#PopulateFunctionTableWithIntrinsics();
-		
 
+		// Set up the intrinsic table
+		// This should happen once
+		// rather than per ScopeStack
+		this.#PopulateIntrinsicTable();
 	}
 
 	// type is one of ScopeTypeGlobal, ScopeTypeFunction, etc.
@@ -10623,13 +10627,460 @@ class ScopeStack
 		this.#functions.push(f);
 	}
 
-	#PopulateFunctionTableWithIntrinsics()
+	#PopulateIntrinsicTable()
 	{
-		this.#AddIntrinsicPermutations(["abs"], [{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }], "p0");
+		// Ensure this happens exactly once
+		if (ScopeStack.intrinsicTable != null)
+			return;
 
-		this.#AddIntrinsicPermutations(["atan2", "ldexp", "pow", "step"], [{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0"], "p0");
+		// Initialize the table as an object
+		ScopeStack.intrinsicTable = {};
 
-		this.#AddIntrinsicPermutations(["clamp"], [{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0", "p0"], "p0"); // 3 params and return all match p0
+		// Add each intrinsic and its permutations
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType		Size
+		// -------------------------------------------------
+		// p0		SVM				float, int		any
+		// ret		match p0		match p0		same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["abs"],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			"p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType		Size
+		// -------------------------------------------------
+		// p0		SVM				float			any
+		// ret		match p0		float			same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["acos", "asin", "atan", "ceil", "cos", "cosh", "sin", "tan", "ddx", "ddy", "degrees", "exp", "exp2", "floor",
+			"frac", "fwidth", "log", "log2", "radians", "round", "saturate", "sin", "sinh", "sqrt", "tan", "tanh", "trunc"],
+			[{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			"p0");
+		
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType		Size
+		// -------------------------------------------------
+		// p0		SVM				float			any
+		// p1		match p0		float			same dim as p0
+		// ret		match p0		float			same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["atan2", "ldexp", "pow", "step"],
+			[{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0"],
+			"p0");
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType		Size
+		// -------------------------------------------------
+		// p0		SVM				float, int		any
+		// p1		match p0		float, int		same dim as p0
+		// p2		match p0		float, int		same dim as p0
+		// ret		match p0		match p0		same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["clamp"],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0", "p0"],
+			"p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SVM				float, int, bool	any
+		// ret		scalar			bool				1
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(["all", "any"],
+			[{ SVM: "SVM", Types: ["float", "int", "bool"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			{ StaticReturnType: "bool" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SVM				float, int, uint	any
+		// ret		match p0		float				same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(["asfloat"],
+			[{ SVM: "SVM", Types: ["float", "int", "uint"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			{ SubstituteReturnType: "float" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SVM				float, uint			any
+		// ret		match p0		int					same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(["asint"],
+			[{ SVM: "SVM", Types: ["float", "uint"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			{ SubstituteReturnType: "int" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SVM				float, int			any
+		// ret		match p0		uint				same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(["asuint"],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			{ SubstituteReturnType: "uint" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SV				uint				any
+		// ret		match p0		uint				same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(["countbits"], [{ SVM: "SV", Types: ["uint"], Cols: [1, 2, 3, 4], Rows: [1] }], "p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		vector			float				3
+		// p1		vector			float				3
+		// ret		vector			float				3
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(["cross"], [{ SVM: "V", Types: ["float"], Cols: [3], Rows: [1] }, "p0"], "p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SV				float				any
+		// ret		match p0		float				same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["ddx_coarse", "ddx_fine", "ddy_coarse", "ddy_fine"],
+			[{ SVM: "SV", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1] }],
+			"p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		matrix			float				any (rows == columns)
+		// ret		scalar			float				1
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(["determinant"],
+			[{ SVM: "M", Types: ["float"], Cols: "Square", Rows: "Square" }],
+			{ StaticReturnType: "float" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		vector			float				any (2,3,4)
+		// p1		vector			float				same dim as p0
+		// ret		scalar			float				1
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["distance"],
+			[{ SVM: "V", Types: ["float"], Cols: [2, 3, 4], Rows: [1] }, "p0"],
+			{ StaticReturnType: "float" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		vector			float, int			any (2,3,4)
+		// p1		vector			float, int			same dim as p0
+		// ret		scalar			float				1
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["dot"],
+			[{ SVM: "V", Types: ["float", "int"], Cols: [2, 3, 4], Rows: [1] }, "p0"],
+			{ StaticReturnType: "float" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// n		vector			float				any (2,3,4)
+		// i		vector			float				same dim as n
+		// ng		vector			float				same dim as n
+		// ret		vector			float				same dim as n
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["faceforward"],
+			[{ SVM: "V", Types: ["float"], Cols: [2, 3, 4], Rows: [1] }, "p0", "p0"],
+			"p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SVM				float				any
+		// ret		match p0		bool				same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(["isinf", "isnan"],
+			[{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			{ SubstituteReturnType: "bool" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		vector			float				any (2,3,4)
+		// ret		scalar			float				1
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["length"],
+			[{ SVM: "V", Types: ["float"], Cols: [2, 3, 4], Rows: [1] }],
+			{ StaticReturnType: "float" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SVM				float				any
+		// p1		match p0		float				same dim as p0
+		// p2		match p0		float				same dim as p0
+		// ret		match p0		float				same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["lerp", "smoothstep"],
+			[{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0", "p0"],
+			"p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SVM				float, int			any (2,3,4)
+		// p1		match p0		float, int			same dim as p0
+		// ret		match p0		float, int			same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["max", "min", "modf"],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0"],
+			"p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		vector			float				any (2,3,4)
+		// ret		vector			float				same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["normalize"],
+			[{ SVM: "V", Types: ["float"], Cols: [2, 3, 4], Rows: [1] }],
+			"p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		vector			float				any (2,3,4)
+		// p1		vector			float				same dim as p0
+		// ret		vector			float				same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["reflect"],
+			[{ SVM: "V", Types: ["float"], Cols: [2, 3, 4], Rows: [1] }, "p0"],
+			"p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		vector			float				any (2,3,4)
+		// p1		vector			float				same dim as p0
+		// p2		scalar			float				1
+		// ret		vector			float				same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["refract"],
+			[{ SVM: "V", Types: ["float"], Cols: [2, 3, 4], Rows: [1] }, "p0", {StaticType: "float"}],
+			"p0");
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		SVM				float, int			any
+		// ret		match p0		int					same dim as p0
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["sign"],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			{ SubstituteReturnType: "int" });
+
+
+		// -------------------------------------------------
+		// Detail	TemplateType	RootType			Size
+		// -------------------------------------------------
+		// p0		matrix			float, int, bool	any
+		// ret		matrix			float, int, bool	r = p0.c, c = p0.r (transposed!)
+		// -------------------------------------------------
+		this.#AddIntrinsicPermutations(
+			["transpose"],
+			[{ SVM: "M", Types: ["float", "int", "bool"], Cols:  [1,2,3,4], Rows: [1,2,3,4] }],
+			{ Transposed: true });
+
+
+		// -------------------------------------------------
+		// Mul has 9 different types of overloads!
+		// Details: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-mul
+		// Just doing it manually...
+		// -------------------------------------------------
+
+		// 1: Scalar * Scalar --> Scalar
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float"], "float");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int"], "int");
+
+		// 2: Scalar * Vector --> Vector
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float2"], "float2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float3"], "float3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float4"], "float4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int2"], "int2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int3"], "int3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int4"], "int4");
+
+		// 3: Scalar * Matrix --> Matrix
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float2x2"], "float2x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float2x3"], "float2x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float2x4"], "float2x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float3x2"], "float3x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float3x3"], "float3x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float3x4"], "float3x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float4x2"], "float4x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float4x3"], "float4x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float", "float4x4"], "float4x4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int2x2"], "int2x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int2x3"], "int2x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int2x4"], "int2x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int3x2"], "int3x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int3x3"], "int3x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int3x4"], "int3x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int4x2"], "int4x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int4x3"], "int4x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int", "int4x4"], "int4x4");
+
+		// 4: Vector * Scalar --> Vector
+		this.#AddIntrinsicFunctionToTable("mul", ["float2", "float"], "float2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3", "float"], "float3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4", "float"], "float4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int2", "int"], "int2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3", "int"], "int3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4", "int"], "int4");
+
+		// 5: Vector * Vector --> Scalar
+		this.#AddIntrinsicFunctionToTable("mul", ["float2", "float2"], "float");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3", "float3"], "float");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4", "float4"], "float");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int2", "int2"], "int");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3", "int3"], "int");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4", "int4"], "int");
+
+		// 6: Vector * Matrix --> Vector
+		this.#AddIntrinsicFunctionToTable("mul", ["float2", "float2x2"], "float2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float2", "float3x2"], "float3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float2", "float4x2"], "float4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["float3", "float2x3"], "float2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3", "float3x3"], "float3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3", "float4x3"], "float4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["float4", "float2x4"], "float2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4", "float3x4"], "float3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4", "float4x4"], "float4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int2", "int2x2"], "int2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int2", "int3x2"], "int3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int2", "int4x2"], "int4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int3", "int2x3"], "int2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3", "int3x3"], "int3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3", "int4x3"], "int4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int4", "int2x4"], "int2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4", "int3x4"], "int3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4", "int4x4"], "int4");
+
+		// 7: Matrix * Scalar --> Matrix
+		this.#AddIntrinsicFunctionToTable("mul", ["float2x2", "float"], "float2x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float2x3", "float"], "float2x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float2x4", "float"], "float2x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3x2", "float"], "float3x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3x3", "float"], "float3x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3x4", "float"], "float3x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4x2", "float"], "float4x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4x3", "float"], "float4x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4x4", "float"], "float4x4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int2x2", "int"], "int2x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int2x3", "int"], "int2x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int2x4", "int"], "int2x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3x2", "int"], "int3x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3x3", "int"], "int3x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3x4", "int"], "int3x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4x2", "int"], "int4x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4x3", "int"], "int4x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4x4", "int"], "int4x4");
+
+		// 8: Matrix * Vector --> Vector
+		this.#AddIntrinsicFunctionToTable("mul", ["float2x2", "float2"], "float2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3x2", "float2"], "float3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4x2", "float2"], "float4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["float2x3", "float3"], "float2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3x3", "float3"], "float3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4x3", "float3"], "float4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["float2x4", "float4"], "float2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3x4", "float4"], "float3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4x4", "float4"], "float4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int2x2", "int2"], "int2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3x2", "int2"], "int3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4x2", "int2"], "int4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int2x3", "int3"], "int2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3x3", "int3"], "int3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4x3", "int3"], "int4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int2x4", "int4"], "int2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3x4", "int4"], "int3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4x4", "int4"], "int4");
+
+		// 9: Matrix * Matrix --> Matrix
+		this.#AddIntrinsicFunctionToTable("mul", ["float2x2", "float2x2"], "float2x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float2x2", "float2x3"], "float3x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["float2x2", "float2x4"], "float4x2");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["float3x3", "float3x2"], "float2x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3x3", "float3x3"], "float3x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["float3x3", "float3x4"], "float4x3");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["float4x4", "float4x2"], "float2x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4x4", "float4x3"], "float3x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["float4x4", "float4x4"], "float4x4");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int2x2", "int2x2"], "int2x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int2x2", "int2x3"], "int3x2");
+		this.#AddIntrinsicFunctionToTable("mul", ["int2x2", "int2x4"], "int4x2");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int3x3", "int3x2"], "int2x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3x3", "int3x3"], "int3x3");
+		this.#AddIntrinsicFunctionToTable("mul", ["int3x3", "int3x4"], "int4x3");
+
+		this.#AddIntrinsicFunctionToTable("mul", ["int4x4", "int4x2"], "int2x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4x4", "int4x3"], "int3x4");
+		this.#AddIntrinsicFunctionToTable("mul", ["int4x4", "int4x4"], "int4x4");
 	}
 
 	#AddIntrinsicPermutations(names, paramReqs, returnReq)
@@ -10650,20 +11101,29 @@ class ScopeStack
 				// Handle the various types
 				switch (templateType)
 				{
-					// Easy - just a single data type
+					// Scalar
 					case "S": p0_permutations.push(rootType); break;
 
-					// Need to handle all possible sizes (columns)
+					// Vectors (2, 3, 4)
 					case "V":
 						for (let c = 0; c < paramReqs[0].Cols.length; c++)
 							p0_permutations.push(rootType + paramReqs[0].Cols[c]);
 						break;
 
-					// All CxR combinations
+					// Matrices
 					case "M":
-						for (let c = 0; c < paramReqs[0].Cols.length; c++)
-							for (let r = 0; r < paramReqs[0].Rows.length; r++)
-								p0_permutations.push(rootType + paramReqs[0].Cols[c] + "x" + paramReqs[0].Rows[r]);
+						// Square matrices only?
+						if (paramReqs[0].Cols == "Square" || paramReqs[0].Rows == "Square")
+						{
+							p0_permutations.push(rootType + "2x2");
+							p0_permutations.push(rootType + "3x3");
+							p0_permutations.push(rootType + "4x4");
+						}
+						else
+							// All CxR combinations
+							for (let c = 0; c < paramReqs[0].Cols.length; c++)
+								for (let r = 0; r < paramReqs[0].Rows.length; r++)
+									p0_permutations.push(rootType + paramReqs[0].Cols[c] + "x" + paramReqs[0].Rows[r]);
 						break;
 
 				}
@@ -10682,21 +11142,45 @@ class ScopeStack
 				let p0 = p0_permutations[p];
 
 				let params = [];
-				params.push({ DataType: p0 });
+				params.push(p0);
 
 				// Check other param reqs
 				for (let r = 1; r < paramReqs.length; r++)
 				{
 					if (paramReqs[r] == "p0")
-						params.push({ DataType: p0 }); // Match first param
+						params.push(p0); // Match first param
+					else if (paramReqs[r].hasOwnProperty("StaticType"))
+						params.push(paramReqs[r].StaticType); // Use a static type
 					else
 						throw new Error("TODO: HANDLE non-p0 params in intrinsic function permutations");
 				}
 
 				// Assume return type matches p0, and adjust otherwise
-				let returnType = p0;
-				if (returnReq != "p0")
-					throw new Error("TODO: HANDLE non-p0 return type in intrinsic function permutations");
+				let returnType = null;
+				if (returnReq == "p0")
+					returnType = p0;
+				else if (returnReq.hasOwnProperty("StaticReturnType"))
+					returnType = returnReq.StaticReturnType;
+				else if (returnReq.hasOwnProperty("SubstituteReturnType"))
+				{
+					// Get the root type of p0, such as "float" or "uint"
+					let p0_root = HLSL.GetRootType(p0);
+
+					// Combine the substitute type with the remaining vector or matrix details
+					returnType = returnReq.SubstituteReturnType + p0.substring(p0_root.length);
+				}
+				else if (returnReq.hasOwnProperty("Transposed") && returnReq.Transposed == true)
+				{
+					// Assume we're a matrix and transpose p0's row and col
+					let p0_root = HLSL.GetRootType(p0);
+					let p0_dims = p0.substring(p0_root.length);
+					returnType = p0_root + p0_dims.charAt(2) + "x" + p0_dims.charAt(0);
+				}
+				else
+				{
+					throw new Error("Invalid intrinsic permutation return type");
+				}
+					
 
 				// Add to the table
 				this.#AddIntrinsicFunctionToTable(name, params, returnType);
@@ -10707,8 +11191,8 @@ class ScopeStack
 	#AddIntrinsicFunctionToTable(name, params, returnType)
 	{
 		// Does a function with this name exist?  If not, make it
-		if (!this.#functionTable.hasOwnProperty(name))
-			this.#functionTable[name] = [];
+		if (!ScopeStack.intrinsicTable.hasOwnProperty(name))
+			ScopeStack.intrinsicTable[name] = [];
 
 		// Set up the entry
 		let tableEntry = {
@@ -10722,7 +11206,7 @@ class ScopeStack
 		{
 			let p = {
 				//Name: params[i].Name, // Do we need this?
-				DataType: params[i].DataType,
+				DataType: params[i],
 				IsArray: false
 			};
 
@@ -10745,7 +11229,7 @@ class ScopeStack
 		// SKIPPING since this shouldn't be an issue and will take increasingly longer and longer
 
 		// Add this entry to the table since it's unique
-		this.#functionTable[name].push(tableEntry);
+		ScopeStack.intrinsicTable[name].push(tableEntry);
 	}
 
 	AddFunctionToTable(f)
