@@ -4490,6 +4490,9 @@ class ScopeStack
 		this.#samplers = [];
 
 		this.#functionTable = {};
+		this.#PopulateFunctionTableWithIntrinsics();
+		
+
 	}
 
 	// type is one of ScopeTypeGlobal, ScopeTypeFunction, etc.
@@ -4657,6 +4660,131 @@ class ScopeStack
 		this.#functions.push(f);
 	}
 
+	#PopulateFunctionTableWithIntrinsics()
+	{
+		this.#AddIntrinsicPermutations(["abs"], [{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }], "p0");
+
+		this.#AddIntrinsicPermutations(["atan2", "ldexp", "pow", "step"], [{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0"], "p0");
+
+		this.#AddIntrinsicPermutations(["clamp"], [{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0", "p0"], "p0"); // 3 params and return all match p0
+	}
+
+	#AddIntrinsicPermutations(names, paramReqs, returnReq)
+	{
+		// Get all possible param permutations
+		let p0_permutations = [];
+
+		// For each root data type
+		for (let d = 0; d < paramReqs[0].Types.length; d++)
+		{
+			let rootType = paramReqs[0].Types[d];
+
+			// For each template type (scalar/vector/matrix)
+			for (let t = 0; t < paramReqs[0].SVM.length; t++)
+			{
+				let templateType = paramReqs[0].SVM.charAt(t);
+
+				// Handle the various types
+				switch (templateType)
+				{
+					// Easy - just a single data type
+					case "S": p0_permutations.push(rootType); break;
+
+					// Need to handle all possible sizes (columns)
+					case "V":
+						for (let c = 0; c < paramReqs[0].Cols.length; c++)
+							p0_permutations.push(rootType + paramReqs[0].Cols[c]);
+						break;
+
+					// All CxR combinations
+					case "M":
+						for (let c = 0; c < paramReqs[0].Cols.length; c++)
+							for (let r = 0; r < paramReqs[0].Rows.length; r++)
+								p0_permutations.push(rootType + paramReqs[0].Cols[c] + "x" + paramReqs[0].Rows[r]);
+						break;
+
+				}
+			}
+		}
+
+		// Handle each name provided
+		for (let n = 0; n < names.length; n++)
+		{
+			let name = names[n];
+
+			// Create all permutations
+			for (let p = 0; p < p0_permutations.length; p++)
+			{
+				// Grab the data type for p0
+				let p0 = p0_permutations[p];
+
+				let params = [];
+				params.push({ DataType: p0 });
+
+				// Check other param reqs
+				for (let r = 1; r < paramReqs.length; r++)
+				{
+					if (paramReqs[r] == "p0")
+						params.push({ DataType: p0 }); // Match first param
+					else
+						throw new Error("TODO: HANDLE non-p0 params in intrinsic function permutations");
+				}
+
+				// Assume return type matches p0, and adjust otherwise
+				let returnType = p0;
+				if (returnReq != "p0")
+					throw new Error("TODO: HANDLE non-p0 return type in intrinsic function permutations");
+
+				// Add to the table
+				this.#AddIntrinsicFunctionToTable(name, params, returnType);
+			}
+		}
+	}
+
+	#AddIntrinsicFunctionToTable(name, params, returnType)
+	{
+		// Does a function with this name exist?  If not, make it
+		if (!this.#functionTable.hasOwnProperty(name))
+			this.#functionTable[name] = [];
+
+		// Set up the entry
+		let tableEntry = {
+			ReturnType: returnType,
+			Parameters: [],
+			MangledName: name + "(" // Added to below
+		};
+
+		// For each param
+		for (let i = 0; i < params.length; i++)
+		{
+			let p = {
+				//Name: params[i].Name, // Do we need this?
+				DataType: params[i].DataType,
+				IsArray: false
+			};
+
+			// Continue the mangled name
+			tableEntry.MangledName += (i > 0 ? "," : "") + p.DataType;
+
+			// Add this param to the function table's entry for this function
+			tableEntry.Parameters.push(p);
+		}
+
+		// Finish up the name and verify it doesn't already exist
+		tableEntry.MangledName += ")";
+		console.log("MANGLED: " + tableEntry.MangledName);
+
+		// Loop through all entries looking for the same mangled name
+		// which should indicate an identical signature
+		//for (let i = 0; i < this.#functionTable[name].length; i++)
+		//	if (this.#functionTable[name][i].MangledName == tableEntry.MangledName)
+		//		throw new ValidationError(null, "Function with this signature already exists (TODO: MAKE THIS MESSAGE BETTER)");
+		// SKIPPING since this shouldn't be an issue and will take increasingly longer and longer
+
+		// Add this entry to the table since it's unique
+		this.#functionTable[name].push(tableEntry);
+	}
+
 	AddFunctionToTable(f)
 	{
 		// Does a function with this name exist?  If not, make it
@@ -4674,7 +4802,7 @@ class ScopeStack
 		for (let i = 0; i < f.Parameters.length; i++)
 		{
 			let p = {
-				Name: f.Parameters[i].NameToken.Text,
+				//Name: f.Parameters[i].NameToken.Text, // Do we need this?
 				DataType: f.Parameters[i].DataTypeToken.Text,
 				IsArray: f.Parameters[i].ArrayExpression != null
 			};
