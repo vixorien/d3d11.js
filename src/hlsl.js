@@ -3980,19 +3980,10 @@ class ExpFunctionCall extends Expression
 		else
 		{
 			// Not a texture sample, so handle type another way
+			let dataType = scope.GetFunctionReturnType(this);
 
 			// ************ NEXT ***************
 
-			// TODO: Handle intrinsic functions and their types
-			let dataType = scope.DataTypeFromIntrinsicFunctionCallExpression(this);
-			if (dataType != null)
-			{
-				this.DataType = dataType;
-			}
-			else
-			{
-				// TODO: Handle custom functions (validate params for overloads, etc.)
-			}
 			
 		}
 	}
@@ -5118,6 +5109,27 @@ class ScopeStack
 		this.#AddIntrinsicFunctionToTable("mul", ["int4x4", "int4x2"], "int2x4");
 		this.#AddIntrinsicFunctionToTable("mul", ["int4x4", "int4x3"], "int3x4");
 		this.#AddIntrinsicFunctionToTable("mul", ["int4x4", "int4x4"], "int4x4");
+
+
+		// Basic intrinsic data type initializers: int(), float(), etc.
+		let rootTypes = ["bool", "uint", "int", "dword", "half", "float", "double"];
+		for (let n = 0; n < rootTypes.length; n++)
+		{
+			let name = rootTypes[n];
+			// Handle this name (bool, int, etc) taking each other type: int(bool), etc.
+			for (let p = 0; p < rootTypes.length; p++)
+			{
+				// Example - Name: bool, Param: [anything], Return type: matches name
+				this.#AddIntrinsicFunctionToTable(name, [rootTypes[p]], name);
+			}
+
+			// Handle vectors of this type
+			this.#AddIntrinsicFunctionToTable(name + "2", [name, name], name + "2");
+			this.#AddIntrinsicFunctionToTable(name + "3", [name, name, name], name + "3");
+			this.#AddIntrinsicFunctionToTable(name + "4", [name, name, name, name], name + "4");
+			// TODO: Handle combinations of root type params: float4(float, float3), etc.
+			// TODO: Matrix combinations - check these in HLSL!
+		}
 	}
 
 	#AddIntrinsicPermutations(names, paramReqs, returnReq)
@@ -5256,7 +5268,7 @@ class ScopeStack
 
 		// Finish up the name and verify it doesn't already exist
 		tableEntry.MangledName += ")";
-
+		console.log(tableEntry.MangledName);
 		// Loop through all entries looking for the same mangled name
 		// which should indicate an identical signature
 		//for (let i = 0; i < this.#functionTable[name].length; i++)
@@ -5567,6 +5579,23 @@ class ScopeStack
 
 
 	// === FUNCTION VALIDATION ===
+
+	GetFunctionReturnType(funcCallExp)
+	{
+		let name = funcCallExp.FuncExp.NameToken.Text;
+
+		// Determine which table to use
+		let overloads = null;
+		if (this.#functionTable.hasOwnProperty(name))
+			overloads = this.#functionTable[name];
+		else if (ScopeStack.intrinsicTable.hasOwnProperty(name))
+			overloads = ScopeStack.intrinsicTable[name];
+		else
+			throw new ValidationError(funcCallExp.FuncExp.NameToken, "Function name not found");
+
+		// We have the list of overloads, so begin matching and weighting parameters
+
+	}
 
 
 	// Does a function match the given name and param list?
