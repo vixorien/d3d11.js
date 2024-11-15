@@ -246,6 +246,20 @@ const HLSLImplicitCastRank = {
 	"double": 6
 };
 
+// Same type --> 0
+// Same family --> 1
+// Next family --> 2
+// bool<->float --> 3
+const HLSLImplicitCastWeights = {
+	bool:	{ bool: 0, int: 2, dword: 2, uint: 2, half: 3, float: 3, double: 3 },
+	int:	{ bool: 2, int: 0, dword: 1, uint: 1, half: 2, float: 2, double: 2 },
+	dword:	{ bool: 2, int: 1, dword: 0, uint: 1, half: 2, float: 2, double: 2 },
+	uint:	{ bool: 2, int: 1, dword: 1, uint: 0, half: 2, float: 2, double: 2 },
+	half:	{ bool: 3, int: 2, dword: 2, uint: 2, half: 0, float: 1, double: 1 },
+	float:	{ bool: 3, int: 2, dword: 2, uint: 2, half: 1, float: 0, double: 1 },
+	double: { bool: 3, int: 2, dword: 2, uint: 2, half: 1, float: 1, double: 0 }
+};
+
 
 class TokenIterator
 {
