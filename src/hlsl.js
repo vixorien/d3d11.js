@@ -5430,6 +5430,8 @@ class ScopeStack
 	//        - Calling f(5) is obviously int
 	//        - Calling f(5.0f) prefers smear within family
 	//        - Calling f(false) uses int version ("closest" cast?)
+	//   - Truncation from vec/mat to scalar is ok, too
+	//     - Cast outside family is preferred over truncation: float2 -> int2 rather than float2 -> float
 	//
 	// - Struct-struct casting
 	//   - NO implicit casting!
@@ -5440,6 +5442,13 @@ class ScopeStack
 	//   - OK: scalar = vector, scalar = matrix (implicit truncation warning)
 	//   - OK: smallerVec = largerVec, smallerMat = largerMat (implicit truncation warning)
 	//   - NO: larger = smaller (cannot cast float2 to float3/4, same with matrices)
+	//
+	//
+	// - Possible Weights
+	//   - Inside family (int -> uint): 10
+	//   - Outside family (int -> float): 1000
+	//   - Smear: 100 (worse than inside family, better than outside family)
+	//   - Truncate: 10000 (worse than cast outside family)
 
 	GetImplicitCastWeight(startType, targetType)
 	{
@@ -5465,6 +5474,10 @@ class ScopeStack
 		// Get the root type cast weight
 		let rootTypeWeight = HLSLScalarImplicitCastWeights[sRootType][tRootType]; 
 
+		// These need to be tweaked/refactored to match HLSL
+		let SMEAR_WEIGHT = 100;
+		let TRUNC_WEIGHT = 10000;
+
 		// Check SVM types
 		if (s.SVM == "S" && t.SVM == "S") // Scalar --> Scalar
 		{
@@ -5474,22 +5487,22 @@ class ScopeStack
 		else if (s.SVM == "S" && (t.SVM == "V" || t.SVM == "M")) // Scalar --> (Vector or Matrix)
 		{
 			// Scalars can "smear" or "splat" to a vector or matrix without issue
-			return 100 * (rootTypeWeight + 1); // TEMPORARY WEIGHT
+			return SMEAR_WEIGHT * (rootTypeWeight + 1);
 		}
 		else if ((s.SVM == "V" || s.SVM == "M") && t.SVM == "S") // (Vector or Matrix) --> Scalar
 		{
 			// Implicit truncation from vector/matrix to scalar
-			return 100 * (rootTypeWeight + 1); // TEMP WEIGHT
+			return TRUNC_WEIGHT * (rootTypeWeight + 1);
 		}
 		else if (s.SVM == "V" && t.SVM == "V")
 		{
 			// Both are vectors, but this only works if casting from larger to smaller
-			return (s.Components >= t.Components) ? 100 * (rootTypeWeight + 1) : -1; // TEMP WEIGHT
+			return (s.Components >= t.Components) ? TRUNC_WEIGHT * (rootTypeWeight + 1) : -1;
 		}
 		else if (s.SVM == "M" && t.SVM == "M")
 		{
 			// Both matrices, but we can only go from larger to smaller in each dimension
-			return (s.Rows >= t.Rows && s.Cols >= t.Rows) ? 100 * (rootTypeWeight + 1) : -1; // TEMP WEIGHT
+			return (s.Rows >= t.Rows && s.Cols >= t.Rows) ? TRUNC_WEIGHT * (rootTypeWeight + 1) : -1;
 		}
 
 		// Nope
@@ -5730,11 +5743,20 @@ class ScopeStack
 		}
 
 		// Multiple matches, so we need to find the best one
+		let bestMatch = matches[0];
+		for (let m = 1; m < matches.length; m++)
+		{
+			// Look for a better weight
+			if (matches[m].Weight < bestMatch.Weight)
+				bestMatch = matches[m];
 
+			// TODO: Handle ambiguity due to weights that are too similar
+			// - Maybe need to categorize casts types and check against them?  (InsideFamily, OutsideFamily, Smear, Truncate)?
+		}
 
-		console.log(name + ": MULTIPLE MATCHES");
-		console.log(matches);
-		return null;
+		console.log(name + ": MULTIPLE MATCHES - Best one...");
+		console.log(bestMatch);
+		return bestMatch.Overload.ReturnType;
 	}
 
 
