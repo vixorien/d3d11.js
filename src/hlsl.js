@@ -4659,7 +4659,7 @@ class ScopeStack
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(
 			["abs"],
-			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [2, 3, 4], Rows: [2, 3, 4] }],
 			"p0");
 
 
@@ -4670,9 +4670,9 @@ class ScopeStack
 		// ret		match p0		float			same dim as p0
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(
-			["acos", "asin", "atan", "ceil", "cos", "cosh", "sin", "tan", "ddx", "ddy", "degrees", "exp", "exp2", "floor",
+			["acos", "asin", "atan", "ceil", "cos", "cosh", "tan", "ddx", "ddy", "degrees", "exp", "exp2", "floor",
 			"frac", "fwidth", "log", "log2", "radians", "round", "saturate", "sin", "sinh", "sqrt", "tan", "tanh", "trunc"],
-			[{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			[{ SVM: "SVM", Types: ["float"], Cols: [2, 3, 4], Rows: [2, 3, 4] }],
 			"p0");
 		
 
@@ -4685,7 +4685,7 @@ class ScopeStack
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(
 			["atan2", "ldexp", "pow", "step"],
-			[{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0"],
+			[{ SVM: "SVM", Types: ["float"], Cols: [2, 3, 4], Rows: [2, 3, 4] }, "p0"],
 			"p0");
 
 		// -------------------------------------------------
@@ -4698,7 +4698,7 @@ class ScopeStack
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(
 			["clamp"],
-			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0", "p0"],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [2, 3, 4], Rows: [2, 3, 4] }, "p0", "p0"],
 			"p0");
 
 
@@ -4709,7 +4709,7 @@ class ScopeStack
 		// ret		scalar			bool				1
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(["all", "any"],
-			[{ SVM: "SVM", Types: ["float", "int", "bool"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			[{ SVM: "SVM", Types: ["float", "int", "bool"], Cols: [2, 3, 4], Rows: [2, 3, 4] }],
 			{ StaticReturnType: "bool" });
 
 
@@ -4720,7 +4720,7 @@ class ScopeStack
 		// ret		match p0		float				same dim as p0
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(["asfloat"],
-			[{ SVM: "SVM", Types: ["float", "int", "uint"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			[{ SVM: "SVM", Types: ["float", "int", "uint"], Cols: [2, 3, 4], Rows: [2, 3, 4] }],
 			{ SubstituteReturnType: "float" });
 
 
@@ -4731,7 +4731,7 @@ class ScopeStack
 		// ret		match p0		int					same dim as p0
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(["asint"],
-			[{ SVM: "SVM", Types: ["float", "uint"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			[{ SVM: "SVM", Types: ["float", "uint"], Cols: [2, 3, 4], Rows: [2, 3, 4] }],
 			{ SubstituteReturnType: "int" });
 
 
@@ -4742,7 +4742,7 @@ class ScopeStack
 		// ret		match p0		uint				same dim as p0
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(["asuint"],
-			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [2, 3, 4], Rows: [2, 3, 4] }],
 			{ SubstituteReturnType: "uint" });
 
 
@@ -4752,7 +4752,7 @@ class ScopeStack
 		// p0		SV				uint				any
 		// ret		match p0		uint				same dim as p0
 		// -------------------------------------------------
-		this.#AddIntrinsicPermutations(["countbits"], [{ SVM: "SV", Types: ["uint"], Cols: [1, 2, 3, 4], Rows: [1] }], "p0");
+		this.#AddIntrinsicPermutations(["countbits"], [{ SVM: "SV", Types: ["uint"], Cols: [2, 3, 4], Rows: [1] }], "p0");
 
 
 		// -------------------------------------------------
@@ -4773,7 +4773,7 @@ class ScopeStack
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(
 			["ddx_coarse", "ddx_fine", "ddy_coarse", "ddy_fine"],
-			[{ SVM: "SV", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1] }],
+			[{ SVM: "SV", Types: ["float"], Cols: [2, 3, 4], Rows: [1] }],
 			"p0");
 
 
@@ -4835,7 +4835,7 @@ class ScopeStack
 		// ret		match p0		bool				same dim as p0
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(["isinf", "isnan"],
-			[{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			[{ SVM: "SVM", Types: ["float"], Cols: [2, 3, 4], Rows: [2, 3, 4] }],
 			{ SubstituteReturnType: "bool" });
 
 
@@ -4861,7 +4861,7 @@ class ScopeStack
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(
 			["lerp", "smoothstep"],
-			[{ SVM: "SVM", Types: ["float"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0", "p0"],
+			[{ SVM: "SVM", Types: ["float"], Cols: [2, 3, 4], Rows: [2, 3, 4] }, "p0", "p0"],
 			"p0");
 
 
@@ -4874,7 +4874,7 @@ class ScopeStack
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(
 			["max", "min", "modf"],
-			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }, "p0"],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [2, 3, 4], Rows: [2, 3, 4] }, "p0"],
 			"p0");
 
 
@@ -4925,7 +4925,7 @@ class ScopeStack
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(
 			["sign"],
-			[{ SVM: "SVM", Types: ["float", "int"], Cols: [1, 2, 3, 4], Rows: [1, 2, 3, 4] }],
+			[{ SVM: "SVM", Types: ["float", "int"], Cols: [2, 3, 4], Rows: [2, 3, 4] }],
 			{ SubstituteReturnType: "int" });
 
 
@@ -4937,7 +4937,7 @@ class ScopeStack
 		// -------------------------------------------------
 		this.#AddIntrinsicPermutations(
 			["transpose"],
-			[{ SVM: "M", Types: ["float", "int", "bool"], Cols:  [1,2,3,4], Rows: [1,2,3,4] }],
+			[{ SVM: "M", Types: ["float", "int", "bool"], Cols:  [2, 3, 4], Rows: [2, 3, 4] }],
 			{ Transposed: true });
 
 
@@ -5437,30 +5437,63 @@ class ScopeStack
 	//     - vectors/matrices count as that many scalars --> float2 matches two floats in a row, etc.
 	// - Vector/matrix casting
 	//   - OK: vector = scalar, matrix = scalar
-	//   - OK: smaller = larger (implicit truncation warning) - works with vector or matrix
+	//   - OK: scalar = vector, scalar = matrix (implicit truncation warning)
+	//   - OK: smallerVec = largerVec, smallerMat = largerMat (implicit truncation warning)
 	//   - NO: larger = smaller (cannot cast float2 to float3/4, same with matrices)
 
 	GetImplicitCastWeight(startType, targetType)
 	{
+		// Void can't be cast
+		if (startType == "void" || targetType == "void")
+			return -1;
+
 		// Validate built-in types
 		if (!HLSLDataTypeDetails.hasOwnProperty(startType) ||
 			!HLSLDataTypeDetails.hasOwnProperty(targetType))
-			return null;
+			return -1;
 
 		// Identical?
 		if (startType == targetType)
 			return 0;
 
 		// Grab details
-		let startDetails = HLSLDataTypeDetails[startType];
-		let targetDetails = HLSLDataTypeDetails[targetType];
+		let s = HLSLDataTypeDetails[startType];
+		let t = HLSLDataTypeDetails[targetType];
+		let sRootType = s.RootType;
+		let tRootType = t.RootType;
 
-		// Check the scalar grid
-		if (HLSLScalarImplicitCastWeights.hasOwnProperty(startType) &&
-			HLSLScalarImplicitCastWeights[startType].hasOwnProperty(targetType))
-			return HLSLScalarImplicitCastWeights[startType][targetType];
+		// Get the root type cast weight
+		let rootTypeWeight = HLSLScalarImplicitCastWeights[sRootType][tRootType]; 
 
-		// Otherwise, it might be a cast between 
+		// Check SVM types
+		if (s.SVM == "S" && t.SVM == "S") // Scalar --> Scalar
+		{
+			// Return the entry in the cast grid
+			return rootTypeWeight;
+		}
+		else if (s.SVM == "S" && (t.SVM == "V" || t.SVM == "M")) // Scalar --> (Vector or Matrix)
+		{
+			// Scalars can "smear" or "splat" to a vector or matrix without issue
+			return 100 * (rootTypeWeight + 1); // TEMPORARY WEIGHT
+		}
+		else if ((s.SVM == "V" || s.SVM == "M") && t.SVM == "S") // (Vector or Matrix) --> Scalar
+		{
+			// Implicit truncation from vector/matrix to scalar
+			return 100 * (rootTypeWeight + 1); // TEMP WEIGHT
+		}
+		else if (s.SVM == "V" && t.SVM == "V")
+		{
+			// Both are vectors, but this only works if casting from larger to smaller
+			return (s.Components >= t.Components) ? 100 * (rootTypeWeight + 1) : -1; // TEMP WEIGHT
+		}
+		else if (s.SVM == "M" && t.SVM == "M")
+		{
+			// Both matrices, but we can only go from larger to smaller in each dimension
+			return (s.Rows >= t.Rows && s.Cols >= t.Rows) ? 100 * (rootTypeWeight + 1) : -1; // TEMP WEIGHT
+		}
+
+		// Nope
+		return -1;
 	}
 
 	DataTypeFromLiteralToken(token)
@@ -5633,7 +5666,8 @@ class ScopeStack
 			throw new ValidationError(funcCallExp.FuncExp.NameToken, "Function name not found");
 
 		// We have the list of overloads, so begin matching and weighting parameters
-		let matches = []; // [{ Func, Weight }, ...]
+		let matches = []; // [{ Overload, Weight }, ...]
+		// TODO: Track the lowest weight, look for ambiguity
 		for (let o = 0; o < overloadEntries.length; o++)
 		{
 			let overload = overloadEntries[o];
@@ -5644,6 +5678,7 @@ class ScopeStack
 
 			// Go through the params and check matches
 			let matchingParamCount = 0;
+			let totalCastWeight = 0;
 			for (let p = 0; p < funcCallExp.Parameters.length; p++)
 			{
 				let callParam = funcCallExp.Parameters[p];
@@ -5657,14 +5692,27 @@ class ScopeStack
 				}
 
 				// Wasn't an exact match, so see if a cast is possible
-				
+				let castWeight = this.GetImplicitCastWeight(callParam.DataType, overloadParam.DataType);
+				if (castWeight < 0)
+					break; // No cast possible, overload is invalid
+
+				// Valid cast, keep going
+				totalCastWeight += castWeight;
+				matchingParamCount++;
 			}
 
 			// Any match?
 			if (matchingParamCount == funcCallExp.Parameters.length)
 			{
-				console.log(overload);
-				matches.push(overload);
+				// A total weight of zero means a perfect match
+				if (totalCastWeight == 0)
+				{
+					return overload.DataType;
+				}
+
+				// Not a perfect match, so add to array of matches
+				matches.push({ Overload: overload, Weight: totalCastWeight });
+
 			}
 		}
 
@@ -5677,10 +5725,15 @@ class ScopeStack
 		else if (matches.length == 1)
 		{
 			console.log(name + ": ONE MATCH!");
-			return matches[0].ReturnType;
+			console.log(matches[0]);
+			return matches[0].Overload.ReturnType;
 		}
 
+		// Multiple matches, so we need to find the best one
+
+
 		console.log(name + ": MULTIPLE MATCHES");
+		console.log(matches);
 		return null;
 	}
 
