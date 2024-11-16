@@ -4669,6 +4669,9 @@ class ScopeStack
 		this.#functions.push(f);
 	}
 
+	// See:
+	// - HLSL: https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-intrinsic-functions
+	// - GLSL: https://registry.khronos.org/OpenGL-Refpages/gl4/index.php
 	#PopulateIntrinsicTable()
 	{
 		// Ensure this happens exactly once
@@ -5141,8 +5144,29 @@ class ScopeStack
 			this.#AddIntrinsicFunctionToTable(name + "2", [name, name], name + "2");
 			this.#AddIntrinsicFunctionToTable(name + "3", [name, name, name], name + "3");
 			this.#AddIntrinsicFunctionToTable(name + "4", [name, name, name, name], name + "4");
-			// TODO: Handle combinations of root type params: float4(float, float3), etc.
+
+			// Vectors taking themselves
+			this.#AddIntrinsicFunctionToTable(name + "2", [name + "2"], name + "2");
+			this.#AddIntrinsicFunctionToTable(name + "3", [name + "3"], name + "3");
+			this.#AddIntrinsicFunctionToTable(name + "4", [name + "4"], name + "4");
+
+
+			// Combinations of root type params: float4(float, float3), etc.
+			// Example: float4 can be (float, float2, float) or (float3, float)
+			this.#AddIntrinsicFunctionToTable(name + "3", [name, name + "2"], name + "3");
+			this.#AddIntrinsicFunctionToTable(name + "3", [name + "2", name], name + "3");
+
+			this.#AddIntrinsicFunctionToTable(name + "4", [name + "2", name + "2"], name + "4"); // f4(f2, f2)
+			this.#AddIntrinsicFunctionToTable(name + "4", [name, name, name + "2"], name + "4"); // f4(f, f, f2)
+			this.#AddIntrinsicFunctionToTable(name + "4", [name, name + "2", name], name + "4"); // f4(f, f2, f)
+			this.#AddIntrinsicFunctionToTable(name + "4", [name + "2", name, name], name + "4"); // f4(f2, f, f)
+
+			this.#AddIntrinsicFunctionToTable(name + "4", [name + "3", name], name + "4"); // f4(f3, f)
+			this.#AddIntrinsicFunctionToTable(name + "4", [name, name + "3"], name + "4"); // f4(f, f3)
+
 			// TODO: Matrix combinations - check these in HLSL!
+			// Example: float3x3 can be made with (float3, float3, float3)
+			this.#AddIntrinsicFunctionToTable(name + "3x3", [name + "3", name + "3", name + "3"], name + "3x3");
 		}
 	}
 
@@ -5599,16 +5623,60 @@ class ScopeStack
 		let name = funcCallExp.FuncExp.NameToken.Text;
 
 		// Determine which table to use
-		let overloads = null;
+		let overloadEntries = null;
 		if (this.#functionTable.hasOwnProperty(name))
-			overloads = this.#functionTable[name];
+			overloadEntries = this.#functionTable[name];
 		else if (ScopeStack.intrinsicTable.hasOwnProperty(name))
-			overloads = ScopeStack.intrinsicTable[name];
+			overloadEntries = ScopeStack.intrinsicTable[name];
 		else
 			throw new ValidationError(funcCallExp.FuncExp.NameToken, "Function name not found");
 
 		// We have the list of overloads, so begin matching and weighting parameters
+		let matches = [];
+		for (let o = 0; o < overloadEntries.length; o++)
+		{
+			let overload = overloadEntries[o];
 
+			// Different number of params is an immediate miss
+			if (funcCallExp.Parameters.length != overload.Parameters.length)
+				continue;
+
+			// Go through the params and check matches
+			let match = true;
+			for (let p = 0; p < funcCallExp.Parameters.length; p++)
+			{
+				let callParam = funcCallExp.Parameters[p];
+				let overloadParam = overload.Parameters[p];
+
+				if (callParam.DataType != overloadParam.DataType)
+				{
+					match = false;
+					break;
+				}
+			}
+
+			// Any match?
+			if (match)
+			{
+				console.log(overload);
+				matches.push(overload);
+			}
+		}
+
+		// How many matches did we find?
+		if (matches.length == 0)
+		{
+			console.log(name + ": NO MATCHES");
+			return null;
+		}
+		else if (matches.length == 1)
+		{
+			console.log(name + ": ONE MATCH!");
+			return matches[0].ReturnType;
+		}
+
+		console.log(name + ": MULTIPLE MATCHES");
+		return null;
 	}
 
 
