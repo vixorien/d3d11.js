@@ -6011,135 +6011,135 @@ const RegexSwizzleRGBA = /^[rgba]{1,4}$/;
 
 
 const HLSLDataTypeDetails = {
-	"void": { "RootType": "void", "MajorType": "void", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "void" },
+	"void": { "RootType": "void", "Family": "void", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "void" },
 
-	"bool":  { "RootType": "bool", "MajorType": "bool", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "bool" },
-	"bool1": { "RootType": "bool", "MajorType": "bool", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "bool" },
-	"bool2": { "RootType": "bool", "MajorType": "bool", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "bvec2" },
-	"bool3": { "RootType": "bool", "MajorType": "bool", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "bvec3" },
-	"bool4": { "RootType": "bool", "MajorType": "bool", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "bvec4" },
+	"bool":  { "RootType": "bool", "Family": "bool", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "bool" },
+	"bool1": { "RootType": "bool", "Family": "bool", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "bool" },
+	"bool2": { "RootType": "bool", "Family": "bool", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "bvec2" },
+	"bool3": { "RootType": "bool", "Family": "bool", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "bvec3" },
+	"bool4": { "RootType": "bool", "Family": "bool", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "bvec4" },
 
-	"bool2x2": { "RootType": "bool", "MajorType": "bool", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": null },
-	"bool2x3": { "RootType": "bool", "MajorType": "bool", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": null },
-	"bool2x4": { "RootType": "bool", "MajorType": "bool", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": null },
+	"bool2x2": { "RootType": "bool", "Family": "bool", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": null },
+	"bool2x3": { "RootType": "bool", "Family": "bool", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": null },
+	"bool2x4": { "RootType": "bool", "Family": "bool", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": null },
 
-	"bool3x2": { "RootType": "bool", "MajorType": "bool", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": null },
-	"bool3x3": { "RootType": "bool", "MajorType": "bool", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": null },
-	"bool3x4": { "RootType": "bool", "MajorType": "bool", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": null },
+	"bool3x2": { "RootType": "bool", "Family": "bool", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": null },
+	"bool3x3": { "RootType": "bool", "Family": "bool", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": null },
+	"bool3x4": { "RootType": "bool", "Family": "bool", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": null },
 
-	"bool4x2": { "RootType": "bool", "MajorType": "bool", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": null },
-	"bool4x3": { "RootType": "bool", "MajorType": "bool", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": null },
-	"bool4x4": { "RootType": "bool", "MajorType": "bool", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": null },
+	"bool4x2": { "RootType": "bool", "Family": "bool", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": null },
+	"bool4x3": { "RootType": "bool", "Family": "bool", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": null },
+	"bool4x4": { "RootType": "bool", "Family": "bool", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": null },
 
-	"int":  { "RootType": "int", "MajorType": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "int" },
-	"int1": { "RootType": "int", "MajorType": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "int" },
-	"int2": { "RootType": "int", "MajorType": "int", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "ivec2" },
-	"int3": { "RootType": "int", "MajorType": "int", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "ivec3" },
-	"int4": { "RootType": "int", "MajorType": "int", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "ivec4" },
+	"int":  { "RootType": "int", "Family": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "int" },
+	"int1": { "RootType": "int", "Family": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "int" },
+	"int2": { "RootType": "int", "Family": "int", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "ivec2" },
+	"int3": { "RootType": "int", "Family": "int", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "ivec3" },
+	"int4": { "RootType": "int", "Family": "int", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "ivec4" },
 
-	"int2x2": { "RootType": "int", "MajorType": "int", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": null },
-	"int2x3": { "RootType": "int", "MajorType": "int", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": null },
-	"int2x4": { "RootType": "int", "MajorType": "int", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": null },
+	"int2x2": { "RootType": "int", "Family": "int", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": null },
+	"int2x3": { "RootType": "int", "Family": "int", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": null },
+	"int2x4": { "RootType": "int", "Family": "int", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": null },
 
-	"int3x2": { "RootType": "int", "MajorType": "int", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": null },
-	"int3x3": { "RootType": "int", "MajorType": "int", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": null },
-	"int3x4": { "RootType": "int", "MajorType": "int", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": null },
+	"int3x2": { "RootType": "int", "Family": "int", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": null },
+	"int3x3": { "RootType": "int", "Family": "int", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": null },
+	"int3x4": { "RootType": "int", "Family": "int", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": null },
 
-	"int4x2": { "RootType": "int", "MajorType": "int", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": null },
-	"int4x3": { "RootType": "int", "MajorType": "int", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": null },
-	"int4x4": { "RootType": "int", "MajorType": "int", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": null },
+	"int4x2": { "RootType": "int", "Family": "int", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": null },
+	"int4x3": { "RootType": "int", "Family": "int", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": null },
+	"int4x4": { "RootType": "int", "Family": "int", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": null },
 
-	"uint":  { "RootType": "uint", "MajorType": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" }, 
-	"uint1": { "RootType": "uint", "MajorType": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" },
-	"uint2": { "RootType": "uint", "MajorType": "int", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "uvec2" },
-	"uint3": { "RootType": "uint", "MajorType": "int", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "uvec3" },
-	"uint4": { "RootType": "uint", "MajorType": "int", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "uvec4" },
+	"uint":  { "RootType": "uint", "Family": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" }, 
+	"uint1": { "RootType": "uint", "Family": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" },
+	"uint2": { "RootType": "uint", "Family": "int", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "uvec2" },
+	"uint3": { "RootType": "uint", "Family": "int", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "uvec3" },
+	"uint4": { "RootType": "uint", "Family": "int", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "uvec4" },
 
-	"uint2x2": { "RootType": "uint", "MajorType": "int", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": null },
-	"uint2x3": { "RootType": "uint", "MajorType": "int", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": null },
-	"uint2x4": { "RootType": "uint", "MajorType": "int", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": null },
+	"uint2x2": { "RootType": "uint", "Family": "int", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": null },
+	"uint2x3": { "RootType": "uint", "Family": "int", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": null },
+	"uint2x4": { "RootType": "uint", "Family": "int", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": null },
 
-	"uint3x2": { "RootType": "uint", "MajorType": "int", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": null },
-	"uint3x3": { "RootType": "uint", "MajorType": "int", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": null },
-	"uint3x4": { "RootType": "uint", "MajorType": "int", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": null },
+	"uint3x2": { "RootType": "uint", "Family": "int", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": null },
+	"uint3x3": { "RootType": "uint", "Family": "int", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": null },
+	"uint3x4": { "RootType": "uint", "Family": "int", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": null },
 
-	"uint4x2": { "RootType": "uint", "MajorType": "int", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": null },
-	"uint4x3": { "RootType": "uint", "MajorType": "int", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": null },
-	"uint4x4": { "RootType": "uint", "MajorType": "int", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": null },
+	"uint4x2": { "RootType": "uint", "Family": "int", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": null },
+	"uint4x3": { "RootType": "uint", "Family": "int", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": null },
+	"uint4x4": { "RootType": "uint", "Family": "int", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": null },
 
-	"dword":  { "RootType": "dword", "MajorType": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" },
-	"dword1": { "RootType": "dword", "MajorType": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" },
-	"dword2": { "RootType": "dword", "MajorType": "int", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "uvec2" },
-	"dword3": { "RootType": "dword", "MajorType": "int", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "uvec3" },
-	"dword4": { "RootType": "dword", "MajorType": "int", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "uvec4" },
+	"dword":  { "RootType": "dword", "Family": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" },
+	"dword1": { "RootType": "dword", "Family": "int", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "uint" },
+	"dword2": { "RootType": "dword", "Family": "int", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "uvec2" },
+	"dword3": { "RootType": "dword", "Family": "int", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "uvec3" },
+	"dword4": { "RootType": "dword", "Family": "int", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "uvec4" },
 
-	"dword2x2": { "RootType": "dword", "MajorType": "int", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": null },
-	"dword2x3": { "RootType": "dword", "MajorType": "int", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": null },
-	"dword2x4": { "RootType": "dword", "MajorType": "int", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": null },
+	"dword2x2": { "RootType": "dword", "Family": "int", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": null },
+	"dword2x3": { "RootType": "dword", "Family": "int", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": null },
+	"dword2x4": { "RootType": "dword", "Family": "int", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": null },
 
-	"dword3x2": { "RootType": "dword", "MajorType": "int", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": null },
-	"dword3x3": { "RootType": "dword", "MajorType": "int", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": null },
-	"dword3x4": { "RootType": "dword", "MajorType": "int", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": null },
+	"dword3x2": { "RootType": "dword", "Family": "int", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": null },
+	"dword3x3": { "RootType": "dword", "Family": "int", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": null },
+	"dword3x4": { "RootType": "dword", "Family": "int", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": null },
 
-	"dword4x2": { "RootType": "dword", "MajorType": "int", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": null },
-	"dword4x3": { "RootType": "dword", "MajorType": "int", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": null },
-	"dword4x4": { "RootType": "dword", "MajorType": "int", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": null },
+	"dword4x2": { "RootType": "dword", "Family": "int", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": null },
+	"dword4x3": { "RootType": "dword", "Family": "int", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": null },
+	"dword4x4": { "RootType": "dword", "Family": "int", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": null },
 
-	"half":  { "RootType": "half", "MajorType": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
-	"half1": { "RootType": "half", "MajorType": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
-	"half2": { "RootType": "half", "MajorType": "float", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "vec2" }, 
-	"half3": { "RootType": "half", "MajorType": "float", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" }, 
-	"half4": { "RootType": "half", "MajorType": "float", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" }, 
+	"half":  { "RootType": "half", "Family": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"half1": { "RootType": "half", "Family": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"half2": { "RootType": "half", "Family": "float", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "vec2" }, 
+	"half3": { "RootType": "half", "Family": "float", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" }, 
+	"half4": { "RootType": "half", "Family": "float", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" }, 
 
-	"half2x2": { "RootType": "half", "MajorType": "float", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2" }, // TODO: Just assume standard float?
-	"half2x3": { "RootType": "half", "MajorType": "float", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat2x3" },
-	"half2x4": { "RootType": "half", "MajorType": "float", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat2x4" },
+	"half2x2": { "RootType": "half", "Family": "float", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2" }, // TODO: Just assume standard float?
+	"half2x3": { "RootType": "half", "Family": "float", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat2x3" },
+	"half2x4": { "RootType": "half", "Family": "float", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat2x4" },
 
-	"half3x2": { "RootType": "half", "MajorType": "float", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat3x2" },
-	"half3x3": { "RootType": "half", "MajorType": "float", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3" },
-	"half3x4": { "RootType": "half", "MajorType": "float", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat3x4" },
+	"half3x2": { "RootType": "half", "Family": "float", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat3x2" },
+	"half3x3": { "RootType": "half", "Family": "float", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3" },
+	"half3x4": { "RootType": "half", "Family": "float", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat3x4" },
 
-	"half4x2": { "RootType": "half", "MajorType": "float", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat4x2" },
-	"half4x3": { "RootType": "half", "MajorType": "float", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat4x3" },
-	"half4x4": { "RootType": "half", "MajorType": "float", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" },
+	"half4x2": { "RootType": "half", "Family": "float", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat4x2" },
+	"half4x3": { "RootType": "half", "Family": "float", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat4x3" },
+	"half4x4": { "RootType": "half", "Family": "float", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" },
 
-	"float":  { "RootType": "float", "MajorType": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
-	"float1": { "RootType": "float", "MajorType": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
-	"float2": { "RootType": "float", "MajorType": "float", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "vec2" }, 
-	"float3": { "RootType": "float", "MajorType": "float", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" }, 
-	"float4": { "RootType": "float", "MajorType": "float", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" }, 
+	"float":  { "RootType": "float", "Family": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"float1": { "RootType": "float", "Family": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"float2": { "RootType": "float", "Family": "float", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "vec2" }, 
+	"float3": { "RootType": "float", "Family": "float", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" }, 
+	"float4": { "RootType": "float", "Family": "float", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" }, 
 
-	"float2x2": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2" },
-	"float2x3": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat2x3" },
-	"float2x4": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat2x4" },
+	"float2x2": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2" },
+	"float2x3": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat2x3" },
+	"float2x4": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat2x4" },
 
-	"float3x2": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat3x2" },
-	"float3x3": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3" },
-	"float3x4": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat3x4" },
+	"float3x2": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat3x2" },
+	"float3x3": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3" },
+	"float3x4": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat3x4" },
 
-	"float4x2": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat4x2" },
-	"float4x3": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat4x3" },
-	"float4x4": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" },
+	"float4x2": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat4x2" },
+	"float4x3": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat4x3" },
+	"float4x4": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" },
 
-	"double":  { "RootType": "double", "MajorType": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
-	"double1": { "RootType": "double", "MajorType": "float", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
-	"double2": { "RootType": "double", "MajorType": "float", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "vec2" },
-	"double3": { "RootType": "double", "MajorType": "float", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" },
-	"double4": { "RootType": "double", "MajorType": "float", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" },
+	"double":  { "RootType": "double", "Family": "double", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"double1": { "RootType": "double", "Family": "double", "SVM": "S", "Components": 1, "Rows": 1, "Cols": 1, "GLSL": "float" },
+	"double2": { "RootType": "double", "Family": "double", "SVM": "V", "Components": 2, "Rows": 1, "Cols": 2, "GLSL": "vec2" },
+	"double3": { "RootType": "double", "Family": "double", "SVM": "V", "Components": 3, "Rows": 1, "Cols": 3, "GLSL": "vec3" },
+	"double4": { "RootType": "double", "Family": "double", "SVM": "V", "Components": 4, "Rows": 1, "Cols": 4, "GLSL": "vec4" },
 
-	"double2x2": { "RootType": "double", "MajorType": "float", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2" },
-	"double2x3": { "RootType": "double", "MajorType": "float", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat2x3" },
-	"double2x4": { "RootType": "double", "MajorType": "float", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat2x4" },
+	"double2x2": { "RootType": "double", "Family": "double", "SVM": "M", "Components": 4, "Rows": 2, "Cols": 2, "GLSL": "mat2" },
+	"double2x3": { "RootType": "double", "Family": "double", "SVM": "M", "Components": 6, "Rows": 3, "Cols": 2, "GLSL": "mat2x3" },
+	"double2x4": { "RootType": "double", "Family": "double", "SVM": "M", "Components": 8, "Rows": 4, "Cols": 2, "GLSL": "mat2x4" },
 
-	"double3x2": { "RootType": "double", "MajorType": "float", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat3x2" },
-	"double3x3": { "RootType": "double", "MajorType": "float", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3" },
-	"double3x4": { "RootType": "double", "MajorType": "float", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat3x4" },
+	"double3x2": { "RootType": "double", "Family": "double", "SVM": "M", "Components": 6, "Rows": 2, "Cols": 3, "GLSL": "mat3x2" },
+	"double3x3": { "RootType": "double", "Family": "double", "SVM": "M", "Components": 9, "Rows": 3, "Cols": 3, "GLSL": "mat3" },
+	"double3x4": { "RootType": "double", "Family": "double", "SVM": "M", "Components": 12, "Rows": 4, "Cols": 3, "GLSL": "mat3x4" },
 
-	"double4x2": { "RootType": "double", "MajorType": "float", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat4x2" },
-	"double4x3": { "RootType": "double", "MajorType": "float", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat4x3" },
-	"double4x4": { "RootType": "double", "MajorType": "float", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" },
+	"double4x2": { "RootType": "double", "Family": "double", "SVM": "M", "Components": 8, "Rows": 2, "Cols": 4, "GLSL": "mat4x2" },
+	"double4x3": { "RootType": "double", "Family": "double", "SVM": "M", "Components": 12, "Rows": 3, "Cols": 4, "GLSL": "mat4x3" },
+	"double4x4": { "RootType": "double", "Family": "double", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" },
 
-	"matrix": { "RootType": "float", "MajorType": "float", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" }
+	"matrix": { "RootType": "float", "Family": "float", "SVM": "M", "Components": 16, "Rows": 4, "Cols": 4, "GLSL": "mat4" }
 };
 
 const HLSLMatrixElementConversion = {
@@ -11413,29 +11413,52 @@ class ScopeStack
 	//   - Smear: 100 (worse than inside family, better than outside family)
 	//   - Truncate: 10000 (worse than cast outside family)
 
-	GetImplicitCastWeight(startType, targetType)
+	// Cast details
+	// {
+	//    FamilyType: "Exact" or "Inside" or "Outside"
+	//    SVMType: "Exact" or "Smear" or "Truncate"
+	//    Weight: number --> Based on type of family cast
+	// }
+	GetImplicitCastDetails(startType, targetType)
 	{
 		// Void can't be cast
 		if (startType == "void" || targetType == "void")
-			return -1;
+			return null;
 
 		// Validate built-in types
 		if (!HLSLDataTypeDetails.hasOwnProperty(startType) ||
 			!HLSLDataTypeDetails.hasOwnProperty(targetType))
-			return -1;
+			return null;
 
 		// Identical?
 		if (startType == targetType)
-			return 0;
+		{
+			return {
+				FamilyType: "Exact",
+				SVMType: "Exact",
+				Weight: 0
+			}
+		}
 
 		// Grab details
 		let s = HLSLDataTypeDetails[startType];
 		let t = HLSLDataTypeDetails[targetType];
 		let sRootType = s.RootType;
 		let tRootType = t.RootType;
+		let sFam = s.Family;
+		let tFam = t.Family;
 
-		// Get the root type cast weight
-		let rootTypeWeight = HLSLScalarImplicitCastWeights[sRootType][tRootType]; 
+		// Fill out the details
+		let details = {};
+		details.Weight = HLSLScalarImplicitCastWeights[sRootType][tRootType];
+
+		// Family details
+		if (sRootType == tRootType) details.FamilyType = "Exact";
+		else if (sFam == tFam) details.FamilyType = "Inside";
+		else details.FamilyType = "Outside";
+
+		// Default SVM (may be changed below)
+		details.SVMType = "Exact";
 
 		// These need to be tweaked/refactored to match HLSL
 		let SMEAR_WEIGHT = 100;
@@ -11444,32 +11467,36 @@ class ScopeStack
 		// Check SVM types
 		if (s.SVM == "S" && t.SVM == "S") // Scalar --> Scalar
 		{
-			// Return the entry in the cast grid
-			return rootTypeWeight;
+			// All set
+			return details;
 		}
 		else if (s.SVM == "S" && (t.SVM == "V" || t.SVM == "M")) // Scalar --> (Vector or Matrix)
 		{
-			// Scalars can "smear" or "splat" to a vector or matrix without issue
-			return SMEAR_WEIGHT * (rootTypeWeight + 1);
+			// This is a smear (scalar to non-scalar)
+			details.SVMType = "Smear";
+			return details;
 		}
 		else if ((s.SVM == "V" || s.SVM == "M") && t.SVM == "S") // (Vector or Matrix) --> Scalar
 		{
-			// Implicit truncation from vector/matrix to scalar
-			return TRUNC_WEIGHT * (rootTypeWeight + 1);
+			// This is a truncation from Vector or Matrix to scalar
+			details.SVMType = "Truncate";
+			return details;
 		}
-		else if (s.SVM == "V" && t.SVM == "V")
+		else if ((s.SVM == "V" && t.SVM == "V") && s.Components >= t.Components)
 		{
 			// Both are vectors, but this only works if casting from larger to smaller
-			return (s.Components >= t.Components) ? TRUNC_WEIGHT * (rootTypeWeight + 1) : -1;
+			details.SVMType = "Truncate";
+			return details;
 		}
-		else if (s.SVM == "M" && t.SVM == "M")
+		else if ((s.SVM == "M" && t.SVM == "M") && s.Rows >= t.Rows && s.Cols >= t.Rows)
 		{
 			// Both matrices, but we can only go from larger to smaller in each dimension
-			return (s.Rows >= t.Rows && s.Cols >= t.Rows) ? TRUNC_WEIGHT * (rootTypeWeight + 1) : -1;
+			details.SVMType = "Truncate";
+			return details;
 		}
 
-		// Nope
-		return -1;
+		// Invalid
+		return null;
 	}
 
 	DataTypeFromLiteralToken(token)
@@ -11668,12 +11695,12 @@ class ScopeStack
 				}
 
 				// Wasn't an exact match, so see if a cast is possible
-				let castWeight = this.GetImplicitCastWeight(callParam.DataType, overloadParam.DataType);
-				if (castWeight < 0)
+				let castDetails = this.GetImplicitCastDetails(callParam.DataType, overloadParam.DataType);
+				if (castDetails == null)
 					break; // No cast possible, overload is invalid
 
 				// Valid cast, keep going
-				totalCastWeight += castWeight;
+				totalCastWeight += castDetails.Weight;
 				matchingParamCount++;
 			}
 
