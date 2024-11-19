@@ -274,13 +274,16 @@ float GetRed(float4 color)
 	return color.r;
 }
 
-float ArrayTest(int x, float y)
-{
-	return y;
-}
+void CastTest(int x){}
+void CastTest(uint x){}
+void CastTest(half x){}
+
+void CastTest(int2 x){}
 
 VS_Output main(float3 posIn : POSITION, float2 uvIn : TEXCOORD)
 {
+	CastTest(5.0f);
+
 	//float x = posIn[0];
 /*
 // single inside multi

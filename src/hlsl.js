@@ -4149,7 +4149,7 @@ class ExpLogical extends Expression
 
 		// Always a bool
 		this.DataType = "bool";
-		console.log("VALIDATION - Logical Expression");
+		//console.log("VALIDATION - Logical Expression");
 	}
 
 	ToString(lang)
@@ -4182,7 +4182,7 @@ class ExpMember extends Expression
 		//  - Feels a little dirty, but let's try it
 		if (this.ExpRight instanceof ExpVariable) // Right side is "var", like color.rgb or light.position
 		{
-			console.log(this.ExpLeft.constructor.name);
+			//console.log(this.ExpLeft.constructor.name);
 			// Use the left's data type as the struct (like "float3"), and check the members
 			let rightType = scope.GetStructVariableDataType(this.ExpLeft.DataType, this.ExpRight.VarToken.Text);
 			if (rightType == null)
@@ -5273,7 +5273,7 @@ class ScopeStack
 
 		// Finish up the name and verify it doesn't already exist
 		tableEntry.MangledName += ")";
-		console.log(tableEntry.MangledName);
+		
 		// Loop through all entries looking for the same mangled name
 		// which should indicate an identical signature
 		//for (let i = 0; i < this.#functionTable[name].length; i++)
@@ -5332,7 +5332,6 @@ class ScopeStack
 	GetStructVariableDataType(structName, varName)
 	{
 		// Check "implicit" structs
-		console.log(structName + " " + varName);
 		let impType = this.#GetImplicitStructVariableDataType(structName, varName);
 		if (impType != null) return impType;
 
@@ -5422,6 +5421,10 @@ class ScopeStack
 	//   - Calls relying on implicit casts fail if there is ambiguity!
 	//     - f(false)     <-- ambigious
 	//     - f(doubleVar) <-- ambigious
+	//   - Direction of cast matters, too?
+	//     - f(false) when options are int, half, double is ambiguous
+	//     - f(half) when options are float, double is ambiguous
+	//     - f(float) when options are half, double uses double (larger type)
 	//   - Smear across family is possible: int --> float4
 	//     - But within-family casting has priority
 	//     - Example:
@@ -5445,6 +5448,7 @@ class ScopeStack
 	//
 	//
 	// - Possible Weights
+	//   - Exact match (int -> int): 0
 	//   - Inside family (int -> uint): 10
 	//   - Outside family (int -> float): 1000
 	//   - Smear: 100 (worse than inside family, better than outside family)
@@ -5454,7 +5458,7 @@ class ScopeStack
 	// {
 	//    FamilyType: "Exact" or "Inside" or "Outside"
 	//    SVMType: "Exact" or "Smear" or "Truncate"
-	//    Weight: number --> Based on type of family cast
+	//    Weight: number --> Based on type of cast
 	// }
 	GetImplicitCastDetails(startType, targetType)
 	{
@@ -5486,54 +5490,57 @@ class ScopeStack
 		let tFam = t.Family;
 
 		// Fill out the details
-		let details = {};
-		details.Weight = HLSLScalarImplicitCastWeights[sRootType][tRootType];
+		let details = {
+			FamilyType: null,
+			SVMType: null,
+			Weight: HLSLScalarImplicitCastWeights[sRootType][tRootType]
+		};
 
 		// Family details
 		if (sRootType == tRootType) details.FamilyType = "Exact";
 		else if (sFam == tFam) details.FamilyType = "Inside";
 		else details.FamilyType = "Outside";
 
-		// Default SVM (may be changed below)
-		details.SVMType = "Exact";
-
-		// These need to be tweaked/refactored to match HLSL
-		let SMEAR_WEIGHT = 100;
-		let TRUNC_WEIGHT = 10000;
-
 		// Check SVM types
 		if (s.SVM == "S" && t.SVM == "S") // Scalar --> Scalar
 		{
-			// All set
-			return details;
+			// Both are scalars
+			details.SVMType = "Exact";
 		}
 		else if (s.SVM == "S" && (t.SVM == "V" || t.SVM == "M")) // Scalar --> (Vector or Matrix)
 		{
 			// This is a smear (scalar to non-scalar)
 			details.SVMType = "Smear";
-			return details;
 		}
 		else if ((s.SVM == "V" || s.SVM == "M") && t.SVM == "S") // (Vector or Matrix) --> Scalar
 		{
 			// This is a truncation from Vector or Matrix to scalar
 			details.SVMType = "Truncate";
-			return details;
 		}
 		else if ((s.SVM == "V" && t.SVM == "V") && s.Components >= t.Components)
 		{
 			// Both are vectors, but this only works if casting from larger to smaller
 			details.SVMType = "Truncate";
-			return details;
 		}
 		else if ((s.SVM == "M" && t.SVM == "M") && s.Rows >= t.Rows && s.Cols >= t.Rows)
 		{
 			// Both matrices, but we can only go from larger to smaller in each dimension
 			details.SVMType = "Truncate";
-			return details;
+		}
+		else
+		{
+			// Any other combination is invalid
+			return null;
 		}
 
-		// Invalid
-		return null;
+		// Finalize weight and return
+		if (details.FamilyType == "Inside") details.Weight *= 10;
+		else if (details.FamilyType == "Outside") details.Weight *= 1000;
+
+		if (details.SVMType == "Smear") details.Weight *= 100;
+		else if (details.SVMType == "Truncate") details.Weight *= 10000;
+		
+		return details;
 	}
 
 	DataTypeFromLiteralToken(token)
@@ -5695,7 +5702,7 @@ class ScopeStack
 	GetFunctionReturnType(funcCallExp)
 	{
 		let name = funcCallExp.FuncExp.NameToken.Text;
-
+		console.log(name);
 		// Determine which table to use
 		let overloadEntries = null;
 		if (this.#functionTable.hasOwnProperty(name))
@@ -5707,7 +5714,7 @@ class ScopeStack
 
 		// We have the list of overloads, so begin matching and weighting parameters
 		let matches = []; // [{ Overload, Weight }, ...]
-		// TODO: Track the lowest weight, look for ambiguity
+		
 		for (let o = 0; o < overloadEntries.length; o++)
 		{
 			let overload = overloadEntries[o];
