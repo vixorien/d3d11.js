@@ -246,19 +246,16 @@ const HLSLImplicitCastRank = {
 	"double": 6
 };
 
-// Same type --> 0
-// Same family --> 1
-// Next family --> 2
-// bool<->float --> 3
-// Double is its own family?
+
+// Update: Basing new weights on chart: https://docs.google.com/spreadsheets/d/1kUEB6gI3y3kCFMcatRDtht6f7c8WZ6wp2gZA50eI138/edit
 const HLSLScalarImplicitCastWeights = {
-	bool:	{ bool: 0, int: 2, dword: 2, uint: 2, half: 3, float: 3, double: 4 },
-	int:	{ bool: 2, int: 0, dword: 1, uint: 1, half: 2, float: 2, double: 3 },
-	dword:	{ bool: 2, int: 1, dword: 0, uint: 1, half: 2, float: 2, double: 3 },
-	uint:	{ bool: 2, int: 1, dword: 1, uint: 0, half: 2, float: 2, double: 3 },
-	half:	{ bool: 3, int: 2, dword: 2, uint: 2, half: 0, float: 1, double: 2 },
-	float:	{ bool: 3, int: 2, dword: 2, uint: 2, half: 1, float: 0, double: 2 },
-	double: { bool: 4, int: 3, dword: 3, uint: 3, half: 2, float: 2, double: 0 }
+	bool:	{ bool: 0, int: 1, dword: 1, uint: 1, half: 2, float: 1, double: 1 },
+	int:	{ bool: 2, int: 0, dword: 1, uint: 1, half: 3, float: 2, double: 2 },
+	dword:  { bool: 2, int: 1, dword: 0, uint: 0, half: 3, float: 2, double: 2 },
+	uint:	{ bool: 2, int: 1, dword: 0, uint: 0, half: 3, float: 2, double: 2 },
+	half:	{ bool: 3, int: 2, dword: 2, uint: 2, half: 0, float: 1, double: 1 },
+	float:	{ bool: 2, int: 2, dword: 2, uint: 2, half: 2, float: 0, double: 1 },
+	double: { bool: 1, int: 1, dword: 1, uint: 1, half: 1, float: 1, double: 0 }
 };
 
 
@@ -5780,9 +5777,11 @@ class ScopeStack
 		let bestMatch = matches[0];
 		for (let m = 1; m < matches.length; m++)
 		{
-			// Look for a better weight
+			// Compare weights
 			if (matches[m].Weight < bestMatch.Weight)
 				bestMatch = matches[m];
+			else if (matches[m].Weight == bestMatch.Weight)
+				throw new ValidationError(funcCallExp.FuncExp.NameToken, "Ambiguous function call: " + bestMatch.Overload.MangledName);
 
 			// TODO: Handle ambiguity due to weights that are too similar
 			// - Maybe need to categorize casts types and check against them?  (InsideFamily, OutsideFamily, Smear, Truncate)?
