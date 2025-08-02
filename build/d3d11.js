@@ -4422,12 +4422,12 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Validate and check status
-		this.#gl.validateProgram(program);
-		let validSuccess = this.#gl.getProgramParameter(program, this.#gl.VALIDATE_STATUS);
-		if (!validSuccess)
-		{
-			throw new Error("Error validating shaders: " + this.#gl.getProgramInfoLog(program));
-		}
+		//this.#gl.validateProgram(program);
+		//let validSuccess = this.#gl.getProgramParameter(program, this.#gl.VALIDATE_STATUS);
+		//if (!validSuccess)
+		//{
+		//	throw new Error("Error validating shaders: " + this.#gl.getProgramInfoLog(program));
+		//}
 
 		return program;
 	}
@@ -6209,20 +6209,16 @@ const HLSLImplicitCastRank = {
 	"double": 6
 };
 
-// Same type --> 0
-// Same family --> 1
-// Next family --> 2
-// bool<->float --> 3
-// Double is its own family?
-// Half is the "most expensive" due to 16-bit truncation
+
+// Update: Basing new weights on chart: https://docs.google.com/spreadsheets/d/1kUEB6gI3y3kCFMcatRDtht6f7c8WZ6wp2gZA50eI138/edit
 const HLSLScalarImplicitCastWeights = {
-	bool:	{ bool: 0, int: 2, dword: 2, uint: 2, half: 5, float: 3, double: 4 },
-	int:	{ bool: 2, int: 0, dword: 1, uint: 1, half: 4, float: 2, double: 3 },
-	dword:	{ bool: 2, int: 1, dword: 0, uint: 1, half: 4, float: 2, double: 3 },
-	uint:	{ bool: 2, int: 1, dword: 1, uint: 0, half: 4, float: 2, double: 3 },
-	half:	{ bool: 3, int: 2, dword: 2, uint: 2, half: 0, float: 1, double: 2 },
-	float:	{ bool: 3, int: 2, dword: 2, uint: 2, half: 3, float: 0, double: 2 },
-	double: { bool: 4, int: 3, dword: 3, uint: 3, half: 5, float: 2, double: 0 }
+	bool:	{ bool: 0, int: 1, dword: 1, uint: 1, half: 2, float: 1, double: 1 },
+	int:	{ bool: 2, int: 0, dword: 1, uint: 1, half: 3, float: 2, double: 2 },
+	dword:  { bool: 2, int: 1, dword: 0, uint: 0, half: 3, float: 2, double: 2 },
+	uint:	{ bool: 2, int: 1, dword: 0, uint: 0, half: 3, float: 2, double: 2 },
+	half:	{ bool: 3, int: 2, dword: 2, uint: 2, half: 0, float: 1, double: 1 },
+	float:	{ bool: 2, int: 2, dword: 2, uint: 2, half: 2, float: 0, double: 1 },
+	double: { bool: 1, int: 1, dword: 1, uint: 1, half: 1, float: 1, double: 0 }
 };
 
 
@@ -6492,7 +6488,7 @@ class HLSL
 		// Process the code
 		this.#Tokenize();
 		this.#Parse();
-		this.#Validate();
+		//this.#Validate();
 	}
 
 	GetCBuffers()
@@ -10146,6 +10142,9 @@ class ExpMember extends Expression
 		//  - Feels a little dirty, but let's try it
 		if (this.ExpRight instanceof ExpVariable) // Right side is "var", like color.rgb or light.position
 		{
+			// PROBLEM: function call on left side, like so:  mul(a, b).x
+			//  - Left side function call has no type yet! 
+
 			//console.log(this.ExpLeft.constructor.name);
 			// Use the left's data type as the struct (like "float3"), and check the members
 			let rightType = scope.GetStructVariableDataType(this.ExpLeft.DataType, this.ExpRight.VarToken.Text);

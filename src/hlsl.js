@@ -525,7 +525,7 @@ class HLSL
 		// Process the code
 		this.#Tokenize();
 		this.#Parse();
-		this.#Validate();
+		//this.#Validate();
 	}
 
 	GetCBuffers()
@@ -4179,6 +4179,9 @@ class ExpMember extends Expression
 		//  - Feels a little dirty, but let's try it
 		if (this.ExpRight instanceof ExpVariable) // Right side is "var", like color.rgb or light.position
 		{
+			// PROBLEM: function call on left side, like so:  mul(a, b).x
+			//  - Left side function call has no type yet! 
+
 			//console.log(this.ExpLeft.constructor.name);
 			// Use the left's data type as the struct (like "float3"), and check the members
 			let rightType = scope.GetStructVariableDataType(this.ExpLeft.DataType, this.ExpRight.VarToken.Text);

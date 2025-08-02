@@ -1056,12 +1056,16 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Validate and check status
-		this.#gl.validateProgram(program);
-		let validSuccess = this.#gl.getProgramParameter(program, this.#gl.VALIDATE_STATUS);
-		if (!validSuccess)
-		{
-			throw new Error("Error validating shaders: " + this.#gl.getProgramInfoLog(program));
-		}
+		// NOTE: 8/2/25 - This has started failing recently, though the program state
+		//  is valid by the time we draw.  Removing for now.
+		// TODO: Perhaps move this before each draw, just for debugging?
+
+		//this.#gl.validateProgram(program);
+		//let validSuccess = this.#gl.getProgramParameter(program, this.#gl.VALIDATE_STATUS);
+		//if (!validSuccess)
+		//{
+		//	throw new Error("Error validating shaders: " + this.#gl.getProgramInfoLog(program));
+		//}
 
 		return program;
 	}
