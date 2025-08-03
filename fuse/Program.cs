@@ -4,6 +4,21 @@ using System.Text.Json.Nodes;
 
 // Notes for me
 // - Adding a custom tool in VS (for running batch file): https://stackoverflow.com/a/5606276
+//
+// - Create an external tool called "Run batch file"
+//    - Set the Command to: CMD.EXE
+//    - Set the Arguments to: / c "$(ItemPath)"
+//    - Set the Initial directory to: $(ItemDir)
+//    - Check the "use output window" checkbox and then Apply to create the command
+//    - Note where the new command appeared in the list of commands. The external commands are numbered from 1 starting below the divider bar. #1 is usually "Create GUID"
+//    - Now go to Tools -> Customize and select the commands tab.
+
+// - Select the Context menu radio button and select "Project and Solution Context menus | Item" from the dropdown. ("WEB ITEM" for web projects!!!)
+//    - Now use "Add Command..." to add a new command
+//    - In the Categories list select "Tools"
+//    - From the commands select the "External Command #" that corresponds to the position of the "Run Batch file" custom command you noted the number of in step 5 above.
+//    - Move it to the correct position in the list add keyboard shortcuts etc.
+//    - Close the dialog.
 namespace Fuse
 {
 	/// <summary>

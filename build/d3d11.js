@@ -4422,6 +4422,10 @@ class ID3D11DeviceContext extends ID3D11DeviceChild
 		}
 
 		// Validate and check status
+		// NOTE: 8/2/25 - This has started failing recently, though the program state
+		//  is valid by the time we draw.  Removing for now.
+		// TODO: Perhaps move this before each draw, just for debugging?
+
 		//this.#gl.validateProgram(program);
 		//let validSuccess = this.#gl.getProgramParameter(program, this.#gl.VALIDATE_STATUS);
 		//if (!validSuccess)
@@ -6488,7 +6492,7 @@ class HLSL
 		// Process the code
 		this.#Tokenize();
 		this.#Parse();
-		//this.#Validate();
+		this.#Validate();
 	}
 
 	GetCBuffers()
@@ -11729,7 +11733,7 @@ class ScopeStack
 		// How many matches did we find?
 		if (matches.length == 0)
 		{
-			console.log(name + ": NO MATCHES");
+			console.log(name + ": NO MATCHES (in " + overloadEntries.length + " overloads)");
 			return null;
 		}
 		else if (matches.length == 1)
