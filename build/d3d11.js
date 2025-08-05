@@ -6947,6 +6947,22 @@ class HLSL
 		return false;
 	}
 
+	static IsNumericType(text)
+	{
+		let rootType = HLSL.GetRootType(text);
+
+		switch (rootType) {
+			case "int":
+			case "uint":
+			case "dword":
+			case "half":
+			case "float":
+			case "double":
+				return true;
+		}
+
+		return false;
+	}
 
 	static IsScalarType(text)
 	{
@@ -10077,7 +10093,7 @@ class ExpLiteral extends Expression
 		this.LiteralToken = litToken;
 	}
 
-	Validate(scope)
+	Validate(scope) // DONE
 	{
 		// Finalize data type
 		this.DataType = scope.DataTypeFromLiteralToken(this.LiteralToken);
@@ -10235,7 +10251,7 @@ class ExpPostfix extends Expression
 		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
-
+		
 		// Data type matches expression
 		//this.DataType = this.ExpLeft.DataType;
 		//console.log("Postfix Data Type: " + this.DataType);
@@ -10245,10 +10261,24 @@ class ExpPostfix extends Expression
 	{
 		this.ExpLeft.Validate(scope);
 
-		// TODO: Validate that the expression is numeric
-		//  - numeric variable
-		//  - member that is numeric variable: thing.x, thing.other.x, etc.
-		// TODO: Finalize data type (move from constructor)
+		// Expression must be variable or member
+		if (!(this.ExpLeft instanceof ExpVariable) &&
+			!(this.ExpLeft instanceof ExpMember))
+			throw new ValidationError(this.ExpLeft, "Invalid operand type for postfix operator");
+
+		// If it's a member, the rightmost child must be a variable
+		if (this.ExpLeft instanceof ExpMember &&
+			!(this.ExpLeft.GetRightmostChild() instanceof ExpVariable))
+			throw new ValidationError(this.ExpLeft, "Invalid member operand for postfix operator");
+
+		// Check the expression's type
+		console.log("TYPE: " + this.ExpLeft.DataType);
+		if (!HLSL.IsNumericType(this.ExpLeft.DataType))
+			throw new ValidationError(this.ExpLeft, "Invalid type for postfix operator");
+
+		// Type from expression
+		this.DataType = this.ExpLeft.DataType;
+		console.log("POSTFIX VALID");
 	}
 
 	ToString(lang)
@@ -10338,7 +10368,7 @@ class ExpVariable extends Expression
 		this.VarToken = varToken;
 	}
 
-	Validate(scope)
+	Validate(scope) // DONE
 	{
 		// Get the type of this variable from the scope stack
 		// A value of null means the variable wasn't found

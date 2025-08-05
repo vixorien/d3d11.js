@@ -3,6 +3,8 @@
 // ----------------------- HLSL ------------------------
 // -----------------------------------------------------
 
+// NEW: https://microsoft.github.io/hlsl-specs/specs/hlsl.pdf  Has exact casting details!
+
 const TokenUnknown = 0;
 const TokenWhiteSpace = 1;
 const TokenCommentMultiline = 2;
@@ -4284,13 +4286,9 @@ class ExpPostfix extends Expression
 		super();
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
-
-		// Data type matches expression
-		//this.DataType = this.ExpLeft.DataType;
-		//console.log("Postfix Data Type: " + this.DataType);
 	}
 
-	Validate(scope)
+	Validate(scope) // DONE?
 	{
 		this.ExpLeft.Validate(scope);
 
@@ -4305,12 +4303,12 @@ class ExpPostfix extends Expression
 			throw new ValidationError(this.ExpLeft, "Invalid member operand for postfix operator");
 
 		// Check the expression's type
+		console.log("TYPE: " + this.ExpLeft.DataType);
 		if (!HLSL.IsNumericType(this.ExpLeft.DataType))
 			throw new ValidationError(this.ExpLeft, "Invalid type for postfix operator");
 
 		// Type from expression
 		this.DataType = this.ExpLeft.DataType;
-		console.log("POSTFIX VALID");
 	}
 
 	ToString(lang)
