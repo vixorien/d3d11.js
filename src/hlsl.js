@@ -3759,7 +3759,7 @@ class ExpAssignment extends Expression
 	{
 		this.VarExp.Validate(scope);
 		this.AssignExp.Validate(scope);
-
+		
 		// Verify assignment evaluates to compatible type w/ variable
 		if (!scope.CanCastTo(this.AssignExp.DataType, this.VarExp.DataType))
 			throw new ValidationError(null, "Invalid assignment");
@@ -3786,6 +3786,12 @@ class ExpBinary extends Expression
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
+	}
+
+	Validate(scope)
+	{
+		this.ExpLeft.Validate(scope);
+		this.ExpRight.Validate(scope);
 
 		// Validate
 		// - expression type compatibility with operator
@@ -3798,63 +3804,57 @@ class ExpBinary extends Expression
 		// *, /, %
 
 		// Check operators
-		//switch (opToken.Text)
-		//{
-		//	// Math
-		//	//  - Scalar, per - component vector or per - component matrix
-		//	//  - Result is equivalent scalar, vector or matrix of larger type
-		//	//  - NOTE: (int + uint) --> int implicit casts to uint (basically wrapping around from max value)
-		//	case "+": case "-": case "*": case "/": case "%":
+		switch (this.OperatorToken.Text)
+		{
+			// Math
+			//  - Scalar, per - component vector or per - component matrix
+			//  - Result is equivalent scalar, vector or matrix of larger type
+			//  - NOTE: (int + uint) --> int implicit casts to uint (basically wrapping around from max value)
+			case "+": case "-": case "*": case "/": case "%":
 
-		//		this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
-		//		//console.log("Binary operator type: " + this.DataType);
+				this.DataType = scope.GetImplicitCastType(this.ExpLeft.DataType, this.ExpRight.DataType);
+				//console.log("Binary operator type: " + this.DataType);
 
-		//		break;
+				break;
 
-		//	// Comparison 
-		//	//  - Scalar, per-component vector or per-component matrix
-		//	//  - Result is equivalent bool scalar, vector or matrix
-		//	case "==": case "!=": case "<": case "<=": case ">": case ">=":
+			// Comparison
+			//  - Scalar, per-component vector or per-component matrix
+			//  - Result is equivalent bool scalar, vector or matrix
+			case "==": case "!=": case "<": case "<=": case ">": case ">=":
 
-		//		let a = HLSLDataTypeDetails[expLeft.DataType];
-		//		let b = HLSLDataTypeDetails[expRight.DataType];
+				let a = HLSLDataTypeDetails[this.ExpLeft.DataType];
+				let b = HLSLDataTypeDetails[this.ExpRight.DataType];
+				
+				// Validate type and dimensions
+				if (a.SVM != b.SVM ||
+					a.Components != b.Components ||
+					a.Rows != b.Rows ||
+					a.Cols != b.Cols)
+					throw new ValidationError(this.OperatorToken, "Invalid operands for comparison operator"); // TODO: Real error message
 
-		//		// Validate type and dimensions
-		//		if (a.SVM != b.SVM ||
-		//			a.Components != b.Components ||
-		//			a.Rows != b.Rows ||
-		//			a.Cols != b.Cols)
-		//			throw new ParseError(opToken, "Invalid operands for comparison operator"); // TODO: Real error message
+				if (a.SVM == "S") this.DataType = "bool";
+				else if (a.SVM == "V") this.DataType = "bool" + a.Components.toString();
+				else if (a.SVM == "M") this.DataType = "bool" + a.Rows.toString() + "x" + a.Cols.toString();
+				else
+					throw new ValidationError(this.OperatorToken, "Invalid operands for comparison operator");
 
-		//		if (a.SVM == "scalar") this.DataType = "bool";
-		//		else if (a.SVM == "vector") this.DataType = "bool" + a.Components.toString();
-		//		else if (a.SVM == "matrix") this.DataType = "bool" + a.Rows.toString() + "x" + a.Cols.toString();
-		//		else
-		//			throw new ParseError(opToken, "Invalid operands for comparison operator");
+				//console.log("Comparison operator type: " + this.DataType);
+				break;
 
-		//		//console.log("Comparison operator type: " + this.DataType);
-		//		break;
+			// Shift
+			//  - Must be int, uint or bool (implicit cast to int)
+			//  - Result is int or uint
+			case "<<": case ">>":
+				// TODO: Validate types
 
-		//	// Shift
-		//	//  - Must be int, uint or bool (implicit cast to int)
-		//	//  - Result is int or uint
-		//	case "<<": case ">>":
-		//		// TODO: Validate types
+				this.DataType = scope.GetImplicitCastType(this.ExpLeft.DataType, this.ExpRight.DataType);
+				//console.log("Shift operator type: " + this.DataType);
+				break;
 
-		//		this.DataType = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);;
-		//		//console.log("Shift operator type: " + this.DataType);
-		//		break;
-
-		//}
-	}
-
-	Validate(scope)
-	{
-		this.ExpLeft.Validate(scope);
-		this.ExpRight.Validate(scope);
-
-		// TODO: Verify types are compatible
-		// TODO: Finalize data type (move from constructor)
+			// Realistically this shouldn't happen
+			default:
+				throw new ValidationError(this.OperatorToken, "Invalid operator");
+		}
 	}
 
 	ToString(lang)
@@ -3915,9 +3915,6 @@ class ExpCast extends Expression
 		super();
 		this.TypeToken = typeToken;
 		this.Exp = exp;
-
-		//this.DataType = typeToken.Text;
-		//console.log("Cast found: " + typeToken.Text);
 	}
 
 	Validate(scope) // Done?
@@ -3925,10 +3922,10 @@ class ExpCast extends Expression
 		this.Exp.Validate(scope);
 
 		// Is the cast valid?
-		if (!scope.CanCastTo(this.Exp.DataType, typeToken.Text))
-			throw new ValidationError(typeToken, "Invalid cast");
+		if (!scope.CanCastTo(this.Exp.DataType, this.TypeToken.Text))
+			throw new ValidationError(this.TypeToken, "Invalid cast");
 
-		this.DataType = tokenToken.Text;
+		this.DataType = this.TypeToken.Text;
 	}
 
 	ToString(lang)
@@ -3987,8 +3984,8 @@ class ExpFunctionCall extends Expression
 			let dataType = scope.GetFunctionReturnType(this);
 
 			// ************ NEXT ***************
-
-			
+			// TEMPORARY...
+			this.DataType = dataType;
 		}
 	}
 
@@ -4073,6 +4070,8 @@ class ExpFunctionCall extends Expression
 	}
 }
 
+// TODO: Maybe phase this out and just add the "function name token" to
+//       the function call expression?
 class ExpFunctionName extends Expression
 {
 	NameToken;
@@ -4114,7 +4113,7 @@ class ExpGroup extends Expression
 	Validate(scope) // Done?
 	{
 		this.Exp.Validate(scope);
-		this.DataType = exp.DataType;
+		this.DataType = this.Exp.DataType;
 	}
 
 	ToString(lang)
@@ -4160,16 +4159,18 @@ class ExpLogical extends Expression
 		this.ExpRight = expRight;
 	}
 
-	Validate(scope)
+	Validate(scope) // Done?
 	{
 		this.ExpLeft.Validate(scope);
 		this.ExpRight.Validate(scope);
 
-		// TODO: Verify expressions are compatible
+		// Verify expressions are compatible
+		if (this.ExpLeft.DataType != "bool" ||
+			this.ExpRight.DataType != "bool")
+			throw new ValidationError(null, "Invalid logical expression operand");
 
 		// Always a bool
 		this.DataType = "bool";
-		//console.log("VALIDATION - Logical Expression");
 	}
 
 	ToString(lang)
@@ -4340,14 +4341,18 @@ class ExpTernary extends Expression
 		//console.log("Ternary type: " + type);
 	}
 
-	Validate(scope)
+	Validate(scope) // Done?
 	{
 		this.ExpCondition.Validate(scope);
 		this.ExpIf.Validate(scope);
 		this.ExpElse.Validate(scope);
 
-		// TODO: Verify condition evals to bool
-		// TODO: Finalize data type (move from constructor)
+		// Condition must be a bool
+		if (this.ExpCondition.DataType != "bool")
+			throw new ValidationError(null, "Ternary condition must evaluate to a boolean");
+
+		// Overall data type is the higher of the if and else expressions
+		this.DataType = scope.GetImplicitCastType(this.ExpIf.DataType, this.ExpElse.DataType);
 	}
 
 	ToString(lang)
@@ -4368,10 +4373,6 @@ class ExpUnary extends Expression
 		super();
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
-
-		// Same as expression
-		//this.DataType = expRight.DataType;
-		//console.log("Unary data type: " + expRight.DataType);
 	}
 
 	Validate(scope)
@@ -4384,7 +4385,9 @@ class ExpUnary extends Expression
 		//  - literal, for ! or ~
 		//  - bool for !
 		//  - numeric for others
-		// TODO: Finalize data type (move from constructor)
+		
+		// Data type matches expression's type
+		this.DataType = this.ExpRight.DataType;
 	}
 
 	ToString(lang)
@@ -5674,7 +5677,7 @@ class ScopeStack
 	CanCastTo(startType, targetType)
 	{
 		// "void" can't be cast to or from
-		if (typeA == "void" || typeB == "void")
+		if (startType == "void" || targetType == "void")
 			return false;
 
 		// Is this just an implicit cast with built-in types?
@@ -5786,7 +5789,7 @@ class ScopeStack
 				// A total weight of zero means a perfect match
 				if (totalCastWeight == 0)
 				{
-					return overload.DataType;
+					return overload.ReturnType; // RETURN type, not "DataType"
 				}
 
 				// Not a perfect match, so add to array of matches
