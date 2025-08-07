@@ -3720,17 +3720,19 @@ class ExpArray extends Expression
 		super();
 		this.ExpArrayVar = expArrayVar;
 		this.ExpIndex = expIndex;
-
-		//this.DataType = expArrayVar.DataType;
-		//console.log("Array data type: " + this.DataType);
 	}
 
-	Validate(scope)
+	Validate(scope) // Done?
 	{
 		this.ExpArrayVar.Validate(scope);
 		this.ExpIndex.Validate(scope);
-		// TOOD: Ensure index evaluates to an int
-		// TODO: Finalize data type (move from constructor)
+
+		// Ensure index evaluates to an int
+		if (!HLSL.IsIntType(this.ExpIndex.DataType))
+			throw new ValidationError(null, "Array index must be integer type");
+
+		//Finalize data type
+		this.DataType = this.ExpArrayVar.DataType;
 	}
 
 	ToString(lang)
@@ -3751,19 +3753,19 @@ class ExpAssignment extends Expression
 		this.VarExp = varExp;
 		this.AssignOperator = assignOp;
 		this.AssignExp = assignExp;
-
-		// Data type matches assigned value (so, the variable itself?)
-		//this.DataType = varExp.DataType;
-		//console.log("Assignment data type: " + varExp.DataType);
 	}
 
-	Validate(scope)
+	Validate(scope) // Done?
 	{
 		this.VarExp.Validate(scope);
 		this.AssignExp.Validate(scope);
 
-		// TODO: Verify assignment evaluates to compatible type w/ variable
-		// TODO: Finalize data type (move from constructor)
+		// Verify assignment evaluates to compatible type w/ variable
+		if (!scope.CanCastTo(this.AssignExp.DataType, this.VarExp.DataType))
+			throw new ValidationError(null, "Invalid assignment");
+
+		// Data type matches variable type
+		this.DataType = this.VarExp.DataType;
 	}
 
 	ToString(lang)
@@ -3918,10 +3920,15 @@ class ExpCast extends Expression
 		//console.log("Cast found: " + typeToken.Text);
 	}
 
-	Validate(scope)
+	Validate(scope) // Done?
 	{
 		this.Exp.Validate(scope);
-		// TODO: Finalize data type (move from constructor)
+
+		// Is the cast valid?
+		if (!scope.CanCastTo(this.Exp.DataType, typeToken.Text))
+			throw new ValidationError(typeToken, "Invalid cast");
+
+		this.DataType = tokenToken.Text;
 	}
 
 	ToString(lang)
@@ -4102,14 +4109,12 @@ class ExpGroup extends Expression
 	{
 		super();
 		this.Exp = exp;
-		
-		//this.DataType = exp.DataType;
-		//console.log("Grouping found: " + exp.DataType);
 	}
 
-	Validate(scope)
+	Validate(scope) // Done?
 	{
-		// TODO: Finalize data type (move from constructor)
+		this.Exp.Validate(scope);
+		this.DataType = exp.DataType;
 	}
 
 	ToString(lang)
