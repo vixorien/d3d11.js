@@ -248,6 +248,12 @@ const HLSLImplicitCastRank = {
 	"double": 6
 };
 
+const HLSLValueCategory = {
+	"lvalue": 0,
+	"xvalue": 1,
+	"prvalue": 2
+}
+
 
 // Update: Basing new weights on chart: https://docs.google.com/spreadsheets/d/1kUEB6gI3y3kCFMcatRDtht6f7c8WZ6wp2gZA50eI138/edit
 const HLSLScalarImplicitCastWeights = {
@@ -3708,6 +3714,21 @@ class VarDec extends Statement
 class Expression
 {
 	DataType;
+	Modifiable;
+	ValueCategory; // Can be: lvalue, xvalue or prvalue - see https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2010/n3055.pdf pages 4-5
+
+	// Also a full C++ standard doc/draft for reference: https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2013/n3797.pdf
+	// Some rules:
+	// - "A string literal is an lvalue; all other literals are prvalues." (page 87, PDF page 101)
+	// - "If an expression can be used to modify the object to which it refers, the expression is called modifiable" (page 75, PDF page 89)
+
+	IsLValue() { return this.ValueCategory == HLSLValueCategory.lvalue; }
+	IsXValue() { return this.ValueCategory == HLSLValueCategory.xvalue; }
+	IsPRValue() { return this.ValueCategory == HLSLValueCategory.prvalue; }
+	IsGLValue() { return this.IsLValue() || this.IsXValue(); }
+	IsRValue() { return this.IsPRValue() || this.IsXValue(); }
+
+	IsModifiableLValue() { return this.IsLValue() && this.Modifiable == true; }
 }
 
 class ExpArray extends Expression
@@ -3855,6 +3876,10 @@ class ExpBinary extends Expression
 			default:
 				throw new ValidationError(this.OperatorToken, "Invalid operator");
 		}
+
+		// Always a prvalue I think, as this doesn't modify any vars
+		this.ValueCategory = HLSLValueCategory.prvalue;
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -3987,6 +4012,9 @@ class ExpFunctionCall extends Expression
 			// TEMPORARY...
 			this.DataType = dataType;
 		}
+
+		// Always a prvalue I believe (due to no references)
+		this.ValueCategory = HLSLValueCategory.prvalue;
 	}
 
 	ToString(lang)
@@ -4086,6 +4114,7 @@ class ExpFunctionName extends Expression
 	Validate(scope)
 	{
 		this.DataType = null; // Will be handled by the function call expression
+		this.ValueCategory = HLSLValueCategory.prvalue; // Same as function call, though not really used
 		// TOOD: Anything else to do here?  Can't verify the function exists since we need the params, too!
 	}
 
@@ -4114,6 +4143,7 @@ class ExpGroup extends Expression
 	{
 		this.Exp.Validate(scope);
 		this.DataType = this.Exp.DataType;
+		this.ValueCategory = this.Exp.ValueCategory; // ()'s always match their enclosed expression
 	}
 
 	ToString(lang)
@@ -4136,7 +4166,7 @@ class ExpLiteral extends Expression
 	{
 		// Finalize data type
 		this.DataType = scope.DataTypeFromLiteralToken(this.LiteralToken);
-		//console.log("VALIDATION - Literal - " + this.LiteralToken.Text + " - " + this.DataType);
+		this.ValueCategory = HLSLValueCategory.prvalue; // All literals should be prvalues (I think)
 	}
 
 	ToString(lang)
@@ -4171,6 +4201,8 @@ class ExpLogical extends Expression
 
 		// Always a bool
 		this.DataType = "bool";
+		this.ValueCategory = HLSLValueCategory.prvalue;
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -4406,7 +4438,7 @@ class ExpVariable extends Expression
 		this.VarToken = varToken;
 	}
 
-	Validate(scope) // DONE
+	Validate(scope)
 	{
 		// Get the type of this variable from the scope stack
 		// A value of null means the variable wasn't found
@@ -4415,6 +4447,8 @@ class ExpVariable extends Expression
 			throw new ValidationError(this.VarToken, "Undeclared identifier: " + this.VarToken.Text);
 
 		this.DataType = type;
+		this.Modifiable = true; // Check for const?
+		this.ValueCategory = HLSLValueCategory.lvalue;
 
 		//console.log("VALIDATION - Variable - " + this.VarToken.Text + " - TYPE - " + this.DataType);
 	}
