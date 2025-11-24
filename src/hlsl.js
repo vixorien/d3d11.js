@@ -3751,6 +3751,7 @@ class Expression
 	// - "A string literal is an lvalue; all other literals are prvalues." (page 87, PDF page 101)
 	// - "If an expression can be used to modify the object to which it refers, the expression is called modifiable" (page 75, PDF page 89)
 	// - "An lvalue is modifiable unless its type is const-qualified or is a function type"
+	// More up to date version: https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/n4713.pdf
 
 	IsLValue() { return this.ValueCategory == HLSLValueCategory.lvalue; }
 	IsXValue() { return this.ValueCategory == HLSLValueCategory.xvalue; }
