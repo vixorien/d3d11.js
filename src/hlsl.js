@@ -4492,8 +4492,8 @@ class ExpUnary extends Expression
 
 			case "+": case "-": // Arithmetic types only
 				
-				//if (!HLSL.IsNumericType(this.ExpRight.DataType) && !HLSL.IsBoolType(this.ExpRight.DataType))
-					// TODO: FINISH
+				if (!HLSL.IsNumericType(this.ExpRight.DataType) && !HLSL.IsBoolType(this.ExpRight.DataType))
+					throw new ValidationError(this.OperatorToken, "+/- unary operator requires arithmetic type");
 
 				this.DataType = this.ExpRight.DataType;
 				this.ValueCategory = HLSLValueCategory.prvalue;
@@ -4501,22 +4501,37 @@ class ExpUnary extends Expression
 				break;
 
 			case "!": // Any types as they are contextually converted to bool
+
+				// Determine dimensions to match resulting bool(s)
 				let dims = HLSL.GetTypeDimensions(this.ExpRight.DataType);
 				this.DataType = dims == null ? "bool" : "bool" + dims; // bool, or bool2, bool3x3, etc.
+				this.ValueCategory = HLSLValueCategory.prvalue;
+				this.Modifiable = false;
 				break;
 
-			case "~":
+			case "~": // Integral types only (including bool)
 
+				if (!HLSL.IsIntType(this.ExpRight.DataType) && !HLSL.IsBoolType(this.ExpRight.DataType))
+					throw new ValidationError(this.OperatorToken, "~ unary operator requires integral or bool type");
+
+				// Assume type is fine
+				let finalType = this.ExpRight.DataType;
+
+				// Do we need to promote bool to int?
+				if (HLSL.IsBoolType(finalType))
+				{
+					// Ensure we match dimensions
+					let dims = HLSL.GetTypeDimensions(this.ExpRight.DataType);
+					finalType = dims == null ? "int" : "int" + dims;
+				}
+
+				
+				this.DataType = finalType;
+				this.ValueCategory = HLSLValueCategory.prvalue;
+				this.Modifiable = false;
 				break;
 		}
 
-		// TODO: Validate that the expression is compatible
-		//  - variable
-		//  - member that is variable: thing.x, thing.other.x, etc.
-		//  - literal, for ! or ~
-		//  - bool for !
-		//  - numeric for others
-		
 		// Data type matches expression's type
 		this.DataType = this.ExpRight.DataType;
 		this.ValueCategory = incOrDec ? HLSLValueCategory.lvalue : HLSLValueCategory.prvalue;

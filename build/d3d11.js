@@ -6215,6 +6215,12 @@ const HLSLImplicitCastRank = {
 	"double": 6
 };
 
+const HLSLValueCategory = {
+	"lvalue": 0,
+	"xvalue": 1,
+	"prvalue": 2
+}
+
 
 // Update: Basing new weights on chart: https://docs.google.com/spreadsheets/d/1kUEB6gI3y3kCFMcatRDtht6f7c8WZ6wp2gZA50eI138/edit
 const HLSLScalarImplicitCastWeights = {
@@ -6724,7 +6730,6 @@ class HLSL
 		{
 			// Validate each statement
 			func.Statements[s].Validate(scope);
-			console.log(func.Statements[s]);
 
 			//// Add any "variable statements" to the current scope
 			//if (func.Statements[s] instanceof StatementVar)
@@ -7004,6 +7009,38 @@ class HLSL
 	static IsVectorOrScalarType(text)
 	{
 		return HLSL.IsScalarType(text) || HLSL.IsVectorType(text);
+	}
+
+	static GetTypeDimensions(text)
+	{
+		let dims = null;
+		if (text.startsWith("bool")) { dims = text.substring(4); }
+		else if (text.startsWith("int")) { dims = text.substring(3); }
+		else if (text.startsWith("dword")) { dims = text.substring(5); }
+		else if (text.startsWith("uint")) { dims = text.substring(4); }
+		else if (text.startsWith("half")) { dims = text.substring(4); }
+		else if (text.startsWith("float")) { dims = text.substring(5); }
+		else if (text.startsWith("double")) { dims = text.substring(6); }
+		else if (text.startsWith("matrix")) { dims = text.substring(6); }
+
+		switch (dims)
+		{
+			// Vectors
+			case "2": case "3": case "4":
+
+			// Matrices
+			case "2x2": case "2x3": case "2x4":
+			case "3x2": case "3x3": case "3x4":
+			case "4x2": case "4x3": case "4x4":
+
+			// Do we care about "1" vec/mat types?
+			case "1": case "1x1":
+			case "1x2": case "1x3": case "1x4":
+			case "2x1": case "3x1": case "4x1":
+				return dims;
+		}
+
+		return null;
 	}
 
 	static IsMatrixType(text)
@@ -8101,10 +8138,7 @@ class HLSL
 				}
 				else
 				{
-					// Grab the data type for this member
-					//let dataType = this.#DataTypeFromMemberExpression(exp, it.PeekPrev());
-					// Type determination moved to validation
-					rightSide = new ExpVariable(it.PeekPrev());//, dataType);
+					rightSide = new ExpVariable(it.PeekPrev());
 				}
 				
 				exp = new ExpMember(
@@ -9676,6 +9710,23 @@ class VarDec extends Statement
 class Expression
 {
 	DataType;
+	Modifiable;
+	ValueCategory; // Can be: lvalue, xvalue or prvalue - see https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2010/n3055.pdf pages 4-5
+
+	// Also a full C++ standard doc/draft for reference: https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2013/n3797.pdf
+	// Some rules:
+	// - "A string literal is an lvalue; all other literals are prvalues." (page 87, PDF page 101)
+	// - "If an expression can be used to modify the object to which it refers, the expression is called modifiable" (page 75, PDF page 89)
+	// - "An lvalue is modifiable unless its type is const-qualified or is a function type"
+	// More up to date version: https://www.open-std.org/jtc1/sc22/wg21/docs/papers/2017/n4713.pdf
+
+	IsLValue() { return this.ValueCategory == HLSLValueCategory.lvalue; }
+	IsXValue() { return this.ValueCategory == HLSLValueCategory.xvalue; }
+	IsPRValue() { return this.ValueCategory == HLSLValueCategory.prvalue; }
+	IsGLValue() { return this.IsLValue() || this.IsXValue(); }
+	IsRValue() { return this.IsPRValue() || this.IsXValue(); }
+
+	IsModifiableLValue() { return this.IsLValue() && this.Modifiable == true; }
 }
 
 class ExpArray extends Expression
@@ -9690,7 +9741,7 @@ class ExpArray extends Expression
 		this.ExpIndex = expIndex;
 	}
 
-	Validate(scope) // Done?
+	Validate(scope)
 	{
 		this.ExpArrayVar.Validate(scope);
 		this.ExpIndex.Validate(scope);
@@ -9699,8 +9750,10 @@ class ExpArray extends Expression
 		if (!HLSL.IsIntType(this.ExpIndex.DataType))
 			throw new ValidationError(null, "Array index must be integer type");
 
-		//Finalize data type
+		//Finalize
 		this.DataType = this.ExpArrayVar.DataType;
+		this.ValueCategory = HLSLValueCategory.lvalue;
+		this.Modifiable = this.ExpArrayVar.Modifiable; // Const-ness of array
 	}
 
 	ToString(lang)
@@ -9727,6 +9780,10 @@ class ExpAssignment extends Expression
 	{
 		this.VarExp.Validate(scope);
 		this.AssignExp.Validate(scope);
+
+		// Verify variable is a modifiable lvalue
+		if (!this.VarExp.IsModifiableLValue())
+			throw new ValidationError(this.VarExp.VarToken, "Assignment requires modifiable l-value");
 		
 		// Verify assignment evaluates to compatible type w/ variable
 		if (!scope.CanCastTo(this.AssignExp.DataType, this.VarExp.DataType))
@@ -9734,6 +9791,8 @@ class ExpAssignment extends Expression
 
 		// Data type matches variable type
 		this.DataType = this.VarExp.DataType;
+		this.HLSLValueCategory = HLSLValueCategory.lvalue;
+		this.Modifiable = this.VarExp.Modifiable; // Const-ness of variable
 	}
 
 	ToString(lang)
@@ -9823,6 +9882,10 @@ class ExpBinary extends Expression
 			default:
 				throw new ValidationError(this.OperatorToken, "Invalid operator");
 		}
+
+		// Always a prvalue I think, as this doesn't modify any vars
+		this.ValueCategory = HLSLValueCategory.prvalue;
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -9860,9 +9923,17 @@ class ExpBitwise extends Expression
 		this.ExpLeft.Validate(scope);
 		this.ExpRight.Validate(scope);
 
-		// TODO: Verify types are compatible (and both expressions are int or uint!)
+		// Both types must be int or uint
 		// See https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-operators#bitwise-operators
-		// TODO: Finalize data type (move from constructor)
+		if (!HLSL.IsIntType(this.ExpLeft.DataType))
+			throw new ValidationError(this.OperatorToken, "Invalid type on left of bitwise operator. Int or unsigned int required.");
+		if (!HLSL.IsIntType(this.ExpRight.DataType))
+			throw new ValidationError(this.OperatorToken, "Invalid type on right of bitwise operator. Int or unsigned int required.");
+
+		// Finalize data type - should be one of int or uint depending on operands
+		this.DataType = HLSL.GetImplicitCastType(this.ExpLeft.DataType, this.ExpRight.DataType);
+		this.ValueCategory = HLSLValueCategory.prvalue;
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -9894,6 +9965,8 @@ class ExpCast extends Expression
 			throw new ValidationError(this.TypeToken, "Invalid cast");
 
 		this.DataType = this.TypeToken.Text;
+		this.ValueCategory = HLSLValueCategory.prvalue;
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -9955,6 +10028,10 @@ class ExpFunctionCall extends Expression
 			// TEMPORARY...
 			this.DataType = dataType;
 		}
+
+		// Always a prvalue I believe (due to no references)
+		this.ValueCategory = HLSLValueCategory.prvalue;
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -10054,6 +10131,8 @@ class ExpFunctionName extends Expression
 	Validate(scope)
 	{
 		this.DataType = null; // Will be handled by the function call expression
+		this.ValueCategory = HLSLValueCategory.prvalue; // Same as function call, though not really used
+		this.Modifiable = false;
 		// TOOD: Anything else to do here?  Can't verify the function exists since we need the params, too!
 	}
 
@@ -10078,10 +10157,12 @@ class ExpGroup extends Expression
 		this.Exp = exp;
 	}
 
-	Validate(scope) // Done?
+	Validate(scope)
 	{
 		this.Exp.Validate(scope);
 		this.DataType = this.Exp.DataType;
+		this.ValueCategory = this.Exp.ValueCategory; // ()'s always match their enclosed expression
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -10100,11 +10181,12 @@ class ExpLiteral extends Expression
 		this.LiteralToken = litToken;
 	}
 
-	Validate(scope) // DONE
+	Validate(scope)
 	{
 		// Finalize data type
 		this.DataType = scope.DataTypeFromLiteralToken(this.LiteralToken);
-		//console.log("VALIDATION - Literal - " + this.LiteralToken.Text + " - " + this.DataType);
+		this.ValueCategory = HLSLValueCategory.prvalue; // All literals should be prvalues (I think)
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -10127,7 +10209,7 @@ class ExpLogical extends Expression
 		this.ExpRight = expRight;
 	}
 
-	Validate(scope) // Done?
+	Validate(scope)
 	{
 		this.ExpLeft.Validate(scope);
 		this.ExpRight.Validate(scope);
@@ -10139,6 +10221,8 @@ class ExpLogical extends Expression
 
 		// Always a bool
 		this.DataType = "bool";
+		this.ValueCategory = HLSLValueCategory.prvalue;
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -10200,6 +10284,10 @@ class ExpMember extends Expression
 
 		// The data type of the member access is that of the right expression
 		this.DataType = this.ExpRight.DataType;
+
+		// From C++ standard: For E1.E2, "If E1 is an lvalue, then E1.E2 is an lvalue; otherwise E1.E2 is an xvalue."
+		this.ValueCategory = this.ExpLeft.IsLValue() ? HLSLValueCategory.lvalue : HLSLValueCategory.xvalue;
+		this.Modifiable = this.ExpLeft.Modifiable; // Based on const-ness of array (tested with HLSL compiler)
 	}
 
 	GetRightmostChild()
@@ -10262,9 +10350,13 @@ class ExpPostfix extends Expression
 		this.OperatorToken = opToken;
 	}
 
-	Validate(scope) // DONE?
+	Validate(scope)
 	{
 		this.ExpLeft.Validate(scope);
+
+		// Must be a modifiable lvalue
+		if (!this.ExpLeft.IsModifiableLValue())
+			throw new ValidationError(null, "Requires modifiable l-value");
 
 		// Expression must be variable or member
 		if (!(this.ExpLeft instanceof ExpVariable) &&
@@ -10283,6 +10375,8 @@ class ExpPostfix extends Expression
 
 		// Type from expression
 		this.DataType = this.ExpLeft.DataType;
+		this.ValueCategory = HLSLValueCategory.prvalue;
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -10303,13 +10397,9 @@ class ExpTernary extends Expression
 		this.ExpCondition = expCondition;
 		this.ExpIf = expIf;
 		this.ExpElse = expElse;
-
-		//let type = HLSL.GetImplicitCastType(expIf.DataType, expElse.DataType);
-		//this.DataType = type;
-		//console.log("Ternary type: " + type);
 	}
 
-	Validate(scope) // Done?
+	Validate(scope)
 	{
 		this.ExpCondition.Validate(scope);
 		this.ExpIf.Validate(scope);
@@ -10321,6 +10411,8 @@ class ExpTernary extends Expression
 
 		// Overall data type is the higher of the if and else expressions
 		this.DataType = scope.GetImplicitCastType(this.ExpIf.DataType, this.ExpElse.DataType);
+		this.ValueCategory = HLSLValueCategory.prvalue; // I don't think this is 100% true, but probably good enough?
+		this.Modifiable = false;
 	}
 
 	ToString(lang)
@@ -10347,6 +10439,44 @@ class ExpUnary extends Expression
 	{
 		this.ExpRight.Validate(scope);
 
+		// Check each set of ops
+		switch (this.OperatorToken.Text)
+		{
+			case "++": case "--":
+				// Requires numeric, non-bool type (vectors and matrices are ok)
+				if (!HLSL.IsNumericType(this.ExpRight.DataType))
+					throw new ValidationError(this.OperatorToken, "Increment/decrement require numeric data type");
+
+				// Requires modifiable lvalue
+				if (!this.ExpRight.IsModifiableLValue())
+					throw new ValidationError(this.OperatorToken, "Increment/decrement require modifiable l-value");
+
+				// Resulting info
+				this.DataType = this.ExpRight.DataType;
+				this.ValueCategory = HLSLValueCategory.lvalue;
+				this.Modifiable = true;
+				break;
+
+			case "+": case "-": // Arithmetic types only
+				
+				//if (!HLSL.IsNumericType(this.ExpRight.DataType) && !HLSL.IsBoolType(this.ExpRight.DataType))
+					// TODO: FINISH
+
+				this.DataType = this.ExpRight.DataType;
+				this.ValueCategory = HLSLValueCategory.prvalue;
+				this.Modifiable = false;
+				break;
+
+			case "!": // Any types as they are contextually converted to bool
+				let dims = HLSL.GetTypeDimensions(this.ExpRight.DataType);
+				this.DataType = dims == null ? "bool" : "bool" + dims; // bool, or bool2, bool3x3, etc.
+				break;
+
+			case "~":
+
+				break;
+		}
+
 		// TODO: Validate that the expression is compatible
 		//  - variable
 		//  - member that is variable: thing.x, thing.other.x, etc.
@@ -10356,6 +10486,8 @@ class ExpUnary extends Expression
 		
 		// Data type matches expression's type
 		this.DataType = this.ExpRight.DataType;
+		this.ValueCategory = incOrDec ? HLSLValueCategory.lvalue : HLSLValueCategory.prvalue;
+		this.Modifiable = incOrDec;
 	}
 
 	ToString(lang)
@@ -10374,7 +10506,7 @@ class ExpVariable extends Expression
 		this.VarToken = varToken;
 	}
 
-	Validate(scope) // DONE
+	Validate(scope)
 	{
 		// Get the type of this variable from the scope stack
 		// A value of null means the variable wasn't found
@@ -10383,8 +10515,8 @@ class ExpVariable extends Expression
 			throw new ValidationError(this.VarToken, "Undeclared identifier: " + this.VarToken.Text);
 
 		this.DataType = type;
-
-		//console.log("VALIDATION - Variable - " + this.VarToken.Text + " - TYPE - " + this.DataType);
+		this.Modifiable = !scope.GetVariableConst(this.VarToken.Text);
+		this.ValueCategory = HLSLValueCategory.lvalue;
 	}
 
 	ToString(lang)
@@ -10568,6 +10700,24 @@ class ScopeStack
 
 		// Not found
 		return null;
+	}
+
+	// Could be combined with above function
+	// for efficiency - return an object w/ data type & const-ness
+	GetVariableConst(varName)
+	{
+		// Check short term vars first
+		for (let s = 0; s < this.#shortTermVars.length; s++)
+			if (this.#shortTermVars[s].Name == varName)
+				return this.#shortTermVars[s].IsConst;
+
+		// Look for standard var
+		let varDec = this.GetVarDec(varName);
+		if (varDec != null)
+			return varDec.IsConst;
+
+		// False?  Or null?  
+		return false;
 	}
 
 	IsVarInCurrentScope(varName)
