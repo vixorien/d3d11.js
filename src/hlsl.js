@@ -5600,6 +5600,218 @@ class ScopeStack
 	}
 
 
+	// NEW casting based on HLSL spec details
+	// | --------------------------------------------------------------------------------------------------|
+	// | CONVERSION                        | CATEGORY                            | RANK (higher is better) |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | None							   | Identity							 |						   |
+	// |-----------------------------------|-------------------------------------|						   |
+	// | Lvalue-to-rvalue				   | Lvalue Transformation				 | Exact Match			   |
+	// | Array-to-pointer (N/A)			   |									 |						   |
+	// |-----------------------------------|-------------------------------------|						   |
+	// | Qualification					   | Qualification Adjustment			 |						   |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | Scalar splat (no conversion)	   | Scalar Extension					 | Extension			   |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | Integral promotion				   |									 |						   |
+	// | Float promotion				   | Promotion							 | Promotion			   |
+	// | Component-wise promotion		   |									 |						   |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | Scalar splat promotion			   | Scalar Extension Promotion			 | Promotion Extension	   |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | Integral conversion			   |									 |						   |
+	// | Float conversion				   |									 |						   |
+	// | Float-int conversion			   | Conversion							 | Conversion			   |
+	// | Bool conversion				   |									 |						   |
+	// | Component-wise conversion		   |									 |						   |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | Scalar splat conversion		   | Scalar Extension Conversion		 | Conversion Extension	   |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | Vector truncation (no conversion) | Dimensionality Reduction			 | Truncation			   |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | Vector truncation promotion	   | Dimensionality Reduction Promotion	 | Promotion Truncation	   |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | Vector truncation conversion	   | Dimensionality Reduction Conversion | Conversion Truncation   |
+	// |-----------------------------------|-------------------------------------|-------------------------|
+
+	// Standard conversion sequence
+	// - 1: Zero or one lvalue-to-rvalue (or array-to-pointer, which we're skipping)
+	// - 2: Zero or one of the following:
+	//   - Integral conversion
+	//   - Float conversion
+	//   - Float-int conversion
+	//   - Bool conversion
+	//   - Derived-to-base-lvalue conversion (skip)
+	//   - Flat conversion (wtf is this?)
+	// - 3: Zero or one scalar-vector splat, or vector/matrix truncation
+	// - 4: Zero or one qualification conversion (const/volatile - skip?)
+
+	// TODO: Arrays & structs
+	// Array notes:
+	// - No implicit cast
+	// - Explicit when start size >= target size
+	// Struct notes:
+	// - No implicit cast
+	// - Explicit when start is scalar
+	// - Explicit when flattened structs match all root types
+	// TODO: Should we parameterize implicit/explicit?
+	NEWCanCastTo(startType, targetType)
+	{
+		// Void can't be cast
+		if (startType == "void" || targetType == "void")
+			return false;
+
+		// Validate built-in types
+		// TODO: Handle structs
+		if (!HLSLDataTypeDetails.hasOwnProperty(startType) ||
+			!HLSLDataTypeDetails.hasOwnProperty(targetType))
+			return false;
+
+		// Check possible conversions
+
+		// 1. No conversion (Identity)
+		if (startType == targetType)
+			return true;
+
+		// 2. Lvalue-to-rvalue
+		// - Skip?  Do we need to manually "check" for this?
+		// - Technically an "lvalue transformation"
+
+		// 3. Qualification Adjustment
+		// - Skip?  Maybe we care if it's const?
+
+		// Grab details for next steps
+		let s = HLSLDataTypeDetails[startType];
+		let t = HLSLDataTypeDetails[targetType];
+		let rankS = HLSLImplicitCastRank[a.RootType];
+		let rankT = HLSLImplicitCastRank[b.RootType];
+
+		// 4. Scalar splat (extension - no conversion)
+		if (s.RootType == t.RootType &&
+			s.Components == 1 &&
+			t.Components > 1)
+		{
+			// Same root type, s is scalar, t is vec/mat
+			return true;
+		}
+
+		// 5: Promotion
+		// Note: Since we're considering bool to just have a lower rank, this just
+		//       means the start rank <= target rank
+		// Note: Equal means no conversion, which *should* be caught above
+		// Note: Checking component count first - Must match here!
+		//
+		// 5.1: Int promotion (including bool)
+		// - int (non-bool) to higher int
+		// - bool to any int
+		//
+		// 5.2: Float promotion - lower type to higher type
+		//
+		// 5.3: Component-wise promotion of int or float
+		//
+		// 6: Scalar splat promotion
+		// - Promotion with a scalar splat
+		// - Handling this here since it's the same overall logic, but
+		//   start is a scalar and target is a vector/matrix
+		if (s.Components == t.Components || (s.Components == 1 && t.Components > 1))
+		{
+			// Now check for int promotion, then float promotion
+			if ((s.Family == "bool" || s.Family == "int") && t.Family == "int")
+			{
+				return rankS <= rankT;
+			}
+			else if (s.Family == "float" && t.Family == "float")
+			{
+				return rankS <= rankT;
+			}
+		}
+
+		// 7. Conversion
+		// - Really, any numeric type can convert to any other numeric type
+		// - So this is just "are they all numbers?"
+		// - Additionally: do the component counts match?
+		// - Could this just be combined with 5/6 above?
+		if (s.Components == t.Components || (s.Components == 1 && t.Components > 1))
+		{
+			return true;
+		}
+
+		// 7.??? "Flat conversion"?
+		// - What about converting a scalar to 
+
+	}
+
+	NEWGetImplicitCastType(typeA, typeB)
+	{
+		// Void isn't a real type
+		if (typeA == "void" || typeB == "void")
+			return null;
+
+		// Validate built-in types
+		if (!HLSLDataTypeDetails.hasOwnProperty(typeA) ||
+			!HLSLDataTypeDetails.hasOwnProperty(typeB))
+			return null;
+
+		// Identical?
+		if (typeA == typeB)
+			return typeA;
+
+		// Grab details
+		let a = HLSLDataTypeDetails[typeA];
+		let b = HLSLDataTypeDetails[typeB];
+		let rankA = HLSLImplicitCastRank[a.RootType];
+		let rankB = HLSLImplicitCastRank[b.RootType];
+
+		// SCS 1: lvalue-to-rvalue
+		// - Probably just skipping for now?  I think this is essentially
+		//   handled by each expression validation function
+
+		// SCS 2: int/float/bool shenanigans
+		// - See "usual arithmetic conversions" from C++ standard?
+		// - double > float > half > uint > dword > int > bool
+		let finalRootType = rankA >= rankB ? a.RootType : b.RootType;
+
+		// SCS 3: splat/trunc
+		let finalDims = "";
+
+		// 3.1 - Vector splat: scalar -> vector or scalar -> matrix
+		if (a.Components == 1 && b.Components > 1 ||
+			b.Components == 1 && a.Components > 1)
+		{
+			// Assume a is scalar, swap if necessary
+			let scalarType = a;
+			let splatType = b;
+			if (b.Components == 1)
+			{
+				scalarType = b;
+				splatType = a;
+			}
+
+			// What kind of splat?
+			if (splatType.SVM == "V")
+			{
+				finalDims = splatType.Cols;
+			}
+			else if (splatType.SVM == "M")
+			{
+				finalDims = splatType.Cols + "x" + splatType.Rows;
+			}
+		}
+
+		// 3.2 - Mix of vector/matrix sizes is NOT allowed
+		if (a.Rows != b.Rows || a.Cols != b.Cols)
+			return null;
+
+		// SCS 4: Qualification
+		// - Probably skip because it's just const at that should
+		//   be handled by the validation functions I think
+
+		// Combine final type: "int", "float2", "float3x4", etc.
+		return finalRootType + finalDims;
+	}
+
+
+
 	// === TYPE CHECKING ===
 	// Note: This is in ScopeStack so we have access to structs!
 
@@ -5744,6 +5956,7 @@ class ScopeStack
 		return details;
 	}
 
+	// Keep
 	DataTypeFromLiteralToken(token)
 	{
 		// Check for true/false first
@@ -5781,6 +5994,7 @@ class ScopeStack
 		return "int";
 	}
 
+	// Replace
 	GetImplicitCastType(typeA, typeB)
 	{
 		// "void" can't be cast to or from
@@ -5836,7 +6050,7 @@ class ScopeStack
 	}
 
 
-
+	// REPLACE
 	// Determines if the give castee type can be cast to the target type
 	//  startType: type that might be cast
 	//  targetType: type we actually need
@@ -5870,7 +6084,7 @@ class ScopeStack
 		return false;
 	}
 
-
+	// REPLACE / REMOVE
 	GetBestCastType(startType, possibleTypes)
 	{
 		// Is the start type valid?
@@ -5900,6 +6114,7 @@ class ScopeStack
 
 	// === FUNCTION VALIDATION ===
 
+	// REPLACE
 	GetFunctionReturnType(funcCallExp)
 	{
 		let name = funcCallExp.FuncExp.NameToken.Text;
@@ -5996,7 +6211,7 @@ class ScopeStack
 		return bestMatch.Overload.ReturnType;
 	}
 
-
+	// REPLACE?
 	// Does a function match the given name and param list?
 	MatchFunctionSignature(customFunction, name, params)
 	{
