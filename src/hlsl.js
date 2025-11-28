@@ -5652,6 +5652,14 @@ class ScopeStack
 	// - Make a GetCastRank() that spits back which rank from above chart
 	// - Change CanCastTo() to just call GetCastRank and check result is not invalid
 
+	NEWCanCastTo(startType, targetType, castType) // castType -> "implicit" or "explicit"
+	{
+		// Get the cast rank
+		let rank = NEWGetCastRank(startType, targetType, castType)
+
+		return rank > 0;
+	}
+
 	// TODO: Arrays & structs
 	// Array notes:
 	// - No implicit cast
@@ -5661,30 +5669,26 @@ class ScopeStack
 	// - Explicit when start is scalar
 	// - Explicit when flattened structs match all root types
 	// TODO: Should we parameterize implicit/explicit?
-	NEWCanCastTo(startType, targetType)
+	NEWGetCastRank(startType, targetType, castType) // castType -> "implicit" or "explicit"
 	{
 		// Void can't be cast
 		if (startType == "void" || targetType == "void")
-			return false;
+			return 0;
 
 		// Validate built-in types
-		// TODO: Handle structs
+		// TODO: Handle structs and arrays
 		if (!HLSLDataTypeDetails.hasOwnProperty(startType) ||
 			!HLSLDataTypeDetails.hasOwnProperty(targetType))
-			return false;
+			return 0;
 
 		// Check possible conversions
 
-		// 1.1 No conversion (Identity)
+		// 1. Exact Match
+		// - No conversion (identity)
+		// - Lvalue-to-rvalue (currently ignoring this)
+		// - Qualification adjustment (also ignoring)
 		if (startType == targetType)
-			return true;
-
-		// 1.2 Lvalue-to-rvalue
-		// - Skip?  Do we need to manually "check" for this?
-		// - Technically an "lvalue transformation"
-
-		// 1.3 Qualification Adjustment
-		// - Skip?  Maybe we care if it's const?
+			return 1;
 
 		// Grab details for next steps
 		let s = HLSLDataTypeDetails[startType];
@@ -5692,86 +5696,53 @@ class ScopeStack
 		let rankS = HLSLImplicitCastRank[a.RootType];
 		let rankT = HLSLImplicitCastRank[b.RootType];
 
-		// 2. Scalar splat (extension - no conversion)
-		if (s.RootType == t.RootType &&
-			s.Components == 1 &&
-			t.Components > 1)
-		{
-			// Same root type, s is scalar, t is vec/mat
-			return true;
-		}
+		// Gather cast details
+		let isSplat = s.Components == 1 && t.Components > 1;
+		let isConversion = s.RootType != t.RootType; // All numeric/numeric conversions are possible
+		let isPromotion = false;
+		isPromotion |= ((s.Family == "bool" || s.Family == "int") && t.Family == "int") && rankS < rankT;
+		isPromotion |= (s.Family == "float" && t.Family == "float") && rankS < rankT;
+		let isTruncation = false;
+		isTruncation |= s.SVM == "V" && t.SVM == "S"; // Vector to scalar
+		isTruncation |= s.SVM == "V" && t.SVM == "V" && t.Components < s.Components; // Vector to smaller vector
+		isTruncation |= s.SVM == "M" && t.SVM == "S"; // Matrix to scalar
+		isTruncation |= s.SVM == "M" && t.SVM == "V" && t.Cols <= s.Cols; // Matrix to same/smaller vector
+		isTruncation |= s.SVM == "M" && t.SVM == "M" && t.Cols <= s.Cols && t.Rows <= s.Rows; // Matrix to smaller matrix
 
-		// 3: Promotion
-		// Note: Since we're considering bool to just have a lower rank, this just
-		//       means the start rank <= target rank
-		// Note: Equal means no conversion, which *should* be caught above
-		// Note: Checking component count first - Must match here!
-		//
-		// 3.1: Int promotion (including bool)
-		// - int (non-bool) to higher int
-		// - bool to any int
-		//
-		// 3.2: Float promotion - lower type to higher type
-		//
-		// 3.3: Component-wise promotion of int or float
-		//
-		// 4: Scalar splat promotion
-		// - Promotion with a scalar splat
-		// - Handling this here since it's the same overall logic, but
-		//   start is a scalar and target is a vector/matrix
-		if (s.Components == t.Components || (s.Components == 1 && t.Components > 1))
-		{
-			// Now check for int promotion, then float promotion
-			if ((s.Family == "bool" || s.Family == "int") && t.Family == "int")
-			{
-				return rankS <= rankT;
-			}
-			else if (s.Family == "float" && t.Family == "float")
-			{
-				return rankS <= rankT;
-			}
-		}
+		// 2. Extension
+		// - Splat without conversion
+		if (!isConversion && isSplat) return 2;
+
+		// 3. Promotion
+		// - Not a splat, not a truncation
+		if (isPromotion && !isSplat && !isTruncation) return 3;
+
+		// 4. Promotion Extension
+		// - Promotion with a splat
+		if (isPromotion && isSplat) return 4;
 
 		// 5. Conversion
-		// - Really, any numeric type can convert to any other numeric type
-		// - So this is just "are they all numbers?"
-		// - Additionally: do the component counts match?
-		//
-		// 6. Scalar splat conversion
-		// - Same deal, but is it also a valid splat?
-		//
-		// TODO: Could this just be combined with 5/6 above?
-		if (s.Components == t.Components || (s.Components == 1 && t.Components > 1))
-		{
-			return true;
-		}
+		// - Is conversion, not a splat, not a truncation
+		if (isConversion && !isSplat && !isTruncation) return 5;
 
-		// TODO: "Flat" conversions?  Structs matching other structs after flattening
+		// 6. Conversion Extension
+		// - Conversion with a splat
+		if (isConversion && isSplat) return 6;
 
-		// 7. Vector truncation (no conversion)
-		if (s.RootType == t.RootType)
-		{
-			// Check starting type
-			if (s.SVM == "V")
-			{
-				// Vector/Vector truncation, or Vector -> scalar
-				if (t.SVM == "V" && t.Components < s.Components) return true;
-				if (t.SVM == "S") return true;
-			}
-			else if (s.SVM == "M")
-			{
-				// Matrix/matrix truncation, or Matrix -> Vector, or Matrix -> Scalar
-				if (t.SVM == "M" && t.Cols <= s.Cols && t.Rows <= s.Rows) return true;
-				if (t.SVM == "V" && t.Cols <= s.Cols) return true;
-				if (t.SVM == "S") return true;
-			}
-		}
+		// 7. Truncation
+		// - No conversion, no promotion
+		if (isTruncation && !isConversion && !isPromotion) return 7;
 
-		// 8. Vector truncation (with promotion)
+		// 8. Promotion Truncation
+		// - Truncation with promotion
+		if (isTruncation && isPromotion) return 8;
 
-		// 9. Vector truncation (with conversion)
+		// 9. Conversion Truncation
+		// - Truncation with conversion
+		if (isTruncation && isConversion) return 9;
 
-		// TODO: Refactor this to cut down on repetition
+		// Any other combination is invalid
+		return 0;
 	}
 
 	NEWGetImplicitCastType(typeA, typeB)
