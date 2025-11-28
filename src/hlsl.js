@@ -3783,6 +3783,16 @@ class ExpArray extends Expression
 		if (!HLSL.IsIntType(this.ExpIndex.DataType))
 			throw new ValidationError(null, "Array index must be integer type");
 
+		// If the index is a literal, ensure it is between 1 and 65535
+		if (this.ExpIndex instanceof ExpLiteral)
+		{
+			let index = parseInt(this.ExpIndex.LiteralToken.Text);
+			if (Number.isNan(index) || index < 1 || index > 65535)
+				throw new ValidationError(this.ExpIndex.LiteralToken, "Literal array index must be an integer between 1 and 65535");
+		}
+
+		// TODO: Handle constants & expressions that only involve constants & literals
+
 		//Finalize
 		this.DataType = this.ExpArrayVar.DataType;
 		this.ValueCategory = HLSLValueCategory.lvalue;
@@ -3941,14 +3951,6 @@ class ExpBitwise extends Expression
 		this.ExpLeft = expLeft;
 		this.OperatorToken = opToken;
 		this.ExpRight = expRight;
-
-		//let type = HLSL.GetImplicitCastType(expLeft.DataType, expRight.DataType);
-		//this.DataType = type;
-		//console.log("Bitwise type: " + type);
-
-		// TODO: Validate that both expressions are int or uint!
-		// See https://learn.microsoft.com/en-us/windows/win32/direct3dhlsl/dx-graphics-hlsl-operators#bitwise-operators
-
 	}
 
 	Validate(scope)
@@ -5601,38 +5603,38 @@ class ScopeStack
 
 
 	// NEW casting based on HLSL spec details
-	// | --------------------------------------------------------------------------------------------------|
-	// | CONVERSION                        | CATEGORY                            | RANK (higher is better) |
-	// |-----------------------------------|-------------------------------------|-------------------------|
-	// | None							   | Identity							 |						   |
-	// |-----------------------------------|-------------------------------------|						   |
-	// | Lvalue-to-rvalue				   | Lvalue Transformation				 | Exact Match			   |
-	// | Array-to-pointer (N/A)			   |									 |						   |
-	// |-----------------------------------|-------------------------------------|						   |
-	// | Qualification					   | Qualification Adjustment			 |						   |
-	// |-----------------------------------|-------------------------------------|-------------------------|
-	// | Scalar splat (no conversion)	   | Scalar Extension					 | Extension			   |
-	// |-----------------------------------|-------------------------------------|-------------------------|
-	// | Integral promotion				   |									 |						   |
-	// | Float promotion				   | Promotion							 | Promotion			   |
-	// | Component-wise promotion		   |									 |						   |
-	// |-----------------------------------|-------------------------------------|-------------------------|
-	// | Scalar splat promotion			   | Scalar Extension Promotion			 | Promotion Extension	   |
-	// |-----------------------------------|-------------------------------------|-------------------------|
-	// | Integral conversion			   |									 |						   |
-	// | Float conversion				   |									 |						   |
-	// | Float-int conversion			   | Conversion							 | Conversion			   |
-	// | Bool conversion				   |									 |						   |
-	// | Component-wise conversion		   |									 |						   |
-	// |-----------------------------------|-------------------------------------|-------------------------|
-	// | Scalar splat conversion		   | Scalar Extension Conversion		 | Conversion Extension	   |
-	// |-----------------------------------|-------------------------------------|-------------------------|
-	// | Vector truncation (no conversion) | Dimensionality Reduction			 | Truncation			   |
-	// |-----------------------------------|-------------------------------------|-------------------------|
-	// | Vector truncation promotion	   | Dimensionality Reduction Promotion	 | Promotion Truncation	   |
-	// |-----------------------------------|-------------------------------------|-------------------------|
-	// | Vector truncation conversion	   | Dimensionality Reduction Conversion | Conversion Truncation   |
-	// |-----------------------------------|-------------------------------------|-------------------------|
+	// | ---------------------------------------------------------------------------------------------------|
+	// | CONVERSION                        | CATEGORY                            | RANK (best to worst)     |
+	// |-----------------------------------|-------------------------------------|--------------------------|
+	// | None							   | Identity							 |						    |
+	// |-----------------------------------|-------------------------------------|						    |
+	// | Lvalue-to-rvalue				   | Lvalue Transformation				 | 1. Exact Match		    |
+	// | Array-to-pointer (N/A)			   |									 |						    |
+	// |-----------------------------------|-------------------------------------|						    |
+	// | Qualification					   | Qualification Adjustment			 |						    |
+	// |-----------------------------------|-------------------------------------|--------------------------|
+	// | Scalar splat (no conversion)	   | Scalar Extension					 | 2. Extension			    |
+	// |-----------------------------------|-------------------------------------|--------------------------|
+	// | Integral promotion				   |									 |						    |
+	// | Float promotion				   | Promotion							 | 3. Promotion			    |
+	// | Component-wise promotion		   |									 |						    |
+	// |-----------------------------------|-------------------------------------|--------------------------|
+	// | Scalar splat promotion			   | Scalar Extension Promotion			 | 4. Promotion Extension   |
+	// |-----------------------------------|-------------------------------------|--------------------------|
+	// | Integral conversion			   |									 |						    |
+	// | Float conversion				   |									 |						    |
+	// | Float-int conversion			   | Conversion							 | 5. Conversion		    |
+	// | Bool conversion				   |									 |						    |
+	// | Component-wise conversion		   |									 |						    |
+	// |-----------------------------------|-------------------------------------|--------------------------|
+	// | Scalar splat conversion		   | Scalar Extension Conversion		 | 6. Conversion Extension  |
+	// |-----------------------------------|-------------------------------------|--------------------------|
+	// | Vector truncation (no conversion) | Dimensionality Reduction			 | 7. Truncation		    |
+	// |-----------------------------------|-------------------------------------|--------------------------|
+	// | Vector truncation promotion	   | Dimensionality Reduction Promotion	 | 8. Promotion Truncation  |
+	// |-----------------------------------|-------------------------------------|--------------------------|
+	// | Vector truncation conversion	   | Dimensionality Reduction Conversion | 9. Conversion Truncation |
+	// |-----------------------------------|-------------------------------------|--------------------------|
 
 	// Standard conversion sequence
 	// - 1: Zero or one lvalue-to-rvalue (or array-to-pointer, which we're skipping)
@@ -5645,6 +5647,10 @@ class ScopeStack
 	//   - Flat conversion (wtf is this?)
 	// - 3: Zero or one scalar-vector splat, or vector/matrix truncation
 	// - 4: Zero or one qualification conversion (const/volatile - skip?)
+
+	// TODO:
+	// - Make a GetCastRank() that spits back which rank from above chart
+	// - Change CanCastTo() to just call GetCastRank and check result is not invalid
 
 	// TODO: Arrays & structs
 	// Array notes:
@@ -5669,15 +5675,15 @@ class ScopeStack
 
 		// Check possible conversions
 
-		// 1. No conversion (Identity)
+		// 1.1 No conversion (Identity)
 		if (startType == targetType)
 			return true;
 
-		// 2. Lvalue-to-rvalue
+		// 1.2 Lvalue-to-rvalue
 		// - Skip?  Do we need to manually "check" for this?
 		// - Technically an "lvalue transformation"
 
-		// 3. Qualification Adjustment
+		// 1.3 Qualification Adjustment
 		// - Skip?  Maybe we care if it's const?
 
 		// Grab details for next steps
@@ -5686,7 +5692,7 @@ class ScopeStack
 		let rankS = HLSLImplicitCastRank[a.RootType];
 		let rankT = HLSLImplicitCastRank[b.RootType];
 
-		// 4. Scalar splat (extension - no conversion)
+		// 2. Scalar splat (extension - no conversion)
 		if (s.RootType == t.RootType &&
 			s.Components == 1 &&
 			t.Components > 1)
@@ -5695,21 +5701,21 @@ class ScopeStack
 			return true;
 		}
 
-		// 5: Promotion
+		// 3: Promotion
 		// Note: Since we're considering bool to just have a lower rank, this just
 		//       means the start rank <= target rank
 		// Note: Equal means no conversion, which *should* be caught above
 		// Note: Checking component count first - Must match here!
 		//
-		// 5.1: Int promotion (including bool)
+		// 3.1: Int promotion (including bool)
 		// - int (non-bool) to higher int
 		// - bool to any int
 		//
-		// 5.2: Float promotion - lower type to higher type
+		// 3.2: Float promotion - lower type to higher type
 		//
-		// 5.3: Component-wise promotion of int or float
+		// 3.3: Component-wise promotion of int or float
 		//
-		// 6: Scalar splat promotion
+		// 4: Scalar splat promotion
 		// - Promotion with a scalar splat
 		// - Handling this here since it's the same overall logic, but
 		//   start is a scalar and target is a vector/matrix
@@ -5726,19 +5732,46 @@ class ScopeStack
 			}
 		}
 
-		// 7. Conversion
+		// 5. Conversion
 		// - Really, any numeric type can convert to any other numeric type
 		// - So this is just "are they all numbers?"
 		// - Additionally: do the component counts match?
-		// - Could this just be combined with 5/6 above?
+		//
+		// 6. Scalar splat conversion
+		// - Same deal, but is it also a valid splat?
+		//
+		// TODO: Could this just be combined with 5/6 above?
 		if (s.Components == t.Components || (s.Components == 1 && t.Components > 1))
 		{
 			return true;
 		}
 
-		// 7.??? "Flat conversion"?
-		// - What about converting a scalar to 
+		// TODO: "Flat" conversions?  Structs matching other structs after flattening
 
+		// 7. Vector truncation (no conversion)
+		if (s.RootType == t.RootType)
+		{
+			// Check starting type
+			if (s.SVM == "V")
+			{
+				// Vector/Vector truncation, or Vector -> scalar
+				if (t.SVM == "V" && t.Components < s.Components) return true;
+				if (t.SVM == "S") return true;
+			}
+			else if (s.SVM == "M")
+			{
+				// Matrix/matrix truncation, or Matrix -> Vector, or Matrix -> Scalar
+				if (t.SVM == "M" && t.Cols <= s.Cols && t.Rows <= s.Rows) return true;
+				if (t.SVM == "V" && t.Cols <= s.Cols) return true;
+				if (t.SVM == "S") return true;
+			}
+		}
+
+		// 8. Vector truncation (with promotion)
+
+		// 9. Vector truncation (with conversion)
+
+		// TODO: Refactor this to cut down on repetition
 	}
 
 	NEWGetImplicitCastType(typeA, typeB)
