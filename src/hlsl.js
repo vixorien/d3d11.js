@@ -5960,6 +5960,39 @@ class ScopeStack
 		return details;
 	}
 
+	GetTypeArrayDetails(type)
+	{
+		let details = {
+			"rootType": null,
+			"size": null
+		};
+
+		// Determine if this type is an array
+		let bracketOpen = type.indexOf("[");
+		if (bracketOpen == -1)
+			return details;
+
+		let bracketClose = type.indexOf("]");
+		if (bracketClose == -1)
+			return details;
+
+		// Other checks for weird strings: ]2[, [], []3, etc.
+		if (bracketClose - bracketOpen <= 1 || // Must be at least 2 chars apart
+			bracketClose != type.length - 1) // Close must be at end of string
+			return details;
+
+		// Both exist and open is less than close
+		let sizeString = type.substring(bracketOpen + 1, bracketClose);
+		let size = parseInt(sizeString);
+		if (size != sizeString)
+			return details;
+
+		// Populate and return
+		details.rootType = type.substring(0, bracketOpen);
+		details.size = size;
+		return details;
+	}
+
 	// Keep
 	DataTypeFromLiteralToken(token)
 	{
