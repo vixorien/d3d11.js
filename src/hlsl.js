@@ -5601,6 +5601,29 @@ class ScopeStack
 		// TODO: Determine if the function expression matches an existing function
 	}
 
+	GetTypeDetails(type)
+	{
+		// Need to return a set of data about the data type
+		let details = {
+			// Simple intrinsic data type (like int, float2 or matrix)
+			"isIntrinsic": false,
+			"intrinsicDetails": null,
+
+			// Struct and its members
+			"isStruct": false,
+			"structDetails": null,
+
+			// Array - details member should have recursive details!
+			"isArray": false,
+			"arraySize": -1,
+			"arrayDetails": null
+			
+		};
+
+		// What kind of info do we have here?
+
+	}
+
 
 	// NEW casting based on HLSL spec details
 	// | ---------------------------------------------------------------------------------------------------|
@@ -5674,6 +5697,9 @@ class ScopeStack
 		// Void can't be cast
 		if (startType == "void" || targetType == "void")
 			return 0;
+
+		// Figure out type details
+		let startIsIntrinsic = 
 
 		// Validate built-in types
 		// TODO: Handle structs and arrays
@@ -5877,6 +5903,8 @@ class ScopeStack
 	//    SVMType: "Exact" or "Smear" or "Truncate"
 	//    Weight: number --> Based on type of cast
 	// }
+
+	// REPLACE/REMOVE
 	GetImplicitCastDetails(startType, targetType)
 	{
 		// Void can't be cast
@@ -5963,16 +5991,18 @@ class ScopeStack
 	GetTypeArrayDetails(type)
 	{
 		let details = {
+			"isArray": false,
 			"rootType": null,
 			"size": null
 		};
 
 		// Determine if this type is an array
-		let bracketOpen = type.indexOf("[");
+		// Note: Using lastIndexOf to support multidim arrays: int[3][2], etc.
+		let bracketOpen = type.lastIndexOf("[");
 		if (bracketOpen == -1)
 			return details;
 
-		let bracketClose = type.indexOf("]");
+		let bracketClose = type.lastIndexOf("]");
 		if (bracketClose == -1)
 			return details;
 
@@ -5988,6 +6018,7 @@ class ScopeStack
 			return details;
 
 		// Populate and return
+		details.isArray = true;
 		details.rootType = type.substring(0, bracketOpen);
 		details.size = size;
 		return details;
