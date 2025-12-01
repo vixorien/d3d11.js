@@ -267,6 +267,47 @@ const HLSLScalarImplicitCastWeights = {
 };
 
 
+class HLSLDataType
+{
+	Name;
+}
+
+class HLSLIntrinsicDataType extends HLSLDataType
+{
+	// Just copy details from table?
+
+	RootType; // int, uint, float, half, etc.
+	Family; // bool, int, float
+	SVM; // S, V or M - scalar, vector or matrix
+	Components; // Total (scalar = 1)
+	Rows; // Rows  (1 for vectors, 1 for scalars)
+	Cols; // Columns (1 for scalars, 1-4 for vectors)
+	GLSL;
+}
+
+class HLSLStructDataType extends HLSLDataType
+{
+	Members; // Array of variable declarations, each of which has a data type
+	Flattened; // Flat version of all intrinsic types
+}
+
+class HLSLArrayDataType extends HLSLDataType
+{
+	ElementDataType; // Data type for elements of array
+	Length; // Constant length of array
+}
+
+class HLSLTextureDataType extends HLSLDataType
+{
+	// Texture resources
+}
+
+class HLSLSamplerDataType extends HLSLDataType
+{
+	// Sampler resources
+}
+
+
 class TokenIterator
 {
 	#tokens;
