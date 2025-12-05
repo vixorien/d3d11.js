@@ -252,7 +252,20 @@ const HLSLValueCategory = {
 	"lvalue": 0,
 	"xvalue": 1,
 	"prvalue": 2
-}
+};
+
+// TODO: Handle multisampled textures
+const HLSLResourceTypes = [
+	"Texture1D",
+	"Texture1DArray",
+	"Texture2D",
+	"Texture2DArray",
+	"TextureCube",
+	"TextureCubeArray",
+	"Texture3D",
+	"SamplerState",
+	"SamplerComparisonState"
+];
 
 
 // Update: Basing new weights on chart: https://docs.google.com/spreadsheets/d/1kUEB6gI3y3kCFMcatRDtht6f7c8WZ6wp2gZA50eI138/edit
@@ -954,7 +967,8 @@ class HLSL
 	{
 		let isStructType = this.#IsStruct(text);
 		let isDataType = HLSLDataTypeDetails.hasOwnProperty(text);
-		return isStructType || isDataType;
+		let isResource = HLSLResourceTypes.includes(text);
+		return isStructType || isDataType || isResource;
 	}
 
 	static GetRootType(text)
@@ -1339,6 +1353,7 @@ class HLSL
 			initExp = this.#ParseExpression(it);
 		}
 
+		// TODO: NEW DATA TYPE HANDLING
 		return new VarDec(
 			false,
 			dataTypeToken,
@@ -1359,6 +1374,7 @@ class HLSL
 		let regIndex = -1;
 
 		// Texture type
+		// TODO: NEW DATA TYPE HANDLING
 		this.#Require(it, TokenIdentifier);
 		type = it.PeekPrev().Text;
 
@@ -1389,6 +1405,7 @@ class HLSL
 		let regIndex = -1;
 
 		// Sampler type
+		// TODO: NEW DATA TYPE HANDLING
 		this.#Require(it, TokenIdentifier);
 		type = it.PeekPrev().Text;
 
@@ -1416,6 +1433,7 @@ class HLSL
 	#ParseGlobalVarOrFunction(it, globalCB)
 	{
 		// Data type
+		// TODO: NEW DATA TYPE HANDLING
 		this.#RequireDataType(it);
 		let typeToken = it.PeekPrev();
 		let type = it.PeekPrev().Text;
@@ -1744,6 +1762,7 @@ class HLSL
 		let isConst = this.#AllowIdentifier(it, "const");
 		
 		// Initial token (data type) not yet used up!
+		// TODO: NEW DATA TYPE HANDLING
 		this.#Require(it, TokenIdentifier);
 		let dataTypeToken = it.PeekPrev();
 
@@ -1769,6 +1788,7 @@ class HLSL
 				def = this.#ParseExpression(it);
 
 			// Add to var
+			// TODO: NEW DATA TYPE HANDLING
 			let v = new VarDec(isConst, dataTypeToken, varNameToken, arrayExp, def);
 			varDecs.push(v);
 		}
@@ -2329,7 +2349,6 @@ class HLSL
 		{
 			// Info about the var
 			let name = it.PeekPrev().Text;
-			let dataType = null;
 
 			// Is the current token now a left parens?  That means function!
 			if (it.Current().Type == TokenParenLeft)
@@ -2339,29 +2358,7 @@ class HLSL
 				return new ExpFunctionName(it.PeekPrev());
 			}
 
-			//// Get the variable if it exists (yes this could be optimized)
-			//let v = scope.GetVar(name);
-			//let t = this.#GetTexture(name);
-			//let s = this.#GetSampler(name);
-			//if (v != null)
-			//{
-			//	dataType = v.DataTypeToken.Text;
-			//}
-			//else if (t != null)
-			//{
-			//	dataType = t.Type; // Is a texture!
-			//}
-			//else if (s != null)
-			//{
-			//	dataType = s.Type; // Is a sampler!
-			//}
-			//else
-			//{
-			//	// Not a variable, texture or sampler
-			//	throw new ParseError(it.PeekPrev(), "Undeclared identifier '" + it.PeekPrev().Text + "'");
-			//}
-
-			return new ExpVariable(it.PeekPrev(), dataType);
+			return new ExpVariable(it.PeekPrev());
 		}
 
 		// Check for grouping symbols
