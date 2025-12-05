@@ -806,7 +806,7 @@ class HLSL
 			func.Statements[s].Validate(scope);
 
 			//// Add any "variable statements" to the current scope
-			//if (func.Statements[s] instanceof StatementVar)
+			//if (func.Statements[s] instanceof StatementDeclaration)
 			//{
 			//	scope.AddVarStatement(func.Statements[s]);
 			//	console.log("ADD VAR: " + func.Statements[s]);
@@ -1780,7 +1780,7 @@ class HLSL
 
 		// Semicolon at end
 		this.#Require(it, TokenSemicolon);
-		return new StatementVar(isConst, dataTypeToken, varDecs);
+		return new StatementDeclaration(isConst, dataTypeToken, varDecs);
 	}
 
 	#ParseWhile(it)
@@ -3653,7 +3653,7 @@ class StatementWhile extends Statement
 	}
 }
 
-class StatementVar extends Statement
+class StatementDeclaration extends Statement
 {
 	IsConst;
 	DataTypeToken;
@@ -5740,7 +5740,7 @@ class ScopeStack
 			return 0;
 
 		// Figure out type details
-		let startIsIntrinsic = 
+		//let startIsIntrinsic = 
 
 		// Validate built-in types
 		// TODO: Handle structs and arrays
